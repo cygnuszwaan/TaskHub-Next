@@ -13,10 +13,6 @@
     button { padding: 10px 14px; font-size: 14px; background: #0266c8; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; white-space: nowrap; }
     button:disabled { background: #b0c4de; }
 
-    .context-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; background: #f8fafc; padding: 10px 12px; border-radius: 8px; border: 1px solid #e2e8f0; }
-    .control-group { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; min-width: 0; }
-    .control-group label { white-space: nowrap; }
-    .control-group select { flex: 1; width: 100%; min-width: 0; padding: 6px 8px; }
 
     .action-row { display: flex; gap: 10px; width: 100%; }
     .action-row button { flex: 1; padding: 12px 10px; text-align: center; font-size: 14px; }
@@ -59,11 +55,6 @@
     .gate-msg { color: #b91c1c; font-size: 14px; min-height: 20px; margin: 10px 0; }
     .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .header-row h1 { margin: 0; }
-
-    @media (max-width: 480px) {
-      .context-controls { grid-template-columns: 1fr; }
-      .action-row { flex-direction: column; }
-    }
   </style>
 </head>
 <body>
@@ -81,33 +72,10 @@
   </div>
 
   <div class="card">
-    <h3 style="margin-top:0; margin-bottom:12px;">⚡ What Should I Do Now?</h3>
-    <div class="context-controls">
-      <div class="control-group">
-        <label>⏱️ Time:</label>
-        <select id="timeSelect">
-          <option value="15">15 mins</option>
-          <option value="30" selected>30 mins</option>
-          <option value="60">1 hour</option>
-          <option value="999">Unlimited</option>
-        </select>
-      </div>
-      <div class="control-group">
-        <label>⚡ Energy:</label>
-        <select id="energySelect">
-          <option value="Any" selected>Any</option>
-          <option value="High">High Focus</option>
-          <option value="Low">Low / Tired</option>
-        </select>
-      </div>
-    </div>
-
     <div class="action-row">
-      <button onclick="getRecommendation()" id="recBtn">Get Advice</button>
       <button onclick="scheduleWeek()" id="schedBtn" style="background: #16a34a;">📅 Plan My Week</button>
     </div>
-
-    <div id="recommendation" class="coach-box" style="display:none;"></div>
+    <div id="scheduleStatus" class="coach-box" style="display:none;"></div>
   </div>
 
   <div class="card">
@@ -181,7 +149,6 @@
     };
     const endpoint = name => `${CONFIG.functionsBase}/${name}`;
     const ADD_TASK_URL = endpoint("addOrUpdateTask");
-    const RECOMMEND_URL = endpoint("getWhatToDoNow");
     const GET_TASKS_URL = endpoint("getTasks");
     const DIRECT_UPDATE_URL = endpoint("updateTaskDirect");
     const COMPLETE_TASK_URL = endpoint("completeTask");
@@ -396,31 +363,10 @@
       await completeTask(taskId);
     }
 
-    async function getRecommendation() {
-      const recDiv = document.getElementById("recommendation");
-      recDiv.style.display = "block";
-      recDiv.innerText = "Checking weather & task constraints...";
-
-      const timeAvailable = parseInt(document.getElementById("timeSelect").value);
-      const energyLevel = document.getElementById("energySelect").value;
-
-      try {
-        const res = await apiFetch(RECOMMEND_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ timeAvailable, energyLevel })
-        });
-        const data = await res.json();
-        recDiv.innerText = data.recommendation;
-      } catch (err) {
-        recDiv.innerText = "Failed to get advice: " + err.message;
-      }
-    }
-
     async function scheduleWeek() {
-      const recDiv = document.getElementById("recommendation");
-      recDiv.style.display = "block";
-      recDiv.innerText = "Reading calendar, checking weather, and scheduling tasks...";
+      const statusDiv = document.getElementById("scheduleStatus");
+      statusDiv.style.display = "block";
+      statusDiv.innerText = "Reading calendar, checking weather, and scheduling tasks...";
 
       try {
         const res = await apiFetch(SCHEDULE_URL, {
@@ -431,13 +377,13 @@
         const data = await res.json();
         if (data.success) {
           const locked = data.lockedCount ? ` Locked tasks left as pinned: ${data.lockedCount}.` : "";
-          recDiv.innerText = `Success! Scheduled ${data.scheduledCount} tasks onto your Google Calendar.${locked}`;
+          statusDiv.innerText = `Success! Scheduled ${data.scheduledCount} tasks onto your Google Calendar.${locked}`;
           fetchTasks();
         } else {
-          recDiv.innerText = data.error || data.message || "Failed to generate schedule.";
+          statusDiv.innerText = data.error || data.message || "Failed to generate schedule.";
         }
       } catch (err) {
-        recDiv.innerText = "Error scheduling week: " + err.message;
+        statusDiv.innerText = "Error scheduling week: " + err.message;
       }
     }
 

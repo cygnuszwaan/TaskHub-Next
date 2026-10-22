@@ -463,39 +463,7 @@ exports.completeTask = onRequest({
   }
 }));
 
-// 5. Endpoint: "What Should I Do Now?"
-exports.getWhatToDoNow = onRequest({
-  secrets: ["GEMINI_API_KEY"], cors: ALLOWED_ORIGINS, timeoutSeconds: 120,
-}, ownerOnly(async (req, res) => {
-  try {
-    const {timeAvailable, energyLevel} = req.body || {};
-    const docSnap = await todoRef.get();
-    const currentTasks = docSnap.exists ? docSnap.data().tasks || [] : [];
-
-    if (currentTasks.length === 0) {
-      return res.status(200).send({recommendation: "Your task list is empty! Take a break."});
-    }
-
-    const weatherInfo = await getWeatherWhangaparaoa();
-    const now = formatNZNow();
-
-    const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
-    const prompt = `
-      You are an AI productivity coach in Whangaparāoa, NZ.
-      Context: ${now} | Weather: ${weatherInfo} | Time: ${timeAvailable || "Unlimited"}m | Energy: ${energyLevel || "Any"}
-      Tasks: ${JSON.stringify(currentTasks, null, 2)}
-      Recommend the single best task for right now. 2 sentences.
-    `;
-
-    const response = await ai.models.generateContent({model: MODEL_NAME, contents: prompt});
-    res.status(200).send({recommendation: response.text});
-  } catch (err) {
-    console.error(err);
-    res.status(500).send({error: err.message});
-  }
-}));
-
-// 6. Endpoint: Read Tasks
+// 5. Endpoint: Read Tasks
 exports.getTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
     const docSnap = await todoRef.get();
@@ -506,7 +474,7 @@ exports.getTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res)
   }
 }));
 
-// 7. Endpoint: Direct Update / Delete
+// 6. Endpoint: Direct Update / Delete
 exports.updateTaskDirect = onRequest({
   secrets: [{name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"}],
   cors: ALLOWED_ORIGINS,
