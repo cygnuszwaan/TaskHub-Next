@@ -10,6 +10,7 @@ const {TIME_ZONE, getNZDate, getNZOffset, formatNZNow, getNZStartOfDay} = requir
 const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, findAgentEventIds, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
 const {validateSchedule, matchLockedEvents} = require("./schedule");
 const {mergeTaskChanges, applyScheduleResults} = require("./tasks");
+const {makeOwnerOnly} = require("./auth");
 const {randomUUID} = require("crypto");
 
 admin.initializeApp();
@@ -22,6 +23,12 @@ const MODEL_NAME = "gemini-3.5-flash-lite";
 const CALENDAR_ID = defineString("USER_CALENDAR_ID");
 // Owner's personal calendar. Read-only: used for free/busy, never written to (set in functions/.env)
 const PERSONAL_CALENDAR_ID = defineString("USER_PERSONAL_CALENDAR_ID");
+
+// The owner's Google account, the only one allowed to call the HTTP endpoints (set in functions/.env)
+const OWNER_EMAIL = defineString("OWNER_EMAIL");
+// Browser origins allowed to call the endpoints: the Hosting site
+const ALLOWED_ORIGINS = ["https://taskhub-next.web.app", "https://taskhub-next.firebaseapp.com"];
+const ownerOnly = makeOwnerOnly((token) => admin.auth().verifyIdToken(token), () => OWNER_EMAIL.value());
 
 // JSON Schema for the new or changed tasks the model returns on ingestion
 const changeSchema = {
@@ -352,9 +359,9 @@ exports.generateWeeklySchedule = onRequest({
     "GEMINI_API_KEY",
     {name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"},
   ],
-  cors: true,
+  cors: ALLOWED_ORIGINS,
   timeoutSeconds: 120,
-}, async (req, res) => {
+}, ownerOnly(async (req, res) => {
   try {
     const result = await runScheduleEngine();
     res.status(200).send(result);
@@ -362,13 +369,13 @@ exports.generateWeeklySchedule = onRequest({
     console.error(err);
     res.status(500).send({error: err.message});
   }
-});
+}));
 
 // 3. Endpoint: Add / Ingest Task. The model returns only new or changed tasks; they are merged into the
 // stored list inside a transaction, so everything else on the list is preserved.
 exports.addOrUpdateTask = onRequest({
-  secrets: ["GEMINI_API_KEY"], cors: true, timeoutSeconds: 120,
-}, async (req, res) => {
+  secrets: ["GEMINI_API_KEY"], cors: ALLOWED_ORIGINS, timeoutSeconds: 120,
+}, ownerOnly(async (req, res) => {
   try {
     const userInput = req.body.input;
     if (!userInput) return res.status(400).send({error: "Missing input"});
@@ -425,13 +432,13 @@ exports.addOrUpdateTask = onRequest({
     console.error(err);
     res.status(500).send({error: err.message});
   }
-});
+}));
 
 // 4. Endpoint: Archive Completed Tasks (Zero Token Cost Solution)
 exports.completeTask = onRequest({
   secrets: [{name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"}],
-  cors: true,
-}, async (req, res) => {
+  cors: ALLOWED_ORIGINS,
+}, ownerOnly(async (req, res) => {
   try {
     const {taskId} = req.body;
     if (!taskId) return res.status(400).send({error: "Missing taskId"});
@@ -454,12 +461,12 @@ exports.completeTask = onRequest({
     console.error(err);
     res.status(500).send({error: err.message});
   }
-});
+}));
 
 // 5. Endpoint: "What Should I Do Now?"
 exports.getWhatToDoNow = onRequest({
-  secrets: ["GEMINI_API_KEY"], cors: true, timeoutSeconds: 120,
-}, async (req, res) => {
+  secrets: ["GEMINI_API_KEY"], cors: ALLOWED_ORIGINS, timeoutSeconds: 120,
+}, ownerOnly(async (req, res) => {
   try {
     const {timeAvailable, energyLevel} = req.body || {};
     const docSnap = await todoRef.get();
@@ -486,10 +493,10 @@ exports.getWhatToDoNow = onRequest({
     console.error(err);
     res.status(500).send({error: err.message});
   }
-});
+}));
 
 // 6. Endpoint: Read Tasks
-exports.getTasks = onRequest({cors: true}, async (req, res) => {
+exports.getTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
     const docSnap = await todoRef.get();
     const tasks = docSnap.exists ? docSnap.data().tasks || [] : [];
@@ -497,13 +504,13 @@ exports.getTasks = onRequest({cors: true}, async (req, res) => {
   } catch (err) {
     res.status(500).send({error: err.message});
   }
-});
+}));
 
 // 7. Endpoint: Direct Update / Delete
 exports.updateTaskDirect = onRequest({
   secrets: [{name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"}],
-  cors: true,
-}, async (req, res) => {
+  cors: ALLOWED_ORIGINS,
+}, ownerOnly(async (req, res) => {
   try {
     const {taskId, action, updatedFields} = req.body;
 
@@ -528,4 +535,4 @@ exports.updateTaskDirect = onRequest({
     console.error(err);
     res.status(500).send({error: err.message});
   }
-});
+}));

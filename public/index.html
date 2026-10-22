@@ -54,6 +54,12 @@
     .btn-success { background: #16a34a; color: white; }
     .btn-danger { background: #ef4444; color: white; }
 
+    [hidden] { display: none !important; }
+    .gate { max-width: 360px; margin: 80px auto; text-align: center; }
+    .gate-msg { color: #b91c1c; font-size: 14px; min-height: 20px; margin: 10px 0; }
+    .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .header-row h1 { margin: 0; }
+
     @media (max-width: 480px) {
       .context-controls { grid-template-columns: 1fr; }
       .action-row { flex-direction: column; }
@@ -62,7 +68,17 @@
 </head>
 <body>
 
-  <h1 style="font-size: 22px; margin-bottom: 16px;">AI Task Agent</h1>
+  <div id="signInGate" class="card gate" hidden>
+    <h1 style="font-size: 22px; margin-top: 0;">AI Task Agent</h1>
+    <p id="gateMsg" class="gate-msg"></p>
+    <button id="signInBtn" onclick="signIn()">Sign in with Google</button>
+  </div>
+
+  <div id="app" hidden>
+  <div class="header-row">
+    <h1 style="font-size: 22px;">AI Task Agent</h1>
+    <button class="btn-secondary" onclick="signOutUser()">Sign out</button>
+  </div>
 
   <div class="card">
     <h3 style="margin-top:0; margin-bottom:12px;">⚡ What Should I Do Now?</h3>
@@ -155,6 +171,7 @@
       </div>
     </div>
   </div>
+  </div>
 
   <script>
     const ADD_TASK_URL = "https://us-central1-taskhub-next.cloudfunctions.net/addOrUpdateTask"; 
@@ -163,6 +180,84 @@
     const DIRECT_UPDATE_URL = "https://us-central1-taskhub-next.cloudfunctions.net/updateTaskDirect";
     const COMPLETE_TASK_URL = "https://us-central1-taskhub-next.cloudfunctions.net/completeTask";
     const SCHEDULE_URL = "https://us-central1-taskhub-next.cloudfunctions.net/generateWeeklySchedule";
+
+    // Firebase Auth. The SDK loads from the CDN and the web config from Hosting's reserved URL, so there is no build step or key in this file.
+    const FIREBASE_SDK = "https://www.gstatic.com/firebasejs/12.18.0";
+    let authLib = null;
+    let firebaseAuth = null;
+    let gateNotice = "";
+
+    function showGate(message) {
+      document.getElementById("app").hidden = true;
+      document.getElementById("signInGate").hidden = false;
+      document.getElementById("gateMsg").textContent = gateNotice || message || "";
+      gateNotice = "";
+    }
+
+    function showApp() {
+      document.getElementById("signInGate").hidden = true;
+      document.getElementById("app").hidden = false;
+    }
+
+    async function initAuth() {
+      try {
+        const [appLib, lib, config] = await Promise.all([
+          import(`${FIREBASE_SDK}/firebase-app.js`),
+          import(`${FIREBASE_SDK}/firebase-auth.js`),
+          fetch("/__/firebase/init.json").then(r => {
+            if (!r.ok) throw new Error("Firebase config not found (is a web app registered for this project?)");
+            return r.json();
+          })
+        ]);
+        authLib = lib;
+        firebaseAuth = lib.getAuth(appLib.initializeApp(config));
+        lib.onAuthStateChanged(firebaseAuth, user => {
+          if (user) {
+            showApp();
+            fetchTasks();
+          } else {
+            showGate("");
+          }
+        });
+      } catch (err) {
+        showGate("Sign-in is unavailable: " + err.message);
+      }
+    }
+
+    async function signIn() {
+      if (!authLib) return;
+      document.getElementById("gateMsg").textContent = "";
+      try {
+        await authLib.signInWithPopup(firebaseAuth, new authLib.GoogleAuthProvider());
+      } catch (err) {
+        if (err.code !== "auth/popup-closed-by-user" && err.code !== "auth/cancelled-popup-request") {
+          document.getElementById("gateMsg").textContent = "Sign-in failed: " + err.message;
+        }
+      }
+    }
+
+    async function signOutUser() {
+      if (authLib) await authLib.signOut(firebaseAuth);
+    }
+
+    // fetch with the signed-in user's ID token. A 401 or 403 sends the user back to the sign-in screen.
+    async function apiFetch(url, options = {}) {
+      const user = firebaseAuth && firebaseAuth.currentUser;
+      if (!user) throw new Error("Not signed in");
+      const token = await user.getIdToken();
+      const res = await fetch(url, {
+        ...options,
+        headers: { ...(options.headers || {}), Authorization: `Bearer ${token}` }
+      });
+      if (res.status === 401 || res.status === 403) {
+        gateNotice = res.status === 403
+          ? "That Google account isn't allowed to use this app."
+          : "Your sign-in was rejected. Please sign in again.";
+        await signOutUser();
+        throw new Error(gateNotice);
+      }
+      return res;
+    }
 
     let allTasks = [];
     let selectedTagFilter = null; // null = show all
@@ -226,13 +321,13 @@
         openEditModal(taskId);
       });
 
-      fetchTasks();
+      initAuth();
     });
 
     async function fetchTasks() {
       const listContainer = document.getElementById("taskList");
       try {
-        const res = await fetch(GET_TASKS_URL);
+        const res = await apiFetch(GET_TASKS_URL);
         const data = await res.json();
         allTasks = data.tasks || [];
         renderFilterBar();
@@ -248,7 +343,7 @@
 
       setLoading(true);
       try {
-        const res = await fetch(ADD_TASK_URL, {
+        const res = await apiFetch(ADD_TASK_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ input })
@@ -267,7 +362,7 @@
 
     async function completeTask(taskId) {
       try {
-        const res = await fetch(COMPLETE_TASK_URL, {
+        const res = await apiFetch(COMPLETE_TASK_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ taskId })
@@ -296,7 +391,7 @@
       const energyLevel = document.getElementById("energySelect").value;
 
       try {
-        const res = await fetch(RECOMMEND_URL, {
+        const res = await apiFetch(RECOMMEND_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ timeAvailable, energyLevel })
@@ -314,7 +409,7 @@
       recDiv.innerText = "Reading calendar, checking weather, and scheduling tasks...";
 
       try {
-        const res = await fetch(SCHEDULE_URL, {
+        const res = await apiFetch(SCHEDULE_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({})
@@ -429,7 +524,7 @@
 
       closeEditModal();
       try {
-        const res = await fetch(DIRECT_UPDATE_URL, {
+        const res = await apiFetch(DIRECT_UPDATE_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ taskId, action: "UPDATE", updatedFields })
@@ -452,7 +547,7 @@
     async function deleteTask(taskId) {
       if (!confirm("Delete this task?")) return;
       try {
-        const res = await fetch(DIRECT_UPDATE_URL, {
+        const res = await apiFetch(DIRECT_UPDATE_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ taskId, action: "DELETE" })

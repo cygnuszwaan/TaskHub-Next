@@ -26,10 +26,11 @@ This file is a snapshot of the project's present state and intended direction. I
 - Calendar access uses service account `task-calendar-agent@gen-lang-client-0299359787.iam.gserviceaccount.com` (it lives in Google Cloud project `gen-lang-client-0299359787`, not `taskhub-next`). It has edit access to the agent calendar (`USER_CALENDAR_ID`) and "Make changes and see all event details" on the owner's personal calendar. The engine must only ever read the personal calendar, never write to it.
 - Firestore rules: deny-all. Every read and write goes through the functions via the Admin SDK, which bypasses rules.
 - A separate app, a kids' chore tracker, lives in its own Firebase project (`screen-time-chore-tracker`). Never deploy to it from this repo; always target `taskhub-next` explicitly (`--project taskhub-next`).
-- Frontend: one file, `public/index.html`, vanilla HTML/CSS/JS, no build step. Calls the functions over HTTPS via hardcoded URLs. All task-derived text goes through `esc()` before `innerHTML`; list and filter clicks use event delegation on `data-` attributes. Each task row shows its schedule (`scheduledStart`/`scheduledEnd`, always formatted in NZ time) and a Locked chip when `locked`; both are read-only. Plan My Week shows the engine's error text on failure.
-- Backend: `functions/index.js` (endpoints and engine), `functions/calendar.js` (event listing, cleanup and busy-window helpers), `functions/schedule.js` (pure validation of Gemini's slots), `functions/tasks.js` (pure merge of model changes and engine results into the task list) and `functions/time.js` (NZ date/offset helpers). Gemini (`@google/genai`, model constant `MODEL_NAME`) for parsing, scheduling and coaching. Google Calendar via the `googleapis` service-account JWT. Weather from Open-Meteo.
+- Frontend: one file, `public/index.html`, vanilla HTML/CSS/JS, no build step. Calls the functions over HTTPS via hardcoded URLs. All task-derived text goes through `esc()` before `innerHTML`; list and filter clicks use event delegation on `data-` attributes. Each task row shows its schedule (`scheduledStart`/`scheduledEnd`, always formatted in NZ time) and a Locked chip when `locked`; both are read-only. Plan My Week shows the engine's error text on failure. The page is gated behind Google sign-in (Firebase Auth, JS SDK 12.18.0 from gstatic via dynamic `import()`, web config from Hosting's `/__/firebase/init.json`); `apiFetch` adds the ID token to every call, and a 401 or 403 signs out and returns to the sign-in screen.
+- Backend: `functions/index.js` (endpoints and engine), `functions/calendar.js` (event listing, cleanup and busy-window helpers), `functions/auth.js` (owner check for the HTTP endpoints), `functions/schedule.js` (pure validation of Gemini's slots), `functions/tasks.js` (pure merge of model changes and engine results into the task list) and `functions/time.js` (NZ date/offset helpers). Gemini (`@google/genai`, model constant `MODEL_NAME`) for parsing, scheduling and coaching. Google Calendar via the `googleapis` service-account JWT. Weather from Open-Meteo.
 - Secrets: `GEMINI_API_KEY`, `GOOGLE_CALENDAR_CREDENTIALS` (service-account JSON; bound to every function that touches Calendar, including `completeTask` and `updateTaskDirect`).
-- Config (Firebase params read from `functions/.env` at deploy): `USER_CALENDAR_ID` (the agent calendar that tasks are scheduled onto) and `USER_PERSONAL_CALENDAR_ID` (the owner's personal calendar, read-only, used for free/busy).
+- Firebase Auth in `taskhub-next`: the Google provider is enabled and a web app is registered (Hosting serves its config at `/__/firebase/init.json`). Auth users are per project and unrelated to the chore tracker's.
+- Config (Firebase params read from `functions/.env` at deploy): `OWNER_EMAIL` (the one Google account allowed to call the endpoints), `USER_CALENDAR_ID` (the agent calendar that tasks are scheduled onto) and `USER_PERSONAL_CALENDAR_ID` (the owner's personal calendar, read-only, used for free/busy).
 
 ## Data model
 
@@ -49,7 +50,7 @@ This file is a snapshot of the project's present state and intended direction. I
 | `generateWeeklySchedule` | Manual "Plan My Week" | Yes |
 | `autoScheduleDaily` | Cron at 20:00 NZ; runs the same engine | Yes |
 
-All HTTP endpoints are unauthenticated with `cors: true`.
+Every HTTP endpoint requires `Authorization: Bearer <Firebase ID token>` for the verified Google account in `OWNER_EMAIL` (`ownerOnly`): 401 for a missing or invalid token, 403 for any other account or when `OWNER_EMAIL` is empty. Revocation takes effect when the current token expires (up to an hour). CORS allows only `https://taskhub-next.web.app` and `https://taskhub-next.firebaseapp.com` (`ALLOWED_ORIGINS`), so localhost is rejected. `autoScheduleDaily` is not HTTP and is unaffected.
 
 Every write to `todo_doc` is a Firestore transaction (read, modify, write, via `updateTaskList`). `addOrUpdateTask` calls Gemini outside the transaction and merges its changes into the list as stored at commit time: a change naming a task that no longer exists is skipped, and id, status, calendar and schedule fields, and `locked` are never taken from the model. `completeTask` commits the archive write and the list removal together. Calendar cleanup runs after the commit.
 
@@ -73,8 +74,7 @@ The cron and the manual trigger both use `USER_CALENDAR_ID`; neither the fronten
 
 Each step fits in one turn. Do them in order unless told otherwise.
 
-1. **Endpoint auth.** Restrict access to the owner (Firebase Auth with an allowlisted account, or a shared-secret header as a minimum). Tighten CORS to the Hosting origin.
-2. **Repo hygiene.** Track `.firebaserc` (currently gitignored), remove `functions/env` (a duplicate of `functions/.env.taskhub-next`), and add a short README with deploy and secret-setup commands. Move the function URLs in the frontend to a single config block. Make the frontend check `res.ok` on every call and show the error instead of replacing the task list with an empty one on failure.
+1. **Repo hygiene.** Track `.firebaserc` (currently gitignored), remove `functions/env` (a duplicate of `functions/.env.taskhub-next`), and add a short README with deploy, secret-setup and Firebase Auth console setup steps. Move the function URLs in the frontend to a single config block. Make the frontend check `res.ok` on every call and show the error instead of replacing the task list with an empty one on failure.
 
 ## Backlog (unordered, not yet planned)
 
@@ -88,5 +88,6 @@ Each step fits in one turn. Do them in order unless told otherwise.
 
 ## Open questions
 
+- Is the site served only from `taskhub-next.web.app` and `.firebaseapp.com`? A custom domain would need adding to `ALLOWED_ORIGINS` and to Auth's authorized domains.
 - Is `.firebaserc` kept locally only? It is gitignored, so the repo doesn't track it.
 - Should the Gemini calls stay, or should some or all of them move to Claude models?
