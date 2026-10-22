@@ -22,7 +22,7 @@ This file is a snapshot of the project's present state and intended direction. I
 
 ## Stack
 
-- Firebase project `taskhub-next`. Hosting serves `public/`. Functions are v2 on Node 24, region us-central1. Firestore is in australia-southeast1.
+- Firebase project `taskhub-next`. Hosting serves `public/`. Functions are v2 on Node 24, all in australia-southeast1 (set once with `setGlobalOptions` in `index.js`), as is Firestore.
 - Calendar access uses service account `task-calendar-agent@gen-lang-client-0299359787.iam.gserviceaccount.com` (it lives in Google Cloud project `gen-lang-client-0299359787`, not `taskhub-next`). It has edit access to the agent calendar (`USER_CALENDAR_ID`) and "Make changes and see all event details" on the owner's personal calendar. The engine must only ever read the personal calendar, never write to it.
 - Setup and deploy commands are in `README.md`. `.firebaserc` defaults to `taskhub-next`, and the `deploy` and `logs` scripts in `functions/package.json` pass `--project taskhub-next`.
 - Firestore rules: deny-all. Every read and write goes through the functions via the Admin SDK, which bypasses rules.

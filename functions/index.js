@@ -2,6 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {onRequest} = require("firebase-functions/v2/https");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
+const {setGlobalOptions} = require("firebase-functions/v2");
 const {defineString} = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const {GoogleGenAI, Type} = require("@google/genai");
@@ -16,6 +17,9 @@ const {makeOwnerOnly} = require("./auth");
 const {randomUUID} = require("crypto");
 
 admin.initializeApp();
+// Every function runs in Sydney, next to the Firestore database (australia-southeast1).
+setGlobalOptions({region: "australia-southeast1"});
+
 const db = admin.firestore();
 // Active tasks: one document per task in `tasks/{id}`. updateTaskList(mutate) is a transactional read-modify-write
 // of the whole list (see store.js); readTaskList() is a plain read.
