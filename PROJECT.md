@@ -74,17 +74,18 @@ The cron and the manual trigger both use `USER_CALENDAR_ID`; neither the fronten
 
 Each step fits in one turn. Do them in order unless told otherwise.
 
-1. *(none planned; pick from the backlog)*
-
-## Backlog (unordered, not yet planned)
-
-- Use `dueDate` in scheduling priority and surface overdue tasks in the UI.
-- Recurring tasks.
-- Completed-task view and simple analytics from `completed_tasks`.
-- Configurable location and timezone instead of hardcoded Whangaparāoa.
-- Tests for the merge and validation logic. `functions/time.js` is pure and ready to test.
-- Move tasks from a single array document to a subcollection (one document per task).
-- Reschedule a single task rather than the whole week.
+1. **Tests for the pure logic.** Add `node --test` specs (`npm test` in `functions/`, no new dependencies) for `time.js`, `schedule.js`, `tasks.js`, `auth.js` and the pure helpers in `calendar.js`. Later steps add tests for any new pure logic.
+2. **Due dates.** Pass `dueDate` and an overdue flag to the scheduling prompt so earlier and overdue tasks are placed first. In the UI, show an Overdue chip and sort overdue tasks to the top.
+3. **Task store module.** Add `functions/store.js` with the same `updateTaskList` interface over a `tasks/{id}` collection (diff-based writes inside a transaction) and a one-off migration script that copies `app_state/todo_doc` into it. Nothing is switched over yet.
+4. **Switch to per-task documents.** Point every endpoint and the engine at the store, run the migration, remove the array-document code, and update Data model and Endpoints.
+5. **Engine: schedule a subset of tasks.** Let `runScheduleEngine` take task ids. Only those tasks are offered to Gemini and have their old events replaced; every other app event counts as busy.
+6. **Reschedule one task.** Add a `rescheduleTask` endpoint and a Reschedule button in the edit modal.
+7. **Completed tasks view.** Add a `getCompletedTasks` endpoint and a UI view of recent completions.
+8. **Simple analytics.** Add a summary above the completed list: completions per week, by tag and by priority, and estimated minutes completed.
+9. **Recurring tasks: data and ingestion.** Add a `recurrence` field (frequency and interval). Gemini extracts it from free text, and the edit modal shows and edits it.
+10. **Recurring tasks: spawn the next occurrence.** Completing a recurring task creates the next one, with the next `dueDate`, in the same transaction. The UI shows a recurrence chip.
+11. **Configurable location and timezone: backend.** Hold location (name, latitude, longitude) and timezone in config. Use them in weather, prompts, `time.js`, the engine and the cron.
+12. **Configurable location and timezone: frontend.** Format times from the configured timezone and add a settings control.
 
 ## Open questions
 
