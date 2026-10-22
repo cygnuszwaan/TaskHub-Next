@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Task Agent - Whangaparāoa</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 680px; margin: 20px auto; padding: 0 15px; background: #f4f6f8; color: #222; }
+    .card { background: white; padding: 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 16px; }
+    .input-row { display: flex; gap: 8px; }
+    input[type="text"], input[type="number"], input[type="date"], select { padding: 10px 12px; font-size: 15px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+    input[type="text"] { flex: 1; min-width: 0; }
+    button { padding: 10px 14px; font-size: 14px; background: #0266c8; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; white-space: nowrap; }
+    button:disabled { background: #b0c4de; }
+
+    .context-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; background: #f8fafc; padding: 10px 12px; border-radius: 8px; border: 1px solid #e2e8f0; }
+    .control-group { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; min-width: 0; }
+    .control-group label { white-space: nowrap; }
+    .control-group select { flex: 1; width: 100%; min-width: 0; padding: 6px 8px; }
+
+    .action-row { display: flex; gap: 10px; width: 100%; }
+    .action-row button { flex: 1; padding: 12px 10px; text-align: center; font-size: 14px; }
+
+    .tag-filter-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 15px; }
+    .filter-chip { font-size: 12px; padding: 4px 10px; border-radius: 16px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; user-select: none; }
+    .filter-chip.active { background: #0266c8; color: white; border-color: #0266c8; }
+
+    .task-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px; border-bottom: 1px solid #f0f0f0; border-radius: 6px; cursor: pointer; transition: background 0.15s ease; }
+    .task-item:hover { background: #f8fafc; }
+    .task-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: bold; text-transform: uppercase; }
+    .HIGH { background: #ffe6e6; color: #cc0000; }
+    .MEDIUM { background: #fff3cd; color: #856404; }
+    .LOW { background: #e6f4ea; color: #137333; }
+    .chip { font-size: 11px; background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 10px; }
+    .time-chip { font-size: 11px; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+    .coach-box { background: #eff6ff; border-left: 4px solid #2563eb; padding: 14px; margin-top: 14px; border-radius: 4px; font-size: 14px; line-height: 1.5; }
+
+    .action-btns { display: flex; gap: 4px; }
+    .complete-btn { background: transparent; color: #16a34a; border: none; padding: 4px 6px; font-size: 16px; cursor: pointer; }
+    .delete-btn { background: transparent; color: #94a3b8; border: none; padding: 4px 6px; font-size: 16px; cursor: pointer; }
+    .delete-btn:hover { color: #ef4444; }
+
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; }
+    .modal-card { background: white; width: 90%; max-width: 480px; padding: 20px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    .modal-card h3 { margin-top: 0; margin-bottom: 16px; font-size: 18px; }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #475569; }
+    .form-group input, .form-group select { width: 100%; }
+    .modal-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 18px; }
+    .btn-secondary { background: #e2e8f0; color: #334155; }
+    .btn-success { background: #16a34a; color: white; }
+    .btn-danger { background: #ef4444; color: white; }
+
+    @media (max-width: 480px) {
+      .context-controls { grid-template-columns: 1fr; }
+      .action-row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1 style="font-size: 22px; margin-bottom: 16px;">AI Task Agent</h1>
+
+  <div class="card">
+    <h3 style="margin-top:0; margin-bottom:12px;">⚡ What Should I Do Now?</h3>
+    <div class="context-controls">
+      <div class="control-group">
+        <label>⏱️ Time:</label>
+        <select id="timeSelect">
+          <option value="15">15 mins</option>
+          <option value="30" selected>30 mins</option>
+          <option value="60">1 hour</option>
+          <option value="999">Unlimited</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>⚡ Energy:</label>
+        <select id="energySelect">
+          <option value="Any" selected>Any</option>
+          <option value="High">High Focus</option>
+          <option value="Low">Low / Tired</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="action-row">
+      <button onclick="getRecommendation()" id="recBtn">Get Advice</button>
+      <button onclick="scheduleWeek()" id="schedBtn" style="background: #16a34a;">📅 Plan My Week</button>
+    </div>
+
+    <div id="recommendation" class="coach-box" style="display:none;"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0; margin-bottom:12px;">Add / Modify Task</h3>
+    <div class="input-row">
+      <input type="text" id="taskInput" placeholder="e.g. MOW LAWN 45M OUTDOOR">
+      <button onclick="submitTask()" id="addBtn">Add</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0; margin-bottom:12px;">Organized Queue <small style="font-size:11px; font-weight:normal; color:#64748b;">(Tap to edit)</small></h3>
+    <div class="tag-filter-bar" id="tagFilterBar"></div>
+    <div id="taskList">Loading tasks...</div>
+  </div>
+
+  <div id="editModal" class="modal-overlay" onclick="closeModalOnOverlay(event)">
+    <div class="modal-card">
+      <h3>Edit Task Details</h3>
+      <input type="hidden" id="editTaskId">
+      
+      <div class="form-group">
+        <label>Task Title</label>
+        <input type="text" id="editTitle">
+      </div>
+
+      <div style="display: flex; gap: 10px;">
+        <div class="form-group" style="flex: 1;">
+          <label>Priority</label>
+          <select id="editPriority">
+            <option value="HIGH">HIGH</option>
+            <option value="MEDIUM">MEDIUM</option>
+            <option value="LOW">LOW</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex: 1;">
+          <label>Est. Minutes</label>
+          <input type="number" id="editDuration" min="5" step="5">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Tags (comma separated)</label>
+        <input type="text" id="editTags" placeholder="e.g. Outdoor, Physical">
+      </div>
+
+      <div class="form-group">
+        <label>Due Date</label>
+        <input type="date" id="editDueDate">
+      </div>
+
+      <div class="modal-actions">
+        <div style="display: flex; gap: 6px;">
+          <button class="btn-success" onclick="completeTaskFromModal()">✅ Complete</button>
+          <button class="btn-danger" onclick="deleteTaskFromModal()">Delete</button>
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <button class="btn-secondary" onclick="closeEditModal()">Cancel</button>
+          <button onclick="saveTaskEdits()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ADD_TASK_URL = "https://us-central1-taskhub-next.cloudfunctions.net/addOrUpdateTask"; 
+    const RECOMMEND_URL = "https://us-central1-taskhub-next.cloudfunctions.net/getWhatToDoNow";
+    const GET_TASKS_URL = "https://us-central1-taskhub-next.cloudfunctions.net/getTasks";
+    const DIRECT_UPDATE_URL = "https://us-central1-taskhub-next.cloudfunctions.net/updateTaskDirect";
+    const COMPLETE_TASK_URL = "https://us-central1-taskhub-next.cloudfunctions.net/completeTask";
+    const SCHEDULE_URL = "https://us-central1-taskhub-next.cloudfunctions.net/generateWeeklySchedule";
+
+    let allTasks = [];
+    let selectedTagFilter = "ALL";
+
+    window.addEventListener("DOMContentLoaded", fetchTasks);
+
+    async function fetchTasks() {
+      const listContainer = document.getElementById("taskList");
+      try {
+        const res = await fetch(GET_TASKS_URL);
+        const data = await res.json();
+        allTasks = data.tasks || [];
+        renderFilterBar();
+        renderTasks();
+      } catch (err) {
+        listContainer.innerHTML = "<p>Error loading tasks.</p>";
+      }
+    }
+
+    async function submitTask() {
+      const input = document.getElementById("taskInput").value;
+      if (!input) return;
+
+      setLoading(true);
+      try {
+        const res = await fetch(ADD_TASK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input })
+        });
+        const data = await res.json();
+        allTasks = data.tasks || [];
+        document.getElementById("taskInput").value = "";
+        renderFilterBar();
+        renderTasks();
+      } catch (err) {
+        alert("Error updating tasks: " + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    async function completeTask(taskId) {
+      try {
+        const res = await fetch(COMPLETE_TASK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ taskId })
+        });
+        const data = await res.json();
+        allTasks = data.tasks || [];
+        renderFilterBar();
+        renderTasks();
+      } catch (err) {
+        alert("Error completing task: " + err.message);
+      }
+    }
+
+    async function completeTaskFromModal() {
+      const taskId = document.getElementById("editTaskId").value;
+      closeEditModal();
+      await completeTask(taskId);
+    }
+
+    async function getRecommendation() {
+      const recDiv = document.getElementById("recommendation");
+      recDiv.style.display = "block";
+      recDiv.innerText = "Checking weather & task constraints...";
+
+      const timeAvailable = parseInt(document.getElementById("timeSelect").value);
+      const energyLevel = document.getElementById("energySelect").value;
+
+      try {
+        const res = await fetch(RECOMMEND_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ timeAvailable, energyLevel })
+        });
+        const data = await res.json();
+        recDiv.innerText = data.recommendation;
+      } catch (err) {
+        recDiv.innerText = "Failed to get advice.";
+      }
+    }
+
+    async function scheduleWeek() {
+      const recDiv = document.getElementById("recommendation");
+      recDiv.style.display = "block";
+      recDiv.innerText = "Reading calendar, checking weather, and scheduling tasks...";
+
+      try {
+        const res = await fetch(SCHEDULE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ calendarId: "2a19f9718f504372db61caf7b70c548529a4baedc992a385eaf06917df462fca@group.calendar.google.com" })
+        });
+        const data = await res.json();
+        if (data.success) {
+          recDiv.innerText = `Success! Scheduled ${data.scheduledCount} tasks onto your Google Calendar.`;
+          fetchTasks();
+        } else {
+          recDiv.innerText = data.message || "Failed to generate schedule.";
+        }
+      } catch (err) {
+        recDiv.innerText = "Error scheduling week: " + err.message;
+      }
+    }
+
+    function renderFilterBar() {
+      const bar = document.getElementById("tagFilterBar");
+      const tagMap = new Set();
+      allTasks.forEach(t => (t.tags || []).forEach(tag => tagMap.add(tag)));
+
+      let html = `<div class="filter-chip ${selectedTagFilter === 'ALL' ? 'active' : ''}" onclick="setFilter('ALL')">All (${allTasks.length})</div>`;
+      tagMap.forEach(tag => {
+        const count = allTasks.filter(t => (t.tags || []).includes(tag)).length;
+        html += `<div class="filter-chip ${selectedTagFilter === tag ? 'active' : ''}" onclick="setFilter('${tag}')">${tag} (${count})</div>`;
+      });
+      bar.innerHTML = html;
+    }
+
+    function setFilter(tag) {
+      selectedTagFilter = tag;
+      renderFilterBar();
+      renderTasks();
+    }
+
+    function renderTasks() {
+      const listContainer = document.getElementById("taskList");
+      let filtered = allTasks;
+
+      if (selectedTagFilter !== "ALL") {
+        filtered = allTasks.filter(t => (t.tags || []).includes(selectedTagFilter));
+      }
+
+      if (!filtered || filtered.length === 0) {
+        listContainer.innerHTML = "<p style='color:#666;'>No active tasks in queue.</p>";
+        return;
+      }
+
+      filtered.sort((a, b) => a.order - b.order);
+
+      listContainer.innerHTML = filtered.map(t => `
+        <div class="task-item" onclick="openEditModal('${t.id}')">
+          <div style="flex:1;">
+            <strong>#${t.order} ${t.title}</strong>
+            <div class="task-meta">
+              <span class="badge ${t.priority}">${t.priority}</span>
+              <span class="time-chip">⏱️ ${t.estimatedMinutes || 15}m</span>
+              ${(t.tags || []).map(tag => `<span class="chip">${tag}</span>`).join('')}
+              ${t.dueDate ? `<span class="chip">Due: ${t.dueDate}</span>` : ''}
+              ${t.googleCalendarEventId ? `<span class="chip" style="background:#dcfce7;color:#166534;">📅 Synced</span>` : ''}
+            </div>
+          </div>
+          <div class="action-btns">
+            <button class="complete-btn" title="Complete & Archive Task" onclick="event.stopPropagation(); completeTask('${t.id}')">✅</button>
+            <button class="delete-btn" title="Delete Task" onclick="event.stopPropagation(); deleteTask('${t.id}')">❌</button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function openEditModal(taskId) {
+      const task = allTasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      document.getElementById("editTaskId").value = task.id;
+      document.getElementById("editTitle").value = task.title || "";
+      document.getElementById("editPriority").value = task.priority || "MEDIUM";
+      document.getElementById("editDuration").value = task.estimatedMinutes || 15;
+      document.getElementById("editTags").value = (task.tags || []).join(", ");
+      document.getElementById("editDueDate").value = task.dueDate || "";
+
+      document.getElementById("editModal").style.display = "flex";
+    }
+
+    function closeEditModal() {
+      document.getElementById("editModal").style.display = "none";
+    }
+
+    function closeModalOnOverlay(e) {
+      if (e.target.id === "editModal") closeEditModal();
+    }
+
+    async function saveTaskEdits() {
+      const taskId = document.getElementById("editTaskId").value;
+      const title = document.getElementById("editTitle").value;
+      const priority = document.getElementById("editPriority").value;
+      const estimatedMinutes = parseInt(document.getElementById("editDuration").value) || 15;
+      const tagsRaw = document.getElementById("editTags").value;
+      const dueDate = document.getElementById("editDueDate").value;
+
+      const tags = tagsRaw.split(",").map(s => s.trim()).filter(Boolean);
+      const updatedFields = { title, priority, estimatedMinutes, tags, dueDate };
+
+      closeEditModal();
+      try {
+        const res = await fetch(DIRECT_UPDATE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ taskId, action: "UPDATE", updatedFields })
+        });
+        const data = await res.json();
+        allTasks = data.tasks || [];
+        renderFilterBar();
+        renderTasks();
+      } catch (err) {
+        alert("Failed to save changes: " + err.message);
+      }
+    }
+
+    async function deleteTaskFromModal() {
+      const taskId = document.getElementById("editTaskId").value;
+      closeEditModal();
+      await deleteTask(taskId);
+    }
+
+    async function deleteTask(taskId) {
+      if (!confirm("Delete this task?")) return;
+      try {
+        const res = await fetch(DIRECT_UPDATE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ taskId, action: "DELETE" })
+        });
+        const data = await res.json();
+        allTasks = data.tasks || [];
+        renderFilterBar();
+        renderTasks();
+      } catch (err) {
+        alert("Error deleting task");
+      }
+    }
+
+    function setLoading(isLoading) {
+      document.getElementById("addBtn").disabled = isLoading;
+      document.getElementById("taskInput").disabled = isLoading;
+    }
+  </script>
+</body>
+</html>

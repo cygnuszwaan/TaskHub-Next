@@ -1,0 +1,463 @@
+/* eslint-disable max-len */
+/* eslint-disable require-jsdoc */
+const {onRequest} = require("firebase-functions/v2/https");
+const {onSchedule} = require("firebase-functions/v2/scheduler");
+const admin = require("firebase-admin");
+const {GoogleGenAI, Type} = require("@google/genai");
+const {google} = require("googleapis");
+
+admin.initializeApp();
+const db = admin.firestore();
+
+const MODEL_NAME = "gemini-3.5-flash-lite";
+
+// JSON Schema for Task State
+const taskSchema = {
+  type: Type.OBJECT,
+  properties: {
+    tasks: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          id: {type: Type.STRING},
+          title: {type: Type.STRING},
+          priority: {
+            type: Type.STRING,
+            enum: ["HIGH", "MEDIUM", "LOW"],
+          },
+          dueDate: {
+            type: Type.STRING,
+            description: "YYYY-MM-DD or empty",
+          },
+          estimatedMinutes: {
+            type: Type.INTEGER,
+            description: "Inferred time in minutes to complete task",
+          },
+          tags: {
+            type: Type.ARRAY,
+            items: {type: Type.STRING},
+            description: "Concise contextual tags like Outdoor, Indoor, Shopping, Mentally Focused, Physical, etc.",
+          },
+          status: {
+            type: Type.STRING,
+            enum: ["PENDING", "COMPLETED"],
+          },
+          googleCalendarEventId: {
+            type: Type.STRING,
+            description: "ID of associated Google Calendar event if scheduled",
+          },
+          order: {
+            type: Type.INTEGER,
+            description: "Numeric rank starting at 1",
+          },
+        },
+        required: [
+          "id",
+          "title",
+          "priority",
+          "estimatedMinutes",
+          "tags",
+          "status",
+          "order",
+        ],
+      },
+    },
+  },
+  required: ["tasks"],
+};
+
+// JSON Schema for Calendar Scheduler
+const scheduleSchema = {
+  type: Type.OBJECT,
+  properties: {
+    scheduledTasks: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          taskId: {type: Type.STRING},
+          title: {type: Type.STRING},
+          startISO: {
+            type: Type.STRING,
+            description: "ISO 8601 start date time, e.g. 2026-10-22T09:00:00+13:00",
+          },
+          endISO: {
+            type: Type.STRING,
+            description: "ISO 8601 end date time, e.g. 2026-10-22T09:45:00+13:00",
+          },
+          transparency: {
+            type: Type.STRING,
+            enum: ["opaque", "transparent"],
+            description: "'opaque' for Busy time blocks; 'transparent' for Available/Reminders",
+          },
+          isAllDay: {
+            type: Type.BOOLEAN,
+            description: "true if this is a general all-day reminder or flexible task",
+          },
+          reasoning: {type: Type.STRING, description: "Brief justification for this time slot"},
+        },
+        required: ["taskId", "title", "startISO", "endISO", "transparency", "isAllDay"],
+      },
+    },
+  },
+  required: ["scheduledTasks"],
+};
+
+// Helper: Authenticated Google Calendar Client
+async function getCalendarClient() {
+  const credentialsRaw = process.env.GOOGLE_CALENDAR_CREDENTIALS;
+  if (!credentialsRaw) {
+    throw new Error("Missing GOOGLE_CALENDAR_CREDENTIALS secret environment variable");
+  }
+
+  const serviceAccountJson = JSON.parse(credentialsRaw);
+  const formattedPrivateKey = serviceAccountJson.private_key.replace(/\\n/g, "\n");
+
+  const jwtClient = new google.auth.JWT({
+    email: serviceAccountJson.client_email,
+    key: formattedPrivateKey,
+    scopes: ["https://www.googleapis.com/auth/calendar"],
+  });
+
+  await jwtClient.authorize();
+  return google.calendar({version: "v3", auth: jwtClient});
+}
+
+// Helper: Fetch Weather
+async function getWeatherWhangaparaoa() {
+  try {
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=-36.63&longitude=174.78&current_weather=true";
+    const res = await fetch(url);
+    const data = await res.json();
+    const weather = data.current_weather;
+    const weatherCodes = {
+      0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+      45: "Foggy", 61: "Slight rain", 63: "Moderate rain", 65: "Heavy rain",
+      80: "Rain showers", 95: "Thunderstorm",
+    };
+    const codeDesc = weatherCodes[weather.weathercode] || "Variable conditions";
+    return `${codeDesc}, ${weather.temperature}°C`;
+  } catch (err) {
+    return "Weather data currently unavailable";
+  }
+}
+
+// Core Scheduling Engine Logic (with Pre-Schedule Cleanup to Avoid Duplicates)
+async function runScheduleEngine(targetCalendarId) {
+  const docRef = db.collection("app_state").doc("todo_doc");
+  const docSnap = await docRef.get();
+  const currentTasks = docSnap.exists ? docSnap.data().tasks || [] : [];
+
+  if (currentTasks.length === 0) {
+    return {success: true, scheduledCount: 0, message: "No active tasks."};
+  }
+
+  const calendar = await getCalendarClient();
+  const calendarId = targetCalendarId || process.env.USER_CALENDAR_ID || "primary";
+
+  // 1. CLEANUP PREVIOUS CALENDAR EVENTS TO PREVENT DUPLICATES
+  for (const task of currentTasks) {
+    if (task.googleCalendarEventId) {
+      try {
+        await calendar.events.delete({
+          calendarId: calendarId,
+          eventId: task.googleCalendarEventId,
+        });
+      } catch (delErr) {
+        // Ignore 404/410 if event was already manually removed from Google Calendar
+        if (delErr.status !== 404 && delErr.status !== 410) {
+          console.warn(`Could not delete old event ${task.googleCalendarEventId}:`, delErr.message);
+        }
+      }
+    }
+  }
+
+  const now = new Date();
+  const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  // 2. Fetch busy slots after cleanup
+  const freeBusyRes = await calendar.freebusy.query({
+    requestBody: {
+      timeMin: now.toISOString(),
+      timeMax: sevenDaysLater.toISOString(),
+      items: [{id: calendarId}],
+    },
+  });
+
+  const calData = freeBusyRes.data.calendars[calendarId];
+  const busySlots = (calData && calData.busy) ? calData.busy : [];
+  const weatherInfo = await getWeatherWhangaparaoa();
+  const nowString = now.toLocaleString("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    dateStyle: "full",
+    timeStyle: "short",
+  });
+
+  const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
+  const prompt = `
+    You are an AI calendar scheduler in Whangaparāoa, New Zealand.
+    Current Time: ${nowString} (Pacific/Auckland, offset +13:00)
+    Whangaparāoa Weather: ${weatherInfo}
+    
+    Existing Busy Calendar Windows (DO NOT OVERLAP WITH THESE):
+    ${JSON.stringify(busySlots, null, 2)}
+    
+    Active Task Queue To Schedule:
+    ${JSON.stringify(currentTasks, null, 2)}
+    
+    Rules:
+    1. Schedule uncompleted tasks across the next 7 days in open gaps between 8:00 AM and 7:00 PM NZDT.
+    2. Set transparency: "opaque" for focus tasks (blocks busy); "transparent" for quick chores/reminders.
+    3. Avoid scheduling Outdoor tasks if weather is rainy.
+    4. Return the non-conflicting schedule matching the JSON schema.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: MODEL_NAME,
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: scheduleSchema,
+    },
+  });
+
+  const scheduleData = JSON.parse(response.text);
+  const scheduledList = scheduleData.scheduledTasks || [];
+
+  const updatedTasks = [...currentTasks];
+
+  // 3. Insert newly calculated slots into Google Calendar
+  for (const item of scheduledList) {
+    const eventResource = {
+      summary: item.title,
+      description: `Generated by AI Task Agent. ${item.reasoning || ""}`,
+      transparency: item.transparency,
+      extendedProperties: {
+        private: {taskId: item.taskId},
+      },
+    };
+
+    if (item.isAllDay) {
+      const dateStr = item.startISO.split("T")[0];
+      eventResource.start = {date: dateStr};
+      eventResource.end = {date: dateStr};
+    } else {
+      eventResource.start = {dateTime: item.startISO};
+      eventResource.end = {dateTime: item.endISO};
+    }
+
+    const createdEvent = await calendar.events.insert({
+      calendarId: calendarId,
+      requestBody: eventResource,
+    });
+
+    const taskIdx = updatedTasks.findIndex((t) => t.id === item.taskId);
+    if (taskIdx !== -1) {
+      updatedTasks[taskIdx].googleCalendarEventId = createdEvent.data.id;
+    }
+  }
+
+  await docRef.set({
+    tasks: updatedTasks,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return {
+    success: true,
+    scheduledCount: scheduledList.length,
+    schedule: scheduledList,
+  };
+}
+
+// 1. Scheduled Function: Runs Every Evening at 8:00 PM NZDT
+exports.autoScheduleDaily = onSchedule({
+  schedule: "0 20 * * *",
+  timeZone: "Pacific/Auckland",
+  secrets: [
+    "GEMINI_API_KEY",
+    {name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"},
+  ],
+}, async (event) => {
+  console.log("Starting daily 8:00 PM automated schedule update...");
+  try {
+    const result = await runScheduleEngine("primary");
+    console.log("Daily schedule completed:", JSON.stringify(result));
+  } catch (err) {
+    console.error("Daily schedule failed:", err);
+  }
+});
+
+// 2. HTTP Endpoint: Manual / On-Demand "Plan My Week" Trigger
+exports.generateWeeklySchedule = onRequest({
+  secrets: [
+    "GEMINI_API_KEY",
+    {name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"},
+  ],
+  cors: true,
+  timeoutSeconds: 120,
+}, async (req, res) => {
+  try {
+    const calendarId = req.body.calendarId || "primary";
+    const result = await runScheduleEngine(calendarId);
+    res.status(200).send(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+});
+
+// 3. Endpoint: Add / Ingest Task
+exports.addOrUpdateTask = onRequest({
+  secrets: ["GEMINI_API_KEY"], cors: true, timeoutSeconds: 120,
+}, async (req, res) => {
+  try {
+    const userInput = req.body.input;
+    if (!userInput) return res.status(400).send({error: "Missing input"});
+
+    const docRef = db.collection("app_state").doc("todo_doc");
+    const docSnap = await docRef.get();
+    const currentTasks = docSnap.exists ? docSnap.data().tasks || [] : [];
+
+    const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
+    const today = new Date().toISOString().split("T")[0];
+
+    const prompt = `
+      You are an expert task queue organizer. Today's date is: ${today}.
+      
+      Current Task List:
+      ${JSON.stringify(currentTasks, null, 2)}
+      
+      New Input: "${userInput}"
+      
+      Parse input into task, infer priority, estimatedMinutes, and tags. Return full updated array.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: taskSchema,
+      },
+    });
+
+    const updatedData = JSON.parse(response.text);
+
+    await docRef.set({
+      tasks: updatedData.tasks,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    res.status(200).send({success: true, tasks: updatedData.tasks});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+});
+
+// 4. Endpoint: Archive Completed Tasks (Zero Token Cost Solution)
+exports.completeTask = onRequest({cors: true}, async (req, res) => {
+  try {
+    const {taskId} = req.body;
+    if (!taskId) return res.status(400).send({error: "Missing taskId"});
+
+    const docRef = db.collection("app_state").doc("todo_doc");
+    const docSnap = await docRef.get();
+    let tasks = docSnap.exists ? docSnap.data().tasks || [] : [];
+
+    const completedTask = tasks.find((t) => t.id === taskId);
+    if (completedTask) {
+      // Archive to dedicated completed_tasks collection for analytics
+      await db.collection("completed_tasks").add({
+        ...completedTask,
+        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Remove from active tasks
+      tasks = tasks.filter((t) => t.id !== taskId);
+
+      await docRef.set({
+        tasks,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    res.status(200).send({success: true, tasks});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+});
+
+// 5. Endpoint: "What Should I Do Now?"
+exports.getWhatToDoNow = onRequest({
+  secrets: ["GEMINI_API_KEY"], cors: true, timeoutSeconds: 120,
+}, async (req, res) => {
+  try {
+    const {timeAvailable, energyLevel} = req.body || {};
+    const docRef = db.collection("app_state").doc("todo_doc");
+    const docSnap = await docRef.get();
+    const currentTasks = docSnap.exists ? docSnap.data().tasks || [] : [];
+
+    if (currentTasks.length === 0) {
+      return res.status(200).send({recommendation: "Your task list is empty! Take a break."});
+    }
+
+    const weatherInfo = await getWeatherWhangaparaoa();
+    const now = new Date().toLocaleString("en-NZ", {
+      timeZone: "Pacific/Auckland", dateStyle: "full", timeStyle: "short",
+    });
+
+    const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
+    const prompt = `
+      You are an AI productivity coach in Whangaparāoa, NZ.
+      Context: ${now} | Weather: ${weatherInfo} | Time: ${timeAvailable || "Unlimited"}m | Energy: ${energyLevel || "Any"}
+      Tasks: ${JSON.stringify(currentTasks, null, 2)}
+      Recommend the single best task for right now. 2 sentences.
+    `;
+
+    const response = await ai.models.generateContent({model: MODEL_NAME, contents: prompt});
+    res.status(200).send({recommendation: response.text});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+});
+
+// 6. Endpoint: Read Tasks
+exports.getTasks = onRequest({cors: true}, async (req, res) => {
+  try {
+    const docRef = db.collection("app_state").doc("todo_doc");
+    const docSnap = await docRef.get();
+    const tasks = docSnap.exists ? docSnap.data().tasks || [] : [];
+    res.status(200).send({success: true, tasks});
+  } catch (err) {
+    res.status(500).send({error: err.message});
+  }
+});
+
+// 7. Endpoint: Direct Update / Delete
+exports.updateTaskDirect = onRequest({cors: true}, async (req, res) => {
+  try {
+    const {taskId, action, updatedFields} = req.body;
+    const docRef = db.collection("app_state").doc("todo_doc");
+    const docSnap = await docRef.get();
+    let tasks = docSnap.exists ? docSnap.data().tasks || [] : [];
+
+    if (action === "DELETE") {
+      tasks = tasks.filter((t) => t.id !== taskId);
+    } else if (action === "UPDATE") {
+      tasks = tasks.map((t) => (t.id === taskId ? {...t, ...updatedFields} : t));
+    }
+
+    await docRef.set({
+      tasks,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    res.status(200).send({success: true, tasks});
+  } catch (err) {
+    res.status(500).send({error: err.message});
+  }
+});
