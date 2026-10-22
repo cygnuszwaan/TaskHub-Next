@@ -32,6 +32,7 @@
     .time-chip { font-size: 11px; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
     .sched-chip { background: #dcfce7; color: #166534; font-weight: 600; }
     .lock-chip { background: #fef3c7; color: #92400e; font-weight: 600; }
+    .overdue-chip { background: #fee2e2; color: #991b1b; font-weight: 600; }
     .coach-box { background: #eff6ff; border-left: 4px solid #2563eb; padding: 14px; margin-top: 14px; border-radius: 4px; font-size: 14px; line-height: 1.5; }
 
     .action-btns { display: flex; gap: 4px; }
@@ -258,6 +259,14 @@
     const calendarDayFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
     const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
+    // Whole days from today (NZ) to the task's due date: negative when overdue, null without a valid due date.
+    function daysUntilDue(t) {
+      if (!DATE_ONLY.test(t.dueDate || "")) return null;
+      const due = Date.parse(`${t.dueDate}T00:00:00Z`);
+      const today = Date.parse(`${nzKeyFmt.format(new Date())}T00:00:00Z`);
+      return isNaN(due) ? null : Math.round((due - today) / 86400000);
+    }
+
     // Schedule text in NZ time for a task's scheduledStart/scheduledEnd, or "" if there is none.
     // Timed values are ISO 8601 with an offset; all-day values are YYYY-MM-DD with an exclusive end.
     function formatSchedule(start, end) {
@@ -426,7 +435,14 @@
         return;
       }
 
-      filtered.sort((a, b) => a.order - b.order);
+      // Overdue tasks first (most overdue first), then everything else by rank
+      filtered = [...filtered].sort((a, b) => {
+        const da = daysUntilDue(a), db = daysUntilDue(b);
+        const oa = da !== null && da < 0, ob = db !== null && db < 0;
+        if (oa !== ob) return oa ? -1 : 1;
+        if (oa && da !== db) return da - db;
+        return a.order - b.order;
+      });
 
       listContainer.innerHTML = filtered.map(t => `
         <div class="task-item" data-id="${esc(t.id)}">
@@ -436,6 +452,7 @@
               <span class="badge ${PRIORITIES.includes(t.priority) ? t.priority : ''}">${esc(t.priority)}</span>
               <span class="time-chip">⏱️ ${esc(t.estimatedMinutes || 15)}m</span>
               ${(t.tags || []).map(tag => `<span class="chip">${esc(tag)}</span>`).join('')}
+              ${(() => { const d = daysUntilDue(t); return d !== null && d < 0 ? `<span class="chip overdue-chip" title="Due ${esc(t.dueDate)}">⚠️ Overdue ${esc(-d)}d</span>` : ''; })()}
               ${t.dueDate ? `<span class="chip">Due: ${esc(t.dueDate)}</span>` : ''}
               ${scheduleChip(t)}
               ${t.locked ? `<span class="chip lock-chip" title="Pinned: its event was moved to your personal calendar, so Plan My Week leaves it alone">🔒 Locked</span>` : ''}

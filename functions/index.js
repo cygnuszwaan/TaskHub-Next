@@ -10,6 +10,7 @@ const {TIME_ZONE, getNZDate, getNZOffset, formatNZNow, getNZStartOfDay} = requir
 const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, findAgentEventIds, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
 const {validateSchedule, matchLockedEvents} = require("./schedule");
 const {mergeTaskChanges, applyScheduleResults} = require("./tasks");
+const {annotateDue} = require("./due");
 const {makeOwnerOnly} = require("./auth");
 const {randomUUID} = require("crypto");
 
@@ -180,6 +181,7 @@ async function requestSchedule(tasks, busySlots, now, sevenDaysLater) {
   const weatherInfo = await getWeatherWhangaparaoa();
   const nowString = formatNZNow(now);
   const nzOffset = getNZOffset(now);
+  const today = getNZDate(now);
 
   const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
   const prompt = `
@@ -190,12 +192,13 @@ async function requestSchedule(tasks, busySlots, now, sevenDaysLater) {
     Existing Busy Calendar Windows, covering the owner's personal appointments, already-booked task time and tasks the owner has pinned to a time (DO NOT OVERLAP WITH THESE):
     ${JSON.stringify(busySlots, null, 2)}
     
-    Active Task Queue To Schedule:
-    ${JSON.stringify(tasks, null, 2)}
+    Today (NZ): ${today}
+    Active Task Queue To Schedule, ordered most urgent first. "overdue" is true when dueDate is before today; "daysUntilDue" is negative when overdue and null when the task has no due date:
+    ${JSON.stringify(annotateDue(tasks, today), null, 2)}
     
     Rules:
     1. Schedule uncompleted tasks across the next 7 days in open gaps between 8:00 AM and 7:00 PM New Zealand local time. Each timed slot must start after the current time, fit entirely within one day's 8:00 AM-7:00 PM window, and must not overlap a busy window or another slot.
-    2. Schedule each task at most once.
+    2. Schedule each task at most once. Place overdue tasks first, in the earliest open gaps, then tasks with the nearest due dates. Where possible, place a task with a dueDate on or before that date; a task that cannot fit before its due date goes in the earliest gap left. Tasks without a dueDate fill the remaining gaps by priority.
     3. Set transparency: "opaque" for focus tasks (blocks busy); "transparent" for quick chores/reminders.
     4. Avoid scheduling Outdoor tasks if weather is rainy.
     5. Write every startISO/endISO in New Zealand local time using the UTC offset that applies on that date (currently ${nzOffset}; it changes if the date falls after a daylight saving change).
