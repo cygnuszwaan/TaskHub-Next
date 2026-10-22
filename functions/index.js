@@ -2,6 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {onRequest} = require("firebase-functions/v2/https");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
+const {defineString} = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const {GoogleGenAI, Type} = require("@google/genai");
 const {google} = require("googleapis");
@@ -10,6 +11,9 @@ admin.initializeApp();
 const db = admin.firestore();
 
 const MODEL_NAME = "gemini-3.5-flash-lite";
+
+// Target Google Calendar for all scheduling (set in functions/.env)
+const CALENDAR_ID = defineString("USER_CALENDAR_ID");
 
 // JSON Schema for Task State
 const taskSchema = {
@@ -144,7 +148,7 @@ async function getWeatherWhangaparaoa() {
 }
 
 // Core Scheduling Engine Logic (with Pre-Schedule Cleanup to Avoid Duplicates)
-async function runScheduleEngine(targetCalendarId) {
+async function runScheduleEngine() {
   const docRef = db.collection("app_state").doc("todo_doc");
   const docSnap = await docRef.get();
   const currentTasks = docSnap.exists ? docSnap.data().tasks || [] : [];
@@ -154,7 +158,10 @@ async function runScheduleEngine(targetCalendarId) {
   }
 
   const calendar = await getCalendarClient();
-  const calendarId = targetCalendarId || process.env.USER_CALENDAR_ID || "primary";
+  const calendarId = CALENDAR_ID.value();
+  if (!calendarId) {
+    throw new Error("Missing USER_CALENDAR_ID config (set it in functions/.env)");
+  }
 
   // 1. CLEANUP PREVIOUS CALENDAR EVENTS TO PREVENT DUPLICATES
   for (const task of currentTasks) {
@@ -281,7 +288,7 @@ exports.autoScheduleDaily = onSchedule({
 }, async (event) => {
   console.log("Starting daily 8:00 PM automated schedule update...");
   try {
-    const result = await runScheduleEngine("primary");
+    const result = await runScheduleEngine();
     console.log("Daily schedule completed:", JSON.stringify(result));
   } catch (err) {
     console.error("Daily schedule failed:", err);
@@ -298,8 +305,7 @@ exports.generateWeeklySchedule = onRequest({
   timeoutSeconds: 120,
 }, async (req, res) => {
   try {
-    const calendarId = req.body.calendarId || "primary";
-    const result = await runScheduleEngine(calendarId);
+    const result = await runScheduleEngine();
     res.status(200).send(result);
   } catch (err) {
     console.error(err);

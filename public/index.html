@@ -255,7 +255,7 @@
         const res = await fetch(SCHEDULE_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ calendarId: "2a19f9718f504372db61caf7b70c548529a4baedc992a385eaf06917df462fca@group.calendar.google.com" })
+          body: JSON.stringify({})
         });
         const data = await res.json();
         if (data.success) {
