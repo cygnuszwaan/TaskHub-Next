@@ -163,9 +163,38 @@
     const SCHEDULE_URL = "https://us-central1-taskhub-next.cloudfunctions.net/generateWeeklySchedule";
 
     let allTasks = [];
-    let selectedTagFilter = "ALL";
+    let selectedTagFilter = null; // null = show all
 
-    window.addEventListener("DOMContentLoaded", fetchTasks);
+    const PRIORITIES = ["HIGH", "MEDIUM", "LOW"];
+
+    function esc(value) {
+      return String(value ?? "").replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("tagFilterBar").addEventListener("click", e => {
+        const chip = e.target.closest(".filter-chip");
+        if (!chip) return;
+        setFilter(chip.hasAttribute("data-all") ? null : chip.dataset.tag);
+      });
+
+      document.getElementById("taskList").addEventListener("click", e => {
+        const item = e.target.closest(".task-item");
+        if (!item) return;
+        const taskId = item.dataset.id;
+        const btn = e.target.closest("[data-action]");
+        if (btn && item.contains(btn)) {
+          if (btn.dataset.action === "complete") completeTask(taskId);
+          else if (btn.dataset.action === "delete") deleteTask(taskId);
+          return;
+        }
+        openEditModal(taskId);
+      });
+
+      fetchTasks();
+    });
 
     async function fetchTasks() {
       const listContainer = document.getElementById("taskList");
@@ -274,10 +303,10 @@
       const tagMap = new Set();
       allTasks.forEach(t => (t.tags || []).forEach(tag => tagMap.add(tag)));
 
-      let html = `<div class="filter-chip ${selectedTagFilter === 'ALL' ? 'active' : ''}" onclick="setFilter('ALL')">All (${allTasks.length})</div>`;
+      let html = `<div class="filter-chip ${selectedTagFilter === null ? 'active' : ''}" data-all="1">All (${allTasks.length})</div>`;
       tagMap.forEach(tag => {
         const count = allTasks.filter(t => (t.tags || []).includes(tag)).length;
-        html += `<div class="filter-chip ${selectedTagFilter === tag ? 'active' : ''}" onclick="setFilter('${tag}')">${tag} (${count})</div>`;
+        html += `<div class="filter-chip ${selectedTagFilter === tag ? 'active' : ''}" data-tag="${esc(tag)}">${esc(tag)} (${count})</div>`;
       });
       bar.innerHTML = html;
     }
@@ -292,7 +321,7 @@
       const listContainer = document.getElementById("taskList");
       let filtered = allTasks;
 
-      if (selectedTagFilter !== "ALL") {
+      if (selectedTagFilter !== null) {
         filtered = allTasks.filter(t => (t.tags || []).includes(selectedTagFilter));
       }
 
@@ -304,20 +333,20 @@
       filtered.sort((a, b) => a.order - b.order);
 
       listContainer.innerHTML = filtered.map(t => `
-        <div class="task-item" onclick="openEditModal('${t.id}')">
+        <div class="task-item" data-id="${esc(t.id)}">
           <div style="flex:1;">
-            <strong>#${t.order} ${t.title}</strong>
+            <strong>#${esc(t.order)} ${esc(t.title)}</strong>
             <div class="task-meta">
-              <span class="badge ${t.priority}">${t.priority}</span>
-              <span class="time-chip">⏱️ ${t.estimatedMinutes || 15}m</span>
-              ${(t.tags || []).map(tag => `<span class="chip">${tag}</span>`).join('')}
-              ${t.dueDate ? `<span class="chip">Due: ${t.dueDate}</span>` : ''}
+              <span class="badge ${PRIORITIES.includes(t.priority) ? t.priority : ''}">${esc(t.priority)}</span>
+              <span class="time-chip">⏱️ ${esc(t.estimatedMinutes || 15)}m</span>
+              ${(t.tags || []).map(tag => `<span class="chip">${esc(tag)}</span>`).join('')}
+              ${t.dueDate ? `<span class="chip">Due: ${esc(t.dueDate)}</span>` : ''}
               ${t.googleCalendarEventId ? `<span class="chip" style="background:#dcfce7;color:#166534;">📅 Synced</span>` : ''}
             </div>
           </div>
           <div class="action-btns">
-            <button class="complete-btn" title="Complete & Archive Task" onclick="event.stopPropagation(); completeTask('${t.id}')">✅</button>
-            <button class="delete-btn" title="Delete Task" onclick="event.stopPropagation(); deleteTask('${t.id}')">❌</button>
+            <button class="complete-btn" title="Complete & Archive Task" data-action="complete">✅</button>
+            <button class="delete-btn" title="Delete Task" data-action="delete">❌</button>
           </div>
         </div>
       `).join("");

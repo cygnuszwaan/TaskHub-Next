@@ -6,6 +6,8 @@ const {defineString} = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const {GoogleGenAI, Type} = require("@google/genai");
 const {google} = require("googleapis");
+const {TIME_ZONE, getNZDate, getNZOffset, formatNZNow, getNZStartOfDay} = require("./time");
+const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, sweepAgentEvents, getBusyWindows, mergeBusyWindows} = require("./calendar");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -14,6 +16,8 @@ const MODEL_NAME = "gemini-3.5-flash-lite";
 
 // Target Google Calendar for all scheduling (set in functions/.env)
 const CALENDAR_ID = defineString("USER_CALENDAR_ID");
+// Owner's personal calendar. Read-only: used for free/busy, never written to (set in functions/.env)
+const PERSONAL_CALENDAR_ID = defineString("USER_PERSONAL_CALENDAR_ID");
 
 // JSON Schema for Task State
 const taskSchema = {
@@ -84,11 +88,11 @@ const scheduleSchema = {
           title: {type: Type.STRING},
           startISO: {
             type: Type.STRING,
-            description: "ISO 8601 start date time, e.g. 2026-10-22T09:00:00+13:00",
+            description: "ISO 8601 start date time in NZ local time with its UTC offset, e.g. 2026-10-22T09:00:00+13:00",
           },
           endISO: {
             type: Type.STRING,
-            description: "ISO 8601 end date time, e.g. 2026-10-22T09:45:00+13:00",
+            description: "ISO 8601 end date time in NZ local time with its UTC offset, e.g. 2026-10-22T09:45:00+13:00",
           },
           transparency: {
             type: Type.STRING,
@@ -128,6 +132,17 @@ async function getCalendarClient() {
   return google.calendar({version: "v3", auth: jwtClient});
 }
 
+// Helper: Remove every calendar event belonging to a task
+async function removeTaskCalendarEvent(task) {
+  if (!task) return;
+  try {
+    const calendar = await getCalendarClient();
+    await deleteTaskEvents(calendar, CALENDAR_ID.value(), task);
+  } catch (err) {
+    console.warn(`Calendar cleanup failed for task ${task.id}:`, err.message);
+  }
+}
+
 // Helper: Fetch Weather
 async function getWeatherWhangaparaoa() {
   try {
@@ -162,62 +177,49 @@ async function runScheduleEngine() {
   if (!calendarId) {
     throw new Error("Missing USER_CALENDAR_ID config (set it in functions/.env)");
   }
-
-  // 1. CLEANUP PREVIOUS CALENDAR EVENTS TO PREVENT DUPLICATES
-  for (const task of currentTasks) {
-    if (task.googleCalendarEventId) {
-      try {
-        await calendar.events.delete({
-          calendarId: calendarId,
-          eventId: task.googleCalendarEventId,
-        });
-      } catch (delErr) {
-        // Ignore 404/410 if event was already manually removed from Google Calendar
-        if (delErr.status !== 404 && delErr.status !== 410) {
-          console.warn(`Could not delete old event ${task.googleCalendarEventId}:`, delErr.message);
-        }
-      }
-    }
+  const personalCalendarId = PERSONAL_CALENDAR_ID.value();
+  if (!personalCalendarId) {
+    throw new Error("Missing USER_PERSONAL_CALENDAR_ID config (set it in functions/.env)");
   }
 
   const now = new Date();
   const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  // 2. Fetch busy slots after cleanup
-  const freeBusyRes = await calendar.freebusy.query({
-    requestBody: {
-      timeMin: now.toISOString(),
-      timeMax: sevenDaysLater.toISOString(),
-      items: [{id: calendarId}],
-    },
-  });
+  // 0. Read the personal calendar's busy time first; if this fails, abort before touching any events
+  const personalBusy = await getBusyWindows(calendar, personalCalendarId, now.toISOString(), sevenDaysLater.toISOString(), TIME_ZONE);
 
-  const calData = freeBusyRes.data.calendars[calendarId];
-  const busySlots = (calData && calData.busy) ? calData.busy : [];
+  // 1. CLEANUP PREVIOUS CALENDAR EVENTS TO PREVENT DUPLICATES
+  for (const task of currentTasks) {
+    await deleteCalendarEvent(calendar, calendarId, task.googleCalendarEventId);
+  }
+  // ...and sweep any leftover app-created events (e.g. from deleted tasks) from today on
+  await sweepAgentEvents(calendar, calendarId, getNZStartOfDay().toISOString());
+
+  // 2. Fetch the agent calendar's busy slots after cleanup, then combine with the personal calendar's
+  const agentBusy = await getBusyWindows(calendar, calendarId, now.toISOString(), sevenDaysLater.toISOString(), TIME_ZONE);
+  const busySlots = mergeBusyWindows([...personalBusy, ...agentBusy]);
   const weatherInfo = await getWeatherWhangaparaoa();
-  const nowString = now.toLocaleString("en-NZ", {
-    timeZone: "Pacific/Auckland",
-    dateStyle: "full",
-    timeStyle: "short",
-  });
+  const nowString = formatNZNow(now);
+  const nzOffset = getNZOffset(now);
 
   const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
   const prompt = `
     You are an AI calendar scheduler in Whangaparāoa, New Zealand.
-    Current Time: ${nowString} (Pacific/Auckland, offset +13:00)
+    Current Time: ${nowString} (${TIME_ZONE}, UTC offset ${nzOffset})
     Whangaparāoa Weather: ${weatherInfo}
     
-    Existing Busy Calendar Windows (DO NOT OVERLAP WITH THESE):
+    Existing Busy Calendar Windows, covering the owner's personal appointments and already-booked task time (DO NOT OVERLAP WITH THESE):
     ${JSON.stringify(busySlots, null, 2)}
     
     Active Task Queue To Schedule:
     ${JSON.stringify(currentTasks, null, 2)}
     
     Rules:
-    1. Schedule uncompleted tasks across the next 7 days in open gaps between 8:00 AM and 7:00 PM NZDT.
+    1. Schedule uncompleted tasks across the next 7 days in open gaps between 8:00 AM and 7:00 PM New Zealand local time.
     2. Set transparency: "opaque" for focus tasks (blocks busy); "transparent" for quick chores/reminders.
     3. Avoid scheduling Outdoor tasks if weather is rainy.
-    4. Return the non-conflicting schedule matching the JSON schema.
+    4. Write every startISO/endISO in New Zealand local time using the UTC offset that applies on that date (currently ${nzOffset}; it changes if the date falls after a daylight saving change).
+    5. Return the non-conflicting schedule matching the JSON schema.
   `;
 
   const response = await ai.models.generateContent({
@@ -238,7 +240,7 @@ async function runScheduleEngine() {
   for (const item of scheduledList) {
     const eventResource = {
       summary: item.title,
-      description: `Generated by AI Task Agent. ${item.reasoning || ""}`,
+      description: `${AGENT_MARKER}. ${item.reasoning || ""}`,
       transparency: item.transparency,
       extendedProperties: {
         private: {taskId: item.taskId},
@@ -277,10 +279,10 @@ async function runScheduleEngine() {
   };
 }
 
-// 1. Scheduled Function: Runs Every Evening at 8:00 PM NZDT
+// 1. Scheduled Function: Runs Every Evening at 8:00 PM NZ time
 exports.autoScheduleDaily = onSchedule({
   schedule: "0 20 * * *",
-  timeZone: "Pacific/Auckland",
+  timeZone: TIME_ZONE,
   secrets: [
     "GEMINI_API_KEY",
     {name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"},
@@ -326,7 +328,7 @@ exports.addOrUpdateTask = onRequest({
     const currentTasks = docSnap.exists ? docSnap.data().tasks || [] : [];
 
     const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
-    const today = new Date().toISOString().split("T")[0];
+    const today = getNZDate();
 
     const prompt = `
       You are an expert task queue organizer. Today's date is: ${today}.
@@ -363,7 +365,10 @@ exports.addOrUpdateTask = onRequest({
 });
 
 // 4. Endpoint: Archive Completed Tasks (Zero Token Cost Solution)
-exports.completeTask = onRequest({cors: true}, async (req, res) => {
+exports.completeTask = onRequest({
+  secrets: [{name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"}],
+  cors: true,
+}, async (req, res) => {
   try {
     const {taskId} = req.body;
     if (!taskId) return res.status(400).send({error: "Missing taskId"});
@@ -382,6 +387,7 @@ exports.completeTask = onRequest({cors: true}, async (req, res) => {
 
       // Remove from active tasks
       tasks = tasks.filter((t) => t.id !== taskId);
+      await removeTaskCalendarEvent(completedTask);
 
       await docRef.set({
         tasks,
@@ -411,9 +417,7 @@ exports.getWhatToDoNow = onRequest({
     }
 
     const weatherInfo = await getWeatherWhangaparaoa();
-    const now = new Date().toLocaleString("en-NZ", {
-      timeZone: "Pacific/Auckland", dateStyle: "full", timeStyle: "short",
-    });
+    const now = formatNZNow();
 
     const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
     const prompt = `
@@ -444,7 +448,10 @@ exports.getTasks = onRequest({cors: true}, async (req, res) => {
 });
 
 // 7. Endpoint: Direct Update / Delete
-exports.updateTaskDirect = onRequest({cors: true}, async (req, res) => {
+exports.updateTaskDirect = onRequest({
+  secrets: [{name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"}],
+  cors: true,
+}, async (req, res) => {
   try {
     const {taskId, action, updatedFields} = req.body;
     const docRef = db.collection("app_state").doc("todo_doc");
@@ -452,6 +459,7 @@ exports.updateTaskDirect = onRequest({cors: true}, async (req, res) => {
     let tasks = docSnap.exists ? docSnap.data().tasks || [] : [];
 
     if (action === "DELETE") {
+      await removeTaskCalendarEvent(tasks.find((t) => t.id === taskId));
       tasks = tasks.filter((t) => t.id !== taskId);
     } else if (action === "UPDATE") {
       tasks = tasks.map((t) => (t.id === taskId ? {...t, ...updatedFields} : t));
