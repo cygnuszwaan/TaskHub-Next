@@ -1,7 +1,6 @@
 # Firebase build and deployment files
 /firebase-debug.log
 /firebase-debug.*.log
-.firebaserc
 
 # Firebase Hosting
 /firebase.json
@@ -26,3 +25,6 @@ yarn-error.log*
 
 # Environment files (local configs)
 /.env.*
+
+# macOS
+.DS_Store

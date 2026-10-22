@@ -174,15 +174,20 @@
   </div>
 
   <script>
-    const ADD_TASK_URL = "https://us-central1-taskhub-next.cloudfunctions.net/addOrUpdateTask"; 
-    const RECOMMEND_URL = "https://us-central1-taskhub-next.cloudfunctions.net/getWhatToDoNow";
-    const GET_TASKS_URL = "https://us-central1-taskhub-next.cloudfunctions.net/getTasks";
-    const DIRECT_UPDATE_URL = "https://us-central1-taskhub-next.cloudfunctions.net/updateTaskDirect";
-    const COMPLETE_TASK_URL = "https://us-central1-taskhub-next.cloudfunctions.net/completeTask";
-    const SCHEDULE_URL = "https://us-central1-taskhub-next.cloudfunctions.net/generateWeeklySchedule";
+    // Config: the only place deployment-specific values live.
+    const CONFIG = {
+      functionsBase: "https://us-central1-taskhub-next.cloudfunctions.net",
+      firebaseSdk: "https://www.gstatic.com/firebasejs/12.18.0"
+    };
+    const endpoint = name => `${CONFIG.functionsBase}/${name}`;
+    const ADD_TASK_URL = endpoint("addOrUpdateTask");
+    const RECOMMEND_URL = endpoint("getWhatToDoNow");
+    const GET_TASKS_URL = endpoint("getTasks");
+    const DIRECT_UPDATE_URL = endpoint("updateTaskDirect");
+    const COMPLETE_TASK_URL = endpoint("completeTask");
+    const SCHEDULE_URL = endpoint("generateWeeklySchedule");
 
     // Firebase Auth. The SDK loads from the CDN and the web config from Hosting's reserved URL, so there is no build step or key in this file.
-    const FIREBASE_SDK = "https://www.gstatic.com/firebasejs/12.18.0";
     let authLib = null;
     let firebaseAuth = null;
     let gateNotice = "";
@@ -202,8 +207,8 @@
     async function initAuth() {
       try {
         const [appLib, lib, config] = await Promise.all([
-          import(`${FIREBASE_SDK}/firebase-app.js`),
-          import(`${FIREBASE_SDK}/firebase-auth.js`),
+          import(`${CONFIG.firebaseSdk}/firebase-app.js`),
+          import(`${CONFIG.firebaseSdk}/firebase-auth.js`),
           fetch("/__/firebase/init.json").then(r => {
             if (!r.ok) throw new Error("Firebase config not found (is a web app registered for this project?)");
             return r.json();
@@ -255,6 +260,15 @@
           : "Your sign-in was rejected. Please sign in again.";
         await signOutUser();
         throw new Error(gateNotice);
+      }
+      if (!res.ok) {
+        // Surface the server's error instead of treating the body as data
+        let message = `Request failed (${res.status})`;
+        try {
+          const body = await res.clone().json();
+          if (body && body.error) message = body.error;
+        } catch (e) { /* non-JSON error body */ }
+        throw new Error(message);
       }
       return res;
     }
@@ -333,7 +347,7 @@
         renderFilterBar();
         renderTasks();
       } catch (err) {
-        listContainer.innerHTML = "<p>Error loading tasks.</p>";
+        listContainer.innerHTML = "<p>Error loading tasks: " + esc(err.message) + "</p>";
       }
     }
 
@@ -399,7 +413,7 @@
         const data = await res.json();
         recDiv.innerText = data.recommendation;
       } catch (err) {
-        recDiv.innerText = "Failed to get advice.";
+        recDiv.innerText = "Failed to get advice: " + err.message;
       }
     }
 
@@ -557,7 +571,7 @@
         renderFilterBar();
         renderTasks();
       } catch (err) {
-        alert("Error deleting task");
+        alert("Error deleting task: " + err.message);
       }
     }
 
