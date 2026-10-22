@@ -39,4 +39,31 @@ function formatNZNow(date = new Date()) {
   });
 }
 
-module.exports = {TIME_ZONE, getNZDate, getNZOffset, getNZStartOfDay, formatNZNow};
+// Minutes since 00:00 NZ local time for the given instant.
+function getNZMinutesOfDay(date) {
+  const parts = new Intl.DateTimeFormat("en-NZ", {
+    timeZone: TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const hour = Number(parts.find((p) => p.type === "hour").value);
+  const minute = Number(parts.find((p) => p.type === "minute").value);
+  return hour * 60 + minute;
+}
+
+// Instant of 00:00 NZ local time on the given YYYY-MM-DD date.
+function getNZDayStart(dateStr) {
+  // Offset taken at 00:00-01:00 NZ on that date, before any 2-3am daylight-saving changeover.
+  const probe = new Date(Date.parse(`${dateStr}T00:00:00Z`) - 12 * 60 * 60 * 1000);
+  return new Date(`${dateStr}T00:00:00${getNZOffset(probe)}`);
+}
+
+// YYYY-MM-DD shifted by n calendar days (n may be negative).
+function addDays(dateStr, n) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+module.exports = {TIME_ZONE, getNZDate, getNZOffset, getNZStartOfDay, formatNZNow, getNZMinutesOfDay, getNZDayStart, addDays};

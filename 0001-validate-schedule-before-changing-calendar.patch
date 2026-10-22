@@ -1,0 +1,514 @@
+From 1d422f0f8865882802a82257eb80cfcd21adff82 Mon Sep 17 00:00:00 2001
+From: Claude <claude@anthropic.com>
+Date: Thu, 22 Oct 2026 08:02:21 +0000
+Subject: [PATCH] Validate Gemini schedule before changing the calendar
+
+Ask Gemini first, validate slots (parse, 8:00-19:00 NZ, no overlap with busy windows or each other), insert new events, then delete the old ones. Keep existing events if generation or validation fails. Use an exclusive end date for all-day events and store scheduledStart/scheduledEnd on tasks. Add a patch-delivery directive to PROJECT.md.
+---
+ PROJECT.md            |  36 ++++++++-----
+ functions/calendar.js |  66 ++++++++++++++---------
+ functions/index.js    | 122 ++++++++++++++++++++++++++----------------
+ functions/schedule.js |  86 +++++++++++++++++++++++++++++
+ functions/time.js     |  29 +++++++++-
+ 5 files changed, 254 insertions(+), 85 deletions(-)
+ create mode 100644 functions/schedule.js
+
+diff --git a/PROJECT.md b/PROJECT.md
+index 0932674..76624d1 100644
+--- a/PROJECT.md
++++ b/PROJECT.md
+@@ -14,6 +14,12 @@ This file is a snapshot of the project's present state and intended direction. I
+ - Keep the roadmap ordered, with the next step first. Every step must be completable in a single turn; split any that aren't.
+ - Record only what's true now or planned. Unresolved questions go in Open questions and are removed once answered.
+ 
++## Delivering changes
++
++- End every turn that changes files by supplying a git patch of those changes, `PROJECT.md` updates included. Make it with `git format-patch` so it applies with `git am` from the repo root, with a short imperative commit message.
++- Verify the patch applies cleanly to the previous state before delivering it.
++- The patch contains only changed files: no `node_modules`, `__MACOSX` or unchanged files.
++
+ ## Stack
+ 
+ - Firebase project `taskhub-next`. Hosting serves `public/`. Functions are v2 on Node 24, region us-central1. Firestore is in australia-southeast1.
+@@ -21,7 +27,7 @@ This file is a snapshot of the project's present state and intended direction. I
+ - Firestore rules: deny-all. Every read and write goes through the functions via the Admin SDK, which bypasses rules.
+ - A separate app, a kids' chore tracker, lives in its own Firebase project (`screen-time-chore-tracker`). Never deploy to it from this repo; always target `taskhub-next` explicitly (`--project taskhub-next`).
+ - Frontend: one file, `public/index.html`, vanilla HTML/CSS/JS, no build step. Calls the functions over HTTPS via hardcoded URLs. All task-derived text goes through `esc()` before `innerHTML`; list and filter clicks use event delegation on `data-` attributes.
+-- Backend: `functions/index.js` (endpoints and engine), `functions/calendar.js` (event cleanup helpers) and `functions/time.js` (NZ date/offset helpers). Gemini (`@google/genai`, model constant `MODEL_NAME`) for parsing, scheduling and coaching. Google Calendar via the `googleapis` service-account JWT. Weather from Open-Meteo.
++- Backend: `functions/index.js` (endpoints and engine), `functions/calendar.js` (event listing, cleanup and busy-window helpers), `functions/schedule.js` (pure validation of Gemini's slots) and `functions/time.js` (NZ date/offset helpers). Gemini (`@google/genai`, model constant `MODEL_NAME`) for parsing, scheduling and coaching. Google Calendar via the `googleapis` service-account JWT. Weather from Open-Meteo.
+ - Secrets: `GEMINI_API_KEY`, `GOOGLE_CALENDAR_CREDENTIALS` (service-account JSON; bound to every function that touches Calendar, including `completeTask` and `updateTaskDirect`).
+ - Config (Firebase params read from `functions/.env` at deploy): `USER_CALENDAR_ID` (the agent calendar that tasks are scheduled onto) and `USER_PERSONAL_CALENDAR_ID` (the owner's personal calendar, read-only, used for free/busy).
+ 
+@@ -29,7 +35,7 @@ This file is a snapshot of the project's present state and intended direction. I
+ 
+ - `app_state/todo_doc`: `{tasks: Task[], updatedAt}`. The whole active list is one array in one document.
+ - `completed_tasks/{auto-id}`: a copy of the Task plus `completedAt`. Write-only archive for future analytics.
+-- Task: `id`, `title`, `priority` (HIGH/MEDIUM/LOW), `dueDate` (YYYY-MM-DD or empty), `estimatedMinutes`, `tags[]`, `status` (PENDING/COMPLETED), `googleCalendarEventId`, `order` (rank from 1).
++- Task: `id`, `title`, `priority` (HIGH/MEDIUM/LOW), `dueDate` (YYYY-MM-DD or empty), `estimatedMinutes`, `tags[]`, `status` (PENDING/COMPLETED), `googleCalendarEventId`, `scheduledStart`/`scheduledEnd` (set only while scheduled; ISO 8601 with NZ offset, or YYYY-MM-DD with an exclusive end date for all-day), `order` (rank from 1).
+ 
+ ## Endpoints
+ 
+@@ -49,24 +55,26 @@ Deleting or completing a task removes its calendar events by stored `googleCalen
+ 
+ ## Scheduling engine (`runScheduleEngine`)
+ 
+-1. Load tasks. Read the personal calendar's free/busy for the next 7 days first; if that fails, abort before touching any events.
+-2. Delete the Calendar event of every task that has `googleCalendarEventId` (already-missing events are ignored), then sweep every remaining event whose description contains the marker "Generated by AI Task Agent" from the start of today (NZ) onward, which clears orphans from deleted tasks.
+-3. Read free/busy for the agent calendar, merge it with the personal calendar's busy windows (overlaps combined) and pass Gemini only those time windows, never event titles.
+-4. Prompt Gemini with the current NZ time and its real UTC offset (+12:00 or +13:00 depending on daylight saving), weather, the merged busy windows (requested in NZ time) and tasks. Rules: 8:00–19:00 NZ local time, opaque for focus tasks and transparent for quick chores, no outdoor tasks in rain.
+-5. Insert one event per returned item on the agent calendar, store the new event id on the task, save the list.
++Nothing on the calendar changes until Gemini's slots pass validation.
++
++1. Load tasks. Read the personal calendar's free/busy for the next 7 days, and list the app's existing agent-calendar events (stored event ids plus every event whose description contains the marker "Generated by AI Task Agent", from the start of today NZ). If either lookup fails, abort.
++2. Collect agent-calendar busy time from opaque events that are not the app's own (events list, not free/busy, so the app's old events don't block rescheduling). Merge it with the personal busy windows (overlaps combined) and pass Gemini only those time windows, never event titles.
++3. Prompt Gemini with the current NZ time and its real UTC offset (+12:00 or +13:00 depending on daylight saving), weather, the merged busy windows and tasks. Rules: 8:00–19:00 NZ local time, opaque for focus tasks and transparent for quick chores, no outdoor tasks in rain, each task at most once.
++4. Validate (`validateSchedule`). Any failure, or an empty result, aborts and keeps the old events. Timed slots need an ISO time with offset, a start in the future, an end within 7 days, one NZ day inside 8:00–19:00, no overlap with busy windows or each other. All-day slots (always transparent) need a date from today to the horizon date and skip overlap checks. Each task id must exist and appear once.
++5. Insert the new events on the agent calendar (all-day events use an exclusive end date). If an insert fails, delete the ones already created and abort.
++6. Delete the old events (already-missing ones are ignored), then save the list: each scheduled task gets `googleCalendarEventId`, `scheduledStart` and `scheduledEnd`; unscheduled tasks have all three cleared.
+ 
+-The cron and the manual trigger both use `USER_CALENDAR_ID`; neither the frontend nor the request chooses the calendar. All writes go to that calendar only. Busy time marked "free" (transparent) on either calendar does not appear in free/busy.
++The cron and the manual trigger both use `USER_CALENDAR_ID`; neither the frontend nor the request chooses the calendar. All writes go to that calendar only. Busy time marked "free" (transparent) on either calendar does not count as busy.
+ 
+ ## Roadmap
+ 
+ Each step fits in one turn. Do them in order unless told otherwise.
+ 
+-1. **Safe scheduling.** Ask Gemini first, validate its slots (parse, within hours, no overlap with busy windows or each other), then delete the old events and insert the new ones. Fix all-day events to use an exclusive end date. Keep the old events if generation or validation fails. Store `scheduledStart` and `scheduledEnd` on each task.
+-2. **Calendar lock.** A task is locked when its agent-created event has been moved to the personal calendar. Detect these by listing events from now on in the personal calendar that carry the "Generated by AI Task Agent" description (match to tasks by stored event id, then `taskId` tag, then title). Skip locked tasks in cleanup, the sweep and scheduling, and give Gemini their windows as unavailable. Release a lock once its event has passed, and never write to the personal calendar. If the lookup fails, abort the run. Mark locked tasks (`locked: true`) so the UI can show them.
+-3. **Schedule visibility in the app.** Show each task's scheduled date and time and a locked indicator in the task list (read-only; moving the event between calendars is the lock control).
+-4. **Safe task ingestion.** Make `addOrUpdateTask` ask the model for only the new or changed tasks, then merge server-side so existing ids, order and `googleCalendarEventId` are preserved. Wrap the read-modify-write in a Firestore transaction. Apply the same transaction to the other write endpoints.
+-5. **Endpoint auth.** Restrict access to the owner (Firebase Auth with an allowlisted account, or a shared-secret header as a minimum). Tighten CORS to the Hosting origin.
+-6. **Repo hygiene.** Add ESLint config so the predeploy lint passes, plus `.firebaserc`, `.gitignore`, and a short README with deploy and secret-setup commands. Move the function URLs in the frontend to a single config block.
++1. **Calendar lock.** A task is locked when its agent-created event has been moved to the personal calendar. Detect these by listing events from now on in the personal calendar that carry the "Generated by AI Task Agent" description (match to tasks by stored event id, then `taskId` tag, then title). Skip locked tasks in old-event deletion and scheduling, and give Gemini their windows as unavailable. Release a lock once its event has passed, and never write to the personal calendar. If the lookup fails, abort the run. Mark locked tasks (`locked: true`) so the UI can show them.
++2. **Schedule visibility in the app.** Show each task's scheduled date and time and a locked indicator in the task list (read-only; moving the event between calendars is the lock control).
++3. **Safe task ingestion.** Make `addOrUpdateTask` ask the model for only the new or changed tasks, then merge server-side so existing ids, order, `googleCalendarEventId` and `scheduledStart`/`scheduledEnd` are preserved. Wrap the read-modify-write in a Firestore transaction. Apply the same transaction to the other write endpoints.
++4. **Endpoint auth.** Restrict access to the owner (Firebase Auth with an allowlisted account, or a shared-secret header as a minimum). Tighten CORS to the Hosting origin.
++5. **Repo hygiene.** Add ESLint config so the predeploy lint passes, plus `.firebaserc`, `.gitignore`, and a short README with deploy and secret-setup commands. Move the function URLs in the frontend to a single config block.
+ 
+ ## Backlog (unordered, not yet planned)
+ 
+diff --git a/functions/calendar.js b/functions/calendar.js
+index 37d619e..56a6a48 100644
+--- a/functions/calendar.js
++++ b/functions/calendar.js
+@@ -5,6 +5,8 @@
+ // cleanup find the app's events even when a task's stored event id is missing.
+ const AGENT_MARKER = "Generated by AI Task Agent";
+ 
++const {getNZDayStart} = require("./time");
++
+ // Delete one event (best effort; never throws).
+ async function deleteCalendarEvent(calendar, calendarId, eventId) {
+   if (!eventId) return;
+@@ -19,9 +21,9 @@ async function deleteCalendarEvent(calendar, calendarId, eventId) {
+   }
+ }
+ 
+-// Page through events.list and return every event id for the given query options.
+-async function listEventIds(calendar, calendarId, options, filter) {
+-  const ids = [];
++// Page through events.list and return every event for the given query options.
++async function listEvents(calendar, calendarId, options) {
++  const events = [];
+   let pageToken;
+   do {
+     const res = await calendar.events.list({
+@@ -31,12 +33,16 @@ async function listEventIds(calendar, calendarId, options, filter) {
+       pageToken,
+       ...options,
+     });
+-    for (const ev of res.data.items || []) {
+-      if (ev.id && (!filter || filter(ev))) ids.push(ev.id);
+-    }
++    events.push(...(res.data.items || []));
+     pageToken = res.data.nextPageToken;
+   } while (pageToken);
+-  return ids;
++  return events;
++}
++
++// Event ids for the given query options, optionally narrowed by a filter on the event.
++async function listEventIds(calendar, calendarId, options, filter) {
++  const events = await listEvents(calendar, calendarId, options);
++  return events.filter((ev) => ev.id && (!filter || filter(ev))).map((ev) => ev.id);
+ }
+ 
+ // Delete every calendar event belonging to a task: the stored event id plus any
+@@ -58,23 +64,14 @@ async function deleteTaskEvents(calendar, calendarId, task) {
+   }
+ }
+ 
+-// Delete every app-created event starting at or after timeMin (ISO string),
+-// including orphans whose tasks no longer exist. Best effort; never throws.
+-async function sweepAgentEvents(calendar, calendarId, timeMin) {
+-  try {
+-    const ids = await listEventIds(
+-        calendar, calendarId,
+-        {timeMin, q: AGENT_MARKER, singleEvents: true},
+-        (ev) => (ev.description || "").includes(AGENT_MARKER),
+-    );
+-    for (const id of ids) {
+-      await deleteCalendarEvent(calendar, calendarId, id);
+-    }
+-    return ids.length;
+-  } catch (err) {
+-    console.warn("Could not sweep app-created calendar events:", err.message);
+-    return 0;
+-  }
++// Ids of every app-created event starting at or after timeMin (ISO string),
++// including orphans whose tasks no longer exist. Throws if the lookup fails.
++async function findAgentEventIds(calendar, calendarId, timeMin) {
++  return listEventIds(
++      calendar, calendarId,
++      {timeMin, q: AGENT_MARKER, singleEvents: true},
++      (ev) => (ev.description || "").includes(AGENT_MARKER),
++  );
+ }
+ 
+ // Read-only: busy windows ({start, end}) for one calendar. Throws if the API call
+@@ -92,6 +89,25 @@ async function getBusyWindows(calendar, calendarId, timeMin, timeMax, timeZone)
+   return entry.busy || [];
+ }
+ 
++// Busy windows ({start, end}) from events that were not created by the app: opaque,
++// not cancelled, not carrying the marker and not in excludeIds (a Set of event ids).
++// Used for the agent calendar so the app's own previous events don't block rescheduling.
++// Throws if the API call fails.
++async function getForeignBusyWindows(calendar, calendarId, timeMin, timeMax, excludeIds = new Set()) {
++  const events = await listEvents(calendar, calendarId, {timeMin, timeMax, singleEvents: true});
++  const windows = [];
++  for (const ev of events) {
++    if (ev.status === "cancelled" || ev.transparency === "transparent") continue;
++    if (excludeIds.has(ev.id) || (ev.description || "").includes(AGENT_MARKER)) continue;
++    if (ev.start && ev.start.dateTime && ev.end && ev.end.dateTime) {
++      windows.push({start: ev.start.dateTime, end: ev.end.dateTime});
++    } else if (ev.start && ev.start.date && ev.end && ev.end.date) {
++      windows.push({start: getNZDayStart(ev.start.date).toISOString(), end: getNZDayStart(ev.end.date).toISOString()});
++    }
++  }
++  return windows;
++}
++
+ // Sort busy windows and merge any that overlap or touch. Keeps the original
+ // start/end strings of the windows that bound each merged block.
+ function mergeBusyWindows(windows) {
+@@ -114,4 +130,4 @@ function mergeBusyWindows(windows) {
+   return merged.map(({start, end}) => ({start, end}));
+ }
+ 
+-module.exports = {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, sweepAgentEvents, getBusyWindows, mergeBusyWindows};
++module.exports = {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEventIds, getBusyWindows, getForeignBusyWindows, mergeBusyWindows};
+diff --git a/functions/index.js b/functions/index.js
+index eb88d22..ba74f7c 100644
+--- a/functions/index.js
++++ b/functions/index.js
+@@ -7,7 +7,8 @@ const admin = require("firebase-admin");
+ const {GoogleGenAI, Type} = require("@google/genai");
+ const {google} = require("googleapis");
+ const {TIME_ZONE, getNZDate, getNZOffset, formatNZNow, getNZStartOfDay} = require("./time");
+-const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, sweepAgentEvents, getBusyWindows, mergeBusyWindows} = require("./calendar");
++const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEventIds, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
++const {validateSchedule} = require("./schedule");
+ 
+ admin.initializeApp();
+ const db = admin.firestore();
+@@ -59,6 +60,14 @@ const taskSchema = {
+             type: Type.INTEGER,
+             description: "Numeric rank starting at 1",
+           },
++          scheduledStart: {
++            type: Type.STRING,
++            description: "Scheduled start (ISO 8601, or YYYY-MM-DD for all-day) if scheduled; copy unchanged",
++          },
++          scheduledEnd: {
++            type: Type.STRING,
++            description: "Scheduled end (ISO 8601, or exclusive YYYY-MM-DD for all-day) if scheduled; copy unchanged",
++          },
+         },
+         required: [
+           "id",
+@@ -162,7 +171,8 @@ async function getWeatherWhangaparaoa() {
+   }
+ }
+ 
+-// Core Scheduling Engine Logic (with Pre-Schedule Cleanup to Avoid Duplicates)
++// Core Scheduling Engine Logic. Nothing on the calendar is touched until Gemini's
++// slots have been validated; a failure before that point leaves existing events as they are.
+ async function runScheduleEngine() {
+   const docRef = db.collection("app_state").doc("todo_doc");
+   const docSnap = await docRef.get();
+@@ -185,18 +195,13 @@ async function runScheduleEngine() {
+   const now = new Date();
+   const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+ 
+-  // 0. Read the personal calendar's busy time first; if this fails, abort before touching any events
++  // 1. Read-only lookups: personal busy time, plus the app's existing events on the agent calendar
+   const personalBusy = await getBusyWindows(calendar, personalCalendarId, now.toISOString(), sevenDaysLater.toISOString(), TIME_ZONE);
++  const oldEventIds = new Set(currentTasks.map((t) => t.googleCalendarEventId).filter(Boolean));
++  (await findAgentEventIds(calendar, calendarId, getNZStartOfDay().toISOString())).forEach((id) => oldEventIds.add(id));
+ 
+-  // 1. CLEANUP PREVIOUS CALENDAR EVENTS TO PREVENT DUPLICATES
+-  for (const task of currentTasks) {
+-    await deleteCalendarEvent(calendar, calendarId, task.googleCalendarEventId);
+-  }
+-  // ...and sweep any leftover app-created events (e.g. from deleted tasks) from today on
+-  await sweepAgentEvents(calendar, calendarId, getNZStartOfDay().toISOString());
+-
+-  // 2. Fetch the agent calendar's busy slots after cleanup, then combine with the personal calendar's
+-  const agentBusy = await getBusyWindows(calendar, calendarId, now.toISOString(), sevenDaysLater.toISOString(), TIME_ZONE);
++  // 2. Agent-calendar busy time excludes the app's own events, which are replaced by this run
++  const agentBusy = await getForeignBusyWindows(calendar, calendarId, now.toISOString(), sevenDaysLater.toISOString(), oldEventIds);
+   const busySlots = mergeBusyWindows([...personalBusy, ...agentBusy]);
+   const weatherInfo = await getWeatherWhangaparaoa();
+   const nowString = formatNZNow(now);
+@@ -215,11 +220,12 @@ async function runScheduleEngine() {
+     ${JSON.stringify(currentTasks, null, 2)}
+     
+     Rules:
+-    1. Schedule uncompleted tasks across the next 7 days in open gaps between 8:00 AM and 7:00 PM New Zealand local time.
+-    2. Set transparency: "opaque" for focus tasks (blocks busy); "transparent" for quick chores/reminders.
+-    3. Avoid scheduling Outdoor tasks if weather is rainy.
+-    4. Write every startISO/endISO in New Zealand local time using the UTC offset that applies on that date (currently ${nzOffset}; it changes if the date falls after a daylight saving change).
+-    5. Return the non-conflicting schedule matching the JSON schema.
++    1. Schedule uncompleted tasks across the next 7 days in open gaps between 8:00 AM and 7:00 PM New Zealand local time. Each timed slot must start after the current time, fit entirely within one day's 8:00 AM-7:00 PM window, and must not overlap a busy window or another slot.
++    2. Schedule each task at most once.
++    3. Set transparency: "opaque" for focus tasks (blocks busy); "transparent" for quick chores/reminders.
++    4. Avoid scheduling Outdoor tasks if weather is rainy.
++    5. Write every startISO/endISO in New Zealand local time using the UTC offset that applies on that date (currently ${nzOffset}; it changes if the date falls after a daylight saving change).
++    6. Return the non-conflicting schedule matching the JSON schema.
+   `;
+ 
+   const response = await ai.models.generateContent({
+@@ -234,38 +240,64 @@ async function runScheduleEngine() {
+   const scheduleData = JSON.parse(response.text);
+   const scheduledList = scheduleData.scheduledTasks || [];
+ 
+-  const updatedTasks = [...currentTasks];
+-
+-  // 3. Insert newly calculated slots into Google Calendar
+-  for (const item of scheduledList) {
+-    const eventResource = {
+-      summary: item.title,
+-      description: `${AGENT_MARKER}. ${item.reasoning || ""}`,
+-      transparency: item.transparency,
+-      extendedProperties: {
+-        private: {taskId: item.taskId},
+-      },
+-    };
++  // 3. Validate before touching the calendar
++  if (scheduledList.length === 0) {
++    throw new Error("Gemini returned no slots; existing events were kept.");
++  }
++  const {slots, errors} = validateSchedule({items: scheduledList, tasks: currentTasks, busy: busySlots, now, horizon: sevenDaysLater});
++  if (errors.length > 0) {
++    console.warn("Schedule validation failed:", errors);
++    throw new Error(`Gemini's schedule was rejected and existing events were kept: ${errors.slice(0, 5).join("; ")}`);
++  }
+ 
+-    if (item.isAllDay) {
+-      const dateStr = item.startISO.split("T")[0];
+-      eventResource.start = {date: dateStr};
+-      eventResource.end = {date: dateStr};
+-    } else {
+-      eventResource.start = {dateTime: item.startISO};
+-      eventResource.end = {dateTime: item.endISO};
++  // 4. Insert the new events first; if any insert fails, remove the ones already created and keep the old schedule
++  const created = [];
++  try {
++    for (const slot of slots) {
++      const task = currentTasks.find((t) => t.id === slot.taskId);
++      const eventResource = {
++        summary: task.title,
++        description: `${AGENT_MARKER}. ${slot.item.reasoning || ""}`,
++        extendedProperties: {private: {taskId: task.id}},
++      };
++      if (slot.allDay) {
++        eventResource.start = {date: slot.date};
++        eventResource.end = {date: slot.endDate}; // Calendar's all-day end date is exclusive
++        eventResource.transparency = "transparent";
++      } else {
++        eventResource.start = {dateTime: slot.item.startISO};
++        eventResource.end = {dateTime: slot.item.endISO};
++        eventResource.transparency = slot.item.transparency === "transparent" ? "transparent" : "opaque";
++      }
++      const createdEvent = await calendar.events.insert({calendarId, requestBody: eventResource});
++      created.push({slot, eventId: createdEvent.data.id});
+     }
++  } catch (err) {
++    for (const {eventId} of created) {
++      await deleteCalendarEvent(calendar, calendarId, eventId);
++    }
++    throw new Error(`Inserting events failed; existing events were kept: ${err.message}`);
++  }
+ 
+-    const createdEvent = await calendar.events.insert({
+-      calendarId: calendarId,
+-      requestBody: eventResource,
+-    });
++  // 5. Remove the old events, then record the new schedule on the tasks
++  for (const id of oldEventIds) {
++    await deleteCalendarEvent(calendar, calendarId, id);
++  }
+ 
+-    const taskIdx = updatedTasks.findIndex((t) => t.id === item.taskId);
+-    if (taskIdx !== -1) {
+-      updatedTasks[taskIdx].googleCalendarEventId = createdEvent.data.id;
++  const bySlot = new Map(created.map((c) => [c.slot.taskId, c]));
++  const updatedTasks = currentTasks.map((task) => {
++    const next = {...task};
++    delete next.googleCalendarEventId;
++    delete next.scheduledStart;
++    delete next.scheduledEnd;
++    const hit = bySlot.get(task.id);
++    if (hit) {
++      next.googleCalendarEventId = hit.eventId;
++      next.scheduledStart = hit.slot.allDay ? hit.slot.date : hit.slot.item.startISO;
++      next.scheduledEnd = hit.slot.allDay ? hit.slot.endDate : hit.slot.item.endISO;
+     }
+-  }
++    return next;
++  });
+ 
+   await docRef.set({
+     tasks: updatedTasks,
+@@ -274,7 +306,7 @@ async function runScheduleEngine() {
+ 
+   return {
+     success: true,
+-    scheduledCount: scheduledList.length,
++    scheduledCount: slots.length,
+     schedule: scheduledList,
+   };
+ }
+diff --git a/functions/schedule.js b/functions/schedule.js
+new file mode 100644
+index 0000000..c2da4d3
+--- /dev/null
++++ b/functions/schedule.js
+@@ -0,0 +1,86 @@
++/* eslint-disable max-len */
++/* eslint-disable require-jsdoc */
++const {getNZDate, getNZMinutesOfDay, addDays} = require("./time");
++
++// Scheduling hours in NZ local time, as minutes since midnight.
++const DAY_START_MIN = 8 * 60;
++const DAY_END_MIN = 19 * 60;
++
++const ISO_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
++const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
++
++function isRealDate(dateStr) {
++  const d = new Date(`${dateStr}T00:00:00Z`);
++  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === dateStr;
++}
++
++// Validate the slots Gemini returned. Pure: no I/O.
++//   items:   scheduledTasks from the model ({taskId, startISO, endISO, transparency, isAllDay, reasoning})
++//   tasks:   the active task list
++//   busy:    merged busy windows [{start, end}] (ISO strings)
++//   now, horizon: Date objects bounding the schedulable range
++// Returns {slots, errors}. Slots are only meaningful when errors is empty.
++// Timed slots must be parseable, in the future, end by the horizon, sit on one NZ day
++// inside 8:00-19:00, and not overlap busy windows or each other. All-day slots must fall
++// on an NZ date between today and the horizon's date; they are reminders and skip overlap checks.
++function validateSchedule({items, tasks, busy, now, horizon}) {
++  const errors = [];
++  const slots = [];
++  const taskIds = new Set(tasks.map((t) => t.id));
++  const seen = new Set();
++  const busyMs = busy
++      .map((w) => ({startMs: Date.parse(w.start), endMs: Date.parse(w.end)}))
++      .filter((w) => !Number.isNaN(w.startMs) && !Number.isNaN(w.endMs));
++  const firstDate = getNZDate(now);
++  const lastDate = getNZDate(horizon);
++
++  items.forEach((item, i) => {
++    const label = `Slot ${i + 1} (task ${item && item.taskId})`;
++    const fail = (msg) => errors.push(`${label}: ${msg}`);
++
++    if (!item || typeof item !== "object") return fail("not an object");
++    if (!taskIds.has(item.taskId)) return fail("unknown task id");
++    if (seen.has(item.taskId)) return fail("task scheduled more than once");
++    seen.add(item.taskId);
++
++    if (item.isAllDay) {
++      const date = typeof item.startISO === "string" ? item.startISO.slice(0, 10) : "";
++      if (!DATE_ONLY.test(date) || !isRealDate(date)) return fail("invalid all-day date");
++      if (date < firstDate || date > lastDate) return fail(`all-day date ${date} outside ${firstDate}..${lastDate}`);
++      slots.push({taskId: item.taskId, item, allDay: true, date, endDate: addDays(date, 1)});
++      return;
++    }
++
++    if (!ISO_WITH_OFFSET.test(item.startISO || "") || !ISO_WITH_OFFSET.test(item.endISO || "")) {
++      return fail("start/end must be ISO 8601 with a UTC offset");
++    }
++    const startMs = Date.parse(item.startISO);
++    const endMs = Date.parse(item.endISO);
++    if (Number.isNaN(startMs) || Number.isNaN(endMs)) return fail("unparseable start/end");
++    if (endMs <= startMs) return fail("end is not after start");
++    if (startMs < now.getTime()) return fail("starts in the past");
++    if (endMs > horizon.getTime()) return fail("ends after the 7-day horizon");
++
++    const start = new Date(startMs);
++    const end = new Date(endMs);
++    if (getNZDate(start) !== getNZDate(end)) return fail("spans more than one NZ day");
++    if (getNZMinutesOfDay(start) < DAY_START_MIN || getNZMinutesOfDay(end) > DAY_END_MIN) {
++      return fail("outside 8:00-19:00 NZ time");
++    }
++    if (busyMs.some((w) => startMs < w.endMs && endMs > w.startMs)) return fail("overlaps a busy window");
++
++    slots.push({taskId: item.taskId, item, allDay: false, startMs, endMs});
++  });
++
++  // Timed slots must not overlap each other
++  const timed = slots.filter((s) => !s.allDay).sort((a, b) => a.startMs - b.startMs);
++  for (let i = 1; i < timed.length; i++) {
++    if (timed[i].startMs < timed[i - 1].endMs) {
++      errors.push(`Slots for tasks ${timed[i - 1].taskId} and ${timed[i].taskId} overlap each other`);
++    }
++  }
++
++  return {slots, errors};
++}
++
++module.exports = {DAY_START_MIN, DAY_END_MIN, validateSchedule};
+diff --git a/functions/time.js b/functions/time.js
+index 5784167..66662f0 100644
+--- a/functions/time.js
++++ b/functions/time.js
+@@ -39,4 +39,31 @@ function formatNZNow(date = new Date()) {
+   });
+ }
+ 
+-module.exports = {TIME_ZONE, getNZDate, getNZOffset, getNZStartOfDay, formatNZNow};
++// Minutes since 00:00 NZ local time for the given instant.
++function getNZMinutesOfDay(date) {
++  const parts = new Intl.DateTimeFormat("en-NZ", {
++    timeZone: TIME_ZONE,
++    hour: "2-digit",
++    minute: "2-digit",
++    hourCycle: "h23",
++  }).formatToParts(date);
++  const hour = Number(parts.find((p) => p.type === "hour").value);
++  const minute = Number(parts.find((p) => p.type === "minute").value);
++  return hour * 60 + minute;
++}
++
++// Instant of 00:00 NZ local time on the given YYYY-MM-DD date.
++function getNZDayStart(dateStr) {
++  // Offset taken at 00:00-01:00 NZ on that date, before any 2-3am daylight-saving changeover.
++  const probe = new Date(Date.parse(`${dateStr}T00:00:00Z`) - 12 * 60 * 60 * 1000);
++  return new Date(`${dateStr}T00:00:00${getNZOffset(probe)}`);
++}
++
++// YYYY-MM-DD shifted by n calendar days (n may be negative).
++function addDays(dateStr, n) {
++  const d = new Date(`${dateStr}T00:00:00Z`);
++  d.setUTCDate(d.getUTCDate() + n);
++  return d.toISOString().slice(0, 10);
++}
++
++module.exports = {TIME_ZONE, getNZDate, getNZOffset, getNZStartOfDay, formatNZNow, getNZMinutesOfDay, getNZDayStart, addDays};
+-- 
+2.43.0
+
