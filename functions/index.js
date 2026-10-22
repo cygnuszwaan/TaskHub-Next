@@ -7,8 +7,8 @@ const admin = require("firebase-admin");
 const {GoogleGenAI, Type} = require("@google/genai");
 const {google} = require("googleapis");
 const {TIME_ZONE, getNZDate, getNZOffset, formatNZNow, getNZStartOfDay} = require("./time");
-const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEventIds, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
-const {validateSchedule} = require("./schedule");
+const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, findAgentEventIds, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
+const {validateSchedule, matchLockedEvents} = require("./schedule");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -67,6 +67,10 @@ const taskSchema = {
           scheduledEnd: {
             type: Type.STRING,
             description: "Scheduled end (ISO 8601, or exclusive YYYY-MM-DD for all-day) if scheduled; copy unchanged",
+          },
+          locked: {
+            type: Type.BOOLEAN,
+            description: "true if the owner pinned this task's event; copy unchanged",
           },
         },
         required: [
@@ -171,8 +175,47 @@ async function getWeatherWhangaparaoa() {
   }
 }
 
+// Ask Gemini for slots for the given tasks. Returns the raw scheduledTasks list (unvalidated).
+async function requestSchedule(tasks, busySlots, now, sevenDaysLater) {
+  const weatherInfo = await getWeatherWhangaparaoa();
+  const nowString = formatNZNow(now);
+  const nzOffset = getNZOffset(now);
+
+  const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
+  const prompt = `
+    You are an AI calendar scheduler in Whangaparāoa, New Zealand.
+    Current Time: ${nowString} (${TIME_ZONE}, UTC offset ${nzOffset})
+    Whangaparāoa Weather: ${weatherInfo}
+    
+    Existing Busy Calendar Windows, covering the owner's personal appointments, already-booked task time and tasks the owner has pinned to a time (DO NOT OVERLAP WITH THESE):
+    ${JSON.stringify(busySlots, null, 2)}
+    
+    Active Task Queue To Schedule:
+    ${JSON.stringify(tasks, null, 2)}
+    
+    Rules:
+    1. Schedule uncompleted tasks across the next 7 days in open gaps between 8:00 AM and 7:00 PM New Zealand local time. Each timed slot must start after the current time, fit entirely within one day's 8:00 AM-7:00 PM window, and must not overlap a busy window or another slot.
+    2. Schedule each task at most once.
+    3. Set transparency: "opaque" for focus tasks (blocks busy); "transparent" for quick chores/reminders.
+    4. Avoid scheduling Outdoor tasks if weather is rainy.
+    5. Write every startISO/endISO in New Zealand local time using the UTC offset that applies on that date (currently ${nzOffset}; it changes if the date falls after a daylight saving change).
+    6. Return the non-conflicting schedule matching the JSON schema.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: MODEL_NAME,
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: scheduleSchema,
+    },
+  });
+  return JSON.parse(response.text).scheduledTasks || [];
+}
+
 // Core Scheduling Engine Logic. Nothing on the calendar is touched until Gemini's
 // slots have been validated; a failure before that point leaves existing events as they are.
+// The personal calendar is only ever read.
 async function runScheduleEngine() {
   const docRef = db.collection("app_state").doc("todo_doc");
   const docSnap = await docRef.get();
@@ -195,66 +238,49 @@ async function runScheduleEngine() {
   const now = new Date();
   const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  // 1. Read-only lookups: personal busy time, plus the app's existing events on the agent calendar
+  // 1. Read-only lookups. Any failure aborts before an event is touched.
   const personalBusy = await getBusyWindows(calendar, personalCalendarId, now.toISOString(), sevenDaysLater.toISOString(), TIME_ZONE);
-  const oldEventIds = new Set(currentTasks.map((t) => t.googleCalendarEventId).filter(Boolean));
+
+  // A task is locked while its app-tagged event sits on the personal calendar and hasn't ended.
+  // Locks are recomputed every run, so a lock is released once its event has passed.
+  const personalAgentEvents = (await findAgentEvents(calendar, personalCalendarId, now.toISOString()))
+      .filter((ev) => ev.status !== "cancelled" && eventWindow(ev));
+  const lockedEvents = matchLockedEvents(personalAgentEvents, currentTasks); // task id -> personal-calendar event
+  const lockedWindows = [...lockedEvents.values()].map(eventWindow);
+  const lockedEventIds = new Set([...lockedEvents.values()].map((ev) => ev.id));
+  const toSchedule = currentTasks.filter((t) => !lockedEvents.has(t.id));
+
+  // Old agent-calendar events to replace: stored ids of unlocked tasks plus every marked event from today (orphans)
+  const oldEventIds = new Set(toSchedule.map((t) => t.googleCalendarEventId).filter(Boolean));
   (await findAgentEventIds(calendar, calendarId, getNZStartOfDay().toISOString())).forEach((id) => oldEventIds.add(id));
+  lockedEventIds.forEach((id) => oldEventIds.delete(id));
 
-  // 2. Agent-calendar busy time excludes the app's own events, which are replaced by this run
+  // 2. Agent-calendar busy time excludes the app's own events, which are replaced by this run.
+  // Locked windows count as busy even if the personal event is marked free.
   const agentBusy = await getForeignBusyWindows(calendar, calendarId, now.toISOString(), sevenDaysLater.toISOString(), oldEventIds);
-  const busySlots = mergeBusyWindows([...personalBusy, ...agentBusy]);
-  const weatherInfo = await getWeatherWhangaparaoa();
-  const nowString = formatNZNow(now);
-  const nzOffset = getNZOffset(now);
+  const busySlots = mergeBusyWindows([...personalBusy, ...lockedWindows, ...agentBusy]);
 
-  const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
-  const prompt = `
-    You are an AI calendar scheduler in Whangaparāoa, New Zealand.
-    Current Time: ${nowString} (${TIME_ZONE}, UTC offset ${nzOffset})
-    Whangaparāoa Weather: ${weatherInfo}
-    
-    Existing Busy Calendar Windows, covering the owner's personal appointments and already-booked task time (DO NOT OVERLAP WITH THESE):
-    ${JSON.stringify(busySlots, null, 2)}
-    
-    Active Task Queue To Schedule:
-    ${JSON.stringify(currentTasks, null, 2)}
-    
-    Rules:
-    1. Schedule uncompleted tasks across the next 7 days in open gaps between 8:00 AM and 7:00 PM New Zealand local time. Each timed slot must start after the current time, fit entirely within one day's 8:00 AM-7:00 PM window, and must not overlap a busy window or another slot.
-    2. Schedule each task at most once.
-    3. Set transparency: "opaque" for focus tasks (blocks busy); "transparent" for quick chores/reminders.
-    4. Avoid scheduling Outdoor tasks if weather is rainy.
-    5. Write every startISO/endISO in New Zealand local time using the UTC offset that applies on that date (currently ${nzOffset}; it changes if the date falls after a daylight saving change).
-    6. Return the non-conflicting schedule matching the JSON schema.
-  `;
-
-  const response = await ai.models.generateContent({
-    model: MODEL_NAME,
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: scheduleSchema,
-    },
-  });
-
-  const scheduleData = JSON.parse(response.text);
-  const scheduledList = scheduleData.scheduledTasks || [];
-
-  // 3. Validate before touching the calendar
-  if (scheduledList.length === 0) {
-    throw new Error("Gemini returned no slots; existing events were kept.");
-  }
-  const {slots, errors} = validateSchedule({items: scheduledList, tasks: currentTasks, busy: busySlots, now, horizon: sevenDaysLater});
-  if (errors.length > 0) {
-    console.warn("Schedule validation failed:", errors);
-    throw new Error(`Gemini's schedule was rejected and existing events were kept: ${errors.slice(0, 5).join("; ")}`);
+  // 3. Ask Gemini for slots for the unlocked tasks, then validate before touching the calendar
+  let scheduledList = [];
+  let slots = [];
+  if (toSchedule.length > 0) {
+    scheduledList = await requestSchedule(toSchedule, busySlots, now, sevenDaysLater);
+    if (scheduledList.length === 0) {
+      throw new Error("Gemini returned no slots; existing events were kept.");
+    }
+    const result = validateSchedule({items: scheduledList, tasks: toSchedule, busy: busySlots, now, horizon: sevenDaysLater});
+    if (result.errors.length > 0) {
+      console.warn("Schedule validation failed:", result.errors);
+      throw new Error(`Gemini's schedule was rejected and existing events were kept: ${result.errors.slice(0, 5).join("; ")}`);
+    }
+    slots = result.slots;
   }
 
   // 4. Insert the new events first; if any insert fails, remove the ones already created and keep the old schedule
   const created = [];
   try {
     for (const slot of slots) {
-      const task = currentTasks.find((t) => t.id === slot.taskId);
+      const task = toSchedule.find((t) => t.id === slot.taskId);
       const eventResource = {
         summary: task.title,
         description: `${AGENT_MARKER}. ${slot.item.reasoning || ""}`,
@@ -279,7 +305,7 @@ async function runScheduleEngine() {
     throw new Error(`Inserting events failed; existing events were kept: ${err.message}`);
   }
 
-  // 5. Remove the old events, then record the new schedule on the tasks
+  // 5. Remove the old events (agent calendar only), then record the new schedule on the tasks
   for (const id of oldEventIds) {
     await deleteCalendarEvent(calendar, calendarId, id);
   }
@@ -290,8 +316,16 @@ async function runScheduleEngine() {
     delete next.googleCalendarEventId;
     delete next.scheduledStart;
     delete next.scheduledEnd;
+    delete next.locked;
+    const lockedEvent = lockedEvents.get(task.id);
     const hit = bySlot.get(task.id);
-    if (hit) {
+    if (lockedEvent) {
+      // The owner pinned this task by moving its event; show the event's actual time
+      next.googleCalendarEventId = lockedEvent.id;
+      next.scheduledStart = lockedEvent.start.dateTime || lockedEvent.start.date;
+      next.scheduledEnd = lockedEvent.end.dateTime || lockedEvent.end.date;
+      next.locked = true;
+    } else if (hit) {
       next.googleCalendarEventId = hit.eventId;
       next.scheduledStart = hit.slot.allDay ? hit.slot.date : hit.slot.item.startISO;
       next.scheduledEnd = hit.slot.allDay ? hit.slot.endDate : hit.slot.item.endISO;
@@ -307,6 +341,7 @@ async function runScheduleEngine() {
   return {
     success: true,
     scheduledCount: slots.length,
+    lockedCount: lockedEvents.size,
     schedule: scheduledList,
   };
 }

@@ -64,14 +64,29 @@ async function deleteTaskEvents(calendar, calendarId, task) {
   }
 }
 
-// Ids of every app-created event starting at or after timeMin (ISO string),
-// including orphans whose tasks no longer exist. Throws if the lookup fails.
+// Every app-created event (description contains the marker) ending after timeMin
+// (ISO string), including orphans whose tasks no longer exist. Read-only. Throws if
+// the lookup fails.
+async function findAgentEvents(calendar, calendarId, timeMin) {
+  const events = await listEvents(calendar, calendarId, {timeMin, q: AGENT_MARKER, singleEvents: true});
+  return events.filter((ev) => ev.id && (ev.description || "").includes(AGENT_MARKER));
+}
+
+// Ids of the app-created events described above.
 async function findAgentEventIds(calendar, calendarId, timeMin) {
-  return listEventIds(
-      calendar, calendarId,
-      {timeMin, q: AGENT_MARKER, singleEvents: true},
-      (ev) => (ev.description || "").includes(AGENT_MARKER),
-  );
+  return (await findAgentEvents(calendar, calendarId, timeMin)).map((ev) => ev.id);
+}
+
+// The {start, end} window of an event as ISO strings (all-day events span NZ midnight to
+// NZ midnight; their end date is exclusive), or null if the event has no usable times.
+function eventWindow(ev) {
+  if (ev.start && ev.start.dateTime && ev.end && ev.end.dateTime) {
+    return {start: ev.start.dateTime, end: ev.end.dateTime};
+  }
+  if (ev.start && ev.start.date && ev.end && ev.end.date) {
+    return {start: getNZDayStart(ev.start.date).toISOString(), end: getNZDayStart(ev.end.date).toISOString()};
+  }
+  return null;
 }
 
 // Read-only: busy windows ({start, end}) for one calendar. Throws if the API call
@@ -99,11 +114,8 @@ async function getForeignBusyWindows(calendar, calendarId, timeMin, timeMax, exc
   for (const ev of events) {
     if (ev.status === "cancelled" || ev.transparency === "transparent") continue;
     if (excludeIds.has(ev.id) || (ev.description || "").includes(AGENT_MARKER)) continue;
-    if (ev.start && ev.start.dateTime && ev.end && ev.end.dateTime) {
-      windows.push({start: ev.start.dateTime, end: ev.end.dateTime});
-    } else if (ev.start && ev.start.date && ev.end && ev.end.date) {
-      windows.push({start: getNZDayStart(ev.start.date).toISOString(), end: getNZDayStart(ev.end.date).toISOString()});
-    }
+    const window = eventWindow(ev);
+    if (window) windows.push(window);
   }
   return windows;
 }
@@ -130,4 +142,4 @@ function mergeBusyWindows(windows) {
   return merged.map(({start, end}) => ({start, end}));
 }
 
-module.exports = {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEventIds, getBusyWindows, getForeignBusyWindows, mergeBusyWindows};
+module.exports = {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, findAgentEventIds, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows};

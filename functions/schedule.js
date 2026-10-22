@@ -83,4 +83,28 @@ function validateSchedule({items, tasks, busy, now, horizon}) {
   return {slots, errors};
 }
 
-module.exports = {DAY_START_MIN, DAY_END_MIN, validateSchedule};
+// Match app-tagged events found on the personal calendar to tasks, so those tasks count
+// as locked. Pure: no I/O. Each event matches at most one task and vice versa. Passes, in
+// order: the task's stored event id, then the event's private `taskId` tag, then the title
+// (trimmed, case-insensitive). Returns a Map of task id -> event.
+function matchLockedEvents(events, tasks) {
+  const byTask = new Map();
+  const claimed = new Set();
+  const pass = (isMatch) => {
+    for (const task of tasks) {
+      if (byTask.has(task.id)) continue;
+      const ev = events.find((e) => !claimed.has(e) && isMatch(task, e));
+      if (ev) {
+        byTask.set(task.id, ev);
+        claimed.add(ev);
+      }
+    }
+  };
+  const norm = (s) => String(s || "").trim().toLowerCase();
+  pass((task, ev) => Boolean(task.googleCalendarEventId) && task.googleCalendarEventId === ev.id);
+  pass((task, ev) => ((ev.extendedProperties || {}).private || {}).taskId === task.id);
+  pass((task, ev) => norm(task.title) !== "" && norm(task.title) === norm(ev.summary));
+  return byTask;
+}
+
+module.exports = {DAY_START_MIN, DAY_END_MIN, validateSchedule, matchLockedEvents};
