@@ -125,7 +125,10 @@
 
       <div class="form-group">
         <label>Due Date</label>
-        <input type="date" id="editDueDate">
+        <div style="display: flex; gap: 6px;">
+          <input type="date" id="editDueDate" style="flex: 1;">
+          <button type="button" id="clearDueDateBtn" class="btn-secondary" title="Remove the due date" onclick="clearEditDueDate()">Clear</button>
+        </div>
       </div>
 
       <div class="modal-actions">
@@ -478,6 +481,10 @@
       document.getElementById("editDueDate").value = task.dueDate || "";
 
       document.getElementById("editModal").style.display = "flex";
+    }
+
+    function clearEditDueDate() {
+      document.getElementById("editDueDate").value = "";
     }
 
     function closeEditModal() {
