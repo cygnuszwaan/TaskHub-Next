@@ -9,9 +9,12 @@ const {google} = require("googleapis");
 const {TIME_ZONE, getNZDate, getNZOffset, formatNZNow, getNZStartOfDay} = require("./time");
 const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, findAgentEventIds, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
 const {validateSchedule, matchLockedEvents} = require("./schedule");
+const {mergeTaskChanges, applyScheduleResults} = require("./tasks");
+const {randomUUID} = require("crypto");
 
 admin.initializeApp();
 const db = admin.firestore();
+const todoRef = db.collection("app_state").doc("todo_doc");
 
 const MODEL_NAME = "gemini-3.5-flash-lite";
 
@@ -20,8 +23,8 @@ const CALENDAR_ID = defineString("USER_CALENDAR_ID");
 // Owner's personal calendar. Read-only: used for free/busy, never written to (set in functions/.env)
 const PERSONAL_CALENDAR_ID = defineString("USER_PERSONAL_CALENDAR_ID");
 
-// JSON Schema for Task State
-const taskSchema = {
+// JSON Schema for the new or changed tasks the model returns on ingestion
+const changeSchema = {
   type: Type.OBJECT,
   properties: {
     tasks: {
@@ -29,7 +32,10 @@ const taskSchema = {
       items: {
         type: Type.OBJECT,
         properties: {
-          id: {type: Type.STRING},
+          id: {
+            type: Type.STRING,
+            description: "Id of the existing task being changed; empty for a new task",
+          },
           title: {type: Type.STRING},
           priority: {
             type: Type.STRING,
@@ -48,40 +54,12 @@ const taskSchema = {
             items: {type: Type.STRING},
             description: "Concise contextual tags like Outdoor, Indoor, Shopping, Mentally Focused, Physical, etc.",
           },
-          status: {
-            type: Type.STRING,
-            enum: ["PENDING", "COMPLETED"],
-          },
-          googleCalendarEventId: {
-            type: Type.STRING,
-            description: "ID of associated Google Calendar event if scheduled",
-          },
           order: {
             type: Type.INTEGER,
-            description: "Numeric rank starting at 1",
-          },
-          scheduledStart: {
-            type: Type.STRING,
-            description: "Scheduled start (ISO 8601, or YYYY-MM-DD for all-day) if scheduled; copy unchanged",
-          },
-          scheduledEnd: {
-            type: Type.STRING,
-            description: "Scheduled end (ISO 8601, or exclusive YYYY-MM-DD for all-day) if scheduled; copy unchanged",
-          },
-          locked: {
-            type: Type.BOOLEAN,
-            description: "true if the owner pinned this task's event; copy unchanged",
+            description: "Rank (from 1) this task should hold in the full list",
           },
         },
-        required: [
-          "id",
-          "title",
-          "priority",
-          "estimatedMinutes",
-          "tags",
-          "status",
-          "order",
-        ],
+        required: ["title", "priority", "estimatedMinutes", "tags", "order"],
       },
     },
   },
@@ -143,6 +121,21 @@ async function getCalendarClient() {
 
   await jwtClient.authorize();
   return google.calendar({version: "v3", auth: jwtClient});
+}
+
+// Read-modify-write of the task list in one Firestore transaction. `mutate(tasks, tx)` is synchronous and
+// returns {tasks, ...extra} to save the new list, or {...extra} without `tasks` to leave it alone.
+// The transaction may retry, so mutate must not perform side effects other than tx writes.
+async function updateTaskList(mutate) {
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(todoRef);
+    const tasks = snap.exists ? snap.data().tasks || [] : [];
+    const result = mutate(tasks, tx);
+    if (result.tasks) {
+      tx.set(todoRef, {tasks: result.tasks, updatedAt: admin.firestore.FieldValue.serverTimestamp()});
+    }
+    return result;
+  });
 }
 
 // Helper: Remove every calendar event belonging to a task
@@ -217,8 +210,7 @@ async function requestSchedule(tasks, busySlots, now, sevenDaysLater) {
 // slots have been validated; a failure before that point leaves existing events as they are.
 // The personal calendar is only ever read.
 async function runScheduleEngine() {
-  const docRef = db.collection("app_state").doc("todo_doc");
-  const docSnap = await docRef.get();
+  const docSnap = await todoRef.get();
   const currentTasks = docSnap.exists ? docSnap.data().tasks || [] : [];
 
   if (currentTasks.length === 0) {
@@ -310,33 +302,23 @@ async function runScheduleEngine() {
     await deleteCalendarEvent(calendar, calendarId, id);
   }
 
-  const bySlot = new Map(created.map((c) => [c.slot.taskId, c]));
-  const updatedTasks = currentTasks.map((task) => {
-    const next = {...task};
-    delete next.googleCalendarEventId;
-    delete next.scheduledStart;
-    delete next.scheduledEnd;
-    delete next.locked;
-    const lockedEvent = lockedEvents.get(task.id);
-    const hit = bySlot.get(task.id);
-    if (lockedEvent) {
-      // The owner pinned this task by moving its event; show the event's actual time
-      next.googleCalendarEventId = lockedEvent.id;
-      next.scheduledStart = lockedEvent.start.dateTime || lockedEvent.start.date;
-      next.scheduledEnd = lockedEvent.end.dateTime || lockedEvent.end.date;
-      next.locked = true;
-    } else if (hit) {
-      next.googleCalendarEventId = hit.eventId;
-      next.scheduledStart = hit.slot.allDay ? hit.slot.date : hit.slot.item.startISO;
-      next.scheduledEnd = hit.slot.allDay ? hit.slot.endDate : hit.slot.item.endISO;
-    }
-    return next;
-  });
-
-  await docRef.set({
-    tasks: updatedTasks,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+  // Record the schedule on the list as it is now: tasks edited, added or removed while the engine ran are kept as they are
+  const scheduled = new Map(created.map((c) => [c.slot.taskId, {
+    eventId: c.eventId,
+    start: c.slot.allDay ? c.slot.date : c.slot.item.startISO,
+    end: c.slot.allDay ? c.slot.endDate : c.slot.item.endISO,
+  }]));
+  const {orphanEventIds} = await updateTaskList((tasks) => applyScheduleResults({
+    tasks,
+    knownIds: new Set(currentTasks.map((t) => t.id)),
+    locked: lockedEvents,
+    scheduled,
+    createdEvents: created.map((c) => ({taskId: c.slot.taskId, eventId: c.eventId})),
+  }));
+  // Events created for a task that was deleted or completed during the run
+  for (const id of orphanEventIds) {
+    await deleteCalendarEvent(calendar, calendarId, id);
+  }
 
   return {
     success: true,
@@ -382,7 +364,8 @@ exports.generateWeeklySchedule = onRequest({
   }
 });
 
-// 3. Endpoint: Add / Ingest Task
+// 3. Endpoint: Add / Ingest Task. The model returns only new or changed tasks; they are merged into the
+// stored list inside a transaction, so everything else on the list is preserved.
 exports.addOrUpdateTask = onRequest({
   secrets: ["GEMINI_API_KEY"], cors: true, timeoutSeconds: 120,
 }, async (req, res) => {
@@ -390,9 +373,10 @@ exports.addOrUpdateTask = onRequest({
     const userInput = req.body.input;
     if (!userInput) return res.status(400).send({error: "Missing input"});
 
-    const docRef = db.collection("app_state").doc("todo_doc");
-    const docSnap = await docRef.get();
+    const docSnap = await todoRef.get();
     const currentTasks = docSnap.exists ? docSnap.data().tasks || [] : [];
+    // The model sees only the fields it may change, plus the id and rank
+    const visibleTasks = currentTasks.map(({id, title, priority, dueDate, estimatedMinutes, tags, order}) => ({id, title, priority, dueDate, estimatedMinutes, tags, order}));
 
     const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
     const today = getNZDate();
@@ -400,12 +384,16 @@ exports.addOrUpdateTask = onRequest({
     const prompt = `
       You are an expert task queue organizer. Today's date is: ${today}.
       
-      Current Task List:
-      ${JSON.stringify(currentTasks, null, 2)}
+      Current Task List (for context; do not return tasks you leave unchanged):
+      ${JSON.stringify(visibleTasks, null, 2)}
       
       New Input: "${userInput}"
       
-      Parse input into task, infer priority, estimatedMinutes, and tags. Return full updated array.
+      Parse the input into tasks, inferring priority, estimatedMinutes and tags.
+      Return ONLY the tasks that are new or that the input changes.
+      For a change to an existing task, return it with that task's id and its complete updated fields.
+      For a new task, leave id empty.
+      Set order to the rank (from 1) the task should hold in the full list.
     `;
 
     const response = await ai.models.generateContent({
@@ -413,18 +401,26 @@ exports.addOrUpdateTask = onRequest({
       contents: prompt,
       config: {
         responseMimeType: "application/json",
-        responseSchema: taskSchema,
+        responseSchema: changeSchema,
       },
     });
 
-    const updatedData = JSON.parse(response.text);
+    const changes = JSON.parse(response.text).tasks || [];
 
-    await docRef.set({
-      tasks: updatedData.tasks,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    // Merge into the list as it is now, not as it was when the model was asked
+    const result = await updateTaskList((tasks) => {
+      const merged = mergeTaskChanges(tasks, changes, randomUUID);
+      const changed = merged.added + merged.updated > 0;
+      return {...merged, tasks: changed ? merged.tasks : null, current: changed ? merged.tasks : tasks};
     });
 
-    res.status(200).send({success: true, tasks: updatedData.tasks});
+    res.status(200).send({
+      success: true,
+      tasks: result.current,
+      added: result.added,
+      updated: result.updated,
+      skipped: result.skipped,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});
@@ -440,29 +436,20 @@ exports.completeTask = onRequest({
     const {taskId} = req.body;
     if (!taskId) return res.status(400).send({error: "Missing taskId"});
 
-    const docRef = db.collection("app_state").doc("todo_doc");
-    const docSnap = await docRef.get();
-    let tasks = docSnap.exists ? docSnap.data().tasks || [] : [];
-
-    const completedTask = tasks.find((t) => t.id === taskId);
-    if (completedTask) {
-      // Archive to dedicated completed_tasks collection for analytics
-      await db.collection("completed_tasks").add({
+    // Archive and removal commit together; calendar cleanup follows once they have
+    const result = await updateTaskList((tasks, tx) => {
+      const completedTask = tasks.find((t) => t.id === taskId);
+      if (!completedTask) return {current: tasks};
+      tx.create(db.collection("completed_tasks").doc(), {
         ...completedTask,
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+      const remaining = tasks.filter((t) => t.id !== taskId);
+      return {tasks: remaining, current: remaining, completedTask};
+    });
+    await removeTaskCalendarEvent(result.completedTask);
 
-      // Remove from active tasks
-      tasks = tasks.filter((t) => t.id !== taskId);
-      await removeTaskCalendarEvent(completedTask);
-
-      await docRef.set({
-        tasks,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-    }
-
-    res.status(200).send({success: true, tasks});
+    res.status(200).send({success: true, tasks: result.current});
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});
@@ -475,8 +462,7 @@ exports.getWhatToDoNow = onRequest({
 }, async (req, res) => {
   try {
     const {timeAvailable, energyLevel} = req.body || {};
-    const docRef = db.collection("app_state").doc("todo_doc");
-    const docSnap = await docRef.get();
+    const docSnap = await todoRef.get();
     const currentTasks = docSnap.exists ? docSnap.data().tasks || [] : [];
 
     if (currentTasks.length === 0) {
@@ -505,8 +491,7 @@ exports.getWhatToDoNow = onRequest({
 // 6. Endpoint: Read Tasks
 exports.getTasks = onRequest({cors: true}, async (req, res) => {
   try {
-    const docRef = db.collection("app_state").doc("todo_doc");
-    const docSnap = await docRef.get();
+    const docSnap = await todoRef.get();
     const tasks = docSnap.exists ? docSnap.data().tasks || [] : [];
     res.status(200).send({success: true, tasks});
   } catch (err) {
@@ -521,24 +506,26 @@ exports.updateTaskDirect = onRequest({
 }, async (req, res) => {
   try {
     const {taskId, action, updatedFields} = req.body;
-    const docRef = db.collection("app_state").doc("todo_doc");
-    const docSnap = await docRef.get();
-    let tasks = docSnap.exists ? docSnap.data().tasks || [] : [];
 
-    if (action === "DELETE") {
-      await removeTaskCalendarEvent(tasks.find((t) => t.id === taskId));
-      tasks = tasks.filter((t) => t.id !== taskId);
-    } else if (action === "UPDATE") {
-      tasks = tasks.map((t) => (t.id === taskId ? {...t, ...updatedFields} : t));
-    }
-
-    await docRef.set({
-      tasks,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    const result = await updateTaskList((tasks) => {
+      if (action === "DELETE") {
+        const removedTask = tasks.find((t) => t.id === taskId);
+        if (!removedTask) return {current: tasks};
+        const remaining = tasks.filter((t) => t.id !== taskId);
+        return {tasks: remaining, current: remaining, removedTask};
+      }
+      if (action === "UPDATE" && tasks.some((t) => t.id === taskId)) {
+        const next = tasks.map((t) => (t.id === taskId ? {...t, ...updatedFields} : t));
+        return {tasks: next, current: next};
+      }
+      return {current: tasks};
     });
+    // Calendar cleanup follows the commit; a locked task's personal-calendar event is never touched
+    await removeTaskCalendarEvent(result.removedTask);
 
-    res.status(200).send({success: true, tasks});
+    res.status(200).send({success: true, tasks: result.current});
   } catch (err) {
+    console.error(err);
     res.status(500).send({error: err.message});
   }
 });
