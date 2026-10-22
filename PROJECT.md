@@ -26,7 +26,7 @@ This file is a snapshot of the project's present state and intended direction. I
 - Calendar access uses service account `task-calendar-agent@gen-lang-client-0299359787.iam.gserviceaccount.com` (it lives in Google Cloud project `gen-lang-client-0299359787`, not `taskhub-next`). It has edit access to the agent calendar (`USER_CALENDAR_ID`) and "Make changes and see all event details" on the owner's personal calendar. The engine must only ever read the personal calendar, never write to it.
 - Firestore rules: deny-all. Every read and write goes through the functions via the Admin SDK, which bypasses rules.
 - A separate app, a kids' chore tracker, lives in its own Firebase project (`screen-time-chore-tracker`). Never deploy to it from this repo; always target `taskhub-next` explicitly (`--project taskhub-next`).
-- Frontend: one file, `public/index.html`, vanilla HTML/CSS/JS, no build step. Calls the functions over HTTPS via hardcoded URLs. All task-derived text goes through `esc()` before `innerHTML`; list and filter clicks use event delegation on `data-` attributes.
+- Frontend: one file, `public/index.html`, vanilla HTML/CSS/JS, no build step. Calls the functions over HTTPS via hardcoded URLs. All task-derived text goes through `esc()` before `innerHTML`; list and filter clicks use event delegation on `data-` attributes. Each task row shows its schedule (`scheduledStart`/`scheduledEnd`, always formatted in NZ time) and a Locked chip when `locked`; both are read-only. Plan My Week shows the engine's error text on failure.
 - Backend: `functions/index.js` (endpoints and engine), `functions/calendar.js` (event listing, cleanup and busy-window helpers), `functions/schedule.js` (pure validation of Gemini's slots) and `functions/time.js` (NZ date/offset helpers). Gemini (`@google/genai`, model constant `MODEL_NAME`) for parsing, scheduling and coaching. Google Calendar via the `googleapis` service-account JWT. Weather from Open-Meteo.
 - Secrets: `GEMINI_API_KEY`, `GOOGLE_CALENDAR_CREDENTIALS` (service-account JSON; bound to every function that touches Calendar, including `completeTask` and `updateTaskDirect`).
 - Config (Firebase params read from `functions/.env` at deploy): `USER_CALENDAR_ID` (the agent calendar that tasks are scheduled onto) and `USER_PERSONAL_CALENDAR_ID` (the owner's personal calendar, read-only, used for free/busy).
@@ -71,10 +71,9 @@ The cron and the manual trigger both use `USER_CALENDAR_ID`; neither the fronten
 
 Each step fits in one turn. Do them in order unless told otherwise.
 
-1. **Schedule visibility in the app.** Show each task's scheduled date and time and a locked indicator in the task list (read-only; moving the event between calendars is the lock control).
-2. **Safe task ingestion.** Make `addOrUpdateTask` ask the model for only the new or changed tasks, then merge server-side so existing ids, order, `googleCalendarEventId`, `scheduledStart`/`scheduledEnd` and `locked` are preserved. Wrap the read-modify-write in a Firestore transaction. Apply the same transaction to the other write endpoints.
-3. **Endpoint auth.** Restrict access to the owner (Firebase Auth with an allowlisted account, or a shared-secret header as a minimum). Tighten CORS to the Hosting origin.
-4. **Repo hygiene.** Add ESLint config so the predeploy lint passes, plus `.firebaserc`, `.gitignore`, and a short README with deploy and secret-setup commands. Move the function URLs in the frontend to a single config block.
+1. **Safe task ingestion.** Make `addOrUpdateTask` ask the model for only the new or changed tasks, then merge server-side so existing ids, order, `googleCalendarEventId`, `scheduledStart`/`scheduledEnd` and `locked` are preserved. Wrap the read-modify-write in a Firestore transaction. Apply the same transaction to the other write endpoints.
+2. **Endpoint auth.** Restrict access to the owner (Firebase Auth with an allowlisted account, or a shared-secret header as a minimum). Tighten CORS to the Hosting origin.
+3. **Repo hygiene.** Add ESLint config so the predeploy lint passes, plus `.firebaserc`, `.gitignore`, and a short README with deploy and secret-setup commands. Move the function URLs in the frontend to a single config block.
 
 ## Backlog (unordered, not yet planned)
 
@@ -90,4 +89,3 @@ Each step fits in one turn. Do them in order unless told otherwise.
 
 - Does the real repo already contain an ESLint config and `.firebaserc`? Neither was in the archive.
 - Should the Gemini calls stay, or should some or all of them move to Claude models?
-- Does Google Calendar keep an event's id and `taskId` tag when the owner moves it to the personal calendar? Lock matching falls back to the title if not, which fails if the owner renames the event.

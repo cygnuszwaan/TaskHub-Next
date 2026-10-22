@@ -34,6 +34,8 @@
     .LOW { background: #e6f4ea; color: #137333; }
     .chip { font-size: 11px; background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 10px; }
     .time-chip { font-size: 11px; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+    .sched-chip { background: #dcfce7; color: #166534; font-weight: 600; }
+    .lock-chip { background: #fef3c7; color: #92400e; font-weight: 600; }
     .coach-box { background: #eff6ff; border-left: 4px solid #2563eb; padding: 14px; margin-top: 14px; border-radius: 4px; font-size: 14px; line-height: 1.5; }
 
     .action-btns { display: flex; gap: 4px; }
@@ -173,6 +175,37 @@
       }[c]));
     }
 
+    const NZ_TIME_ZONE = "Pacific/Auckland";
+    const nzDayFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: NZ_TIME_ZONE, weekday: "short", day: "numeric", month: "short" });
+    const nzTimeFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: NZ_TIME_ZONE, hour: "numeric", minute: "2-digit" });
+    const nzKeyFmt = new Intl.DateTimeFormat("en-CA", { timeZone: NZ_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" });
+    const calendarDayFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
+    const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+    // Schedule text in NZ time for a task's scheduledStart/scheduledEnd, or "" if there is none.
+    // Timed values are ISO 8601 with an offset; all-day values are YYYY-MM-DD with an exclusive end.
+    function formatSchedule(start, end) {
+      if (!start) return "";
+      if (DATE_ONLY.test(start)) {
+        const first = new Date(`${start}T00:00:00Z`);
+        if (isNaN(first)) return "";
+        let text = calendarDayFmt.format(first);
+        if (DATE_ONLY.test(end || "")) {
+          const last = new Date(Date.parse(`${end}T00:00:00Z`) - 24 * 60 * 60 * 1000);
+          if (last > first) text += " – " + calendarDayFmt.format(last);
+        }
+        return text + " · all day";
+      }
+      const s = new Date(start);
+      if (isNaN(s)) return "";
+      const e = new Date(end);
+      if (isNaN(e) || e <= s) return `${nzDayFmt.format(s)}, ${nzTimeFmt.format(s)}`;
+      if (nzKeyFmt.format(s) === nzKeyFmt.format(e)) {
+        return `${nzDayFmt.format(s)}, ${nzTimeFmt.format(s)} – ${nzTimeFmt.format(e)}`;
+      }
+      return `${nzDayFmt.format(s)} ${nzTimeFmt.format(s)} – ${nzDayFmt.format(e)} ${nzTimeFmt.format(e)}`;
+    }
+
     window.addEventListener("DOMContentLoaded", () => {
       document.getElementById("tagFilterBar").addEventListener("click", e => {
         const chip = e.target.closest(".filter-chip");
@@ -288,10 +321,11 @@
         });
         const data = await res.json();
         if (data.success) {
-          recDiv.innerText = `Success! Scheduled ${data.scheduledCount} tasks onto your Google Calendar.`;
+          const locked = data.lockedCount ? ` Locked tasks left as pinned: ${data.lockedCount}.` : "";
+          recDiv.innerText = `Success! Scheduled ${data.scheduledCount} tasks onto your Google Calendar.${locked}`;
           fetchTasks();
         } else {
-          recDiv.innerText = data.message || "Failed to generate schedule.";
+          recDiv.innerText = data.error || data.message || "Failed to generate schedule.";
         }
       } catch (err) {
         recDiv.innerText = "Error scheduling week: " + err.message;
@@ -315,6 +349,13 @@
       selectedTagFilter = tag;
       renderFilterBar();
       renderTasks();
+    }
+
+    function scheduleChip(t) {
+      const when = formatSchedule(t.scheduledStart, t.scheduledEnd);
+      if (when) return `<span class="chip sched-chip" title="Scheduled on your calendar">📅 ${esc(when)}</span>`;
+      // Scheduled before times were stored; refreshed by the next Plan My Week
+      return t.googleCalendarEventId ? `<span class="chip sched-chip">📅 Synced</span>` : "";
     }
 
     function renderTasks() {
@@ -341,7 +382,8 @@
               <span class="time-chip">⏱️ ${esc(t.estimatedMinutes || 15)}m</span>
               ${(t.tags || []).map(tag => `<span class="chip">${esc(tag)}</span>`).join('')}
               ${t.dueDate ? `<span class="chip">Due: ${esc(t.dueDate)}</span>` : ''}
-              ${t.googleCalendarEventId ? `<span class="chip" style="background:#dcfce7;color:#166534;">📅 Synced</span>` : ''}
+              ${scheduleChip(t)}
+              ${t.locked ? `<span class="chip lock-chip" title="Pinned: its event was moved to your personal calendar, so Plan My Week leaves it alone">🔒 Locked</span>` : ''}
             </div>
           </div>
           <div class="action-btns">
