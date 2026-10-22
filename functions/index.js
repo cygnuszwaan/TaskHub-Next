@@ -11,12 +11,15 @@ const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, fin
 const {validateSchedule, matchLockedEvents} = require("./schedule");
 const {mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {annotateDue} = require("./due");
+const {makeTaskStore} = require("./store");
 const {makeOwnerOnly} = require("./auth");
 const {randomUUID} = require("crypto");
 
 admin.initializeApp();
 const db = admin.firestore();
-const todoRef = db.collection("app_state").doc("todo_doc");
+// Active tasks: one document per task in `tasks/{id}`. updateTaskList(mutate) is a transactional read-modify-write
+// of the whole list (see store.js); readTaskList() is a plain read.
+const {updateTaskList, getTasks: readTaskList} = makeTaskStore(db);
 
 const MODEL_NAME = "gemini-3.5-flash-lite";
 
@@ -131,21 +134,6 @@ async function getCalendarClient() {
   return google.calendar({version: "v3", auth: jwtClient});
 }
 
-// Read-modify-write of the task list in one Firestore transaction. `mutate(tasks, tx)` is synchronous and
-// returns {tasks, ...extra} to save the new list, or {...extra} without `tasks` to leave it alone.
-// The transaction may retry, so mutate must not perform side effects other than tx writes.
-async function updateTaskList(mutate) {
-  return db.runTransaction(async (tx) => {
-    const snap = await tx.get(todoRef);
-    const tasks = snap.exists ? snap.data().tasks || [] : [];
-    const result = mutate(tasks, tx);
-    if (result.tasks) {
-      tx.set(todoRef, {tasks: result.tasks, updatedAt: admin.firestore.FieldValue.serverTimestamp()});
-    }
-    return result;
-  });
-}
-
 // Helper: Remove every calendar event belonging to a task
 async function removeTaskCalendarEvent(task) {
   if (!task) return;
@@ -220,8 +208,7 @@ async function requestSchedule(tasks, busySlots, now, sevenDaysLater) {
 // slots have been validated; a failure before that point leaves existing events as they are.
 // The personal calendar is only ever read.
 async function runScheduleEngine() {
-  const docSnap = await todoRef.get();
-  const currentTasks = docSnap.exists ? docSnap.data().tasks || [] : [];
+  const currentTasks = await readTaskList();
 
   if (currentTasks.length === 0) {
     return {success: true, scheduledCount: 0, message: "No active tasks."};
@@ -383,8 +370,7 @@ exports.addOrUpdateTask = onRequest({
     const userInput = req.body.input;
     if (!userInput) return res.status(400).send({error: "Missing input"});
 
-    const docSnap = await todoRef.get();
-    const currentTasks = docSnap.exists ? docSnap.data().tasks || [] : [];
+    const currentTasks = await readTaskList();
     // The model sees only the fields it may change, plus the id and rank
     const visibleTasks = currentTasks.map(({id, title, priority, dueDate, estimatedMinutes, tags, order}) => ({id, title, priority, dueDate, estimatedMinutes, tags, order}));
 
@@ -469,8 +455,7 @@ exports.completeTask = onRequest({
 // 5. Endpoint: Read Tasks
 exports.getTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
-    const docSnap = await todoRef.get();
-    const tasks = docSnap.exists ? docSnap.data().tasks || [] : [];
+    const tasks = await readTaskList();
     res.status(200).send({success: true, tasks});
   } catch (err) {
     res.status(500).send({error: err.message});
