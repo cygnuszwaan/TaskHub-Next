@@ -28,7 +28,7 @@ This file is a snapshot of the project's present state and intended direction. I
 - Firestore rules: deny-all. Every read and write goes through the functions via the Admin SDK, which bypasses rules.
 - A separate app, a kids' chore tracker, lives in its own Firebase project (`screen-time-chore-tracker`). Never deploy to it from this repo; always target `taskhub-next` explicitly (`--project taskhub-next`).
 - Frontend: one file, `public/index.html`, vanilla HTML/CSS/JS, no build step. Calls the functions over HTTPS; the functions base URL and SDK URL live in one `CONFIG` block at the top of the script. `apiFetch` throws the server's error text on any non-OK response, so a failed call never replaces the task list. All task-derived text goes through `esc()` before `innerHTML`; list and filter clicks use event delegation on `data-` attributes. Each task row shows its schedule (`scheduledStart`/`scheduledEnd`, always formatted in NZ time) and a Locked chip when `locked`; both are read-only. Plan My Week shows the engine's error text on failure. The page is gated behind Google sign-in (Firebase Auth, JS SDK 12.18.0 from gstatic via dynamic `import()`, web config from Hosting's `/__/firebase/init.json`); `apiFetch` adds the ID token to every call, and a 401 or 403 signs out and returns to the sign-in screen.
-- Backend: `functions/index.js` (endpoints and engine), `functions/calendar.js` (event listing, cleanup and busy-window helpers), `functions/auth.js` (owner check for the HTTP endpoints), `functions/schedule.js` (pure validation of Gemini's slots), `functions/tasks.js` (pure merge of model changes and engine results into the task list) and `functions/time.js` (NZ date/offset helpers). Gemini (`@google/genai`, model constant `MODEL_NAME`) for parsing and scheduling. Google Calendar via the `googleapis` service-account JWT. Weather from Open-Meteo.
+- Backend: `functions/index.js` (endpoints and engine), `functions/calendar.js` (event listing, cleanup and busy-window helpers), `functions/auth.js` (owner check for the HTTP endpoints), `functions/schedule.js` (pure validation of Gemini's slots), `functions/tasks.js` (pure merge of model changes and engine results into the task list) and `functions/time.js` (NZ date/offset helpers). Tests are `node --test` specs in `functions/test/` (`npm test`), covering every module except the endpoints and engine in `index.js`; `calendar.js` is tested against a fake client. Gemini (`@google/genai`, model constant `MODEL_NAME`) for parsing and scheduling. Google Calendar via the `googleapis` service-account JWT. Weather from Open-Meteo.
 - Secrets: `GEMINI_API_KEY`, `GOOGLE_CALENDAR_CREDENTIALS` (service-account JSON; bound to every function that touches Calendar, including `completeTask` and `updateTaskDirect`).
 - Firebase Auth in `taskhub-next`: the Google provider is enabled and a web app is registered (Hosting serves its config at `/__/firebase/init.json`). Auth users are per project and unrelated to the chore tracker's.
 - Config (Firebase params read from `functions/.env` at deploy): `OWNER_EMAIL` (the one Google account allowed to call the endpoints), `USER_CALENDAR_ID` (the agent calendar that tasks are scheduled onto) and `USER_PERSONAL_CALENDAR_ID` (the owner's personal calendar, read-only, used for free/busy).
@@ -72,20 +72,19 @@ The cron and the manual trigger both use `USER_CALENDAR_ID`; neither the fronten
 
 ## Roadmap
 
-Each step fits in one turn. Do them in order unless told otherwise.
+Each step fits in one turn. Do them in order unless told otherwise. Each step adds tests for any new pure logic.
 
-1. **Tests for the pure logic.** Add `node --test` specs (`npm test` in `functions/`, no new dependencies) for `time.js`, `schedule.js`, `tasks.js`, `auth.js` and the pure helpers in `calendar.js`. Later steps add tests for any new pure logic.
-2. **Due dates.** Pass `dueDate` and an overdue flag to the scheduling prompt so earlier and overdue tasks are placed first. In the UI, show an Overdue chip and sort overdue tasks to the top.
-3. **Task store module.** Add `functions/store.js` with the same `updateTaskList` interface over a `tasks/{id}` collection (diff-based writes inside a transaction) and a one-off migration script that copies `app_state/todo_doc` into it. Nothing is switched over yet.
-4. **Switch to per-task documents.** Point every endpoint and the engine at the store, run the migration, remove the array-document code, and update Data model and Endpoints.
-5. **Engine: schedule a subset of tasks.** Let `runScheduleEngine` take task ids. Only those tasks are offered to Gemini and have their old events replaced; every other app event counts as busy.
-6. **Reschedule one task.** Add a `rescheduleTask` endpoint and a Reschedule button in the edit modal.
-7. **Completed tasks view.** Add a `getCompletedTasks` endpoint and a UI view of recent completions.
-8. **Simple analytics.** Add a summary above the completed list: completions per week, by tag and by priority, and estimated minutes completed.
-9. **Recurring tasks: data and ingestion.** Add a `recurrence` field (frequency and interval). Gemini extracts it from free text, and the edit modal shows and edits it.
-10. **Recurring tasks: spawn the next occurrence.** Completing a recurring task creates the next one, with the next `dueDate`, in the same transaction. The UI shows a recurrence chip.
-11. **Configurable location and timezone: backend.** Hold location (name, latitude, longitude) and timezone in config. Use them in weather, prompts, `time.js`, the engine and the cron.
-12. **Configurable location and timezone: frontend.** Format times from the configured timezone and add a settings control.
+1. **Due dates.** Pass `dueDate` and an overdue flag to the scheduling prompt so earlier and overdue tasks are placed first. In the UI, show an Overdue chip and sort overdue tasks to the top.
+2. **Task store module.** Add `functions/store.js` with the same `updateTaskList` interface over a `tasks/{id}` collection (diff-based writes inside a transaction) and a one-off migration script that copies `app_state/todo_doc` into it. Nothing is switched over yet.
+3. **Switch to per-task documents.** Point every endpoint and the engine at the store, run the migration, remove the array-document code, and update Data model and Endpoints.
+4. **Engine: schedule a subset of tasks.** Let `runScheduleEngine` take task ids. Only those tasks are offered to Gemini and have their old events replaced; every other app event counts as busy.
+5. **Reschedule one task.** Add a `rescheduleTask` endpoint and a Reschedule button in the edit modal.
+6. **Completed tasks view.** Add a `getCompletedTasks` endpoint and a UI view of recent completions.
+7. **Simple analytics.** Add a summary above the completed list: completions per week, by tag and by priority, and estimated minutes completed.
+8. **Recurring tasks: data and ingestion.** Add a `recurrence` field (frequency and interval). Gemini extracts it from free text, and the edit modal shows and edits it.
+9. **Recurring tasks: spawn the next occurrence.** Completing a recurring task creates the next one, with the next `dueDate`, in the same transaction. The UI shows a recurrence chip.
+10. **Configurable location and timezone: backend.** Hold location (name, latitude, longitude) and timezone in config. Use them in weather, prompts, `time.js`, the engine and the cron.
+11. **Configurable location and timezone: frontend.** Format times from the configured timezone and add a settings control.
 
 ## Open questions
 

@@ -31,7 +31,7 @@ firebase functions:secrets:set GOOGLE_CALENDAR_CREDENTIALS --data-file service-a
 ## Deploy
 
 ```sh
-cd functions && npm install && npm run lint && cd ..
+cd functions && npm install && npm run lint && npm test && cd ..
 firebase deploy --only functions --project taskhub-next
 firebase deploy --only hosting --project taskhub-next
 ```
