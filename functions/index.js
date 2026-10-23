@@ -429,7 +429,7 @@ exports.rescheduleTask = onRequest({
 // priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?, comments?}) no model is
 // called to parse it: the fields are used as entered (validated like the model's) and the task is added at the end of the
 // list. The one exception is a manual entry with no tags, for which the model is asked for tags only (a failure leaves
-// the task untagged), unless the body has `noAi: true` (a copy of a completed task). `startNow: true` starts the timer of
+// the task untagged). `startNow: true` starts the timer of
 // the first task the request adds, which also makes it the active task.
 exports.addOrUpdateTask = onRequest({
   secrets: ["GEMINI_API_KEY"], cors: ALLOWED_ORIGINS, timeoutSeconds: 120,
@@ -441,7 +441,7 @@ exports.addOrUpdateTask = onRequest({
       const change = manualTaskChange(body.manual);
       if (!change) return res.status(400).send({error: "A manual entry needs a title"});
       changes = [change];
-      if (body.noAi !== true && needsTagFill(change)) {
+      if (needsTagFill(change)) {
         try {
           const currentTasks = await readTaskList();
           const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});

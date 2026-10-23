@@ -1156,12 +1156,10 @@ describe("public/index.html helpers", () => {
       const {templateFormValues} = load();
       assert.deepEqual(templateFormValues({title: "x"}), {title: "x", priority: "MEDIUM", estimatedMinutes: 15, tags: "", dueDate: "", recurFreq: "NONE", recurInterval: 1, projectId: "", projectOrder: "", materials: [], comments: ""});
     });
-    it("posts startNow when ticked, and noAi only for a copy added by hand", () => {
+    it("posts startNow only when ticked", () => {
       const {addTaskExtras} = load();
-      assert.deepEqual(addTaskExtras({startNow: false, copied: false, manual: true}), {});
-      assert.deepEqual(addTaskExtras({startNow: true, copied: false, manual: true}), {startNow: true});
-      assert.deepEqual(addTaskExtras({startNow: true, copied: true, manual: true}), {startNow: true, noAi: true});
-      assert.deepEqual(addTaskExtras({startNow: false, copied: true, manual: false}), {});
+      assert.deepEqual(addTaskExtras({startNow: false}), {});
+      assert.deepEqual(addTaskExtras({startNow: true}), {startNow: true});
     });
   });
 });

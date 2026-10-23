@@ -1218,13 +1218,9 @@
       };
     }
 
-    // What submitTask posts besides the entry itself: `startNow` when the box is ticked and `noAi` for a copy of a completed
-    // task, which the server then adds without asking the model for anything
-    function addTaskExtras({ startNow, copied, manual }) {
-      const extras = {};
-      if (startNow) extras.startNow = true;
-      if (manual && copied) extras.noAi = true;
-      return extras;
+    // What submitTask posts besides the entry itself: `startNow` when the box is ticked
+    function addTaskExtras({ startNow }) {
+      return startNow ? { startNow: true } : {};
     }
     // </pure-helpers>
 
@@ -1389,7 +1385,7 @@
           materials: manualMaterials,
           comments: document.getElementById("manualComments").value
         }) : { input };
-        Object.assign(body, addTaskExtras({ startNow: document.getElementById("startNow").checked, copied: copiedFromCompleted, manual }));
+        Object.assign(body, addTaskExtras({ startNow: document.getElementById("startNow").checked }));
         const res = await apiFetch(ADD_TASK_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1399,7 +1395,6 @@
         allTasks = data.tasks || [];
         document.getElementById("taskInput").value = "";
         document.getElementById("startNow").checked = false; // it applies to this task only
-        copiedFromCompleted = false;
         renderTemplateResults();
         if (manual) {
           document.getElementById("manualTags").value = "";
@@ -1419,7 +1414,6 @@
     // owner types, is searched in the page, and is fetched again after the next completion or undo (the archive changed).
     let templates = null;
     let templatesLoading = null;
-    let copiedFromCompleted = false; // the manual form holds a copy of a completed task: add it without the model
     function loadTemplates() {
       if (templates) return Promise.resolve(templates);
       if (!templatesLoading) {
@@ -1468,7 +1462,6 @@
       document.getElementById("manualNewMaterialText").value = "";
       renderManualMaterials();
       document.getElementById("manualComments").value = v.comments;
-      copiedFromCompleted = true;
       document.getElementById("templateResults").hidden = true; // the form replaces the list
     }
 
@@ -2381,7 +2374,6 @@
     document.getElementById("lunchEnabled").addEventListener("change", updateLunchFields);
     document.getElementById("manualToggle").addEventListener("change", e => {
       document.getElementById("manualFields").hidden = !e.target.checked;
-      if (!e.target.checked) copiedFromCompleted = false;
     });
     document.getElementById("taskInput").addEventListener("input", searchTemplates);
     document.getElementById("templateResults").addEventListener("click", e => {
