@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS};`)();
+    return {TABS, normalizeTab, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -208,6 +208,14 @@ describe("public/index.html helpers", () => {
       assert.doesNotMatch(html.slice(q, at(`id="tagsDetails"`, q)), /<summary|<h3/);
       assert.ok(q < at(`id="tagFilterBar"`, q) && at(`id="tagFilterBar"`, q) < at(`id="taskList"`, q));
       assert.ok(at(`id="taskList"`, q) < at("</main>", q));
+    });
+    it("puts a live search box at the top of the Queue, above Tags, redrawing the list as you type", () => {
+      const q = at(`id="queueCard"`);
+      const search = at(`id="taskSearch"`, q);
+      assert.ok(search > q && search < at(`id="tagsDetails"`, q));
+      assert.match(html.slice(html.lastIndexOf("<input", search), html.indexOf(">", search)), /type="search"[^>]*placeholder="Search tasks"/);
+      assert.match(html, /getElementById\("taskSearch"\)\.addEventListener\("input", renderTasks\)/);
+      assert.match(html, /filterTasks\(allTasks, selectedTagFilter, selectedProjectFilter, document\.getElementById\("taskSearch"\)\.value\)/);
     });
     it("starts the Tags and Projects sections collapsed", () => {
       for (const id of ["tagsDetails", "projectsDetails"]) {
@@ -451,10 +459,49 @@ describe("public/index.html helpers", () => {
       assert.deepEqual(ids(h.filterTasks(tasks, "Outdoor", "p1")), ["a"]);
       assert.deepEqual(ids(h.filterTasks(tasks, "Garden", "p1")), []);
     });
+    it("applies a search together with the tag and project filters", () => {
+      const h = load();
+      const list = [
+        {id: "a", title: "Mow lawn", tags: ["Outdoor"], projectId: "p1"},
+        {id: "b", title: "Mow verge", tags: ["Outdoor"], projectId: "p2"},
+        {id: "c", title: "Mop floor", tags: ["Indoor"], projectId: "p1"},
+      ];
+      assert.deepEqual(ids(h.filterTasks(list, null, null, "mo")), ["a", "b", "c"]);
+      assert.deepEqual(ids(h.filterTasks(list, null, null, "mow")), ["a", "b"]);
+      assert.deepEqual(ids(h.filterTasks(list, "Outdoor", "p1", "mow")), ["a"]);
+      assert.deepEqual(ids(h.filterTasks(list, "Indoor", null, "mow")), []);
+      assert.deepEqual(ids(h.filterTasks(list, null, null, "   ")), ["a", "b", "c"]);
+    });
     it("copes with tasks without tags, and does not modify its input", () => {
       const copy = JSON.stringify(tasks);
       assert.deepEqual(ids(load().filterTasks(tasks, "Indoor", null)), ["c"]);
       assert.equal(JSON.stringify(tasks), copy);
+    });
+  });
+  describe("matchesSearch", () => {
+    const task = {id: "a", title: "Fit the Sink", tags: ["Plumbing"], projectId: "p1", materials: [{id: "m1", text: "Sealant", checked: false}]};
+    const find = (q, t = task) => load().matchesSearch(t, q);
+    it("matches everything for an empty or blank search", () => {
+      for (const q of ["", "  ", undefined, null]) assert.equal(find(q), true);
+    });
+    it("ignores case and matches part of a word in the title", () => {
+      assert.equal(find("sink"), true);
+      assert.equal(find("FIT TH"), true);
+      assert.equal(find("ink"), true);
+      assert.equal(find("tap"), false);
+    });
+    it("needs every word to be in the title, in any order", () => {
+      assert.equal(find("sink fit"), true);
+      assert.equal(find("sink garden"), false);
+    });
+    it("searches the title only, not tags, project or materials", () => {
+      assert.equal(find("plumbing"), false);
+      assert.equal(find("sealant"), false);
+      assert.equal(find("p1"), false);
+    });
+    it("copes with a task without a usable title", () => {
+      assert.equal(find("x", {id: "b"}), false);
+      assert.equal(find("x", {id: "b", title: 5}), false);
     });
   });
   describe("manualTaskBody", () => {
