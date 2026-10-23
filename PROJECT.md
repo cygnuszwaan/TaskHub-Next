@@ -78,12 +78,19 @@ The cron and the manual trigger run the full engine and both use `USER_CALENDAR_
 
 Each step fits in one turn. Do them in order unless told otherwise. Each step adds tests for any new pure logic.
 
-1. **Configurable location and timezone: backend.** Hold location (name, latitude, longitude) and timezone in config. Use them in weather, prompts, `time.js`, the engine and the cron.
-2. **Configurable location and timezone: frontend.** Format times from the configured timezone and add a settings control.
-3. **Migration cleanup.** Once the owner confirms the app works on `tasks/{id}`, delete `functions/scripts/migrate-tasks.js`, `planMigration` and its tests, and the unused `app_state/todo_doc` document.
+Runtime settings design: one Firestore document `settings/app` (`location {name, latitude, longitude}`, `timeZone` (IANA), `schedule {enabled, time "HH:MM"}`, `lastAutoRunDate`), read through the functions only. Defaults in code (Whangaparāoa, Pacific/Auckland, enabled, 20:00), so no migration is needed. `autoScheduleDaily` becomes a dispatcher that ticks every 15 minutes (the Cloud Scheduler cron is fixed at deploy) and runs the engine when the local time in the configured zone has reached `schedule.time` and `lastAutoRunDate` is not today's local date. The 8:00-19:00 window and 7-day horizon stay constants.
+
+1. **Settings store and endpoints.** Pure `functions/settings.js` (defaults merge, validation of timezone via `Intl`, latitude/longitude ranges and `HH:MM`, and the due-to-run check) and `getSettings`/`updateSettings` endpoints (owner only).
+2. **Timezone-aware date helpers.** `time.js` and the pure modules that use it (`due.js`, `recurrence.js`, `completed.js`, `schedule.js`) take a `timeZone` argument instead of assuming Pacific/Auckland.
+3. **Engine and endpoints read settings.** Weather, prompts, `runScheduleEngine` and the endpoints take location and timezone from `settings/app`.
+4. **Cron dispatcher.** `autoScheduleDaily` runs every 15 minutes and applies the due-to-run check.
+5. **Frontend.** Format times in the configured timezone and add a settings control (location, timezone, schedule time, enabled).
+6. **Migration cleanup.** Once the owner confirms the app works on `tasks/{id}`, delete `functions/scripts/migrate-tasks.js`, `planMigration` and its tests, and the unused `app_state/todo_doc` document.
 
 ## Open questions
 
+- Should the settings control look up latitude/longitude from a place name (Open-Meteo geocoding) or take them as typed numbers?
+- Is one daily run time enough, or should the schedule support days of the week or several times a day?
 - Is the site served only from `taskhub-next.web.app` and `.firebaseapp.com`? A custom domain would need adding to `ALLOWED_ORIGINS` and to Auth's authorized domains.
 - `firebase.json` is gitignored, so Hosting and Functions config aren't tracked. Should it be committed?
 - Should the Gemini calls stay, or should some or all of them move to Claude models?
