@@ -67,23 +67,25 @@ describe("public/index.html helpers", () => {
       assert.doesNotMatch(html.slice(at(`id="app"`), at(`id="editModal"`)), /signOutUser\(\)/);
       assert.ok(at("<header") - at(`id="app"`) < 40, "the header is the first thing in the app");
       const tabs = [...header.matchAll(/data-tab="(\w+)"/g)].map((m) => m[1]);
-      assert.deepEqual(tabs, ["tasks", "materials", "settings"]);
+      assert.deepEqual(tabs, ["tasks", "materials", "stats", "settings"]);
+      assert.match(header, /data-tab="stats">Stats</);
       assert.ok(header.indexOf(`id="materialsCount"`) > header.indexOf(`data-tab="materials"`));
       assert.ok(header.indexOf(`id="materialsCount"`) < header.indexOf(`data-tab="settings"`));
     });
     it("has one page per tab, with only the Tasks page visible at first", () => {
       const pages = [...html.matchAll(/<main id="(\w+)" data-page="(\w+)"([^>]*)>/g)];
-      assert.deepEqual(pages.map((m) => m[2]), ["tasks", "materials", "settings"]);
-      assert.deepEqual(pages.map((m) => /\bhidden\b/.test(m[3])), [false, true, true]);
+      assert.deepEqual(pages.map((m) => m[2]), ["tasks", "materials", "stats", "settings"]);
+      assert.deepEqual(pages.map((m) => /\bhidden\b/.test(m[3])), [false, true, true, true]);
     });
-    it("puts add task, the Queue and Recently Completed on the Tasks page", () => {
+    it("puts add task and the Queue on the Tasks page", () => {
       const tasks = at(`id="pageTasks"`);
       const end = at("</main>", tasks);
-      for (const id of ["taskInput", "queueDetails", "tagsDetails", "projectsDetails", "taskList", "completedDetails"]) {
+      for (const id of ["taskInput", "queueDetails", "tagsDetails", "projectsDetails", "taskList"]) {
         const i = at(`id="${id}"`);
         assert.ok(i > tasks && i < end, `${id} is on the Tasks page`);
       }
-      assert.ok(at(`id="taskInput"`) < at(`id="queueDetails"`) && at(`id="queueDetails"`) < at(`id="completedDetails"`));
+      assert.ok(at(`id="taskInput"`) < at(`id="queueDetails"`));
+      assert.ok(at(`id="pageStats"`) > end, "Recently Completed is not on the Tasks page");
     });
     it("makes Materials a page, not a collapsible card", () => {
       const page = at(`id="pageMaterials"`);
@@ -113,13 +115,26 @@ describe("public/index.html helpers", () => {
       assert.equal(label("lunchTime"), "Lunch starts");
       assert.equal(label("lunchMinutes"), "Length");
     });
-    it("has one Repeat every select, starting with a daily option, and no Frequency selector or time field", () => {
+    it("has one Repeat every select, ending with a daily option, and no Frequency selector or time field", () => {
       assert.doesNotMatch(html, /schedFrequency|schedTime|schedIntervalGroup|>Frequency</);
       const select = html.slice(at(`<select id="schedInterval">`), at("</select>", at(`<select id="schedInterval">`)));
       const values = [...select.matchAll(/<option value="(\w+)">([^<]*)</g)];
-      assert.deepEqual(values.map((m) => m[1]), ["DAILY", "15", "30", "60", "120", "240"]);
-      assert.equal(values[0][2], "Daily at 8pm");
+      assert.deepEqual(values.map((m) => m[1]), ["15", "30", "60", "120", "240", "DAILY"]);
+      assert.equal(values[5][2], "Daily at 8pm");
       assert.equal(html.slice(at(`<label for="schedInterval">`), at("</label>", at(`<label for="schedInterval">`))).replace(/<[^>]+>/g, ""), "Repeat every");
+    });
+    it("makes Recently Completed the Stats page, not a collapsible card, with its list loaded on each visit", () => {
+      const page = at(`id="pageStats"`);
+      const end = at("</main>", page);
+      assert.ok(page > at(`id="pageMaterials"`) && end < at(`id="pageSettings"`));
+      assert.ok(at(`id="completedList"`) > page && at(`id="completedList"`) < end);
+      assert.doesNotMatch(html.slice(page, end), /<details/);
+      assert.doesNotMatch(html, /completedDetails|Recently Completed/);
+      const show = html.slice(at("function showTab"), at("function showTab") + 700);
+      assert.match(show, /tab === "stats"\) fetchCompleted\(\)/);
+    });
+    it("keeps four tabs on one row by letting them size to their text", () => {
+      assert.match(html, /\.tab-btn\s*\{[^}]*flex:\s*1 1 auto;[^}]*font-size:\s*13px/);
     });
     it("makes Settings a page with Save settings, Update now and the schedule result line", () => {
       const page = at(`id="pageSettings"`);
@@ -170,7 +185,7 @@ describe("public/index.html helpers", () => {
       assert.doesNotMatch(html, /Organized Queue/);
       assert.ok(q < at(`id="tagFilterBar"`, q) && at(`id="tagFilterBar"`, q) < at(`id="taskList"`, q));
       assert.ok(at(`id="taskList"`, q) < close);
-      assert.ok(close < at(`id="completedDetails"`));
+      assert.ok(close < at("</main>", q));
     });
   });
 
@@ -204,7 +219,7 @@ describe("public/index.html helpers", () => {
   describe("tabs", () => {
     it("lists the tabs and falls back to Tasks for an unknown name", () => {
       const {TABS, normalizeTab} = load();
-      assert.deepEqual([...TABS], ["tasks", "materials", "settings"]);
+      assert.deepEqual([...TABS], ["tasks", "materials", "stats", "settings"]);
       for (const name of TABS) assert.equal(normalizeTab(name), name);
       for (const name of ["", "other", undefined, null, "Tasks"]) assert.equal(normalizeTab(name), "tasks");
     });

@@ -89,7 +89,7 @@
     .gate-msg { color: #b91c1c; font-size: 14px; min-height: 20px; margin: 10px 0; }
     .app-header { position: sticky; top: 0; z-index: 100; background: #f4f6f8; padding-top: 8px; margin-bottom: 16px; border-bottom: 1px solid #dbe1e8; }
     .tab-bar { display: flex; gap: 4px; }
-    .tab-btn { flex: 1; background: transparent; color: #475569; border-radius: 6px 6px 0 0; border-bottom: 3px solid transparent; padding: 10px 8px; }
+    .tab-btn { flex: 1 1 auto; font-size: 13px; background: transparent; color: #475569; border-radius: 6px 6px 0 0; border-bottom: 3px solid transparent; padding: 10px 6px; }
     .tab-btn small { font-weight: normal; color: #64748b; }
     .tab-btn.active { color: #0266c8; border-bottom-color: #0266c8; background: #fff; }
   </style>
@@ -107,6 +107,7 @@
     <nav class="tab-bar" id="tabBar">
       <button type="button" class="tab-btn active" data-tab="tasks">Tasks</button>
       <button type="button" class="tab-btn" data-tab="materials">Materials <small id="materialsCount"></small></button>
+      <button type="button" class="tab-btn" data-tab="stats">Stats</button>
       <button type="button" class="tab-btn" data-tab="settings">Settings</button>
     </nav>
   </header>
@@ -168,12 +169,6 @@
     </details>
   </div>
 
-  <div class="card">
-    <details id="completedDetails">
-      <summary style="cursor: pointer; font-weight: 600;">Recently Completed</summary>
-      <div id="completedList" style="margin-top: 12px;"></div>
-    </details>
-  </div>
   </main>
 
   <main id="pageMaterials" data-page="materials" hidden>
@@ -181,6 +176,13 @@
     <h3 style="margin-top:0; margin-bottom:12px;">Materials to get</h3>
     <div id="materialsList"></div>
     <div id="materialsStatus" class="settings-status"></div>
+  </div>
+  </main>
+
+  <main id="pageStats" data-page="stats" hidden>
+  <div class="card">
+    <h3 style="margin-top:0; margin-bottom:12px;">Recently completed</h3>
+    <div id="completedList"></div>
   </div>
   </main>
 
@@ -237,12 +239,12 @@
         <div class="form-group">
           <label for="schedInterval">Repeat every</label>
           <select id="schedInterval">
-            <option value="DAILY">Daily at 8pm</option>
             <option value="15">15 minutes</option>
             <option value="30">30 minutes</option>
             <option value="60">1 hour</option>
             <option value="120">2 hours</option>
             <option value="240">4 hours</option>
+            <option value="DAILY">Daily at 8pm</option>
           </select>
         </div>
         <p class="settings-note" id="settingsLastRun"></p>
@@ -389,6 +391,7 @@
       const tab = normalizeTab(name);
       document.querySelectorAll("[data-page]").forEach(page => { page.hidden = page.dataset.page !== tab; });
       document.querySelectorAll("[data-tab]").forEach(btn => btn.classList.toggle("active", btn.dataset.tab === tab));
+      if (tab === "stats") fetchCompleted(); // loaded on every visit, so it is never stale
       if (tab === "settings" && !currentSettings) loadSettings();
       window.scrollTo(0, 0);
     }
@@ -499,7 +502,7 @@
       };
     }
 
-    const TABS = ["tasks", "materials", "settings"];
+    const TABS = ["tasks", "materials", "stats", "settings"];
     // The tab to show for a requested name; anything unknown falls back to the first tab.
     function normalizeTab(name) {
       return TABS.includes(name) ? name : TABS[0];
@@ -840,7 +843,6 @@
         allTasks = data.tasks || [];
         renderFilterBar();
         renderTasks();
-        if (document.getElementById("completedDetails").open) fetchCompleted();
       } catch (err) {
         alert("Error completing task: " + err.message);
       }
@@ -1266,11 +1268,6 @@
       }
     }
 
-    // Loaded each time the section is opened, so it is never stale
-    document.getElementById("completedDetails").addEventListener("toggle", e => {
-      if (e.target.open) fetchCompleted();
-    });
-
     // Projects: create, rename and delete through updateProject. The server returns the full project list each time,
     // and for a delete the task list too (its members leave the project).
     function setProjectsStatus(text) {
@@ -1439,10 +1436,7 @@
       document.getElementById("settingsLastRun").textContent = last && !isNaN(last)
         ? `Last automatic run: ${formatInstant(last)} (${appTimeZone}).`
         : "No automatic run yet.";
-      if (zoneChanged) {
-        if (tasksLoaded) renderTasks();
-        if (document.getElementById("completedDetails").open) fetchCompleted();
-      }
+      if (zoneChanged && tasksLoaded) renderTasks();
     }
 
     async function loadSettings() {
