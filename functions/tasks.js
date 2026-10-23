@@ -33,7 +33,7 @@ function normalizeRecurrence(value) {
 // validated by normalizeMaterials (null or an empty list removes it, an unusable value leaves it as it was; new
 // items get ids from `makeId`); and `snoozedUntil`, validated by normalizeSnooze (null or an empty string removes it, an
 // unusable value leaves it as it was); and `comments`, validated by normalizeComments (null or empty text removes it, a
-// non-string leaves it as it was).
+// non-string leaves it as it was). `addedAt` is never changed by an edit.
 // Pure apart from `makeId`: the input is not modified.
 function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   const rest = {...fields};
@@ -42,6 +42,7 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   delete rest.materials;
   delete rest.snoozedUntil;
   delete rest.comments;
+  delete rest.addedAt;
   const next = {...task, ...rest};
   if (fields && "recurrence" in fields) {
     const recurrence = normalizeRecurrence(fields.recurrence);
@@ -68,7 +69,7 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
 }
 
 // Fields the model may set. Everything else on a task (id, status, order, calendar and schedule fields, locked,
-// materials, snoozedUntil, comments) is server-owned.
+// materials, snoozedUntil, comments, addedAt) is server-owned.
 function cleanFields(change) {
   const out = {};
   if (typeof change.title === "string" && change.title.trim()) out.title = change.title.trim();
@@ -168,6 +169,7 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
         status: "PENDING",
       };
       if (fields.recurrence) base.recurrence = fields.recurrence;
+      if (typeof options.now === "string" && options.now) base.addedAt = options.now;
       const task = applyProjectFields(base, modelProjectFields(change, projectIds), projectIds);
       if (options.materials === true) {
         const materials = normalizeMaterials(change.materials, makeId);
@@ -192,12 +194,13 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
 //   taskId: the task being completed
 //   today:  the current local date, YYYY-MM-DD
 //   makeId: () => new task id
+//   now:    ISO text; the next occurrence's `addedAt` (left off when omitted)
 // The next occurrence copies title, priority, estimatedMinutes, tags, recurrence and project membership
 // (projectId, projectOrder), materials (all unchecked, as the next occurrence needs them again) and comments, is PENDING and not snoozed, has the next due date (see nextDueDate) and takes the completed task's
 // rank; it has no schedule, calendar event or lock.
 // Other tasks are left exactly as they were. Returns null when no task has that id, otherwise
 // {tasks, completedTask, spawned} with spawned null for a task that does not repeat.
-function completeInList(tasks, taskId, today, makeId) {
+function completeInList(tasks, taskId, today, makeId, now) {
   const index = tasks.findIndex((t) => t.id === taskId);
   if (index === -1) return null;
   const completedTask = tasks[index];
@@ -216,6 +219,7 @@ function completeInList(tasks, taskId, today, makeId) {
     ...projectFieldsOf(completedTask),
     order: completedTask.order,
   };
+  if (typeof now === "string" && now) spawned.addedAt = now;
   if (Array.isArray(completedTask.materials) && completedTask.materials.length > 0) {
     spawned.materials = completedTask.materials.map((m) => ({id: makeId(), text: m.text, checked: false}));
   }

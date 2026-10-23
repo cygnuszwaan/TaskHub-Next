@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, sortTasksForList, streakText, statProjectName, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, sortTasksForList, SORT_OPTIONS, normalizeSortKey, sortTasks, streakText, statProjectName, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -963,6 +963,76 @@ describe("public/index.html helpers", () => {
       assert.match(html, /const EXPORT_URL = endpoint\("exportData"\)/);
       assert.match(html, /apiFetch\(EXPORT_URL\)/);
       assert.match(html, /getElementById\("exportBtn"\)\.addEventListener\("click", downloadExport\)/);
+    });
+  });
+
+  describe("queue sorting", () => {
+    const now = new Date("2026-10-22T09:00:00+13:00");
+    const ids = (list) => list.map((t) => t.id);
+    const tasks = () => [
+      {id: "t1", order: 1, priority: "LOW", dueDate: "2026-10-30", addedAt: "2026-10-20T01:00:00.000Z", scheduledStart: "2026-10-28T10:00:00+13:00"},
+      {id: "t2", order: 2, priority: "HIGH", addedAt: "2026-10-18T01:00:00.000Z", scheduledStart: "2026-10-27T15:00:00+13:00"},
+      {id: "t3", order: 3, priority: "MEDIUM", dueDate: "2026-10-25"},
+      {id: "t4", order: 4, priority: "HIGH", dueDate: "2026-10-25", addedAt: "2026-10-21T01:00:00.000Z", scheduledStart: "2026-10-27"},
+    ];
+
+    it("offers Task number, Priority, Date added, Due date and Scheduled date, and falls back to Task number", () => {
+      const {SORT_OPTIONS, normalizeSortKey} = load();
+      assert.deepEqual(SORT_OPTIONS.map((o) => o[1]), ["Task number", "Priority", "Date added", "Due date", "Scheduled date"]);
+      assert.equal(normalizeSortKey("due"), "due");
+      assert.equal(normalizeSortKey("nonsense"), "order");
+      assert.equal(normalizeSortKey(undefined), "order");
+    });
+    it("sorts by task number as the list always did, and reverses it as a whole", () => {
+      const {sortTasks, sortTasksForList} = load();
+      const list = [{id: "s", order: 1, snoozedUntil: "2026-10-25"}, {id: "p", order: 2}, {id: "o", order: 3, dueDate: "2026-10-20"}];
+      assert.deepEqual(ids(sortTasks(list, "order", false, now)), ids(sortTasksForList(list, now)));
+      assert.deepEqual(ids(sortTasks(list, "order", false, now)), ["o", "p", "s"]);
+      assert.deepEqual(ids(sortTasks(list, "order", true, now)), ["s", "p", "o"]);
+    });
+    it("sorts by priority, highest first when ascending, ties by task number", () => {
+      const {sortTasks} = load();
+      assert.deepEqual(ids(sortTasks(tasks(), "priority", false, now)), ["t2", "t4", "t3", "t1"]);
+      assert.deepEqual(ids(sortTasks(tasks(), "priority", true, now)), ["t1", "t3", "t2", "t4"]);
+    });
+    it("sorts by date added, oldest first, with tasks that have none counted as the oldest", () => {
+      const {sortTasks} = load();
+      assert.deepEqual(ids(sortTasks(tasks(), "added", false, now)), ["t3", "t2", "t1", "t4"]);
+      assert.deepEqual(ids(sortTasks(tasks(), "added", true, now)), ["t4", "t1", "t2", "t3"]);
+    });
+    it("sorts by due date, earliest first, with tasks that have none counted as the latest", () => {
+      const {sortTasks} = load();
+      assert.deepEqual(ids(sortTasks(tasks(), "due", false, now)), ["t3", "t4", "t1", "t2"]);
+      assert.deepEqual(ids(sortTasks(tasks(), "due", true, now)), ["t2", "t1", "t3", "t4"]);
+    });
+    it("sorts by scheduled date, earliest first, with unscheduled tasks counted as the latest", () => {
+      const {sortTasks} = load();
+      assert.deepEqual(ids(sortTasks(tasks(), "scheduled", false, now)), ["t4", "t2", "t1", "t3"]);
+      assert.deepEqual(ids(sortTasks(tasks(), "scheduled", true, now)), ["t3", "t1", "t2", "t4"]);
+    });
+    it("places an all-day slot before a timed one on the same local day, and orders timed slots by local time", () => {
+      const {sortTasks} = load();
+      const list = [
+        {id: "late", order: 1, scheduledStart: "2026-10-27T16:30:00+13:00"},
+        {id: "early", order: 2, scheduledStart: "2026-10-27T08:05:00+13:00"},
+        {id: "allday", order: 3, scheduledStart: "2026-10-27"},
+        {id: "prev", order: 4, scheduledStart: "2026-10-26T23:55:00+13:00"},
+      ];
+      assert.deepEqual(ids(sortTasks(list, "scheduled", false, now)), ["prev", "allday", "early", "late"]);
+    });
+    it("does not keep snoozed or overdue tasks apart when sorting by another field, and does not modify the input", () => {
+      const {sortTasks} = load();
+      const list = [{id: "a", order: 1, priority: "LOW", snoozedUntil: "2026-10-30"}, {id: "b", order: 2, priority: "HIGH", dueDate: "2026-10-01"}, {id: "c", order: 3, priority: "MEDIUM"}];
+      assert.deepEqual(ids(sortTasks(list, "priority", false, now)), ["b", "c", "a"]);
+      assert.deepEqual(ids(list), ["a", "b", "c"]);
+    });
+    it("shows a Sort by select and a direction button in the Queue card", () => {
+      const queue = html.slice(html.indexOf("id=\"queueCard\""), html.indexOf("id=\"taskList\""));
+      assert.ok(queue.includes("id=\"sortBy\"") && queue.includes("id=\"sortDirBtn\""));
+      assert.ok(html.includes("sortTasks(filtered, sortKey, sortDescending)"));
+    });
+    it("labels the edit modal's comments box just Comments", () => {
+      assert.ok(html.includes("<label for=\"editComments\">Comments</label>"));
     });
   });
 });

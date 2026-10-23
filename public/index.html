@@ -71,6 +71,9 @@
     .filter-chip.active { background: var(--primary); color: white; border-color: var(--primary); }
     .search-row { display: flex; gap: 6px; align-items: center; }
     .search-row button[hidden] { display: none; }
+    .sort-row { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
+    .sort-row label { font-size: 13px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+    .sort-row select { flex: 1; min-width: 0; }
     .search-box { flex: 1; min-width: 0; }
     .search-box::-webkit-search-cancel-button { -webkit-appearance: none; } /* the Clear button replaces it, as phones show none */
     .filter-section { margin-top: 12px; }
@@ -248,6 +251,11 @@
       <div class="search-row">
         <input type="search" id="taskSearch" class="search-box" placeholder="Search tasks" autocomplete="off" enterkeyhint="search" aria-label="Search tasks">
         <button type="button" class="btn-secondary" id="clearSearchBtn" hidden>Clear</button>
+      </div>
+      <div class="sort-row">
+        <label for="sortBy">Sort by</label>
+        <select id="sortBy" aria-label="Sort by"></select>
+        <button type="button" class="btn-secondary" id="sortDirBtn"></button>
       </div>
       <details class="filter-section" id="tagsDetails">
         <summary>Tags <small id="tagsActive"></small></summary>
@@ -448,7 +456,7 @@
       </div>
 
       <div class="form-group">
-        <label for="editComments">Comments <small style="font-weight:normal; color:var(--text-faint);">(notes for yourself; never read by the AI)</small></label>
+        <label for="editComments">Comments</label>
         <textarea id="editComments" rows="3" maxlength="2000"></textarea>
       </div>
 
@@ -633,6 +641,8 @@
     let tasksLoaded = false; // set once the list has been drawn
     let selectedTagFilter = null; // null = show all
     let selectedProjectFilter = null; // a project id, null = show all
+    let sortKey = "order"; // the Queue's "Sort by" choice (see SORT_OPTIONS)
+    let sortDescending = false;
     let editMaterials = []; // the materials list being edited in the modal: [{id, text, checked}]
     let manualMaterials = []; // the materials list of the add form's own entry, same shape
     let materialsBusy = false; // true while a check-off from the Materials card is being saved
@@ -997,6 +1007,68 @@
         return a.order - b.order;
       });
     }
+    // The Queue's "Sort by" choices as [key, label], in menu order. "order" (Task number) is the list order above.
+    const SORT_OPTIONS = [
+      ["order", "Task number"],
+      ["priority", "Priority"],
+      ["added", "Date added"],
+      ["due", "Due date"],
+      ["scheduled", "Scheduled date"]
+    ];
+    const PRIORITY_RANK = ["HIGH", "MEDIUM", "LOW"];
+    // A saved or typed sort key as a known one; anything else is "order".
+    function normalizeSortKey(key) {
+      return SORT_OPTIONS.some(o => o[0] === key) ? key : "order";
+    }
+    // The number a task sorts by under `key` (smaller comes first when ascending). Priority: High, Medium, Low (an
+    // unknown one last). Date added (`addedAt`): a task without one counts as the oldest. Due date and Scheduled date:
+    // a task without one counts as the latest. A scheduled slot is placed by its local date and time in the
+    // configured zone, an all-day one at the start of its day.
+    function sortValueOf(task, key, clock) {
+      if (key === "priority") {
+        const rank = PRIORITY_RANK.indexOf(task.priority);
+        return rank === -1 ? PRIORITY_RANK.length : rank;
+      }
+      if (key === "added") {
+        const added = Date.parse(task.addedAt || "");
+        return isNaN(added) ? -Infinity : added;
+      }
+      if (key === "due") {
+        const due = DATE_ONLY.test(task.dueDate || "") ? Date.parse(`${task.dueDate}T00:00:00Z`) : NaN;
+        return isNaN(due) ? Infinity : due;
+      }
+      if (key === "scheduled") {
+        const start = task.scheduledStart || "";
+        if (DATE_ONLY.test(start)) {
+          const day = Date.parse(`${start}T00:00:00Z`);
+          return isNaN(day) ? Infinity : day;
+        }
+        const when = new Date(start);
+        if (!start || isNaN(when)) return Infinity;
+        const [h, m] = clock.format(when).split(":").map(Number);
+        return Date.parse(`${fmt.key.format(when)}T00:00:00Z`) + ((h % 24) * 60 + m) * 60000;
+      }
+      return task.order;
+    }
+    // The tasks in the order of the "Sort by" choice `key`, reversed when `descending` (which applies to every key,
+    // so missing dates move to the front). "order" is the standard list order (sortTasksForList), reversed as a
+    // whole; every other key sorts by that value alone, with ties kept in task number order whichever way it runs.
+    // Pure: the input is not modified.
+    function sortTasks(tasks, key = "order", descending = false, now = new Date()) {
+      const sortKey = normalizeSortKey(key);
+      if (sortKey === "order") {
+        const list = sortTasksForList(tasks, now);
+        return descending ? list.reverse() : list;
+      }
+      const clock = new Intl.DateTimeFormat("en-GB", { timeZone: appTimeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+      const sign = descending ? -1 : 1;
+      const values = new Map(tasks.map(t => [t, sortValueOf(t, sortKey, clock)]));
+      return [...tasks].sort((a, b) => {
+        const va = values.get(a), vb = values.get(b);
+        if (va !== vb) return (va < vb ? -1 : 1) * sign;
+        return a.order - b.order;
+      });
+    }
     // The Stats line for the streak: "Current streak: 3 days · Longest: 9 days". A number that may be larger than shown
     // (its run reaches the first day of the summary window) gets a "+". "" when there is no streak data or no
     // completion at all.
@@ -1079,6 +1151,25 @@
         box.value = "";
         document.getElementById("clearSearchBtn").hidden = true;
         box.focus();
+        renderTasks();
+      });
+      // Sort by: the select and the direction button redraw the list; the choice lasts until the page is reloaded
+      const sortSelect = document.getElementById("sortBy");
+      sortSelect.innerHTML = SORT_OPTIONS.map(([key, label]) => `<option value="${key}">${label}</option>`).join("");
+      sortSelect.value = sortKey;
+      const sortDirBtn = document.getElementById("sortDirBtn");
+      const showSortDirection = () => {
+        sortDirBtn.textContent = sortDescending ? "↓ Descending" : "↑ Ascending";
+        sortDirBtn.setAttribute("aria-label", sortDescending ? "Descending order; tap for ascending" : "Ascending order; tap for descending");
+      };
+      showSortDirection();
+      sortSelect.addEventListener("change", () => {
+        sortKey = normalizeSortKey(sortSelect.value);
+        renderTasks();
+      });
+      sortDirBtn.addEventListener("click", () => {
+        sortDescending = !sortDescending;
+        showSortDirection();
         renderTasks();
       });
       document.getElementById("tagFilterBar").addEventListener("click", e => {
@@ -1380,8 +1471,8 @@
         return;
       }
 
-      // Snoozed tasks last; otherwise overdue tasks first (most overdue first), then everything else by rank
-      filtered = sortTasksForList(filtered);
+      // Task number: snoozed tasks last, then overdue first (most overdue first), then by rank; the other choices sort by their own field
+      filtered = sortTasks(filtered, sortKey, sortDescending);
 
       listContainer.innerHTML = filtered.map(t => `
         <div class="task-item" data-id="${esc(t.id)}">

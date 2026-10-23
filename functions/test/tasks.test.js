@@ -31,6 +31,12 @@ describe("tasks.js", () => {
       assert.equal(r.completedTask.id, "b");
       assert.equal(r.spawned, null);
     });
+    it("stamps the next occurrence with addedAt when given a time, and never copies the old one", () => {
+      const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, recurrence: weekly, addedAt: "2026-01-01T00:00:00.000Z"} : t));
+      const stamped = completeInList(tasks, "b", today, makeIdGenerator(), "2026-10-23T08:00:00.000Z");
+      assert.equal(stamped.spawned.addedAt, "2026-10-23T08:00:00.000Z");
+      assert.equal("addedAt" in completeInList(tasks, "b", today, makeIdGenerator()).spawned, false);
+    });
     it("leaves the other tasks exactly as they were", () => {
       const tasks = existingTasks();
       const r = completeInList(tasks, "b", today, makeIdGenerator());
@@ -130,6 +136,11 @@ describe("tasks.js", () => {
 
     it("applies the fields and leaves the task alone when recurrence is not mentioned", () => {
       assert.deepEqual(applyDirectUpdate({...base, recurrence: weekly}, {title: "A2"}), {...base, title: "A2", recurrence: weekly});
+    });
+    it("never changes addedAt through an edit", () => {
+      const task = {...base, addedAt: "2026-01-01T00:00:00.000Z"};
+      assert.equal(applyDirectUpdate(task, {addedAt: "2030-01-01T00:00:00.000Z", title: "A2"}).addedAt, "2026-01-01T00:00:00.000Z");
+      assert.equal("addedAt" in applyDirectUpdate(base, {addedAt: "2030-01-01T00:00:00.000Z"}), false);
     });
     it("sets a validated recurrence", () => {
       assert.deepEqual(applyDirectUpdate(base, {recurrence: {frequency: "monthly", interval: 2.2, junk: 1}}).recurrence, {frequency: "MONTHLY", interval: 2});
@@ -343,6 +354,17 @@ describe("tasks.js", () => {
       const r = mergeTaskChanges(existingTasks(), [{title: "New"}], makeIdGenerator());
       assert.deepEqual(r.tasks[3], {id: "new1", title: "New", priority: "MEDIUM", dueDate: "", estimatedMinutes: 15, tags: [], status: "PENDING", order: 4});
       assert.equal(r.added, 1);
+    });
+    it("stamps a new task with addedAt when given a time, and leaves it off otherwise", () => {
+      const now = "2026-10-23T08:00:00.000Z";
+      const r = mergeTaskChanges(existingTasks(), [{title: "New", addedAt: "1999-01-01T00:00:00.000Z"}], makeIdGenerator(), [], {now});
+      assert.equal(r.tasks[3].addedAt, now);
+      assert.equal("addedAt" in mergeTaskChanges([], [{title: "New"}], makeIdGenerator()).tasks[0], false);
+    });
+    it("never changes the addedAt of an updated task", () => {
+      const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, addedAt: "2026-01-01T00:00:00.000Z"} : t));
+      const r = mergeTaskChanges(tasks, [{id: "b", title: "B2", addedAt: "2030-01-01T00:00:00.000Z"}], makeIdGenerator(), [], {now: "2026-10-23T08:00:00.000Z"});
+      assert.equal(r.tasks.find((t) => t.id === "b").addedAt, "2026-01-01T00:00:00.000Z");
     });
     it("ignores a model-supplied status, calendar and schedule fields on a new task", () => {
       const r = mergeTaskChanges([], [{title: "New", priority: "BAD", status: "COMPLETED", locked: true, scheduledStart: "x", order: 99}], makeIdGenerator());

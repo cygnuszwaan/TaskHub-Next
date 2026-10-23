@@ -453,7 +453,7 @@ exports.addOrUpdateTask = onRequest({
     // Merge into the list as it is now, not as it was when the model was asked. The projects are read in the same
     // transaction, so a task only joins a project that still exists at commit time.
     const result = await updateTaskList((tasks, tx, {projects: stored}) => {
-      const merged = mergeTaskChanges(tasks, changes, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined, comments: body.manual !== undefined});
+      const merged = mergeTaskChanges(tasks, changes, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined, comments: body.manual !== undefined, now: new Date().toISOString()});
       const changed = merged.added + merged.updated > 0;
       return {...merged, tasks: changed ? merged.tasks : null, current: changed ? merged.tasks : tasks};
     }, {withProjects: true});
@@ -484,7 +484,7 @@ exports.completeTask = onRequest({
     const today = localDate((await readSettings()).timeZone);
     // Archive, removal and the next occurrence of a recurring task commit together; calendar cleanup follows once they have
     const result = await updateTaskList((tasks, tx) => {
-      const done = completeInList(tasks, taskId, today, randomUUID);
+      const done = completeInList(tasks, taskId, today, randomUUID, new Date().toISOString());
       if (!done) return {current: tasks};
       const archiveRef = db.collection("completed_tasks").doc();
       tx.create(archiveRef, {
