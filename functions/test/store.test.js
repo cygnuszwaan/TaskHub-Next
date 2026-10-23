@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {checkTaskIds, sortTasks, diffTasks, planMigration, makeTaskStore, makeSettingsStore} = require("../store");
+const {checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeSettingsStore} = require("../store");
 
 const task = (id, order, extra = {}) => ({id, title: `Task ${id}`, priority: "MEDIUM", dueDate: "", estimatedMinutes: 15, tags: [], status: "PENDING", order, ...extra});
 
@@ -87,22 +87,6 @@ describe("store.js", () => {
     it("rejects a list with duplicate or invalid ids", () => {
       assert.throws(() => diffTasks([], [task("a", 1), task("a", 2)]), /Duplicate/);
       assert.throws(() => diffTasks([], [{title: "no id"}]), /Invalid task id/);
-    });
-  });
-
-  describe("planMigration", () => {
-    it("returns the tasks in rank order for an empty collection", () => {
-      const plan = planMigration([task("b", 2), task("a", 1)], []);
-      assert.deepEqual(plan.tasks.map((t) => t.id), ["a", "b"]);
-      assert.equal(plan.error, undefined);
-    });
-    it("refuses a collection that already has tasks unless forced", () => {
-      assert.match(planMigration([task("a", 1)], ["a"]).error, /already has 1 document/);
-      assert.equal(planMigration([task("a", 1)], ["a"], {force: true}).tasks.length, 1);
-    });
-    it("handles an empty old list and rejects bad ids", () => {
-      assert.deepEqual(planMigration([], []).tasks, []);
-      assert.throws(() => planMigration([task("a", 1), task("a", 2)], []), /Duplicate/);
     });
   });
 

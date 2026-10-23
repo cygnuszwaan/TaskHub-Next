@@ -37,20 +37,9 @@ function diffTasks(before, after) {
   };
 }
 
-// Plan for the one-off copy of the old array document into the tasks collection. Refuses to run over a
-// collection that already has tasks (unless `force`), so a re-run cannot overwrite newer edits.
-function planMigration(oldTasks, existingIds, {force = false} = {}) {
-  checkTaskIds(oldTasks);
-  if (existingIds.length > 0 && !force) {
-    return {error: `The tasks collection already has ${existingIds.length} document(s); re-run with --force to overwrite matching ids.`};
-  }
-  return {tasks: sortTasks(oldTasks)};
-}
-
-// Same interface as the array-document `updateTaskList`, over a `tasks/{id}` collection. `db` is a Firestore
-// instance. `mutate(tasks, tx)` is synchronous and returns {tasks, ...extra} to save the new list, or {...extra}
-// without `tasks` to leave it alone. Reads happen first, and only the tasks that changed are written, all in one
-// transaction. The transaction may retry, so mutate must not perform side effects other than tx writes.
+// Transactional store over the `tasks/{id}` collection. `db` is a Firestore instance. `mutate(tasks, tx)` is
+// synchronous and returns {tasks, ...extra} to save the new list, or {...extra} without `tasks` to leave it alone.
+// Reads happen first, and only the tasks that changed are written, all in one transaction. The transaction may retry, so mutate must not perform side effects other than tx writes.
 function makeTaskStore(db) {
   const collection = db.collection(COLLECTION);
   const fromSnapshot = (snap) => sortTasks(snap.docs.map((d) => ({...d.data(), id: d.id})));
@@ -119,4 +108,4 @@ function makeSettingsStore(db) {
   return {getSettings, updateSettings, claimAutoRun, setRunFingerprint};
 }
 
-module.exports = {COLLECTION, SETTINGS_DOC, checkTaskIds, sortTasks, diffTasks, planMigration, makeTaskStore, makeSettingsStore};
+module.exports = {COLLECTION, SETTINGS_DOC, checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeSettingsStore};
