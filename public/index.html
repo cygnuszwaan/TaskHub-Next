@@ -32,6 +32,14 @@
     .time-chip { font-size: 11px; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
     .sched-chip { background: #dcfce7; color: #166534; font-weight: 600; }
     .lock-chip { background: #fef3c7; color: #92400e; font-weight: 600; }
+    .summary { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0; }
+    .summary-total { font-size: 14px; margin-bottom: 10px; }
+    .summary-label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; margin: 10px 0 4px; }
+    .week-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #475569; margin: 2px 0; }
+    .week-name { width: 70px; flex-shrink: 0; }
+    .week-bar { flex: 1; background: #f1f5f9; border-radius: 4px; height: 10px; }
+    .week-fill { background: #0369a1; border-radius: 4px; height: 10px; }
+    .week-val { width: 90px; flex-shrink: 0; text-align: right; }
     .overdue-chip { background: #fee2e2; color: #991b1b; font-weight: 600; }
     .coach-box { background: #eff6ff; border-left: 4px solid #2563eb; padding: 14px; margin-top: 14px; border-radius: 4px; font-size: 14px; line-height: 1.5; }
 
@@ -273,6 +281,7 @@
     const nzTimeFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: NZ_TIME_ZONE, hour: "numeric", minute: "2-digit" });
     const nzKeyFmt = new Intl.DateTimeFormat("en-CA", { timeZone: NZ_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" });
     const calendarDayFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
+    const weekNameFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: "UTC", day: "numeric", month: "short" });
     const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
     // Whole days from today (NZ) to the task's due date: negative when overdue, null without a valid due date.
@@ -589,6 +598,39 @@
       }
     }
 
+    function fmtMinutes(total) {
+      const m = Math.round(Number(total) || 0);
+      if (m < 60) return `${m}m`;
+      return m % 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${Math.floor(m / 60)}h`;
+    }
+
+    // Completion totals from getCompletedTasks: per week, by priority and by tag
+    function renderSummary(summary) {
+      if (!summary) return "";
+      if (!summary.totalCount) {
+        return `<div class="summary"><div class="summary-total" style="color:#666;">No completions in the last ${esc((summary.weeks || []).length)} weeks.</div></div>`;
+      }
+      const weeks = summary.weeks || [];
+      const maxCount = Math.max(1, ...weeks.map(w => w.count));
+      const weekRows = weeks.map(w => {
+        const name = DATE_ONLY.test(w.weekStart) ? weekNameFmt.format(new Date(w.weekStart + "T00:00:00Z")) : w.weekStart;
+        const pct = Math.round((w.count / maxCount) * 100);
+        return `<div class="week-row"><span class="week-name">${esc(name)}</span><div class="week-bar"><div class="week-fill" style="width:${pct}%"></div></div><span class="week-val">${esc(w.count)} · ${esc(fmtMinutes(w.minutes))}</span></div>`;
+      }).join("");
+      const priorityChips = (summary.byPriority || []).filter(p => p.count > 0)
+        .map(p => `<span class="badge ${PRIORITIES.includes(p.priority) ? p.priority : ''}">${esc(p.priority)} ${esc(p.count)} · ${esc(fmtMinutes(p.minutes))}</span>`).join(" ");
+      const tagChips = (summary.byTag || []).slice(0, 10)
+        .map(t => `<span class="chip">${esc(t.tag)} ${esc(t.count)} · ${esc(fmtMinutes(t.minutes))}</span>`).join(" ");
+      return `
+        <div class="summary">
+          <div class="summary-total"><strong>${esc(summary.totalCount)}</strong> completed · <strong>${esc(fmtMinutes(summary.totalMinutes))}</strong> estimated, last ${esc(weeks.length)} weeks${summary.truncated ? " (newest entries only)" : ""}</div>
+          <div class="summary-label">Per week (week starting Monday)</div>
+          ${weekRows}
+          ${priorityChips ? `<div class="summary-label">By priority</div><div class="task-meta" style="margin-top:0;">${priorityChips}</div>` : ""}
+          ${tagChips ? `<div class="summary-label">By tag</div><div class="task-meta" style="margin-top:0;">${tagChips}</div>` : ""}
+        </div>`;
+    }
+
     async function fetchCompleted() {
       const list = document.getElementById("completedList");
       list.textContent = "Loading...";
@@ -600,7 +642,7 @@
           list.innerHTML = "<p style='color:#666; margin:0;'>No completed tasks yet.</p>";
           return;
         }
-        list.innerHTML = tasks.map(t => {
+        list.innerHTML = renderSummary(data.summary) + tasks.map(t => {
           const done = t.completedAt ? new Date(t.completedAt) : null;
           const when = done && !isNaN(done) ? `${nzDayFmt.format(done)}, ${nzTimeFmt.format(done)}` : "";
           return `

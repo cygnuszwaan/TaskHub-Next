@@ -13,7 +13,7 @@ const {validateSchedule, matchLockedEvents} = require("./schedule");
 const {mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {annotateDue} = require("./due");
 const {makeTaskStore} = require("./store");
-const {clampLimit, serializeCompleted} = require("./completed");
+const {SUMMARY_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted} = require("./completed");
 const {makeOwnerOnly} = require("./auth");
 const {randomUUID} = require("crypto");
 
@@ -506,18 +506,27 @@ exports.getTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res)
   }
 }));
 
-// 6. Endpoint: Direct Update / Delete
-// Recently completed tasks from the archive, newest first. Optional ?limit= (default 50, at most 200).
+// 6. Endpoint: Read Completed Tasks
+// Recently completed tasks from the archive, newest first (optional ?limit=, default 50, at most 200), plus a
+// summary of the last 8 NZ weeks of completions. The summary is computed from its own query, so it does not
+// depend on the limit; `truncated` is true if the window held more rows than were read.
 exports.getCompletedTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
-    const snap = await db.collection("completed_tasks").orderBy("completedAt", "desc").limit(clampLimit(req.query.limit)).get();
-    res.status(200).send({success: true, tasks: serializeCompleted(snap.docs.map((d) => d.data()))});
+    const archive = db.collection("completed_tasks");
+    const now = new Date();
+    const [listSnap, windowSnap] = await Promise.all([
+      archive.orderBy("completedAt", "desc").limit(clampLimit(req.query.limit)).get(),
+      archive.where("completedAt", ">=", summaryWindowStart(now)).orderBy("completedAt", "desc").limit(SUMMARY_MAX_ROWS).get(),
+    ]);
+    const summary = {...summarizeCompleted(windowSnap.docs.map((d) => d.data()), now), truncated: windowSnap.size >= SUMMARY_MAX_ROWS};
+    res.status(200).send({success: true, tasks: serializeCompleted(listSnap.docs.map((d) => d.data())), summary});
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});
   }
 }));
 
+// 7. Endpoint: Direct Update / Delete
 exports.updateTaskDirect = onRequest({
   secrets: [{name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"}],
   cors: ALLOWED_ORIGINS,
