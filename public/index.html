@@ -8,7 +8,7 @@
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 680px; margin: 20px auto; padding: 0 15px; background: #f4f6f8; color: #222; }
     .card { background: white; padding: 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 16px; }
     .input-row { display: flex; gap: 8px; }
-    input[type="text"], input[type="number"], input[type="date"], select { padding: 10px 12px; font-size: 15px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+    input[type="text"], input[type="number"], input[type="date"], input[type="time"], select { padding: 10px 12px; font-size: 15px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
     input[type="text"] { flex: 1; min-width: 0; }
     button { padding: 10px 14px; font-size: 14px; background: #0266c8; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; white-space: nowrap; }
     button:disabled { background: #b0c4de; }
@@ -56,6 +56,12 @@
     .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #475569; }
     .form-group input, .form-group select { width: 100%; }
     .modal-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 18px; }
+    .form-group input[type="checkbox"] { width: auto; margin-right: 6px; }
+    .settings-current { font-size: 14px; color: #334155; }
+    .place-results { margin-top: 6px; }
+    .place-option { display: block; width: 100%; text-align: left; background: #f1f5f9; color: #334155; font-weight: 500; white-space: normal; margin-top: 4px; }
+    .settings-note { font-size: 12px; color: #64748b; margin: 4px 0 0; }
+    .settings-status { font-size: 13px; margin-top: 10px; min-height: 18px; color: #334155; }
     .btn-secondary { background: #e2e8f0; color: #334155; }
     .btn-success { background: #16a34a; color: white; }
     .btn-danger { background: #ef4444; color: white; }
@@ -106,6 +112,52 @@
     <details id="completedDetails">
       <summary style="cursor: pointer; font-weight: 600;">Recently Completed</summary>
       <div id="completedList" style="margin-top: 12px;"></div>
+    </details>
+  </div>
+
+  <div class="card">
+    <details id="settingsDetails">
+      <summary style="cursor: pointer; font-weight: 600;">Settings</summary>
+      <div style="margin-top: 12px;">
+        <div class="form-group">
+          <label>Location (weather and time zone)</label>
+          <div id="settingsLocation" class="settings-current">Loading...</div>
+          <div class="input-row" style="margin-top: 8px;">
+            <input type="text" id="placeQuery" placeholder="Search for a place, e.g. Whangaparāoa">
+            <button type="button" id="placeSearchBtn" class="btn-secondary">Search</button>
+          </div>
+          <div id="placeResults" class="place-results"></div>
+        </div>
+        <div class="form-group">
+          <label><input type="checkbox" id="schedEnabled"> Run the schedule automatically</label>
+        </div>
+        <div class="form-group">
+          <label for="schedFrequency">Frequency</label>
+          <select id="schedFrequency">
+            <option value="DAILY">Once a day</option>
+            <option value="INTERVAL">Repeatedly during the day (8:00 AM to 7:00 PM)</option>
+          </select>
+        </div>
+        <div class="form-group" id="schedTimeGroup">
+          <label for="schedTime">Time of day (local)</label>
+          <input type="time" id="schedTime">
+        </div>
+        <div class="form-group" id="schedIntervalGroup">
+          <label for="schedInterval">Repeat every</label>
+          <select id="schedInterval">
+            <option value="15">15 minutes</option>
+            <option value="30">30 minutes</option>
+            <option value="60">1 hour</option>
+            <option value="120">2 hours</option>
+            <option value="240">4 hours</option>
+          </select>
+        </div>
+        <p class="settings-note" id="settingsLastRun"></p>
+        <div style="margin-top: 14px;">
+          <button type="button" id="saveSettingsBtn">Save settings</button>
+        </div>
+        <div id="settingsStatus" class="settings-status"></div>
+      </div>
     </details>
   </div>
 
@@ -195,6 +247,8 @@
     const SCHEDULE_URL = endpoint("generateWeeklySchedule");
     const RESCHEDULE_URL = endpoint("rescheduleTask");
     const COMPLETED_URL = endpoint("getCompletedTasks");
+    const GET_SETTINGS_URL = endpoint("getSettings");
+    const UPDATE_SETTINGS_URL = endpoint("updateSettings");
 
     // Firebase Auth. The SDK loads from the CDN and the web config from Hosting's reserved URL, so there is no build step or key in this file.
     let authLib = null;
@@ -229,6 +283,7 @@
           if (user) {
             showApp();
             fetchTasks();
+            loadSettings();
           } else {
             showGate("");
           }
@@ -283,6 +338,7 @@
     }
 
     let allTasks = [];
+    let tasksLoaded = false; // set once the list has been drawn
     let selectedTagFilter = null; // null = show all
 
     const PRIORITIES = ["HIGH", "MEDIUM", "LOW"];
@@ -293,23 +349,48 @@
       }[c]));
     }
 
-    const NZ_TIME_ZONE = "Pacific/Auckland";
-    const nzDayFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: NZ_TIME_ZONE, weekday: "short", day: "numeric", month: "short" });
-    const nzTimeFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: NZ_TIME_ZONE, hour: "numeric", minute: "2-digit" });
-    const nzKeyFmt = new Intl.DateTimeFormat("en-CA", { timeZone: NZ_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" });
+    // <pure-helpers>
+    // No DOM or network access in this block: functions/test/frontend.test.js extracts it and runs it under Node.
+    const DEFAULT_TIME_ZONE = "Pacific/Auckland"; // used until the settings load
+    const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
     const calendarDayFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
     const weekNameFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: "UTC", day: "numeric", month: "short" });
-    const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
-    // Whole days from today (NZ) to the task's due date: negative when overdue, null without a valid due date.
-    function daysUntilDue(t) {
+    function makeFormatters(timeZone) {
+      return {
+        day: new Intl.DateTimeFormat("en-NZ", { timeZone, weekday: "short", day: "numeric", month: "short" }),
+        time: new Intl.DateTimeFormat("en-NZ", { timeZone, hour: "numeric", minute: "2-digit" }),
+        key: new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" })
+      };
+    }
+
+    // The zone every date and time on the page is shown in: the configured one from the settings.
+    let appTimeZone = DEFAULT_TIME_ZONE;
+    let fmt = makeFormatters(appTimeZone);
+
+    // Switch the page to another IANA zone. An unknown zone is ignored, so the page keeps showing sensible times.
+    function setTimeZone(timeZone) {
+      if (typeof timeZone !== "string" || !timeZone) return;
+      try {
+        fmt = makeFormatters(timeZone);
+        appTimeZone = timeZone;
+      } catch (e) { /* unknown zone: keep the current one */ }
+    }
+
+    // Whole days from today (in the configured zone) to the task's due date: negative when overdue, null without a valid due date.
+    function daysUntilDue(t, now = new Date()) {
       if (!DATE_ONLY.test(t.dueDate || "")) return null;
       const due = Date.parse(`${t.dueDate}T00:00:00Z`);
-      const today = Date.parse(`${nzKeyFmt.format(new Date())}T00:00:00Z`);
+      const today = Date.parse(`${fmt.key.format(now)}T00:00:00Z`);
       return isNaN(due) ? null : Math.round((due - today) / 86400000);
     }
 
-    // Schedule text in NZ time for a task's scheduledStart/scheduledEnd, or "" if there is none.
+    // "Thu, 22 Oct, 9:00 am" for an instant, in the configured zone.
+    function formatInstant(date) {
+      return `${fmt.day.format(date)}, ${fmt.time.format(date)}`;
+    }
+
+    // Schedule text in the configured zone for a task's scheduledStart/scheduledEnd, or "" if there is none.
     // Timed values are ISO 8601 with an offset; all-day values are YYYY-MM-DD with an exclusive end.
     function formatSchedule(start, end) {
       if (!start) return "";
@@ -326,12 +407,50 @@
       const s = new Date(start);
       if (isNaN(s)) return "";
       const e = new Date(end);
-      if (isNaN(e) || e <= s) return `${nzDayFmt.format(s)}, ${nzTimeFmt.format(s)}`;
-      if (nzKeyFmt.format(s) === nzKeyFmt.format(e)) {
-        return `${nzDayFmt.format(s)}, ${nzTimeFmt.format(s)} – ${nzTimeFmt.format(e)}`;
+      if (isNaN(e) || e <= s) return formatInstant(s);
+      if (fmt.key.format(s) === fmt.key.format(e)) {
+        return `${formatInstant(s)} – ${fmt.time.format(e)}`;
       }
-      return `${nzDayFmt.format(s)} ${nzTimeFmt.format(s)} – ${nzDayFmt.format(e)} ${nzTimeFmt.format(e)}`;
+      return `${fmt.day.format(s)} ${fmt.time.format(s)} – ${fmt.day.format(e)} ${fmt.time.format(e)}`;
     }
+
+    // Open-Meteo geocoding, called straight from the browser (no API key, and no Firebase token is sent to it).
+    function geocodeUrl(query) {
+      return `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(String(query).trim())}&count=5&language=en&format=json`;
+    }
+
+    // One geocoding result as {name, latitude, longitude, timeZone}, or null when it lacks anything the settings need.
+    // The name joins place, region and country without repeats and fits the 100-character limit.
+    function placeFromGeocode(r) {
+      if (!r || typeof r !== "object" || typeof r.name !== "string" || !r.name.trim()) return null;
+      if (!Number.isFinite(r.latitude) || !Number.isFinite(r.longitude)) return null;
+      if (typeof r.timezone !== "string" || !r.timezone) return null;
+      const parts = [];
+      for (const part of [r.name, r.admin1, r.country]) {
+        if (typeof part === "string" && part.trim() && !parts.includes(part.trim())) parts.push(part.trim());
+      }
+      return { name: parts.join(", ").slice(0, 100), latitude: r.latitude, longitude: r.longitude, timeZone: r.timezone };
+    }
+
+    function placesFromGeocode(data) {
+      return Array.isArray(data && data.results) ? data.results.map(placeFromGeocode).filter(Boolean) : [];
+    }
+
+    // The updateSettings body for the settings form. Both schedule fields are sent whatever the frequency, so the
+    // server's checks apply to each; the server stays the validator.
+    function settingsPayload(form) {
+      return {
+        location: { name: form.location.name, latitude: form.location.latitude, longitude: form.location.longitude },
+        timeZone: form.timeZone,
+        schedule: {
+          enabled: !!form.enabled,
+          frequency: form.frequency,
+          time: form.time,
+          intervalMinutes: Number(form.intervalMinutes)
+        }
+      };
+    }
+    // </pure-helpers>
 
     window.addEventListener("DOMContentLoaded", () => {
       document.getElementById("tagFilterBar").addEventListener("click", e => {
@@ -466,6 +585,7 @@
     }
 
     function renderTasks() {
+      tasksLoaded = true;
       const listContainer = document.getElementById("taskList");
       let filtered = allTasks;
 
@@ -690,7 +810,7 @@
         }
         list.innerHTML = renderSummary(data.summary) + tasks.map(t => {
           const done = t.completedAt ? new Date(t.completedAt) : null;
-          const when = done && !isNaN(done) ? `${nzDayFmt.format(done)}, ${nzTimeFmt.format(done)}` : "";
+          const when = done && !isNaN(done) ? formatInstant(done) : "";
           return `
             <div class="task-item" style="cursor: default;">
               <div style="flex:1;">
@@ -713,6 +833,131 @@
     document.getElementById("completedDetails").addEventListener("toggle", e => {
       if (e.target.open) fetchCompleted();
     });
+
+    // Settings: location (with place search), time zone and the automatic schedule.
+    let currentSettings = null; // as last read from the server; null until they load
+    let pendingLocation = null; // a place picked from the search and not saved yet, else null
+    let placeMatches = [];
+
+    function chosenPlace() {
+      if (pendingLocation) return pendingLocation;
+      const s = currentSettings;
+      return { name: s.location.name, latitude: s.location.latitude, longitude: s.location.longitude, timeZone: s.timeZone };
+    }
+
+    function renderLocation() {
+      const box = document.getElementById("settingsLocation");
+      if (!currentSettings) { box.textContent = "Settings are not loaded."; return; }
+      const place = chosenPlace();
+      box.textContent = `📍 ${place.name} · ${place.timeZone}${pendingLocation ? " (not saved yet)" : ""}`;
+    }
+
+    function updateScheduleFields() {
+      const interval = document.getElementById("schedFrequency").value === "INTERVAL";
+      document.getElementById("schedTimeGroup").hidden = interval;
+      document.getElementById("schedIntervalGroup").hidden = !interval;
+    }
+
+    function setSettingsStatus(text) {
+      document.getElementById("settingsStatus").textContent = text;
+    }
+
+    // Show settings from the server in the form, and switch every date and time on the page to the configured zone.
+    function applySettings(s) {
+      const zoneChanged = s.timeZone !== appTimeZone;
+      currentSettings = s;
+      pendingLocation = null;
+      setTimeZone(s.timeZone);
+      document.title = `TaskHub Next - ${s.location.name}`;
+      renderLocation();
+      document.getElementById("schedEnabled").checked = !!s.schedule.enabled;
+      document.getElementById("schedFrequency").value = s.schedule.frequency;
+      document.getElementById("schedTime").value = s.schedule.time;
+      document.getElementById("schedInterval").value = String(s.schedule.intervalMinutes);
+      updateScheduleFields();
+      const last = s.lastAutoRunAt ? new Date(s.lastAutoRunAt) : null;
+      document.getElementById("settingsLastRun").textContent = last && !isNaN(last)
+        ? `Last automatic run: ${formatInstant(last)} (${appTimeZone}).`
+        : "No automatic run yet.";
+      if (zoneChanged) {
+        if (tasksLoaded) renderTasks();
+        if (document.getElementById("completedDetails").open) fetchCompleted();
+      }
+    }
+
+    async function loadSettings() {
+      try {
+        const res = await apiFetch(GET_SETTINGS_URL);
+        applySettings((await res.json()).settings);
+        setSettingsStatus("");
+      } catch (err) {
+        renderLocation();
+        setSettingsStatus("Could not load settings: " + err.message);
+      }
+    }
+
+    async function searchPlaces() {
+      const query = document.getElementById("placeQuery").value.trim();
+      const box = document.getElementById("placeResults");
+      if (!query) return;
+      box.textContent = "Searching...";
+      try {
+        const res = await fetch(geocodeUrl(query)); // plain fetch: the Firebase token must not go to a third party
+        if (!res.ok) throw new Error(`Request failed (${res.status})`);
+        placeMatches = placesFromGeocode(await res.json());
+        box.innerHTML = placeMatches.length
+          ? placeMatches.map((p, i) => `<button type="button" class="place-option" data-index="${i}">${esc(p.name)} · ${esc(p.timeZone)}</button>`).join("")
+          : "No places found.";
+      } catch (err) {
+        box.textContent = "Place search failed: " + err.message;
+      }
+    }
+
+    async function saveSettings() {
+      if (!currentSettings) { setSettingsStatus("Settings are not loaded yet."); return; }
+      const place = chosenPlace();
+      const btn = document.getElementById("saveSettingsBtn");
+      btn.disabled = true;
+      setSettingsStatus("Saving...");
+      try {
+        const res = await apiFetch(UPDATE_SETTINGS_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ settings: settingsPayload({
+            location: place,
+            timeZone: place.timeZone,
+            enabled: document.getElementById("schedEnabled").checked,
+            frequency: document.getElementById("schedFrequency").value,
+            time: document.getElementById("schedTime").value,
+            intervalMinutes: document.getElementById("schedInterval").value
+          }) })
+        });
+        applySettings((await res.json()).settings);
+        setSettingsStatus("Saved.");
+      } catch (err) {
+        setSettingsStatus("Not saved: " + err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    document.getElementById("settingsDetails").addEventListener("toggle", e => {
+      if (e.target.open && !currentSettings) loadSettings();
+    });
+    document.getElementById("schedFrequency").addEventListener("change", updateScheduleFields);
+    document.getElementById("placeSearchBtn").addEventListener("click", searchPlaces);
+    document.getElementById("placeQuery").addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); searchPlaces(); }
+    });
+    document.getElementById("placeResults").addEventListener("click", e => {
+      const option = e.target.closest(".place-option");
+      if (!option || !placeMatches[Number(option.dataset.index)]) return;
+      pendingLocation = placeMatches[Number(option.dataset.index)];
+      document.getElementById("placeResults").textContent = "";
+      document.getElementById("placeQuery").value = "";
+      renderLocation();
+    });
+    document.getElementById("saveSettingsBtn").addEventListener("click", saveSettings);
 
     function setLoading(isLoading) {
       document.getElementById("addBtn").disabled = isLoading;
