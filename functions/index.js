@@ -12,7 +12,8 @@ const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eve
 const {validateSchedule, matchLockedEvents} = require("./schedule");
 const {applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {makeTaskStore, makeSettingsStore} = require("./store");
-const {UNAVAILABLE, weatherUrl, describeWeather} = require("./weather");
+const {UNAVAILABLE, weatherUrl, describeWeather, weatherKey} = require("./weather");
+const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
 const {buildSchedulePrompt} = require("./prompts");
 const {SUMMARY_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted} = require("./completed");
 const {makeOwnerOnly} = require("./auth");
@@ -27,7 +28,7 @@ const db = admin.firestore();
 // of the whole list (see store.js); readTaskList() is a plain read.
 const {updateTaskList, getTasks: readTaskList} = makeTaskStore(db);
 // Runtime settings (location, time zone, auto-run schedule) in `settings/app`; see settings.js.
-const {getSettings: readSettings, updateSettings: writeSettings, claimAutoRun} = makeSettingsStore(db);
+const {getSettings: readSettings, updateSettings: writeSettings, claimAutoRun, setRunFingerprint} = makeSettingsStore(db);
 
 const MODEL_NAME = "gemini-3.5-flash-lite";
 
@@ -163,21 +164,21 @@ async function removeTaskCalendarEvent(task) {
   }
 }
 
-// Helper: Fetch the current weather at a location ({latitude, longitude}) as one line of text
+// Helper: Fetch the current weather at a location ({latitude, longitude}) as {text, key}: one line for the prompt
+// and the coarse condition for the run fingerprint
 async function getWeather(location) {
   try {
     const res = await fetch(weatherUrl(location));
     const data = await res.json();
-    return describeWeather(data.current_weather);
+    return {text: describeWeather(data.current_weather), key: weatherKey(data.current_weather)};
   } catch (err) {
-    return UNAVAILABLE;
+    return {text: UNAVAILABLE, key: UNAVAILABLE};
   }
 }
 
 // Ask Gemini for slots for the given tasks. Returns the raw scheduledTasks list (unvalidated).
-// `settings` supplies the location (for the weather and the prompt) and the time zone.
-async function requestSchedule(tasks, busySlots, now, settings) {
-  const weather = await getWeather(settings.location);
+// `weather` is the one-line description; `settings` supplies the location name and the time zone for the prompt.
+async function requestSchedule(tasks, busySlots, now, settings, weather) {
   const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
   const prompt = buildSchedulePrompt({tasks, busySlots, now, weather, settings});
 
@@ -197,7 +198,9 @@ async function requestSchedule(tasks, busySlots, now, settings) {
 // The personal calendar is only ever read.
 // With `taskIds`, only those tasks are offered to Gemini and have their events replaced; every other app
 // event stays and counts as busy, and the other tasks' schedule fields are left alone.
-async function runScheduleEngine({taskIds} = {}) {
+// With `skipIfUnchanged` (automatic runs), a full run whose fingerprint equals the last successful full run's is
+// skipped before Gemini is called; see fingerprint.js. A full run that succeeds records its fingerprint.
+async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
   const subset = Array.isArray(taskIds) ? new Set(taskIds) : null;
   const currentTasks = await readTaskList();
   // Tasks this run is responsible for; the rest are neither rescheduled nor have their schedule fields rewritten
@@ -255,8 +258,16 @@ async function runScheduleEngine({taskIds} = {}) {
   // 3. Ask Gemini for slots for the unlocked tasks, then validate before touching the calendar
   let scheduledList = [];
   let slots = [];
+  let fingerprint = null;
   if (toSchedule.length > 0) {
-    scheduledList = await requestSchedule(toSchedule, busySlots, now, settings);
+    const weather = await getWeather(settings.location);
+    if (!subset) {
+      fingerprint = computeFingerprint({tasks: toSchedule, busySlots, weatherKey: weather.key, settings, now, horizon: sevenDaysLater});
+      if (shouldSkipRun({skipIfUnchanged, fingerprint, lastRunFingerprint: settings.lastRunFingerprint, endedSlot: hasEndedSlot(toSchedule, timeZone, now)})) {
+        return {success: true, skipped: true, scheduledCount: 0, lockedCount: lockedEvents.size, message: "Nothing changed since the last run; existing events were kept."};
+      }
+    }
+    scheduledList = await requestSchedule(toSchedule, busySlots, now, settings, weather.text);
     if (scheduledList.length === 0) {
       throw new Error("Gemini returned no slots; existing events were kept.");
     }
@@ -320,6 +331,15 @@ async function runScheduleEngine({taskIds} = {}) {
     await deleteCalendarEvent(calendar, calendarId, id);
   }
 
+  // Remember what this schedule was built from. A failure to save it only means the next automatic run goes ahead.
+  if (fingerprint) {
+    try {
+      await setRunFingerprint(fingerprint);
+    } catch (err) {
+      console.warn("Could not record the run fingerprint:", err.message);
+    }
+  }
+
   return {
     success: true,
     scheduledCount: slots.length,
@@ -344,7 +364,7 @@ exports.autoScheduleDaily = onSchedule({
     const {due} = await claimAutoRun();
     if (!due) return;
     console.log("Starting automated schedule update...");
-    const result = await runScheduleEngine();
+    const result = await runScheduleEngine({skipIfUnchanged: true});
     console.log("Automated schedule completed:", JSON.stringify(result));
   } catch (err) {
     console.error("Automated schedule failed:", err);

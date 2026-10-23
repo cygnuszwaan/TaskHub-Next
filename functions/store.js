@@ -79,6 +79,7 @@ function makeTaskStore(db) {
 //   getSettings()          -> full settings (defaults fill anything missing; see settings.js)
 //   updateSettings(patch)  -> {settings} after a transactional merge of the editable fields in `patch`, or {error}
 //                             when a field is invalid (nothing is written then). Run state is preserved.
+//   setRunFingerprint(fp)  -> records `lastRunFingerprint` (a string) after a successful full run; nothing else changes.
 //   claimAutoRun(now)      -> {due, settings}: in one transaction, checks whether the automatic run is due (see
 //                             `isRunDue`) and, if so, records `lastAutoRunAt`. Of several concurrent callers (a
 //                             duplicate scheduler delivery, say) at most one gets `due: true` for a given slot.
@@ -108,7 +109,14 @@ function makeSettingsStore(db) {
     });
   }
 
-  return {getSettings, updateSettings, claimAutoRun};
+  async function setRunFingerprint(fingerprint) {
+    return db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      tx.set(ref, {...mergeSettings(snap.exists ? snap.data() : undefined), lastRunFingerprint: fingerprint});
+    });
+  }
+
+  return {getSettings, updateSettings, claimAutoRun, setRunFingerprint};
 }
 
 module.exports = {COLLECTION, SETTINGS_DOC, checkTaskIds, sortTasks, diffTasks, planMigration, makeTaskStore, makeSettingsStore};

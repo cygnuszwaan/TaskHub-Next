@@ -228,6 +228,30 @@ describe("makeSettingsStore", () => {
     assert.equal(db.state.writes, 0);
   });
 
+  describe("setRunFingerprint", () => {
+    it("records the fingerprint and keeps everything else", async () => {
+      const db = fakeDocDb({timeZone: "Australia/Sydney", lastAutoRunAt: "2026-10-22T07:00:00.000Z"});
+      await makeSettingsStore(db).setRunFingerprint("abc123");
+      assert.equal(db.state.writes, 1);
+      assert.equal(db.state.value.lastRunFingerprint, "abc123");
+      assert.equal(db.state.value.timeZone, "Australia/Sydney");
+      assert.equal(db.state.value.lastAutoRunAt, "2026-10-22T07:00:00.000Z");
+      assert.equal((await makeSettingsStore(db).getSettings()).lastRunFingerprint, "abc123");
+    });
+    it("works when the settings document does not exist yet", async () => {
+      const db = fakeDocDb();
+      await makeSettingsStore(db).setRunFingerprint("abc123");
+      assert.equal((await makeSettingsStore(db).getSettings()).lastRunFingerprint, "abc123");
+    });
+    it("survives a later settings update", async () => {
+      const db = fakeDocDb();
+      const store = makeSettingsStore(db);
+      await store.setRunFingerprint("abc123");
+      await store.updateSettings({schedule: {time: "06:00"}});
+      assert.equal(db.state.value.lastRunFingerprint, "abc123");
+    });
+  });
+
   describe("claimAutoRun", () => {
     // 2026-10-22 is NZDT (+13:00): the defaults run daily at 20:00 Pacific/Auckland.
     const nz = (hhmm, date = "2026-10-22") => new Date(`${date}T${hhmm}:00+13:00`);

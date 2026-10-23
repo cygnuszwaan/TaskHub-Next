@@ -26,4 +26,15 @@ function describeWeather(current) {
   return `${description}, ${current.temperature}°C`;
 }
 
-module.exports = {WEATHER_CODES, UNAVAILABLE, weatherUrl, describeWeather};
+// Coarse condition used to decide whether weather changed enough to matter: WET (drizzle, rain, showers, snow,
+// thunderstorm), DRY (clear, cloudy, fog), OTHER (unknown code) or the unavailable text. Temperature and cloud
+// cover are ignored because they drift every few minutes and the scheduler only avoids outdoor tasks in rain.
+function weatherKey(current) {
+  if (!current || typeof current !== "object" || typeof current.temperature !== "number" || !Number.isFinite(current.temperature)) return UNAVAILABLE;
+  const code = current.weathercode;
+  if (code === 0 || code === 1 || code === 2 || code === 3 || code === 45 || code === 48) return "DRY";
+  if (Object.prototype.hasOwnProperty.call(WEATHER_CODES, code)) return "WET";
+  return "OTHER";
+}
+
+module.exports = {WEATHER_CODES, UNAVAILABLE, weatherUrl, describeWeather, weatherKey};

@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {WEATHER_CODES, UNAVAILABLE, weatherUrl, describeWeather} = require("../weather");
+const {WEATHER_CODES, UNAVAILABLE, weatherUrl, describeWeather, weatherKey} = require("../weather");
 
 describe("weather.js", () => {
   describe("weatherUrl", () => {
@@ -39,6 +39,27 @@ describe("weather.js", () => {
       for (const [code, text] of Object.entries(WEATHER_CODES)) {
         assert.equal(describeWeather({weathercode: Number(code), temperature: 1}), `${text}, 1°C`);
       }
+    });
+  });
+
+  describe("weatherKey", () => {
+    it("calls clear, cloudy and foggy conditions DRY", () => {
+      for (const weathercode of [0, 1, 2, 3, 45, 48]) assert.equal(weatherKey({weathercode, temperature: 10}), "DRY", String(weathercode));
+    });
+    it("calls drizzle, rain, snow, showers and thunderstorms WET", () => {
+      for (const weathercode of [51, 57, 61, 67, 71, 77, 80, 82, 85, 86, 95, 99]) assert.equal(weatherKey({weathercode, temperature: 10}), "WET", String(weathercode));
+    });
+    it("covers every listed code as DRY or WET", () => {
+      for (const code of Object.keys(WEATHER_CODES)) assert.match(weatherKey({weathercode: Number(code), temperature: 1}), /^(DRY|WET)$/);
+    });
+    it("ignores the temperature and the cloud cover", () => {
+      assert.equal(weatherKey({weathercode: 0, temperature: 5}), weatherKey({weathercode: 3, temperature: 25}));
+      assert.equal(weatherKey({weathercode: 61, temperature: 5}), weatherKey({weathercode: 65, temperature: 25}));
+    });
+    it("reports OTHER for an unknown code and unavailable for an unusable reading", () => {
+      assert.equal(weatherKey({weathercode: 1234, temperature: 10}), "OTHER");
+      assert.equal(weatherKey({temperature: 10}), "OTHER");
+      for (const bad of [undefined, null, "rain", {weathercode: 1}, {weathercode: 1, temperature: NaN}]) assert.equal(weatherKey(bad), UNAVAILABLE);
     });
   });
 });
