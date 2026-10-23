@@ -378,6 +378,32 @@ exports.generateWeeklySchedule = onRequest({
   }
 }));
 
+// Reschedule one task: replace just its calendar event, leaving every other task's event in place.
+exports.rescheduleTask = onRequest({
+  secrets: [
+    "GEMINI_API_KEY",
+    {name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"},
+  ],
+  cors: ALLOWED_ORIGINS,
+  timeoutSeconds: 120,
+}, ownerOnly(async (req, res) => {
+  try {
+    const {taskId} = req.body || {};
+    if (!taskId || typeof taskId !== "string") return res.status(400).send({error: "Missing taskId"});
+    if (!(await readTaskList()).some((t) => t.id === taskId)) return res.status(404).send({error: "Task not found"});
+
+    const result = await runScheduleEngine({taskIds: [taskId]});
+    // A task pinned to the personal calendar is never moved by the app
+    if (result.scheduledCount === 0 && result.lockedCount > 0) {
+      return res.status(409).send({error: "This task is pinned to your personal calendar, so it was left where it is."});
+    }
+    res.status(200).send({...result, tasks: await readTaskList()});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
 // 3. Endpoint: Add / Ingest Task. The model returns only new or changed tasks; they are merged into the
 // stored list inside a transaction, so everything else on the list is preserved.
 exports.addOrUpdateTask = onRequest({

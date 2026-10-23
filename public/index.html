@@ -131,6 +131,10 @@
         </div>
       </div>
 
+      <div style="margin-top: 14px;">
+        <button type="button" class="btn-secondary" title="Save these changes, then find a new time for this task" onclick="rescheduleFromModal()">🔄 Reschedule</button>
+      </div>
+
       <div class="modal-actions">
         <div style="display: flex; gap: 6px;">
           <button class="btn-success" onclick="completeTaskFromModal()">✅ Complete</button>
@@ -157,6 +161,7 @@
     const DIRECT_UPDATE_URL = endpoint("updateTaskDirect");
     const COMPLETE_TASK_URL = endpoint("completeTask");
     const SCHEDULE_URL = endpoint("generateWeeklySchedule");
+    const RESCHEDULE_URL = endpoint("rescheduleTask");
 
     // Firebase Auth. The SDK loads from the CDN and the web config from Hosting's reserved URL, so there is no build step or key in this file.
     let authLib = null;
@@ -517,8 +522,38 @@
         allTasks = data.tasks || [];
         renderFilterBar();
         renderTasks();
+        return true;
       } catch (err) {
         alert("Failed to save changes: " + err.message);
+        return false;
+      }
+    }
+
+    // Saves the edits first so the new time reflects them, then moves just this task
+    async function rescheduleFromModal() {
+      const taskId = document.getElementById("editTaskId").value;
+      if (!(await saveTaskEdits())) return;
+      await rescheduleTask(taskId);
+    }
+
+    async function rescheduleTask(taskId) {
+      const statusDiv = document.getElementById("scheduleStatus");
+      const task = allTasks.find(t => t.id === taskId);
+      statusDiv.style.display = "block";
+      statusDiv.innerText = "Finding a new time...";
+      try {
+        const res = await apiFetch(RESCHEDULE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ taskId })
+        });
+        const data = await res.json();
+        allTasks = data.tasks || allTasks;
+        renderFilterBar();
+        renderTasks();
+        statusDiv.innerText = `Rescheduled "${task ? task.title : "task"}".`;
+      } catch (err) {
+        statusDiv.innerText = "Error rescheduling: " + err.message;
       }
     }
 
