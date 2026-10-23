@@ -944,6 +944,19 @@
         return a.order - b.order;
       });
     }
+    // The Stats line for the streak: "Current streak: 3 days · Longest: 9 days". A number that may be larger than shown
+    // (its run reaches the first day of the summary window) gets a "+". "" when there is no streak data or no
+    // completion at all.
+    function streakText(streak) {
+      if (!streak || !(streak.longest > 0)) return "";
+      const days = (n, limited) => `${n}${limited ? "+" : ""} ${n === 1 && !limited ? "day" : "days"}`;
+      const current = streak.current > 0 ? days(streak.current, streak.currentLimited) : "none right now";
+      return `Current streak: ${current} · Longest: ${days(streak.longest, streak.longestLimited)}`;
+    }
+    // The name shown for a project in the Stats summary; the tasks of a deleted project share one entry without a name.
+    function statProjectName(entry) {
+      return entry && typeof entry.name === "string" && entry.name ? entry.name : "Deleted project";
+    }
     // </pure-helpers>
 
     window.addEventListener("DOMContentLoaded", () => {
@@ -1562,7 +1575,7 @@
       return m % 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${Math.floor(m / 60)}h`;
     }
 
-    // Completion totals from getCompletedTasks: per week, by priority and by tag
+    // Completion totals from getCompletedTasks: the streak, per week, by priority, by tag and by project
     function renderSummary(summary) {
       if (!summary) return "";
       if (!summary.totalCount) {
@@ -1579,13 +1592,18 @@
         .map(p => `<span class="badge ${PRIORITIES.includes(p.priority) ? p.priority : ''}">${esc(p.priority)} ${esc(p.count)} · ${esc(fmtMinutes(p.minutes))}</span>`).join(" ");
       const tagChips = (summary.byTag || []).slice(0, 10)
         .map(t => `<span class="chip">${esc(t.tag)} ${esc(t.count)} · ${esc(fmtMinutes(t.minutes))}</span>`).join(" ");
+      const projectChips = (summary.byProject || []).slice(0, 10)
+        .map(p => `<span class="chip project-chip">📁 ${esc(statProjectName(p))} ${esc(p.count)} · ${esc(fmtMinutes(p.minutes))}</span>`).join(" ");
+      const streak = streakText(summary.streak);
       return `
         <div class="summary">
           <div class="summary-total"><strong>${esc(summary.totalCount)}</strong> completed · <strong>${esc(fmtMinutes(summary.totalMinutes))}</strong> estimated, last ${esc(weeks.length)} weeks${summary.truncated ? " (newest entries only)" : ""}</div>
+          ${streak ? `<div class="summary-total">🔥 ${esc(streak)}</div>` : ""}
           <div class="summary-label">Per week (week starting Monday)</div>
           ${weekRows}
           ${priorityChips ? `<div class="summary-label">By priority</div><div class="task-meta" style="margin-top:0;">${priorityChips}</div>` : ""}
           ${tagChips ? `<div class="summary-label">By tag</div><div class="task-meta" style="margin-top:0;">${tagChips}</div>` : ""}
+          ${projectChips ? `<div class="summary-label">By project</div><div class="task-meta" style="margin-top:0;">${projectChips}</div>` : ""}
         </div>`;
     }
 

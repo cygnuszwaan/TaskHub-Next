@@ -627,6 +627,35 @@ describe("undoing a delete or completion", () => {
       assert.equal(r.tasks.length, 2);
       assert.equal(r.restored.id, "t1");
     });
+    describe("materials", () => {
+      const materials = [{id: "m1", text: "Paint", checked: false}, {id: "m2", text: "Brush", checked: true}, {id: "m3", text: "Tape", checked: false}];
+      // The record is stored in Firestore and read back, so it goes through a JSON round trip here
+      const stored = (record) => JSON.parse(JSON.stringify(record));
+
+      it("brings back the whole materials list, unchecked items included, after completing and undoing", () => {
+        const withMaterials = {...task, materials};
+        const done = completeInList([withMaterials, other], "t1", "2026-10-24", () => "x");
+        assert.equal(done.tasks.some((t) => t.id === "t1"), false);
+        const r = undoInList(done.tasks, stored(removalRecord("COMPLETE", done.completedTask, "a1", null, 1)));
+        assert.deepEqual(r.restored.materials, materials);
+        assert.deepEqual(r.tasks.find((t) => t.id === "t1").materials, materials);
+      });
+      it("brings back the original materials of a repeating task and drops the next occurrence's fresh ones", () => {
+        const recurring = {...task, recurrence: {frequency: "WEEKLY", interval: 1}, dueDate: "2026-11-01", materials};
+        let n = 0;
+        const done = completeInList([recurring, other], "t1", "2026-10-24", () => `new${++n}`);
+        assert.equal(done.spawned.materials.length, 3);
+        assert.ok(done.spawned.materials.every((m) => m.checked === false));
+        const r = undoInList(done.tasks, stored(removalRecord("COMPLETE", done.completedTask, "a1", done.spawned, 1)));
+        assert.deepEqual(r.tasks.map((t) => t.id).sort(), ["t1", "t2"]);
+        assert.deepEqual(r.restored.materials, materials);
+      });
+      it("brings back the materials of a deleted task", () => {
+        const withMaterials = {...task, materials};
+        const r = undoInList([other], stored(removalRecord("DELETE", withMaterials, null, null, 1)));
+        assert.deepEqual(r.restored.materials, materials);
+      });
+    });
     it("does nothing when the task is already on the list, or the record is unusable", () => {
       assert.equal(undoInList([task], removalRecord("DELETE", task, null, null, 1)), null);
       assert.equal(undoInList([other], null), null);

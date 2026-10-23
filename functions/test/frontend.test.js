@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, sortTasksForList};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, sortTasksForList, streakText, statProjectName};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -855,6 +855,36 @@ describe("public/index.html helpers", () => {
     it("materialsFields: keeps at most the maximum", () => {
       const {materialsFields: fields, MAX_MATERIALS: max} = load();
       assert.equal(fields(Array.from({length: max + 5}, (_, i) => ({id: "", text: `m${i}`}))).length, max);
+    });
+  });
+
+  describe("Stats summary", () => {
+    it("streakText: words the current and longest streak, singular for one day", () => {
+      const {streakText} = load();
+      assert.equal(streakText({current: 3, longest: 9, currentLimited: false, longestLimited: false}), "Current streak: 3 days · Longest: 9 days");
+      assert.equal(streakText({current: 1, longest: 1, currentLimited: false, longestLimited: false}), "Current streak: 1 day · Longest: 1 day");
+    });
+    it("streakText: says so when there is no current streak, and marks a number that may be larger with a +", () => {
+      const {streakText} = load();
+      assert.equal(streakText({current: 0, longest: 4, currentLimited: false, longestLimited: false}), "Current streak: none right now · Longest: 4 days");
+      assert.equal(streakText({current: 56, longest: 56, currentLimited: true, longestLimited: true}), "Current streak: 56+ days · Longest: 56+ days");
+      assert.equal(streakText({current: 2, longest: 10, currentLimited: false, longestLimited: true}), "Current streak: 2 days · Longest: 10+ days");
+    });
+    it("streakText: is empty without streak data or any completion", () => {
+      const {streakText} = load();
+      for (const bad of [undefined, null, {}, {current: 0, longest: 0}]) assert.equal(streakText(bad), "", String(JSON.stringify(bad)));
+    });
+    it("statProjectName: the project's name, or Deleted project for the shared entry without one", () => {
+      const {statProjectName} = load();
+      assert.equal(statProjectName({projectId: "p1", name: "Kitchen reno"}), "Kitchen reno");
+      assert.equal(statProjectName({projectId: null, name: null}), "Deleted project");
+      assert.equal(statProjectName({name: ""}), "Deleted project");
+      assert.equal(statProjectName(undefined), "Deleted project");
+    });
+    it("the summary shows the streak and a By project section built from the summary's fields", () => {
+      assert.match(html, /streakText\(summary\.streak\)/);
+      assert.match(html, /summary\.byProject/);
+      assert.match(html, /By project/);
     });
   });
 });

@@ -633,11 +633,12 @@ exports.getCompletedTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (
     const archive = db.collection("completed_tasks");
     const {timeZone} = await readSettings();
     const now = new Date();
-    const [listSnap, windowSnap] = await Promise.all([
+    const [listSnap, windowSnap, projects] = await Promise.all([
       archive.orderBy("completedAt", "desc").limit(clampLimit(req.query.limit)).get(),
       archive.where("completedAt", ">=", summaryWindowStart(timeZone, now)).orderBy("completedAt", "desc").limit(SUMMARY_MAX_ROWS).get(),
+      readProjects(),
     ]);
-    const summary = {...summarizeCompleted(windowSnap.docs.map((d) => d.data()), timeZone, now), truncated: windowSnap.size >= SUMMARY_MAX_ROWS};
+    const summary = {...summarizeCompleted(windowSnap.docs.map((d) => d.data()), timeZone, now, undefined, projects), truncated: windowSnap.size >= SUMMARY_MAX_ROWS};
     res.status(200).send({success: true, tasks: serializeCompleted(listSnap.docs.map((d) => d.data())), summary});
   } catch (err) {
     console.error(err);

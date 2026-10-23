@@ -4,7 +4,7 @@ const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
 
 const NZ = "Pacific/Auckland";
-const {DEFAULT_LIMIT, MAX_LIMIT, SUMMARY_WEEKS, clampLimit, toIso, serializeCompleted, weekStartOf, firstSummaryWeek, summaryWindowStart, summarizeCompleted} = require("../completed");
+const {DEFAULT_LIMIT, MAX_LIMIT, SUMMARY_WEEKS, clampLimit, toIso, serializeCompleted, weekStartOf, firstSummaryWeek, summaryWindowStart, computeStreaks, summarizeCompleted} = require("../completed");
 
 describe("completed.js", () => {
   describe("clampLimit", () => {
@@ -212,6 +212,129 @@ describe("completed.js", () => {
       const copy = JSON.stringify(rows);
       summarizeCompleted(rows, NZ, now);
       assert.equal(JSON.stringify(rows), copy);
+    });
+  });
+
+  describe("computeStreaks", () => {
+    const set = (...days) => new Set(days);
+    const since = "2026-08-31";
+    const today = "2026-10-23";
+
+    it("is all zero with no completions", () => {
+      assert.deepEqual(computeStreaks(set(), since, today), {current: 0, longest: 0, currentLimited: false, longestLimited: false});
+    });
+    it("counts consecutive days ending today", () => {
+      const s = computeStreaks(set("2026-10-21", "2026-10-22", "2026-10-23"), since, today);
+      assert.equal(s.current, 3);
+      assert.equal(s.longest, 3);
+    });
+    it("keeps the streak alive when only yesterday and earlier have a completion", () => {
+      assert.equal(computeStreaks(set("2026-10-21", "2026-10-22"), since, today).current, 2);
+    });
+    it("is broken once a whole day has passed with nothing", () => {
+      const s = computeStreaks(set("2026-10-20", "2026-10-21"), since, today);
+      assert.equal(s.current, 0);
+      assert.equal(s.longest, 2);
+    });
+    it("counts a single day today as a streak of 1", () => {
+      assert.equal(computeStreaks(set(today), since, today).current, 1);
+    });
+    it("finds the longest run anywhere, and a gap splits runs", () => {
+      const s = computeStreaks(set("2026-09-10", "2026-09-11", "2026-09-12", "2026-09-13", "2026-09-15", "2026-10-22", "2026-10-23"), since, today);
+      assert.equal(s.longest, 4);
+      assert.equal(s.current, 2);
+    });
+    it("steps across month and year ends", () => {
+      const s = computeStreaks(set("2026-12-30", "2026-12-31", "2027-01-01"), "2026-12-01", "2027-01-01");
+      assert.equal(s.current, 3);
+    });
+    it("flags a number that may be larger because its run starts on the first day of the window", () => {
+      const s = computeStreaks(set("2026-08-31", "2026-09-01", "2026-09-02"), since, today);
+      assert.deepEqual(s, {current: 0, longest: 3, currentLimited: false, longestLimited: true});
+      const live = computeStreaks(set("2026-08-31", "2026-09-01", "2026-09-02"), since, "2026-09-02");
+      assert.deepEqual(live, {current: 3, longest: 3, currentLimited: true, longestLimited: true});
+    });
+    it("does not flag the longest when a longer run exists elsewhere", () => {
+      const s = computeStreaks(set("2026-08-31", "2026-09-10", "2026-09-11", "2026-09-12"), since, today);
+      assert.equal(s.longest, 3);
+      assert.equal(s.longestLimited, false);
+    });
+  });
+
+  describe("summarizeCompleted streak and projects", () => {
+    const now = new Date("2026-10-22T21:00:00Z"); // Friday 23 Oct 2026, 10:00 NZ
+    const done = (iso, extra) => ({title: "t", priority: "MEDIUM", estimatedMinutes: 10, tags: [], completedAt: new Date(iso), ...extra});
+
+    it("has an empty project list and no streak for no rows", () => {
+      const s = summarizeCompleted([], NZ, now);
+      assert.deepEqual(s.byProject, []);
+      assert.deepEqual(s.streak, {current: 0, longest: 0, currentLimited: false, longestLimited: false});
+    });
+    it("counts days in the configured zone, not UTC", () => {
+      // 21 Oct 23:30 UTC is 22 Oct 12:30 NZ; 22 Oct 10:00 UTC is 22 Oct 23:00 NZ (the same NZ day); 22 Oct 21:00 UTC is 23 Oct NZ
+      const s = summarizeCompleted([done("2026-10-21T23:30:00Z"), done("2026-10-22T10:00:00Z"), done("2026-10-22T21:00:00Z")], NZ, now);
+      assert.equal(s.streak.current, 2);
+      assert.equal(s.streak.longest, 2);
+      // In Los Angeles those instants fall on 21 Oct (twice) and 22 Oct, and today is 22 Oct
+      const la = summarizeCompleted([done("2026-10-21T23:30:00Z"), done("2026-10-22T10:00:00Z"), done("2026-10-22T21:00:00Z")], "America/Los_Angeles", now);
+      assert.equal(la.streak.current, 2);
+    });
+    it("counts several completions on one day as one day", () => {
+      const s = summarizeCompleted([done("2026-10-20T01:00:00Z"), done("2026-10-20T02:00:00Z"), done("2026-10-20T03:00:00Z")], NZ, now);
+      assert.equal(s.streak.longest, 1);
+    });
+    it("ignores completions dated after today and rows outside the window for the streak", () => {
+      const s = summarizeCompleted([done("2026-10-24T01:00:00Z"), done("2026-08-01T00:00:00Z")], NZ, now);
+      assert.equal(s.streak.longest, 0);
+    });
+    it("totals by project with its current name, most completed first, leaving out tasks without a project", () => {
+      const projects = [{id: "p1", name: "Kitchen reno"}, {id: "p2", name: "Garden"}];
+      const rows = [
+        done("2026-10-20T01:00:00Z", {projectId: "p1", estimatedMinutes: 20}),
+        done("2026-10-20T01:00:00Z", {projectId: "p2", estimatedMinutes: 30}),
+        done("2026-10-20T01:00:00Z", {projectId: "p2", estimatedMinutes: 15}),
+        done("2026-10-20T01:00:00Z"),
+        done("2026-10-20T01:00:00Z", {projectId: ""}),
+        done("2026-10-20T01:00:00Z", {projectId: 5}),
+      ];
+      const s = summarizeCompleted(rows, NZ, now, undefined, projects);
+      assert.deepEqual(s.byProject, [
+        {projectId: "p2", name: "Garden", count: 2, minutes: 45},
+        {projectId: "p1", name: "Kitchen reno", count: 1, minutes: 20},
+      ]);
+      assert.equal(s.totalCount, 6);
+    });
+    it("orders projects with equal counts by minutes, then name", () => {
+      const projects = [{id: "a", name: "B"}, {id: "b", name: "A"}, {id: "c", name: "C"}];
+      const rows = [
+        done("2026-10-20T01:00:00Z", {projectId: "a", estimatedMinutes: 10}),
+        done("2026-10-20T01:00:00Z", {projectId: "b", estimatedMinutes: 10}),
+        done("2026-10-20T01:00:00Z", {projectId: "c", estimatedMinutes: 50}),
+      ];
+      assert.deepEqual(summarizeCompleted(rows, NZ, now, undefined, projects).byProject.map((p) => p.name), ["C", "A", "B"]);
+    });
+    it("groups the tasks of deleted projects into one unnamed entry, last on a tie", () => {
+      const projects = [{id: "p1", name: "Garden"}];
+      const rows = [
+        done("2026-10-20T01:00:00Z", {projectId: "gone1", estimatedMinutes: 10}),
+        done("2026-10-20T01:00:00Z", {projectId: "gone2", estimatedMinutes: 10}),
+        done("2026-10-20T01:00:00Z", {projectId: "p1", estimatedMinutes: 10}),
+        done("2026-10-20T01:00:00Z", {projectId: "p1", estimatedMinutes: 10}),
+      ];
+      const s = summarizeCompleted(rows, NZ, now, undefined, projects);
+      assert.deepEqual(s.byProject, [
+        {projectId: "p1", name: "Garden", count: 2, minutes: 20},
+        {projectId: null, name: null, count: 2, minutes: 20},
+      ]);
+      // More completions put the deleted-projects entry first; with everything equal the named project comes first
+      const more = summarizeCompleted(rows.slice(0, 3), NZ, now, undefined, projects);
+      assert.equal(more.byProject[0].name, null);
+      const tie2 = summarizeCompleted([rows[0], rows[2]], NZ, now, undefined, projects);
+      assert.deepEqual(tie2.byProject.map((p) => p.name), ["Garden", null]);
+    });
+    it("treats every project as deleted when none are given", () => {
+      const s = summarizeCompleted([done("2026-10-20T01:00:00Z", {projectId: "p1"})], NZ, now);
+      assert.deepEqual(s.byProject, [{projectId: null, name: null, count: 1, minutes: 10}]);
     });
   });
 });
