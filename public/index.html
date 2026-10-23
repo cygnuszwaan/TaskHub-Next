@@ -20,6 +20,13 @@
     .tag-filter-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 15px; }
     .filter-chip { font-size: 12px; padding: 4px 10px; border-radius: 16px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; user-select: none; }
     .filter-chip.active { background: #0266c8; color: white; border-color: #0266c8; }
+    .filter-section { margin-top: 12px; }
+    .filter-section > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: #475569; }
+    .filter-section > summary small { font-weight: normal; color: #0266c8; }
+    .filter-section > .tag-filter-bar { margin: 8px 0 0; }
+    .project-actions { margin-top: 8px; }
+    .project-actions .project-row { border-bottom: 0; padding: 4px 0; }
+    .project-add { margin-top: 8px; }
 
     .task-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px; border-bottom: 1px solid #f0f0f0; border-radius: 6px; cursor: pointer; transition: background 0.15s ease; }
     .task-item:hover { background: #f8fafc; }
@@ -135,9 +142,22 @@
 
   <div class="card">
     <details id="queueDetails" open>
-      <summary style="cursor: pointer; font-weight: 600;">Organized Queue <small style="font-size:11px; font-weight:normal; color:#64748b;">(Tap to edit)</small></summary>
-      <div class="tag-filter-bar" id="tagFilterBar" style="margin-top: 12px;"></div>
-      <div id="taskList">Loading tasks...</div>
+      <summary style="cursor: pointer; font-weight: 600;">Queue <small style="font-size:11px; font-weight:normal; color:#64748b;">(Tap to edit)</small></summary>
+      <details class="filter-section" id="tagsDetails" open>
+        <summary>Tags <small id="tagsActive"></small></summary>
+        <div class="tag-filter-bar" id="tagFilterBar"></div>
+      </details>
+      <details class="filter-section" id="projectsDetails" open>
+        <summary>Projects <small id="projectsActive"></small></summary>
+        <div class="tag-filter-bar" id="projectFilterBar"></div>
+        <div class="project-actions" id="projectActions"></div>
+        <div class="input-row project-add">
+          <input type="text" id="newProjectName" maxlength="100" placeholder="New project name, e.g. Kitchen reno">
+          <button type="button" id="addProjectBtn">Add</button>
+        </div>
+        <div id="projectsStatus" class="settings-status"></div>
+      </details>
+      <div id="taskList" style="margin-top: 15px;">Loading tasks...</div>
     </details>
   </div>
 
@@ -146,20 +166,6 @@
       <summary style="cursor: pointer; font-weight: 600;">Materials <small id="materialsCount" style="font-size:11px; font-weight:normal; color:#64748b;"></small></summary>
       <div id="materialsList" style="margin-top: 12px;"></div>
       <div id="materialsStatus" class="settings-status"></div>
-    </details>
-  </div>
-
-  <div class="card">
-    <details id="projectsDetails">
-      <summary style="cursor: pointer; font-weight: 600;">Projects</summary>
-      <div style="margin-top: 12px;">
-        <div class="input-row">
-          <input type="text" id="newProjectName" maxlength="100" placeholder="New project name, e.g. Kitchen reno">
-          <button type="button" id="addProjectBtn">Add</button>
-        </div>
-        <div id="projectList"></div>
-        <div id="projectsStatus" class="settings-status"></div>
-      </div>
     </details>
   </div>
 
@@ -450,6 +456,7 @@
     let allTasks = [];
     let tasksLoaded = false; // set once the list has been drawn
     let selectedTagFilter = null; // null = show all
+    let selectedProjectFilter = null; // a project id, null = show all
     let editMaterials = []; // the materials list being edited in the modal: [{id, text, checked}]
     let materialsBusy = false; // true while a check-off from the Materials card is being saved
     let allProjects = [];
@@ -667,6 +674,12 @@
       return counts;
     }
 
+    // The tasks the Queue shows: those carrying the chosen tag (null = any) and belonging to the chosen project
+    // (a project id, null = any). Both filters apply together. Pure: the input is not modified.
+    function filterTasks(tasks, tag, projectId) {
+      return tasks.filter(t => (tag === null || (t.tags || []).includes(tag)) && (projectId === null || t.projectId === projectId));
+    }
+
     // The confirmation text for deleting a project with `count` member tasks.
     function deleteProjectPrompt(name, count) {
       if (!count) return `Delete project "${name}"?`;
@@ -679,6 +692,12 @@
         const chip = e.target.closest(".filter-chip");
         if (!chip) return;
         setFilter(chip.hasAttribute("data-all") ? null : chip.dataset.tag);
+      });
+
+      document.getElementById("projectFilterBar").addEventListener("click", e => {
+        const chip = e.target.closest(".filter-chip");
+        if (!chip) return;
+        setProjectFilter(chip.hasAttribute("data-all") ? null : chip.dataset.project);
       });
 
       document.getElementById("taskList").addEventListener("click", e => {
@@ -844,12 +863,19 @@
         html += `<div class="filter-chip ${selectedTagFilter === tag ? 'active' : ''}" data-tag="${esc(tag)}">${esc(tag)} (${count})</div>`;
       });
       bar.innerHTML = html;
+      // Shown in the heading so a filter stays visible while its section is collapsed
+      document.getElementById("tagsActive").textContent = selectedTagFilter === null ? "" : `· ${selectedTagFilter}`;
     }
 
     function setFilter(tag) {
       selectedTagFilter = tag;
       renderFilterBar();
       renderTasks();
+    }
+
+    function setProjectFilter(projectId) {
+      selectedProjectFilter = projectId;
+      renderTasks(); // redraws the project chips too
     }
 
     function projectChip(t) {
@@ -877,14 +903,12 @@
       renderProjects();
       renderMaterialsCard();
       const listContainer = document.getElementById("taskList");
-      let filtered = allTasks;
+      let filtered = filterTasks(allTasks, selectedTagFilter, selectedProjectFilter);
 
-      if (selectedTagFilter !== null) {
-        filtered = allTasks.filter(t => (t.tags || []).includes(selectedTagFilter));
-      }
-
-      if (!filtered || filtered.length === 0) {
-        listContainer.innerHTML = "<p style='color:#666;'>No active tasks in queue.</p>";
+      if (filtered.length === 0) {
+        listContainer.innerHTML = allTasks.length === 0 ?
+          "<p style='color:#666;'>No active tasks in queue.</p>" :
+          "<p style='color:#666;'>No tasks match the current filters.</p>";
         return;
       }
 
@@ -1219,20 +1243,29 @@
       document.getElementById("projectsStatus").textContent = text;
     }
 
+    // The project chips (they filter the Queue like the tag chips do) and, for the chosen project, its Rename and Delete.
     function renderProjects() {
-      const list = document.getElementById("projectList");
       if (!projectsLoaded) return;
+      // A filter on a project that no longer exists (deleted here or elsewhere) is dropped
+      if (selectedProjectFilter !== null && !allProjects.some(p => p.id === selectedProjectFilter)) selectedProjectFilter = null;
+      const bar = document.getElementById("projectFilterBar");
+      const actions = document.getElementById("projectActions");
+      const chosen = allProjects.find(p => p.id === selectedProjectFilter) || null;
+      document.getElementById("projectsActive").textContent = chosen ? `· ${chosen.name}` : "";
       if (allProjects.length === 0) {
-        list.innerHTML = "<p style='color:#666; margin:10px 0 0;'>No projects yet.</p>";
+        bar.innerHTML = "<span style='color:#666; font-size:13px;'>No projects yet.</span>";
+        actions.innerHTML = "";
         return;
       }
       const counts = projectTaskCounts(allTasks);
-      list.innerHTML = allProjects.map(p => `
-        <div class="project-row" data-id="${esc(p.id)}">
-          <span class="project-name">${esc(p.name)} <small style="color:#64748b;">${esc(counts[p.id] || 0)} ${counts[p.id] === 1 ? "task" : "tasks"}</small></span>
+      bar.innerHTML = `<div class="filter-chip ${chosen ? "" : "active"}" data-all="1">All (${allTasks.length})</div>` +
+        allProjects.map(p => `<div class="filter-chip ${chosen && chosen.id === p.id ? "active" : ""}" data-project="${esc(p.id)}">📁 ${esc(p.name)} (${esc(counts[p.id] || 0)})</div>`).join("");
+      actions.innerHTML = chosen ? `
+        <div class="project-row" data-id="${esc(chosen.id)}">
+          <span class="project-name">${esc(chosen.name)}</span>
           <button type="button" class="btn-secondary" data-action="rename">Rename</button>
           <button type="button" class="btn-danger" data-action="delete">Delete</button>
-        </div>`).join("");
+        </div>` : "";
     }
 
     async function loadProjects() {
@@ -1298,7 +1331,7 @@
     document.getElementById("newProjectName").addEventListener("keydown", e => {
       if (e.key === "Enter") { e.preventDefault(); addProject(); }
     });
-    document.getElementById("projectList").addEventListener("click", e => {
+    document.getElementById("projectActions").addEventListener("click", e => {
       const btn = e.target.closest("[data-action]");
       const row = btn && btn.closest(".project-row");
       if (!row) return;

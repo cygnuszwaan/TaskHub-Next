@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, scheduleSummary, projectFields, projectLabel, projectTaskCounts, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS};`)();
+    return {DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, scheduleSummary, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -43,18 +43,28 @@ describe("public/index.html helpers", () => {
       const label = html.slice(html.indexOf(">", box) + 1, html.indexOf("</label>", box)).trim();
       assert.equal(label, "Enter the details myself");
     });
-    it("puts the Materials card right after the Organized Queue and before Projects", () => {
-      const q = html.indexOf(`id="queueDetails"`);
-      const m = html.indexOf(`id="materialsDetails"`);
-      const p = html.indexOf(`id="projectsDetails"`);
-      assert.ok(q > 0 && m > q && p > m);
-      assert.ok(html.indexOf(`id="editMaterials"`) > html.indexOf(`id="editModal"`));
-    });
     const at = (needle, from = 0) => {
       const i = html.indexOf(needle, from);
       assert.ok(i > 0, `${needle} not found`);
       return i;
     };
+    // The index of the </details> that closes the <details> opened at `open`, allowing for nested ones
+    const closeOf = (open) => {
+      let depth = 0;
+      const re = /<details\b|<\/details>/g;
+      re.lastIndex = open;
+      for (let m = re.exec(html); m; m = re.exec(html)) {
+        depth += m[0] === "</details>" ? -1 : 1;
+        if (depth === 0) return m.index;
+      }
+      throw new Error("unclosed <details>");
+    };
+    it("puts the Materials card right after the Queue and before Recently Completed", () => {
+      const q = at(`id="queueDetails"`);
+      const m = at(`id="materialsDetails"`);
+      assert.ok(m > closeOf(html.lastIndexOf("<details", q)) && m < at(`id="completedDetails"`));
+      assert.ok(html.indexOf(`id="editMaterials"`) > html.indexOf(`id="editModal"`));
+    });
     it("puts the Settings card last, with Save settings and Update now side by side", () => {
       const settings = at(`id="settingsDetails"`);
       assert.ok(settings > at(`id="taskInput"`) && settings > at(`id="queueDetails"`) && settings > at(`id="projectsDetails"`) && settings > at(`id="completedDetails"`));
@@ -70,11 +80,24 @@ describe("public/index.html helpers", () => {
       assert.ok(at(`id="scheduleStatus"`) > closeSettings);
       assert.ok(at(`id="scheduleStatus"`) < at(`id="editModal"`));
     });
-    it("puts a collapsible Projects card between Organized Queue and Recently Completed", () => {
-      const p = at(`<details id="projectsDetails">`);
-      const close = at("</details>", p);
-      assert.ok(at(`id="queueDetails"`) < p && close < at(`id="completedDetails"`));
-      for (const id of ["newProjectName", "addProjectBtn", "projectList", "projectsStatus"]) assert.ok(at(`id="${id}"`, p) < close, id);
+    it("has no Projects card of its own: Projects is a collapsible section of the Queue, just below Tags", () => {
+      const q = at(`<details id="queueDetails" open>`);
+      const qClose = closeOf(q);
+      const tags = at(`<details class="filter-section" id="tagsDetails" open>`, q);
+      const projects = at(`<details class="filter-section" id="projectsDetails" open>`, q);
+      assert.ok(q < tags && closeOf(tags) < projects && closeOf(projects) < at(`id="taskList"`, q) && at(`id="taskList"`, q) < qClose);
+      assert.ok(at(`id="tagFilterBar"`, tags) < closeOf(tags));
+      for (const id of ["projectFilterBar", "projectActions", "newProjectName", "addProjectBtn", "projectsStatus"]) {
+        assert.ok(at(`id="${id}"`, projects) < closeOf(projects), `${id} sits in the Projects section`);
+      }
+      assert.equal(html.split(`id="projectsDetails"`).length, 2, "one Projects section only");
+    });
+    it("gives Tags and Projects a heading each that can be collapsed, with the active filter shown in it", () => {
+      for (const [section, active] of [["tagsDetails", "tagsActive"], ["projectsDetails", "projectsActive"]]) {
+        const i = at(`id="${section}"`);
+        const summary = html.slice(at("<summary>", i), at("</summary>", i));
+        assert.ok(summary.includes(`id="${active}"`), `${section} heading shows ${active}`);
+      }
     });
     it("adds a Project select and an Order number field, disabled until a project is chosen, to the edit modal", () => {
       const modal = at(`id="editModal"`);
@@ -84,9 +107,11 @@ describe("public/index.html helpers", () => {
     it("no longer offers Plan My Week anywhere on the page", () => {
       assert.doesNotMatch(html, /Plan My Week/);
     });
-    it("makes Organized Queue collapsible (open by default) around the filter bar and list", () => {
+    it("calls the Queue card \"Queue\" and makes it collapsible (open by default) around the filters and list", () => {
       const q = at(`<details id="queueDetails" open>`);
-      const close = at("</details>", q);
+      const close = closeOf(q);
+      assert.match(html.slice(at("<summary", q), at("</summary>", q)), />Queue </);
+      assert.doesNotMatch(html, /Organized Queue/);
       assert.ok(q < at(`id="tagFilterBar"`, q) && at(`id="tagFilterBar"`, q) < at(`id="taskList"`, q));
       assert.ok(at(`id="taskList"`, q) < close);
       assert.ok(close < at(`id="completedDetails"`));
@@ -267,6 +292,34 @@ describe("public/index.html helpers", () => {
       const {mergeSettings, applySettingsUpdate} = require("../settings");
       const r = applySettingsUpdate(mergeSettings(undefined), h.settingsPayload({...form, time: ""}));
       assert.match(r.error, /schedule.time/);
+    });
+  });
+  describe("filterTasks", () => {
+    const tasks = [
+      {id: "a", tags: ["Outdoor"], projectId: "p1"},
+      {id: "b", tags: ["Outdoor", "Garden"], projectId: "p2"},
+      {id: "c", tags: ["Indoor"], projectId: "p1"},
+      {id: "d", tags: [], projectId: undefined},
+      {id: "e"},
+    ];
+    const ids = (list) => list.map((t) => t.id);
+    it("returns everything with no filter", () => {
+      assert.deepEqual(ids(load().filterTasks(tasks, null, null)), ["a", "b", "c", "d", "e"]);
+    });
+    it("filters by tag alone and by project alone", () => {
+      const h = load();
+      assert.deepEqual(ids(h.filterTasks(tasks, "Outdoor", null)), ["a", "b"]);
+      assert.deepEqual(ids(h.filterTasks(tasks, null, "p1")), ["a", "c"]);
+    });
+    it("applies both together", () => {
+      const h = load();
+      assert.deepEqual(ids(h.filterTasks(tasks, "Outdoor", "p1")), ["a"]);
+      assert.deepEqual(ids(h.filterTasks(tasks, "Garden", "p1")), []);
+    });
+    it("copes with tasks without tags, and does not modify its input", () => {
+      const copy = JSON.stringify(tasks);
+      assert.deepEqual(ids(load().filterTasks(tasks, "Indoor", null)), ["c"]);
+      assert.equal(JSON.stringify(tasks), copy);
     });
   });
   describe("manualTaskBody", () => {
