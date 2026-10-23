@@ -11,7 +11,8 @@ const {localDate, startOfLocalDay} = require("./time");
 const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
 const {repairSchedule, parseScheduleResponse, buildFixedSlots, matchLockedEvents} = require("./schedule");
 const {planSchedule} = require("./planner");
-const {applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults} = require("./tasks");
+const {lunchWindows, padWindows} = require("./breaks");
+const {applyDirectUpdate, completeInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
 const {UNAVAILABLE, weatherUrl, describeWeather, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
@@ -337,7 +338,12 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
   const agentBusy = await getForeignBusyWindows(calendar, calendarId, now.toISOString(), horizon.toISOString(), timeZone, oldEventIds);
   // In a subset run the app events that stay put block their time, whatever their transparency.
   const keptAppBusy = subset ? appBusyWindows(agentEvents, timeZone, oldEventIds) : [];
-  const busySlots = mergeBusyWindows([...personalBusy, ...lockedWindows, ...agentBusy, ...keptAppBusy]);
+  // Gap between tasks: the tasks the run does not place (pinned ones, and in a subset run the other scheduled ones) keep
+  // that distance too; the tasks it places get theirs from the planner. The lunch break is busy time on every day.
+  const gap = settings.gapMinutes;
+  const keptTaskWindows = gap > 0 ? padWindows([...lockedWindows, ...keptAppBusy], gap) : [...lockedWindows, ...keptAppBusy];
+  const lunchBusy = lunchWindows({lunch: settings.lunch, timeZone, now, horizon});
+  const busySlots = mergeBusyWindows([...personalBusy, ...keptTaskWindows, ...agentBusy, ...lunchBusy]);
 
   // 3. Get slots for the unlocked tasks (from the planner, or from Gemini), then validate before touching the calendar
   let scheduledList = [];
@@ -356,10 +362,10 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
     const lockedByTask = new Map([...lockedEvents].map(([id, ev]) => [id, eventWindow(ev, timeZone)]));
     const fixed = buildFixedSlots({tasks: currentTasks, inScopeIds: subset ? new Set(inScope.map((t) => t.id)) : null, lockedWindows: lockedByTask, timeZone});
     const projects = await readProjects();
-    console.log(`Scheduling ${toSchedule.length} tasks over ${settings.scheduleDays} days (${busySlots.length} busy windows, to ${horizon.toISOString()})`);
+    console.log(`Scheduling ${toSchedule.length} tasks over ${settings.scheduleDays} days (${busySlots.length} busy windows, gap ${gap} min, lunch ${settings.lunch.enabled ? "on" : "off"}, to ${horizon.toISOString()})`);
     // Outdoor and Garden tasks stay inside the forecast window and off rainy days (enforced on Gemini's slots)
     const weatherRules = weatherWindow({today: localDate(timeZone, now), forecast: weather.forecast, current: weather.key});
-    const validation = {busy: busySlots, now, horizon, timeZone, weather: weatherRules, allTasks: currentTasks, fixed};
+    const validation = {busy: busySlots, now, horizon, timeZone, weather: weatherRules, allTasks: currentTasks, fixed, gapMinutes: gap};
     const result = SCHEDULER === "gemini" ?
       await requestValidSchedule(toSchedule, busySlots, now, settings, weather.text, {projects, fixed, allTasks: currentTasks, forecast: weather.forecast}, validation) :
       planValidSchedule(toSchedule, validation);
@@ -515,29 +521,39 @@ exports.rescheduleTask = onRequest({
 }));
 
 // 3. Endpoint: Add / Ingest Task. The model returns only new or changed tasks; they are merged into the
-// stored list inside a transaction, so everything else on the list is preserved.
+// stored list inside a transaction, so everything else on the list is preserved. With a `manual` body ({title,
+// priority?, dueDate?, estimatedMinutes?, tags?}) no model is called: the fields are used as entered (validated like
+// the model's) and the task is added at the end of the list.
 exports.addOrUpdateTask = onRequest({
   secrets: ["GEMINI_API_KEY"], cors: ALLOWED_ORIGINS, timeoutSeconds: 120,
 }, ownerOnly(async (req, res) => {
   try {
-    const userInput = req.body.input;
-    if (!userInput) return res.status(400).send({error: "Missing input"});
+    const body = req.body || {};
+    let changes;
+    if (body.manual !== undefined) {
+      const change = manualTaskChange(body.manual);
+      if (!change) return res.status(400).send({error: "A manual entry needs a title"});
+      changes = [change];
+    } else {
+      const userInput = body.input;
+      if (!userInput) return res.status(400).send({error: "Missing input"});
 
-    const [currentTasks, {timeZone}, projects] = await Promise.all([readTaskList(), readSettings(), readProjects()]);
+      const [currentTasks, {timeZone}, projects] = await Promise.all([readTaskList(), readSettings(), readProjects()]);
 
-    const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
-    const prompt = buildTaskPrompt({tasks: currentTasks, projects, input: userInput, today: localDate(timeZone)});
+      const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
+      const prompt = buildTaskPrompt({tasks: currentTasks, projects, input: userInput, today: localDate(timeZone)});
 
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: changeSchema,
-      },
-    });
+      const response = await ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: changeSchema,
+        },
+      });
 
-    const changes = JSON.parse(response.text).tasks || [];
+      changes = JSON.parse(response.text).tasks || [];
+    }
 
     // Merge into the list as it is now, not as it was when the model was asked. The projects are read in the same
     // transaction, so a task only joins a project that still exists at commit time.

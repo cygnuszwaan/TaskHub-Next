@@ -259,3 +259,58 @@ describe("settings.js", () => {
     });
   });
 });
+
+describe("settings.js: gap between tasks and lunch break", () => {
+  const {MIN_GAP_MINUTES, MAX_GAP_MINUTES, MIN_LUNCH_MINUTES, MAX_LUNCH_MINUTES} = require("../settings");
+  it("defaults to no gap and no lunch break (12:00 for 30 minutes once switched on)", () => {
+    const s = mergeSettings(undefined);
+    assert.equal(s.gapMinutes, 0);
+    assert.deepEqual(s.lunch, {enabled: false, time: "12:00", minutes: 30});
+  });
+  it("keeps valid stored values and falls back field by field for unusable ones", () => {
+    const s = mergeSettings({gapMinutes: 15, lunch: {enabled: true, time: "13:15", minutes: 45}});
+    assert.equal(s.gapMinutes, 15);
+    assert.deepEqual(s.lunch, {enabled: true, time: "13:15", minutes: 45});
+    const bad = mergeSettings({gapMinutes: 90, lunch: {enabled: 1, time: "25:00", minutes: 2}});
+    assert.equal(bad.gapMinutes, 0);
+    assert.deepEqual(bad.lunch, DEFAULTS.lunch);
+    assert.deepEqual(mergeSettings({lunch: {minutes: 60}}).lunch, {enabled: false, time: "12:00", minutes: 60});
+  });
+  it("does not let a returned lunch object change the defaults", () => {
+    const s = mergeSettings(undefined);
+    s.lunch.enabled = true;
+    assert.equal(DEFAULTS.lunch.enabled, false);
+  });
+  it("is editable alone, and the bounds are accepted", () => {
+    const current = mergeSettings({scheduleDays: 10});
+    const r = applySettingsUpdate(current, {gapMinutes: 20});
+    assert.equal(r.settings.gapMinutes, 20);
+    assert.equal(r.settings.scheduleDays, 10);
+    assert.deepEqual(r.settings.lunch, DEFAULTS.lunch);
+    for (const gap of [MIN_GAP_MINUTES, MAX_GAP_MINUTES]) assert.equal(applySettingsUpdate(current, {gapMinutes: gap}).settings.gapMinutes, gap);
+    for (const minutes of [MIN_LUNCH_MINUTES, MAX_LUNCH_MINUTES]) assert.equal(applySettingsUpdate(current, {lunch: {minutes}}).settings.lunch.minutes, minutes);
+  });
+  it("updates one lunch field without touching the others", () => {
+    const current = mergeSettings({lunch: {enabled: true, time: "12:30", minutes: 40}});
+    assert.deepEqual(applySettingsUpdate(current, {lunch: {time: "13:00"}}).settings.lunch, {enabled: true, time: "13:00", minutes: 40});
+    assert.deepEqual(applySettingsUpdate(current, {lunch: {enabled: false}}).settings.lunch, {enabled: false, time: "12:30", minutes: 40});
+  });
+  it("rejects bad values with a named reason and saves nothing", () => {
+    const current = mergeSettings(undefined);
+    const cases = [
+      [{gapMinutes: -1}, /gapMinutes/], [{gapMinutes: 61}, /gapMinutes/], [{gapMinutes: 2.5}, /gapMinutes/], [{gapMinutes: "10"}, /gapMinutes/], [{gapMinutes: null}, /gapMinutes/],
+      [{lunch: {enabled: "yes"}}, /lunch\.enabled/], [{lunch: {time: "12:60"}}, /lunch\.time/], [{lunch: {time: ""}}, /lunch\.time/],
+      [{lunch: {minutes: 4}}, /lunch\.minutes/], [{lunch: {minutes: 181}}, /lunch\.minutes/], [{lunch: {minutes: 30.5}}, /lunch\.minutes/],
+      [{lunch: "noon"}, /lunch must be an object/],
+    ];
+    for (const [patch, message] of cases) {
+      const r = applySettingsUpdate(current, patch);
+      assert.match(r.error, message, JSON.stringify(patch));
+      assert.equal(r.settings, undefined);
+    }
+    assert.match(applySettingsUpdate(current, {gapMinutes: 10, lunch: {minutes: 1}}).error, /lunch\.minutes/);
+  });
+  it("leaves the schedule's own time check as it was", () => {
+    assert.match(applySettingsUpdate(mergeSettings(undefined), {schedule: {time: "7pm"}}).error, /schedule\.time/);
+  });
+});

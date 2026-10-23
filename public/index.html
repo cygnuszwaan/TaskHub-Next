@@ -104,6 +104,33 @@
       <input type="text" id="taskInput" placeholder="e.g. MOW LAWN 45M OUTDOOR">
       <button onclick="submitTask()" id="addBtn">Add</button>
     </div>
+    <div class="form-group" style="margin: 10px 0 0;">
+      <label style="font-weight: normal;"><input type="checkbox" id="manualToggle"> Enter the details myself (skips the AI; the text above is the title)</label>
+    </div>
+    <div id="manualFields" hidden style="margin-top: 10px;">
+      <div style="display: flex; gap: 10px;">
+        <div class="form-group" style="flex: 1;">
+          <label for="manualPriority">Priority</label>
+          <select id="manualPriority">
+            <option value="HIGH">HIGH</option>
+            <option value="MEDIUM" selected>MEDIUM</option>
+            <option value="LOW">LOW</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex: 1;">
+          <label for="manualMinutes">Est. Minutes</label>
+          <input type="number" id="manualMinutes" min="5" step="5" value="15" inputmode="numeric">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="manualTags">Tags (comma separated)</label>
+        <input type="text" id="manualTags" placeholder="e.g. Outdoor, Physical">
+      </div>
+      <div class="form-group">
+        <label for="manualDue">Due Date (optional)</label>
+        <input type="date" id="manualDue">
+      </div>
+    </div>
   </div>
 
   <div class="card">
@@ -159,6 +186,23 @@
         <div class="form-group">
           <label for="scheduleDays">Days to schedule ahead (1 to 28)</label>
           <input type="number" id="scheduleDays" min="1" max="28" step="1" inputmode="numeric">
+        </div>
+        <div class="form-group">
+          <label for="gapMinutes">Gap between tasks (minutes, 0 to 60)</label>
+          <input type="number" id="gapMinutes" min="0" max="60" step="5" inputmode="numeric">
+        </div>
+        <div class="form-group">
+          <label><input type="checkbox" id="lunchEnabled"> Keep a lunch break free every day</label>
+        </div>
+        <div class="form-group" id="lunchFields" style="display: flex; gap: 10px;">
+          <div style="flex: 1;">
+            <label for="lunchTime">Lunch starts (local)</label>
+            <input type="time" id="lunchTime">
+          </div>
+          <div style="flex: 1;">
+            <label for="lunchMinutes">Length (minutes, 5 to 180)</label>
+            <input type="number" id="lunchMinutes" min="5" max="180" step="5" inputmode="numeric">
+          </div>
         </div>
         <div class="form-group">
           <label><input type="checkbox" id="schedEnabled"> Run the schedule automatically</label>
@@ -503,11 +547,27 @@
         location: { name: form.location.name, latitude: form.location.latitude, longitude: form.location.longitude },
         timeZone: form.timeZone,
         scheduleDays: Number(form.scheduleDays),
+        gapMinutes: Number(form.gapMinutes),
+        lunch: { enabled: !!form.lunchEnabled, time: form.lunchTime, minutes: Number(form.lunchMinutes) },
         schedule: {
           enabled: !!form.enabled,
           frequency: form.frequency,
           time: form.time,
           intervalMinutes: Number(form.intervalMinutes)
+        }
+      };
+    }
+
+    // The addOrUpdateTask body for a task entered by hand (no AI): the title and the fields of the manual form. The
+    // server validates every field and falls back to its default for an unusable one, so only the shape is made here.
+    function manualTaskBody(form) {
+      return {
+        manual: {
+          title: String(form.title || "").trim(),
+          priority: form.priority,
+          dueDate: form.dueDate || "",
+          estimatedMinutes: parseInt(form.estimatedMinutes, 10) || 15,
+          tags: String(form.tags || "").split(",").map(t => t.trim()).filter(Boolean)
         }
       };
     }
@@ -672,18 +732,30 @@
 
     async function submitTask() {
       const input = document.getElementById("taskInput").value;
-      if (!input) return;
+      if (!input.trim()) return;
+      const manual = document.getElementById("manualToggle").checked;
 
       setLoading(true);
       try {
+        const body = manual ? manualTaskBody({
+          title: input,
+          priority: document.getElementById("manualPriority").value,
+          estimatedMinutes: document.getElementById("manualMinutes").value,
+          tags: document.getElementById("manualTags").value,
+          dueDate: document.getElementById("manualDue").value
+        }) : { input };
         const res = await apiFetch(ADD_TASK_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ input })
+          body: JSON.stringify(body)
         });
         const data = await res.json();
         allTasks = data.tasks || [];
         document.getElementById("taskInput").value = "";
+        if (manual) {
+          document.getElementById("manualTags").value = "";
+          document.getElementById("manualDue").value = "";
+        }
         renderFilterBar();
         renderTasks();
       } catch (err) {
@@ -722,9 +794,8 @@
       btn.disabled = true;
       statusDiv.style.display = "block";
       try {
-        // Runs use the saved settings, so a changed "days ahead" that was never saved would be ignored: save it first.
-        const daysField = document.getElementById("scheduleDays");
-        if (currentSettings && daysField.value !== String(currentSettings.scheduleDays)) {
+        // Runs use the saved settings, so a changed "days ahead", gap or lunch break that was never saved would be ignored: save first.
+        if (currentSettings && scheduleFieldsChanged()) {
           statusDiv.innerText = "Saving settings...";
           if (!(await saveSettings())) {
             statusDiv.innerText = "Not scheduled: " + document.getElementById("settingsStatus").textContent;
@@ -1248,6 +1319,23 @@
       document.getElementById("schedIntervalGroup").hidden = !interval;
     }
 
+    function updateLunchFields() {
+      const on = document.getElementById("lunchEnabled").checked;
+      document.getElementById("lunchTime").disabled = !on;
+      document.getElementById("lunchMinutes").disabled = !on;
+    }
+
+    // Whether the form holds days-ahead, gap or lunch values that differ from the saved settings (what a run uses).
+    function scheduleFieldsChanged() {
+      const s = currentSettings;
+      const lunch = s.lunch || {};
+      return document.getElementById("scheduleDays").value !== String(s.scheduleDays)
+        || document.getElementById("gapMinutes").value !== String(s.gapMinutes)
+        || document.getElementById("lunchEnabled").checked !== !!lunch.enabled
+        || document.getElementById("lunchTime").value !== String(lunch.time)
+        || document.getElementById("lunchMinutes").value !== String(lunch.minutes);
+    }
+
     function setSettingsStatus(text) {
       document.getElementById("settingsStatus").textContent = text;
     }
@@ -1261,6 +1349,12 @@
       document.title = `TaskHub Next - ${s.location.name}`;
       renderLocation();
       document.getElementById("scheduleDays").value = typeof s.scheduleDays === "number" ? String(s.scheduleDays) : "";
+      document.getElementById("gapMinutes").value = typeof s.gapMinutes === "number" ? String(s.gapMinutes) : "";
+      const lunch = s.lunch || {};
+      document.getElementById("lunchEnabled").checked = !!lunch.enabled;
+      document.getElementById("lunchTime").value = lunch.time || "";
+      document.getElementById("lunchMinutes").value = typeof lunch.minutes === "number" ? String(lunch.minutes) : "";
+      updateLunchFields();
       document.getElementById("schedEnabled").checked = !!s.schedule.enabled;
       document.getElementById("schedFrequency").value = s.schedule.frequency;
       document.getElementById("schedTime").value = s.schedule.time;
@@ -1318,6 +1412,10 @@
             location: place,
             timeZone: place.timeZone,
             scheduleDays: document.getElementById("scheduleDays").value,
+            gapMinutes: document.getElementById("gapMinutes").value,
+            lunchEnabled: document.getElementById("lunchEnabled").checked,
+            lunchTime: document.getElementById("lunchTime").value,
+            lunchMinutes: document.getElementById("lunchMinutes").value,
             enabled: document.getElementById("schedEnabled").checked,
             frequency: document.getElementById("schedFrequency").value,
             time: document.getElementById("schedTime").value,
@@ -1326,9 +1424,9 @@
         });
         const saved = (await res.json()).settings;
         applySettings(saved);
-        if (typeof saved.scheduleDays !== "number") {
-          // An older deployed backend drops fields it does not know, so the days setting would silently stay at 7
-          setSettingsStatus("Saved, but the server ignored the days setting. Deploy the latest functions.");
+        if (typeof saved.scheduleDays !== "number" || typeof saved.gapMinutes !== "number" || !saved.lunch) {
+          // An older deployed backend drops fields it does not know, so a setting would silently keep its old value
+          setSettingsStatus("Saved, but the server ignored the days, gap or lunch setting. Deploy the latest functions.");
           return false;
         }
         setSettingsStatus("Saved.");
@@ -1345,6 +1443,10 @@
       if (e.target.open && !currentSettings) loadSettings();
     });
     document.getElementById("schedFrequency").addEventListener("change", updateScheduleFields);
+    document.getElementById("lunchEnabled").addEventListener("change", updateLunchFields);
+    document.getElementById("manualToggle").addEventListener("change", e => {
+      document.getElementById("manualFields").hidden = !e.target.checked;
+    });
     document.getElementById("placeSearchBtn").addEventListener("click", searchPlaces);
     document.getElementById("placeQuery").addEventListener("keydown", e => {
       if (e.key === "Enter") { e.preventDefault(); searchPlaces(); }

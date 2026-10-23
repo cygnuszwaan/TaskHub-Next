@@ -200,3 +200,15 @@ describe("prompts.js", () => {
     });
   });
 });
+
+describe("prompts.js: gap between tasks", () => {
+  it("asks for the gap when one is set", () => {
+    const prompt = build(mergeSettings({gapMinutes: 15}));
+    assert.match(prompt, /Leave at least 15 minutes free between any two scheduled task slots/);
+    assert.match(prompt, /Calendar events and the lunch break need no extra gap/);
+  });
+  it("says nothing about a gap by default", () => {
+    assert.doesNotMatch(build(AUCKLAND), /minutes free between/);
+    assert.doesNotMatch(build({...AUCKLAND, gapMinutes: undefined}), /minutes free between/);
+  });
+});

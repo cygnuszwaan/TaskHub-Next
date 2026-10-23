@@ -94,13 +94,17 @@ function reasonFor(task, today) {
 //             local date up to lastDate that is not rainy
 //   allTasks: every active task (default `tasks`), for project membership
 //   fixed:    [{taskId, start, end}] slots of project members outside the run (see schedule.js `buildFixedSlots`)
+//   gapMinutes: free minutes kept between the tasks the run places (default 0): each placed task also blocks that long
+//             before and after itself for the tasks that follow. Busy windows are not padded here (the engine pads the
+//             tasks it does not place), so a task may still sit right next to a calendar event.
 // Tasks are taken most urgent first (see sortByUrgency) and each goes in the earliest gap that fits, so a short task can
 // fill a gap a longer, more urgent one did not fit. Within a project, a task starts only after every lower-numbered
 // member has ended (and ends before any fixed higher-numbered member starts); a task whose lower-numbered member has no
 // slot is left out. A task longer than the working day becomes an all-day reminder on the earliest day allowed.
 // Returns {items, unplaced}: `items` in the shape of Gemini's scheduledTasks, `unplaced` [{taskId, reason}] for every
 // task that got no slot.
-function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = []}) {
+function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = [], gapMinutes = 0}) {
+  const gapMs = Number.isFinite(gapMinutes) && gapMinutes > 0 ? Math.round(gapMinutes) * 60000 : 0;
   const today = localDate(timeZone, now);
   const lastDate = localDate(timeZone, horizon);
   const nowMs = snapUp(now.getTime());
@@ -188,7 +192,7 @@ function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = 
     }
     const endMs = startMs + durMs;
     placed.set(task.id, {startMs, endMs});
-    busyMs.push({startMs, endMs});
+    busyMs.push({startMs: startMs - gapMs, endMs: endMs + gapMs});
     busyMs.sort((a, b) => a.startMs - b.startMs);
     items.push({
       ...base,

@@ -493,3 +493,31 @@ describe("weather rule for Outdoor and Garden tasks", () => {
     assert.match(errors[0], /Outdoor\/Garden/);
   });
 });
+
+describe("schedule.js: gap between tasks", () => {
+  const a = slot("a", "2026-10-22T09:00:00+13:00", "2026-10-22T09:30:00+13:00");
+  const near = slot("b", "2026-10-22T09:35:00+13:00", "2026-10-22T10:00:00+13:00");
+  const far = slot("b", "2026-10-22T09:45:00+13:00", "2026-10-22T10:10:00+13:00");
+  const check = (items, gapMinutes) => validateSchedule({items, tasks: TASKS, busy: [], now: NOW, horizon: HORIZON, timeZone: "Pacific/Auckland", gapMinutes});
+  const repair = (items, gapMinutes) => repairSchedule({items, tasks: TASKS, busy: [], now: NOW, horizon: HORIZON, timeZone: "Pacific/Auckland", gapMinutes});
+  it("rejects two slots closer together than the gap, and accepts exactly the gap", () => {
+    assert.match(check([a, near], 10).errors[0], /less than 10 minutes apart/);
+    assert.deepEqual(check([a, far], 15).errors, []);
+    assert.deepEqual(check([a, far], 10).errors, []);
+  });
+  it("is the old behaviour with no gap, or an unusable one", () => {
+    for (const gap of [undefined, 0, -5, NaN, "10"]) assert.deepEqual(check([a, near], gap).errors, []);
+    assert.match(check([a, slot("b", "2026-10-22T09:20:00+13:00", "2026-10-22T10:00:00+13:00")], 0).errors[0], /overlap each other/);
+  });
+  it("repairSchedule drops the later of two slots that are too close, with the reason", () => {
+    const r = repair([a, near], 10);
+    assert.deepEqual(r.slots.map((s) => s.taskId), ["a"]);
+    assert.deepEqual(r.dropped, [{taskId: "b", reason: "less than 10 minutes after another scheduled task"}]);
+    assert.deepEqual(r.errors, []);
+    assert.deepEqual(repair([a, far], 10).dropped, []);
+  });
+  it("keeps saying overlaps for slots that actually overlap", () => {
+    const r = repair([a, slot("b", "2026-10-22T09:20:00+13:00", "2026-10-22T10:00:00+13:00")], 10);
+    assert.deepEqual(r.dropped, [{taskId: "b", reason: "overlaps another scheduled task"}]);
+  });
+});

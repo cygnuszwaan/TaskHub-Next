@@ -475,3 +475,63 @@ describe("planner.js", () => {
     });
   });
 });
+
+describe("planner.js: gap between tasks", () => {
+  const gapPlan = (tasks, gapMinutes, extra = {}) => {
+    const now = extra.now || NOW;
+    const args = {tasks, busy: [], now, horizon: horizonFor(now), timeZone: NZ, gapMinutes, ...extra};
+    const result = planSchedule(args);
+    const repaired = repairSchedule({items: result.items, tasks, busy: args.busy, now, horizon: args.horizon, timeZone: NZ, allTasks: args.allTasks || tasks, fixed: args.fixed || [], gapMinutes});
+    assert.deepEqual(repaired.errors, []);
+    assert.deepEqual(repaired.dropped, [], "the planner's output must pass the gap validation");
+    return result;
+  };
+  it("leaves the gap between consecutive tasks", () => {
+    const result = gapPlan([task("a", {order: 1}), task("b", {order: 2}), task("c", {order: 3})], 15);
+    assert.deepEqual(times(result, "a"), ["2026-10-22T08:00:00+13:00", "2026-10-22T08:30:00+13:00"]);
+    assert.deepEqual(times(result, "b"), ["2026-10-22T08:45:00+13:00", "2026-10-22T09:15:00+13:00"]);
+    assert.deepEqual(times(result, "c"), ["2026-10-22T09:30:00+13:00", "2026-10-22T10:00:00+13:00"]);
+  });
+  it("changes nothing with a gap of 0, or none given", () => {
+    const tasks = [task("a", {order: 1}), task("b", {order: 2})];
+    assert.deepEqual(gapPlan(tasks, 0), planSchedule({tasks, busy: [], now: NOW, horizon: horizonFor(NOW), timeZone: NZ}));
+    assert.deepEqual(times(gapPlan(tasks, 0), "b"), ["2026-10-22T08:30:00+13:00", "2026-10-22T09:00:00+13:00"]);
+  });
+  it("does not leave a gap after a calendar event, only between tasks", () => {
+    const busy = [win("2026-10-22T08:00:00+13:00", "2026-10-22T09:00:00+13:00")];
+    const result = gapPlan([task("a", {order: 1}), task("b", {order: 2})], 10, {busy});
+    assert.deepEqual(times(result, "a"), ["2026-10-22T09:00:00+13:00", "2026-10-22T09:30:00+13:00"]);
+    assert.deepEqual(times(result, "b"), ["2026-10-22T09:40:00+13:00", "2026-10-22T10:10:00+13:00"]);
+  });
+  it("keeps the gap on both sides of a task, so a short task cannot squeeze in flush against one", () => {
+    // 09:00-09:40 is open between two meetings. Long (30m) is urgent and goes first; Short (10m) then needs the gap too.
+    const busy = [win("2026-10-22T08:00:00+13:00", "2026-10-22T09:00:00+13:00"), win("2026-10-22T09:40:00+13:00", "2026-10-22T19:00:00+13:00")];
+    const result = gapPlan([task("long", {estimatedMinutes: 30, priority: "HIGH"}), task("short", {estimatedMinutes: 10, order: 2})], 5, {busy});
+    assert.deepEqual(times(result, "long"), ["2026-10-22T09:00:00+13:00", "2026-10-22T09:30:00+13:00"]);
+    assert.equal(slotOf(result, "short").startISO.slice(0, 10), "2026-10-23"); // 09:30-09:40 is only 10 minutes, and the 5-minute gap on each side leaves none
+  });
+  it("lets a gap push a task that would just have fitted to the next day", () => {
+    const busy = [win("2026-10-22T08:00:00+13:00", "2026-10-22T18:00:00+13:00")];
+    const tasks = [task("a", {estimatedMinutes: 30, order: 1}), task("b", {estimatedMinutes: 30, order: 2})];
+    assert.deepEqual(times(gapPlan(tasks, 0, {busy}), "b"), ["2026-10-22T18:30:00+13:00", "2026-10-22T19:00:00+13:00"]);
+    assert.equal(slotOf(gapPlan(tasks, 10, {busy}), "b").startISO.slice(0, 10), "2026-10-23");
+  });
+  it("does not pad all-day reminders", () => {
+    const result = gapPlan([task("big", {estimatedMinutes: 700, order: 1}), task("a", {order: 2})], 30);
+    assert.equal(slotOf(result, "big").isAllDay, true);
+    assert.deepEqual(times(result, "a"), ["2026-10-22T08:00:00+13:00", "2026-10-22T08:30:00+13:00"]);
+  });
+  it("keeps project order with a gap", () => {
+    const tasks = [task("one", {projectId: "p", projectOrder: 1, order: 1}), task("two", {projectId: "p", projectOrder: 2, order: 2})];
+    const result = gapPlan(tasks, 20);
+    assert.deepEqual(times(result, "one"), ["2026-10-22T08:00:00+13:00", "2026-10-22T08:30:00+13:00"]);
+    assert.deepEqual(times(result, "two"), ["2026-10-22T08:50:00+13:00", "2026-10-22T09:20:00+13:00"]);
+  });
+  it("works around a lunch break given as busy time", () => {
+    const lunch = win("2026-10-22T12:00:00+13:00", "2026-10-22T12:30:00+13:00");
+    const tasks = [task("a", {estimatedMinutes: 230, order: 1}), task("b", {estimatedMinutes: 30, order: 2})];
+    const result = gapPlan(tasks, 10, {busy: [lunch]});
+    assert.deepEqual(times(result, "a"), ["2026-10-22T08:00:00+13:00", "2026-10-22T11:50:00+13:00"]);
+    assert.deepEqual(times(result, "b"), ["2026-10-22T12:30:00+13:00", "2026-10-22T13:00:00+13:00"]);
+  });
+});

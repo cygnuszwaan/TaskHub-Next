@@ -16,6 +16,11 @@ function isRealDate(dateStr) {
 }
 
 // What per-slot checks need, computed once per run.
+// A gap setting in milliseconds; anything unusable counts as no gap.
+function gapToMs(gapMinutes) {
+  return Number.isFinite(gapMinutes) && gapMinutes > 0 ? Math.round(gapMinutes) * 60000 : 0;
+}
+
 function makeContext({tasks, busy, now, horizon, timeZone, weather}) {
   return {
     taskIds: new Set(tasks.map((t) => t.id)),
@@ -89,11 +94,13 @@ function checkItem(item, {taskIds, sensitiveIds, weather, busyMs, now, horizon, 
 //             a local date up to lastDate that is not rainy
 //   allTasks: every active task (default `tasks`), for project membership; see checkProjectOrder
 //   fixed:    slots of tasks outside this run ([{taskId, start, end}], ISO instants); see checkProjectOrder
+//   gapMinutes: free minutes required between two timed slots of this run (default 0)
 // Returns {slots, errors}. Slots are only meaningful when errors is empty.
 // Timed slots must be parseable, in the future, end by the horizon, sit on one local day
 // inside 8:00-19:00, and not overlap busy windows or each other. All-day slots must fall
 // on a local date between today and the horizon's date; they are reminders and skip overlap checks.
-function validateSchedule({items, tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = []}) {
+function validateSchedule({items, tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = [], gapMinutes = 0}) {
+  const gapMs = gapToMs(gapMinutes);
   const errors = [];
   const slots = [];
   const ctx = makeContext({tasks, busy, now, horizon, timeZone, weather});
@@ -114,8 +121,8 @@ function validateSchedule({items, tasks, busy, now, horizon, timeZone, weather, 
   // Timed slots must not overlap each other
   const timed = slots.filter((s) => !s.allDay).sort((a, b) => a.startMs - b.startMs);
   for (let i = 1; i < timed.length; i++) {
-    if (timed[i].startMs < timed[i - 1].endMs) {
-      errors.push(`Slots for tasks ${timed[i - 1].taskId} and ${timed[i].taskId} overlap each other`);
+    if (timed[i].startMs < timed[i - 1].endMs + gapMs) {
+      errors.push(`Slots for tasks ${timed[i - 1].taskId} and ${timed[i].taskId} ${timed[i].startMs < timed[i - 1].endMs ? "overlap each other" : `are less than ${gapMinutes} minutes apart`}`);
     }
   }
 
@@ -187,7 +194,8 @@ function checkProjectOrder(args) {
 // timed slots the earlier one is kept, and a project-order violation drops the later-tier task (or, when that task
 // is fixed outside the run, the run's earlier-tier task). Dropping a task can only create new violations for the
 // higher tiers of its project, so the order check repeats until nothing more is dropped.
-function repairSchedule({items, tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = []}) {
+function repairSchedule({items, tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = [], gapMinutes = 0}) {
+  const gapMs = gapToMs(gapMinutes);
   const ctx = makeContext({tasks, busy, now, horizon, timeZone, weather});
   const dropped = [];
   const drop = (taskId, reason) => dropped.push({taskId, reason});
@@ -207,14 +215,14 @@ function repairSchedule({items, tasks, busy, now, horizon, timeZone, weather, al
     slots.push(checked.slot);
   });
 
-  // Overlaps between timed slots: keep the one that starts first
+  // Overlaps (or, with a gap, slots too close together) between timed slots: keep the one that starts first
   const timed = slots.filter((s) => !s.allDay).sort((a, b) => a.startMs - b.startMs);
   const overlapDropped = new Set();
   let lastEnd = -Infinity;
   for (const s of timed) {
-    if (s.startMs < lastEnd) {
+    if (s.startMs < lastEnd + gapMs) {
       overlapDropped.add(s.taskId);
-      drop(s.taskId, "overlaps another scheduled task");
+      drop(s.taskId, s.startMs < lastEnd ? "overlaps another scheduled task" : `less than ${gapMinutes} minutes after another scheduled task`);
     } else {
       lastEnd = s.endMs;
     }
@@ -237,7 +245,7 @@ function repairSchedule({items, tasks, busy, now, horizon, timeZone, weather, al
 
   const kept = new Set(slots.map((s) => s.taskId));
   // Tasks the model left out entirely are not "dropped": they simply have no slot. Only report ones it tried.
-  const result = validateSchedule({items: slots.map((s) => s.item), tasks, busy, now, horizon, timeZone, weather, allTasks, fixed});
+  const result = validateSchedule({items: slots.map((s) => s.item), tasks, busy, now, horizon, timeZone, weather, allTasks, fixed, gapMinutes});
   return {slots: result.slots, dropped: dropped.filter((d) => !kept.has(d.taskId)), errors: result.errors};
 }
 

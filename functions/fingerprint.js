@@ -4,7 +4,7 @@ const {createHash} = require("crypto");
 const {localDate} = require("./time");
 
 // Bump when the scheduling prompt or the engine's rules change, so the first run after a deploy is never skipped.
-const FINGERPRINT_VERSION = 9;
+const FINGERPRINT_VERSION = 10;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 // The fields of a task that can change what Gemini is asked or how it answers. Calendar and schedule fields are
@@ -54,7 +54,7 @@ function hasEndedSlot(tasks, timeZone, now) {
 //   tasks:      the unlocked tasks being scheduled
 //   busySlots:  merged busy windows, as passed to Gemini
 //   weatherKey: coarse weather summary (see weather.js `forecastKey`)
-//   settings:   {timeZone, location, scheduleDays}
+//   settings:   {timeZone, location, scheduleDays, gapMinutes} (the lunch break is already part of busySlots)
 //   now, horizon: the run's instant and the end of the scheduling window
 //   scheduler:  which scheduler places the tasks ("deterministic" or "gemini"), so switching it re-runs the schedule
 function computeFingerprint({tasks, busySlots, weatherKey, settings, now, horizon, scheduler = null}) {
@@ -65,6 +65,7 @@ function computeFingerprint({tasks, busySlots, weatherKey, settings, now, horizo
     scheduler,
     timeZone,
     scheduleDays: settings.scheduleDays,
+    gapMinutes: settings.gapMinutes || 0,
     location: {name: l.name, latitude: l.latitude, longitude: l.longitude},
     today: localDate(timeZone, now),
     weather: weatherKey,

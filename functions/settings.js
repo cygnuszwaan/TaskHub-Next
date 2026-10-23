@@ -15,6 +15,12 @@ const TICK_GRACE_MS = 60 * 1000;
 const MIN_SCHEDULE_DAYS = 1;
 const MAX_SCHEDULE_DAYS = 28;
 
+// Gap left between scheduled tasks (minutes), and the lunch break's length range (minutes).
+const MIN_GAP_MINUTES = 0;
+const MAX_GAP_MINUTES = 60;
+const MIN_LUNCH_MINUTES = 5;
+const MAX_LUNCH_MINUTES = 180;
+
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const ZONE_PATTERN = /^(UTC|[A-Za-z_]+(\/[A-Za-z0-9_+-]+)+)$/;
 
@@ -22,6 +28,8 @@ const DEFAULTS = Object.freeze({
   location: Object.freeze({name: "Whangaparāoa, Auckland", latitude: -36.63, longitude: 174.78}),
   timeZone: "Pacific/Auckland",
   scheduleDays: 7,
+  gapMinutes: 0,
+  lunch: Object.freeze({enabled: false, time: "12:00", minutes: 30}),
   schedule: Object.freeze({enabled: true, frequency: "DAILY", time: "20:00", intervalMinutes: 60}),
   lastAutoRunAt: null,
   lastRunFingerprint: null,
@@ -67,6 +75,30 @@ function checkTime(v) {
   return v;
 }
 
+function checkGapMinutes(v) {
+  if (!Number.isInteger(v) || v < MIN_GAP_MINUTES || v > MAX_GAP_MINUTES) {
+    throw new Error(`gapMinutes must be a whole number from ${MIN_GAP_MINUTES} to ${MAX_GAP_MINUTES}`);
+  }
+  return v;
+}
+
+function checkLunchEnabled(v) {
+  if (typeof v !== "boolean") throw new Error("lunch.enabled must be true or false");
+  return v;
+}
+
+function checkLunchTime(v) {
+  if (typeof v !== "string" || !TIME_PATTERN.test(v)) throw new Error("lunch.time must be HH:MM in 24-hour time");
+  return v;
+}
+
+function checkLunchMinutes(v) {
+  if (!Number.isInteger(v) || v < MIN_LUNCH_MINUTES || v > MAX_LUNCH_MINUTES) {
+    throw new Error(`lunch.minutes must be a whole number from ${MIN_LUNCH_MINUTES} to ${MAX_LUNCH_MINUTES}`);
+  }
+  return v;
+}
+
 function checkFrequency(v) {
   if (!FREQUENCIES.includes(v)) throw new Error(`schedule.frequency must be one of ${FREQUENCIES.join(", ")}`);
   return v;
@@ -90,6 +122,10 @@ const EDITABLE = [
   ["location", "longitude", (v) => checkNumber(v, "location.longitude", -180, 180)],
   ["timeZone", null, checkTimeZone],
   ["scheduleDays", null, checkScheduleDays],
+  ["gapMinutes", null, checkGapMinutes],
+  ["lunch", "enabled", checkLunchEnabled],
+  ["lunch", "time", checkLunchTime],
+  ["lunch", "minutes", checkLunchMinutes],
   ["schedule", "enabled", checkEnabled],
   ["schedule", "frequency", checkFrequency],
   ["schedule", "time", checkTime],
@@ -113,7 +149,7 @@ function isoOrNull(v) {
 // Full settings from whatever is stored (possibly nothing). A missing or unusable stored field falls back to
 // its default, so a hand-edited document can never break the app. Pure: returns a new object.
 function mergeSettings(stored) {
-  const out = {location: {...DEFAULTS.location}, timeZone: DEFAULTS.timeZone, scheduleDays: DEFAULTS.scheduleDays, schedule: {...DEFAULTS.schedule}};
+  const out = {location: {...DEFAULTS.location}, timeZone: DEFAULTS.timeZone, scheduleDays: DEFAULTS.scheduleDays, gapMinutes: DEFAULTS.gapMinutes, lunch: {...DEFAULTS.lunch}, schedule: {...DEFAULTS.schedule}};
   for (const [group, key, check] of EDITABLE) {
     const value = readField(stored, group, key);
     if (value === undefined) continue;
@@ -132,7 +168,7 @@ function mergeSettings(stored) {
 // {settings} or {error}; nothing is applied if any provided field is invalid. Run state is carried over.
 function applySettingsUpdate(current, patch) {
   if (!isPlainObject(patch)) return {error: "Settings update must be an object"};
-  for (const group of ["location", "schedule"]) {
+  for (const group of ["location", "lunch", "schedule"]) {
     if (patch[group] !== undefined && !isPlainObject(patch[group])) return {error: `${group} must be an object`};
   }
   const next = mergeSettings(current);
@@ -176,4 +212,4 @@ function claimRun(settings, now = new Date()) {
   return {due: true, settings: {...settings, lastAutoRunAt: now.toISOString()}};
 }
 
-module.exports = {MIN_SCHEDULE_DAYS, MAX_SCHEDULE_DAYS, INTERVALS, FREQUENCIES, TICK_GRACE_MS, DEFAULTS, mergeSettings, applySettingsUpdate, isRunDue, claimRun};
+module.exports = {MIN_SCHEDULE_DAYS, MAX_SCHEDULE_DAYS, MIN_GAP_MINUTES, MAX_GAP_MINUTES, MIN_LUNCH_MINUTES, MAX_LUNCH_MINUTES, INTERVALS, FREQUENCIES, TICK_GRACE_MS, DEFAULTS, mergeSettings, applySettingsUpdate, isRunDue, claimRun};

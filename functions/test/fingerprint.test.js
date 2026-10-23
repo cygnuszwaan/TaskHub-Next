@@ -146,3 +146,17 @@ describe("fingerprint.js", () => {
     });
   });
 });
+
+describe("fingerprint.js: gap setting", () => {
+  it("changes with the gap between tasks and treats a missing gap as 0", () => {
+    assert.notEqual(fp({settings: {...settings, gapMinutes: 15}}), fp());
+    assert.equal(fp({settings: {...settings, gapMinutes: 0}}), fp());
+    const withoutGap = {...settings};
+    delete withoutGap.gapMinutes;
+    assert.equal(fp({settings: withoutGap}), fp());
+  });
+  it("changes with the lunch break, which arrives as busy windows", () => {
+    const lunch = {start: "2026-10-22T12:00:00+13:00", end: "2026-10-22T12:30:00+13:00"};
+    assert.notEqual(fp({busySlots: [...busy, lunch]}), fp());
+  });
+});

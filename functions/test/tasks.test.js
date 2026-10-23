@@ -504,3 +504,30 @@ describe("tasks.js", () => {
     });
   });
 });
+
+describe("manualTaskChange", () => {
+  const {manualTaskChange} = require("../tasks");
+  it("passes the entered fields through for a new task", () => {
+    const change = manualTaskChange({title: "Mow lawn", priority: "LOW", dueDate: "2026-10-30", estimatedMinutes: 45, tags: ["Outdoor"]});
+    assert.deepEqual(change, {title: "Mow lawn", priority: "LOW", dueDate: "2026-10-30", estimatedMinutes: 45, tags: ["Outdoor"]});
+    assert.equal("id" in change, false);
+  });
+  it("needs a title", () => {
+    for (const bad of [null, undefined, "x", [], {}, {title: "   "}, {title: 5}]) assert.equal(manualTaskChange(bad), null);
+  });
+  it("ignores everything else the client sends (id, status, schedule, project)", () => {
+    const change = manualTaskChange({title: "T", id: "existing", status: "COMPLETED", scheduledStart: "x", projectId: "p", order: 1});
+    assert.deepEqual(Object.keys(change).sort(), ["dueDate", "estimatedMinutes", "priority", "tags", "title"]);
+  });
+  it("makes a new task at the end of the list through mergeTaskChanges, with defaults for unusable fields", () => {
+    const existing = [{id: "t1", title: "Old", priority: "HIGH", dueDate: "", estimatedMinutes: 20, tags: [], status: "PENDING", order: 1}];
+    const merged = mergeTaskChanges(existing, [manualTaskChange({title: "  Mow lawn ", priority: "URGENT", dueDate: "tomorrow", estimatedMinutes: -3, tags: ["Outdoor", "", 7]})], makeIdGenerator());
+    assert.equal(merged.added, 1);
+    assert.deepEqual(merged.tasks[1], {id: "new1", title: "Mow lawn", priority: "MEDIUM", dueDate: "", estimatedMinutes: 15, tags: ["Outdoor"], status: "PENDING", order: 2});
+    assert.equal(merged.tasks[0].id, "t1");
+  });
+  it("keeps the entered priority, due date and estimate", () => {
+    const merged = mergeTaskChanges([], [manualTaskChange({title: "Pay rates", priority: "HIGH", dueDate: "2026-11-01", estimatedMinutes: 10, tags: []})], makeIdGenerator());
+    assert.deepEqual(merged.tasks, [{id: "new1", title: "Pay rates", priority: "HIGH", dueDate: "2026-11-01", estimatedMinutes: 10, tags: [], status: "PENDING", order: 1}]);
+  });
+});

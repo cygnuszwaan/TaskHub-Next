@@ -15,11 +15,27 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, scheduleSummary, projectFields, projectLabel, projectTaskCounts, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS};`)();
+    return {DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, scheduleSummary, projectFields, projectLabel, projectTaskCounts, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS};`)();
 }
 
 describe("public/index.html helpers", () => {
   describe("layout", () => {
+    it("has a manual-entry checkbox and fields in the add card, and gap and lunch fields in Settings", () => {
+      const add = html.indexOf(`id="taskInput"`);
+      const queue = html.indexOf(`id="queueDetails"`);
+      for (const id of ["manualToggle", "manualFields", "manualPriority", "manualMinutes", "manualTags", "manualDue"]) {
+        const i = html.indexOf(`id="${id}"`);
+        assert.ok(i > add && i < queue, `${id} sits in the add card`);
+      }
+      assert.match(html.slice(html.indexOf(`id="manualFields"`), html.indexOf(">", html.indexOf(`id="manualFields"`))), /hidden/);
+      const settings = html.indexOf(`id="settingsDetails"`);
+      const modal = html.indexOf(`id="editModal"`);
+      for (const id of ["gapMinutes", "lunchEnabled", "lunchTime", "lunchMinutes"]) {
+        const i = html.indexOf(`id="${id}"`);
+        assert.ok(i > settings && i < modal, `${id} sits in the Settings card`);
+      }
+      assert.match(html.slice(html.indexOf(`id="lunchEnabled"`) - 30, html.indexOf(`id="lunchEnabled"`)), /type="checkbox"/);
+    });
     it("puts the Materials card right after the Organized Queue and before Projects", () => {
       const q = html.indexOf(`id="queueDetails"`);
       const m = html.indexOf(`id="materialsDetails"`);
@@ -188,13 +204,15 @@ describe("public/index.html helpers", () => {
   });
 
   describe("settingsPayload", () => {
-    const form = {location: {name: "Oslo", latitude: 59.9, longitude: 10.7, extra: "dropped"}, timeZone: "Europe/Oslo", scheduleDays: "14", enabled: 1, frequency: "INTERVAL", time: "06:30", intervalMinutes: "30"};
+    const form = {location: {name: "Oslo", latitude: 59.9, longitude: 10.7, extra: "dropped"}, timeZone: "Europe/Oslo", scheduleDays: "14", gapMinutes: "10", lunchEnabled: 1, lunchTime: "12:30", lunchMinutes: "45", enabled: 1, frequency: "INTERVAL", time: "06:30", intervalMinutes: "30"};
     it("builds the updateSettings body from the form", () => {
       const h = load();
       assert.deepEqual(h.settingsPayload(form), {
         location: {name: "Oslo", latitude: 59.9, longitude: 10.7},
         timeZone: "Europe/Oslo",
         scheduleDays: 14,
+        gapMinutes: 10,
+        lunch: {enabled: true, time: "12:30", minutes: 45},
         schedule: {enabled: true, frequency: "INTERVAL", time: "06:30", intervalMinutes: 30},
       });
     });
@@ -206,7 +224,18 @@ describe("public/index.html helpers", () => {
       assert.equal(r.settings.timeZone, "Europe/Oslo");
       assert.equal(r.settings.schedule.intervalMinutes, 30);
       assert.equal(r.settings.scheduleDays, 14);
+      assert.equal(r.settings.gapMinutes, 10);
+      assert.deepEqual(r.settings.lunch, {enabled: true, time: "12:30", minutes: 45});
       assert.equal(r.settings.location.name, "Oslo");
+    });
+    it("leaves an out-of-range gap, an empty lunch time or a bad lunch length for the server to reject", () => {
+      const h = load();
+      const {mergeSettings, applySettingsUpdate} = require("../settings");
+      const reject = (extra) => applySettingsUpdate(mergeSettings(undefined), h.settingsPayload({...form, ...extra})).error;
+      assert.match(reject({gapMinutes: "90"}), /gapMinutes/);
+      assert.equal(reject({gapMinutes: ""}), undefined); // an empty gap field means no gap
+      assert.match(reject({lunchTime: ""}), /lunch\.time/);
+      assert.match(reject({lunchMinutes: "1"}), /lunch\.minutes/);
     });
     it("leaves an empty or out-of-range day count for the server to reject", () => {
       const h = load();
@@ -220,6 +249,21 @@ describe("public/index.html helpers", () => {
       const {mergeSettings, applySettingsUpdate} = require("../settings");
       const r = applySettingsUpdate(mergeSettings(undefined), h.settingsPayload({...form, time: ""}));
       assert.match(r.error, /schedule.time/);
+    });
+  });
+  describe("manualTaskBody", () => {
+    const form = {title: "  Mow lawn ", priority: "HIGH", estimatedMinutes: "45", tags: "Outdoor, ,Physical ", dueDate: "2026-10-30"};
+    it("builds the addOrUpdateTask body for a task entered by hand", () => {
+      assert.deepEqual(load().manualTaskBody(form), {manual: {title: "Mow lawn", priority: "HIGH", dueDate: "2026-10-30", estimatedMinutes: 45, tags: ["Outdoor", "Physical"]}});
+    });
+    it("uses 15 minutes for an empty or unusable estimate, and an empty due date and tag list", () => {
+      const body = load().manualTaskBody({title: "T", priority: "LOW", estimatedMinutes: "", tags: "", dueDate: ""});
+      assert.deepEqual(body, {manual: {title: "T", priority: "LOW", dueDate: "", estimatedMinutes: 15, tags: []}});
+      assert.equal(load().manualTaskBody({...form, estimatedMinutes: "abc"}).manual.estimatedMinutes, 15);
+    });
+    it("is accepted by the server-side change builder", () => {
+      const {manualTaskChange} = require("../tasks");
+      assert.equal(manualTaskChange(load().manualTaskBody(form).manual).title, "Mow lawn");
     });
   });
   describe("scheduleSummary", () => {

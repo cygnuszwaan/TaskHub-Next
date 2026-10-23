@@ -18,7 +18,8 @@ function oneLine(text) {
 //   forecast:  daily forecast [{date, conditions, minTemp, maxTemp, precipitationMm, rainChance, rainy}] (see weather.js
 //              `parseForecast`); only the first WEATHER_DAYS local days from today are used. Empty when unavailable, and
 //              the rain rule then rests on the current weather for those days.
-//   settings:  {location: {name}, timeZone}; the zone defines the local time, the date and the 8:00-19:00 window
+//   settings:  {location: {name}, timeZone, scheduleDays, gapMinutes?}; the zone defines the local time, the date and the 8:00-19:00 window;
+//              gapMinutes (default none) is the free time asked between tasks. The lunch break arrives as a busy window
 //   projects:  [{id, name}], the stored projects; a task's project name is added to its annotations
 //   fixed:     [{taskId, start, end}] slots of tasks outside this run (see buildFixedSlots)
 //   allTasks:  every active task (default `tasks`), to say which project and order number each fixed slot has
@@ -48,6 +49,9 @@ function buildSchedulePrompt({tasks, busySlots, now, weather, settings, projects
       .filter(({task}) => task && projectName.has(task.projectId) && Number.isInteger(task.projectOrder))
       .map(({f, task}) => ({project: projectName.get(task.projectId), projectOrder: task.projectOrder, start: f.start, end: f.end}));
 
+  const gap = Number.isInteger(settings.gapMinutes) && settings.gapMinutes > 0 ? settings.gapMinutes : 0;
+  const gapRule = gap === 0 ? "" : `Leave at least ${gap} minutes free between any two scheduled task slots (a slot may start exactly ${gap} minutes after the previous one ends, no sooner). Calendar events and the lunch break need no extra gap. `;
+
   const retry = feedback.length === 0 ? "" : `
     Your previous answer had problems. Fix them in this answer:
     ${feedback.map((f) => `- ${oneLine(f)}`).join("\n    ")}
@@ -76,7 +80,7 @@ function buildSchedulePrompt({tasks, busySlots, now, weather, settings, projects
     4. Set transparency: "opaque" for focus tasks (blocks busy); "transparent" for quick chores/reminders.
     5. ${weatherRule}
     6. Write every startISO/endISO in local time in ${zone} using the UTC offset that applies on that date (currently ${offset}; it changes if the date falls after a daylight saving change).
-    7. Return the non-conflicting schedule matching the JSON schema. Always return as many tasks as fit; return an empty list only if nothing fits at all.
+    7. ${gapRule}Return the non-conflicting schedule matching the JSON schema. Always return as many tasks as fit; return an empty list only if nothing fits at all.
     ${retry}
   `;
 }

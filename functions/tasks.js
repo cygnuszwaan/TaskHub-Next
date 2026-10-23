@@ -76,6 +76,17 @@ function modelProjectFields(change, projectIds) {
   return out;
 }
 
+// The new-task change for a task entered by hand, in the shape mergeTaskChanges takes. Pure: no I/O.
+//   manual: {title, priority?, dueDate?, estimatedMinutes?, tags?} from the entry form
+// Returns null without a usable title. The fields are validated by the same rules as the model's (see cleanFields), so
+// an unusable priority, date, estimate or tag list falls back to the new-task default. There is no id (a manual entry
+// is always a new task), no recurrence or project (those are set in the edit form) and no rank (it goes last).
+function manualTaskChange(manual) {
+  if (!manual || typeof manual !== "object" || Array.isArray(manual)) return null;
+  if (typeof manual.title !== "string" || !manual.title.trim()) return null;
+  return {title: manual.title, priority: manual.priority, dueDate: manual.dueDate, estimatedMinutes: manual.estimatedMinutes, tags: manual.tags};
+}
+
 // Place `task` at the 1-based rank `rank` in `list` (clamped), removing any earlier copy.
 function placeAtRank(list, task, rank) {
   const rest = list.filter((t) => t.id !== task.id);
@@ -212,4 +223,4 @@ function applyScheduleResults({tasks, knownIds, locked, scheduled, createdEvents
   return {tasks: updatedTasks, orphanEventIds};
 }
 
-module.exports = {FREQUENCIES, MAX_INTERVAL, normalizeRecurrence, applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults};
+module.exports = {FREQUENCIES, MAX_INTERVAL, normalizeRecurrence, manualTaskChange, applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults};
