@@ -354,6 +354,12 @@
       <p class="settings-note" style="margin:6px 0 0;">Applies at once and is remembered on this device only. Until you change it, the page follows the device's own setting.</p>
     </div>
   </div>
+  <div class="card">
+    <h3 style="margin-top:0; margin-bottom:12px;">Backup</h3>
+    <button type="button" id="exportBtn" class="btn-secondary" title="Download your tasks, projects, settings and completed archive as one JSON file">⬇️ Download all data</button>
+    <p class="settings-note" style="margin:6px 0 0;">One JSON file with the task list, projects, settings and the completed archive.</p>
+    <div id="exportStatus" class="settings-status"></div>
+  </div>
   </main>
 
   <div id="undoToast" class="toast" role="status" hidden>
@@ -495,6 +501,7 @@
     const UPDATE_SETTINGS_URL = endpoint("updateSettings");
     const GET_PROJECTS_URL = endpoint("getProjects");
     const UPDATE_PROJECT_URL = endpoint("updateProject");
+    const EXPORT_URL = endpoint("exportData");
 
     // Firebase Auth. The SDK loads from the CDN and the web config from Hosting's reserved URL, so there is no build step or key in this file.
     let authLib = null;
@@ -1003,6 +1010,16 @@
       if (theme === "light") return { light: "all", dark: "not all" };
       if (theme === "dark") return { light: "not all", dark: "all" };
       return { light: "(prefers-color-scheme: light)", dark: "(prefers-color-scheme: dark)" };
+    }
+    // The file name of a data export: "taskhub-export-2026-10-24.json" for a YYYY-MM-DD date, else without the date.
+    function exportFilename(today) {
+      return DATE_ONLY.test(today || "") ? `taskhub-export-${today}.json` : "taskhub-export.json";
+    }
+    // What an export holds, in words: "12 tasks, 1 project, 340 completed" (and a note when the archive was cut off).
+    function exportSummary(data) {
+      const count = (list, one, many) => { const n = Array.isArray(list) ? list.length : 0; return `${n} ${n === 1 ? one : many}`; };
+      const text = [count(data && data.tasks, "task", "tasks"), count(data && data.projects, "project", "projects"), `${count(data && data.completedTasks, "completed task", "completed")}`].join(", ");
+      return data && data.completedTruncated ? `${text} (the newest completed tasks only)` : text;
     }
     // </pure-helpers>
 
@@ -1909,6 +1926,34 @@
       }
     }
 
+    // Download everything as one JSON file. The data comes through apiFetch (the endpoint needs the sign-in token, so a
+    // plain link will not do) and is saved from a Blob.
+    async function downloadExport() {
+      const btn = document.getElementById("exportBtn");
+      const status = document.getElementById("exportStatus");
+      btn.disabled = true;
+      status.textContent = "Preparing...";
+      try {
+        const res = await apiFetch(EXPORT_URL);
+        const text = await res.text();
+        const data = JSON.parse(text);
+        const name = exportFilename(todayKey());
+        const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        status.textContent = `Downloaded ${name}: ${exportSummary(data)}.`;
+      } catch (err) {
+        status.textContent = "Export failed: " + err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
     async function saveSettings() {
       if (!currentSettings) { setSettingsStatus("Settings are not loaded yet."); return false; }
       const place = chosenPlace();
@@ -1972,6 +2017,7 @@
       renderLocation();
     });
     document.getElementById("saveSettingsBtn").addEventListener("click", saveSettings);
+    document.getElementById("exportBtn").addEventListener("click", downloadExport);
     document.querySelector(".snooze-choices").addEventListener("click", e => {
       const btn = e.target.closest("[data-snooze]");
       if (!btn) return;

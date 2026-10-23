@@ -19,6 +19,7 @@ const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint
 const {buildSchedulePrompt, buildTaskPrompt} = require("./prompts");
 const {heldTaskIds} = require("./materials");
 const {SUMMARY_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted} = require("./completed");
+const {EXPORT_MAX_ROWS, buildExport} = require("./export");
 const {makeOwnerOnly} = require("./auth");
 const {dayWindowMinutes} = require("./settings");
 const {randomUUID} = require("crypto");
@@ -698,6 +699,26 @@ exports.undoRemove = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, re
       return {tasks: undone.tasks, current: undone.tasks, restored: true};
     });
     res.status(200).send({success: true, tasks: result.current, kind: record.kind, restored: Boolean(result.restored)});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 7c. Endpoint: Export everything
+// No body. Responds with one pretty-printed JSON document (see export.js): the active tasks, the projects, the
+// settings and the newest EXPORT_MAX_ROWS rows of the completed archive. Read-only; the collections are read one after
+// another without a shared snapshot, which is fine for a single user's backup.
+exports.exportData = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const [tasks, projects, settings, archiveSnap] = await Promise.all([
+      readTaskList(),
+      readProjects(),
+      readSettings(),
+      db.collection("completed_tasks").orderBy("completedAt", "desc").limit(EXPORT_MAX_ROWS).get(),
+    ]);
+    const payload = buildExport({tasks, projects, settings, completed: archiveSnap.docs.map((d) => d.data()), now: new Date()});
+    res.status(200).type("application/json").send(JSON.stringify(payload, null, 2));
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});

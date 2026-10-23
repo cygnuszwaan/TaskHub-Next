@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, sortTasksForList, streakText, statProjectName, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, sortTasksForList, streakText, statProjectName, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -921,6 +921,32 @@ describe("public/index.html helpers", () => {
       const page = html.slice(html.indexOf("id=\"pageSettings\""), html.indexOf("id=\"undoToast\""));
       assert.match(page, /<input type="checkbox" id="darkMode"> Dark mode/);
       assert.equal(/settingsPayload[^;]*darkMode|darkMode[^;]*settingsPayload/.test(html), false);
+    });
+  });
+
+  describe("data export", () => {
+    it("exportFilename: dates the file, or leaves the date off when there is none", () => {
+      const {exportFilename} = load();
+      assert.equal(exportFilename("2026-10-24"), "taskhub-export-2026-10-24.json");
+      for (const bad of ["", undefined, null, "today"]) assert.equal(exportFilename(bad), "taskhub-export.json", String(bad));
+    });
+    it("exportSummary: counts what the file holds, singular for one", () => {
+      const {exportSummary} = load();
+      assert.equal(exportSummary({tasks: [1, 2], projects: [1], completedTasks: Array(5).fill(1)}), "2 tasks, 1 project, 5 completed");
+      assert.equal(exportSummary({tasks: [1], projects: [], completedTasks: [1]}), "1 task, 0 projects, 1 completed task");
+    });
+    it("exportSummary: copes with missing lists and notes a cut-off archive", () => {
+      const {exportSummary} = load();
+      assert.equal(exportSummary({}), "0 tasks, 0 projects, 0 completed");
+      assert.equal(exportSummary(undefined), "0 tasks, 0 projects, 0 completed");
+      assert.equal(exportSummary({tasks: [], projects: [], completedTasks: [1, 2], completedTruncated: true}), "0 tasks, 0 projects, 2 completed (the newest completed tasks only)");
+    });
+    it("has a Download button on the Settings page that calls exportData with the sign-in token", () => {
+      const page = html.slice(html.indexOf("id=\"pageSettings\""), html.indexOf("id=\"undoToast\""));
+      assert.match(page, /id="exportBtn"/);
+      assert.match(html, /const EXPORT_URL = endpoint\("exportData"\)/);
+      assert.match(html, /apiFetch\(EXPORT_URL\)/);
+      assert.match(html, /getElementById\("exportBtn"\)\.addEventListener\("click", downloadExport\)/);
     });
   });
 });
