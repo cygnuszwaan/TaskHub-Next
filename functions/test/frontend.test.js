@@ -181,12 +181,13 @@ describe("public/index.html helpers", () => {
   });
 
   describe("settingsPayload", () => {
-    const form = {location: {name: "Oslo", latitude: 59.9, longitude: 10.7, extra: "dropped"}, timeZone: "Europe/Oslo", enabled: 1, frequency: "INTERVAL", time: "06:30", intervalMinutes: "30"};
+    const form = {location: {name: "Oslo", latitude: 59.9, longitude: 10.7, extra: "dropped"}, timeZone: "Europe/Oslo", scheduleDays: "14", enabled: 1, frequency: "INTERVAL", time: "06:30", intervalMinutes: "30"};
     it("builds the updateSettings body from the form", () => {
       const h = load();
       assert.deepEqual(h.settingsPayload(form), {
         location: {name: "Oslo", latitude: 59.9, longitude: 10.7},
         timeZone: "Europe/Oslo",
+        scheduleDays: 14,
         schedule: {enabled: true, frequency: "INTERVAL", time: "06:30", intervalMinutes: 30},
       });
     });
@@ -197,7 +198,15 @@ describe("public/index.html helpers", () => {
       assert.equal(r.error, undefined);
       assert.equal(r.settings.timeZone, "Europe/Oslo");
       assert.equal(r.settings.schedule.intervalMinutes, 30);
+      assert.equal(r.settings.scheduleDays, 14);
       assert.equal(r.settings.location.name, "Oslo");
+    });
+    it("leaves an empty or out-of-range day count for the server to reject", () => {
+      const h = load();
+      const {mergeSettings, applySettingsUpdate} = require("../settings");
+      for (const bad of ["", "0", "29", "1.5"]) {
+        assert.match(applySettingsUpdate(mergeSettings(undefined), h.settingsPayload({...form, scheduleDays: bad})).error, /scheduleDays/);
+      }
     });
     it("leaves an empty time for the server to reject", () => {
       const h = load();

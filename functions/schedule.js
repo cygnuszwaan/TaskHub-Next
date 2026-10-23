@@ -49,7 +49,7 @@ function checkItem(item, {taskIds, busyMs, now, horizon, timeZone, firstDate, la
   if (Number.isNaN(startMs) || Number.isNaN(endMs)) return {error: "unparseable start/end"};
   if (endMs <= startMs) return {error: "end is not after start"};
   if (startMs < now.getTime()) return {error: "starts in the past"};
-  if (endMs > horizon.getTime()) return {error: "ends after the 7-day horizon"};
+  if (endMs > horizon.getTime()) return {error: "ends after the scheduling horizon"};
 
   const start = new Date(startMs);
   const end = new Date(endMs);

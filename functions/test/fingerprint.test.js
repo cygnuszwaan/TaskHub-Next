@@ -49,6 +49,10 @@ describe("fingerprint.js", () => {
       delete noDue.dueDate;
       assert.equal(fp({tasks: [noDue]}), fp({tasks: [task("a", {dueDate: ""})]}));
     });
+    it("changes with the number of days scheduled, even when no busy window differs", () => {
+      assert.notEqual(fp({settings: {...settings, scheduleDays: 28}}), fp());
+      assert.equal(fp({settings: {...settings, scheduleDays: 7}}), fp());
+    });
     it("changes with the busy windows", () => {
       assert.notEqual(fp({busySlots: []}), fp());
       assert.notEqual(fp({busySlots: [{start: "2026-10-22T13:00:00+13:00", end: "2026-10-22T14:30:00+13:00"}]}), fp());

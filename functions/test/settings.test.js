@@ -43,6 +43,32 @@ describe("settings.js", () => {
     });
   });
 
+  describe("scheduleDays", () => {
+    it("defaults to 7 and keeps a stored valid value", () => {
+      assert.equal(mergeSettings(undefined).scheduleDays, 7);
+      assert.equal(mergeSettings({scheduleDays: 28}).scheduleDays, 28);
+    });
+    it("falls back to 7 for an unusable stored value", () => {
+      for (const bad of [0, 29, 3.5, "14", null, NaN]) assert.equal(mergeSettings({scheduleDays: bad}).scheduleDays, 7);
+    });
+    it("is editable, alone, without touching the rest", () => {
+      const r = applySettingsUpdate(base(), {scheduleDays: 21});
+      assert.equal(r.settings.scheduleDays, 21);
+      assert.deepEqual(r.settings.schedule, DEFAULTS.schedule);
+    });
+    it("rejects out-of-range and non-integer values, saving nothing", () => {
+      for (const bad of [0, 29, 1.5, "7", null]) {
+        const r = applySettingsUpdate(base(), {scheduleDays: bad});
+        assert.match(r.error, /scheduleDays/);
+        assert.equal(r.settings, undefined);
+      }
+    });
+    it("accepts the bounds", () => {
+      assert.equal(applySettingsUpdate(base(), {scheduleDays: 1}).settings.scheduleDays, 1);
+      assert.equal(applySettingsUpdate(base(), {scheduleDays: 28}).settings.scheduleDays, 28);
+    });
+  });
+
   describe("applySettingsUpdate", () => {
     it("changes only the fields provided", () => {
       const r = applySettingsUpdate(base(), {schedule: {time: "07:15"}});

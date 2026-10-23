@@ -11,12 +11,17 @@ const WINDOW_END_MINUTES = 19 * 60;
 // elapsed when it is within this grace of the target.
 const TICK_GRACE_MS = 60 * 1000;
 
+// How far ahead a run schedules. The upper bound keeps the prompt (it lists every busy window in range) small.
+const MIN_SCHEDULE_DAYS = 1;
+const MAX_SCHEDULE_DAYS = 28;
+
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const ZONE_PATTERN = /^(UTC|[A-Za-z_]+(\/[A-Za-z0-9_+-]+)+)$/;
 
 const DEFAULTS = Object.freeze({
   location: Object.freeze({name: "Whangaparāoa, Auckland", latitude: -36.63, longitude: 174.78}),
   timeZone: "Pacific/Auckland",
+  scheduleDays: 7,
   schedule: Object.freeze({enabled: true, frequency: "DAILY", time: "20:00", intervalMinutes: 60}),
   lastAutoRunAt: null,
   lastRunFingerprint: null,
@@ -50,6 +55,13 @@ function checkTimeZone(v) {
   return v;
 }
 
+function checkScheduleDays(v) {
+  if (!Number.isInteger(v) || v < MIN_SCHEDULE_DAYS || v > MAX_SCHEDULE_DAYS) {
+    throw new Error(`scheduleDays must be a whole number from ${MIN_SCHEDULE_DAYS} to ${MAX_SCHEDULE_DAYS}`);
+  }
+  return v;
+}
+
 function checkTime(v) {
   if (typeof v !== "string" || !TIME_PATTERN.test(v)) throw new Error("schedule.time must be HH:MM in 24-hour time");
   return v;
@@ -77,6 +89,7 @@ const EDITABLE = [
   ["location", "latitude", (v) => checkNumber(v, "location.latitude", -90, 90)],
   ["location", "longitude", (v) => checkNumber(v, "location.longitude", -180, 180)],
   ["timeZone", null, checkTimeZone],
+  ["scheduleDays", null, checkScheduleDays],
   ["schedule", "enabled", checkEnabled],
   ["schedule", "frequency", checkFrequency],
   ["schedule", "time", checkTime],
@@ -100,7 +113,7 @@ function isoOrNull(v) {
 // Full settings from whatever is stored (possibly nothing). A missing or unusable stored field falls back to
 // its default, so a hand-edited document can never break the app. Pure: returns a new object.
 function mergeSettings(stored) {
-  const out = {location: {...DEFAULTS.location}, timeZone: DEFAULTS.timeZone, schedule: {...DEFAULTS.schedule}};
+  const out = {location: {...DEFAULTS.location}, timeZone: DEFAULTS.timeZone, scheduleDays: DEFAULTS.scheduleDays, schedule: {...DEFAULTS.schedule}};
   for (const [group, key, check] of EDITABLE) {
     const value = readField(stored, group, key);
     if (value === undefined) continue;
@@ -163,4 +176,4 @@ function claimRun(settings, now = new Date()) {
   return {due: true, settings: {...settings, lastAutoRunAt: now.toISOString()}};
 }
 
-module.exports = {INTERVALS, FREQUENCIES, TICK_GRACE_MS, DEFAULTS, mergeSettings, applySettingsUpdate, isRunDue, claimRun};
+module.exports = {MIN_SCHEDULE_DAYS, MAX_SCHEDULE_DAYS, INTERVALS, FREQUENCIES, TICK_GRACE_MS, DEFAULTS, mergeSettings, applySettingsUpdate, isRunDue, claimRun};

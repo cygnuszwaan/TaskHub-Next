@@ -13,9 +13,19 @@ const WEATHER_CODES = {
 
 const UNAVAILABLE = "Weather data currently unavailable";
 
-// Open-Meteo request for the current weather at a location ({latitude, longitude}).
-function weatherUrl(location) {
-  return `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current_weather=true`;
+// Days of daily forecast the scheduler uses. Weather says nothing useful about days further out, so later days are
+// scheduled without regard to it.
+const WEATHER_DAYS = 3;
+// A day with at least this much forecast precipitation (mm) counts as rainy even when its dominant weather code is dry.
+const WET_DAY_MM = 1;
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+// Open-Meteo request for the current weather and the next WEATHER_DAYS daily forecasts at a location
+// ({latitude, longitude}). The daily dates are local dates in `timeZone`, so they line up with the schedule's days.
+function weatherUrl(location, timeZone) {
+  const daily = "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max";
+  return `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current_weather=true` +
+    `&daily=${daily}&forecast_days=${WEATHER_DAYS}&timezone=${encodeURIComponent(timeZone)}`;
 }
 
 // One-line description of Open-Meteo's `current_weather` object, e.g. "Slight rain, 14.2°C". An unknown code reads
@@ -37,4 +47,41 @@ function weatherKey(current) {
   return "OTHER";
 }
 
-module.exports = {WEATHER_CODES, UNAVAILABLE, weatherUrl, describeWeather, weatherKey};
+const isNumber = (v) => typeof v === "number" && Number.isFinite(v);
+const isWetCode = (code) => Object.prototype.hasOwnProperty.call(WEATHER_CODES, code) && !(code === 0 || code === 1 || code === 2 || code === 3 || code === 45 || code === 48);
+
+// The daily forecast in Open-Meteo's response as [{date, conditions, minTemp, maxTemp, precipitationMm, rainChance, rainy}],
+// in date order, at most WEATHER_DAYS days. `rainy` is true when the day's dominant condition is wet or at least
+// WET_DAY_MM of precipitation is forecast. A missing figure is null; a day without a valid date is skipped. A missing
+// or unusable `daily` object gives an empty list. Pure: no I/O.
+function parseForecast(data) {
+  const d = data && data.daily;
+  if (!d || !Array.isArray(d.time)) return [];
+  const at = (arr, i) => (Array.isArray(arr) && isNumber(arr[i]) ? arr[i] : null);
+  const days = [];
+  d.time.forEach((date, i) => {
+    if (typeof date !== "string" || !DATE_ONLY.test(date)) return;
+    const code = at(d.weather_code, i);
+    const mm = at(d.precipitation_sum, i);
+    days.push({
+      date,
+      conditions: code !== null && Object.prototype.hasOwnProperty.call(WEATHER_CODES, code) ? WEATHER_CODES[code] : "Variable conditions",
+      minTemp: at(d.temperature_2m_min, i),
+      maxTemp: at(d.temperature_2m_max, i),
+      precipitationMm: mm,
+      rainChance: at(d.precipitation_probability_max, i),
+      rainy: (code !== null && isWetCode(code)) || (mm !== null && mm >= WET_DAY_MM),
+    });
+  });
+  return days.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)).slice(0, WEATHER_DAYS);
+}
+
+// Coarse weather summary for the run fingerprint: one letter per forecast day (W rainy, D dry), so a change of the
+// rain outlook for any of the days re-runs the schedule while temperature drift does not. Without a forecast it falls
+// back to the current condition's key.
+function forecastKey(forecast, current) {
+  if (Array.isArray(forecast) && forecast.length > 0) return forecast.map((day) => (day.rainy ? "W" : "D")).join("");
+  return weatherKey(current);
+}
+
+module.exports = {WEATHER_CODES, UNAVAILABLE, WEATHER_DAYS, WET_DAY_MM, weatherUrl, describeWeather, weatherKey, parseForecast, forecastKey};

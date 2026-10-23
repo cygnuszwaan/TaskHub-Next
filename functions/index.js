@@ -12,7 +12,7 @@ const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eve
 const {repairSchedule, parseScheduleResponse, buildFixedSlots, matchLockedEvents} = require("./schedule");
 const {applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
-const {UNAVAILABLE, weatherUrl, describeWeather, weatherKey} = require("./weather");
+const {UNAVAILABLE, weatherUrl, describeWeather, parseForecast, forecastKey} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
 const {buildSchedulePrompt, buildTaskPrompt} = require("./prompts");
 const {SUMMARY_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted} = require("./completed");
@@ -177,25 +177,29 @@ async function removeTaskCalendarEvent(task) {
   }
 }
 
-// Helper: Fetch the current weather at a location ({latitude, longitude}) as {text, key}: one line for the prompt
-// and the coarse condition for the run fingerprint
-async function getWeather(location) {
+// Helper: Fetch the weather at a location ({latitude, longitude}) as {text, forecast, key}: the current conditions as one
+// line for the prompt, the daily forecast for the first days (empty when unavailable) and the coarse summary for the
+// run fingerprint. A failed request gives the unavailable text, no forecast and the unavailable key.
+async function getWeather(location, timeZone) {
   try {
-    const res = await fetch(weatherUrl(location));
+    const res = await fetch(weatherUrl(location, timeZone));
+    if (!res.ok) throw new Error(`Open-Meteo answered ${res.status}`);
     const data = await res.json();
-    return {text: describeWeather(data.current_weather), key: weatherKey(data.current_weather)};
+    const forecast = parseForecast(data);
+    return {text: describeWeather(data.current_weather), forecast, key: forecastKey(forecast, data.current_weather)};
   } catch (err) {
-    return {text: UNAVAILABLE, key: UNAVAILABLE};
+    console.warn("Weather unavailable:", err.message);
+    return {text: UNAVAILABLE, forecast: [], key: UNAVAILABLE};
   }
 }
 
 // One Gemini request for slots. Returns the raw scheduledTasks list (unvalidated). Throws a readable Error when the
 // request fails, is cut off or is not usable JSON. Each request is bounded so a stuck call cannot run the whole
 // function into its own timeout (which the browser sees as a bare 500).
-// `weather` is the one-line description; `settings` supplies the location name and the time zone for the prompt.
-async function requestSchedule(tasks, busySlots, now, settings, weather, {projects, fixed, allTasks, feedback}) {
+// `weather` is the one-line current conditions and `forecast` the daily forecast; `settings` supplies the location name and the time zone for the prompt.
+async function requestSchedule(tasks, busySlots, now, settings, weather, {projects, fixed, allTasks, feedback, forecast}) {
   const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
-  const prompt = buildSchedulePrompt({tasks, busySlots, now, weather, settings, projects, fixed, allTasks, feedback});
+  const prompt = buildSchedulePrompt({tasks, busySlots, now, weather, settings, projects, fixed, allTasks, feedback, forecast});
 
   const response = await ai.models.generateContent({
     model: MODEL_NAME,
@@ -281,10 +285,10 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
   const settings = await readSettings();
   const timeZone = settings.timeZone;
   const now = new Date();
-  const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const horizon = new Date(now.getTime() + settings.scheduleDays * 24 * 60 * 60 * 1000);
 
   // 1. Read-only lookups. Any failure aborts before an event is touched.
-  const personalBusy = await getBusyWindows(calendar, personalCalendarId, now.toISOString(), sevenDaysLater.toISOString(), timeZone);
+  const personalBusy = await getBusyWindows(calendar, personalCalendarId, now.toISOString(), horizon.toISOString(), timeZone);
 
   // A task is locked while its app-tagged event sits on the personal calendar and hasn't ended.
   // Locks are recomputed every run, so a lock is released once its event has passed.
@@ -305,7 +309,7 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
 
   // 2. Agent-calendar busy time excludes the app's own events, which are replaced by this run.
   // Locked windows count as busy even if the personal event is marked free.
-  const agentBusy = await getForeignBusyWindows(calendar, calendarId, now.toISOString(), sevenDaysLater.toISOString(), timeZone, oldEventIds);
+  const agentBusy = await getForeignBusyWindows(calendar, calendarId, now.toISOString(), horizon.toISOString(), timeZone, oldEventIds);
   // In a subset run the app events that stay put block their time, whatever their transparency.
   const keptAppBusy = subset ? appBusyWindows(agentEvents, timeZone, oldEventIds) : [];
   const busySlots = mergeBusyWindows([...personalBusy, ...lockedWindows, ...agentBusy, ...keptAppBusy]);
@@ -316,9 +320,9 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
   let unscheduled = []; // tasks Gemini tried to place but whose slots were dropped, [{taskId, reason}]
   let fingerprint = null;
   if (toSchedule.length > 0) {
-    const weather = await getWeather(settings.location);
+    const weather = await getWeather(settings.location, timeZone);
     if (!subset) {
-      fingerprint = computeFingerprint({tasks: toSchedule, busySlots, weatherKey: weather.key, settings, now, horizon: sevenDaysLater});
+      fingerprint = computeFingerprint({tasks: toSchedule, busySlots, weatherKey: weather.key, settings, now, horizon});
       if (shouldSkipRun({skipIfUnchanged, fingerprint, lastRunFingerprint: settings.lastRunFingerprint, endedSlot: hasEndedSlot(toSchedule, timeZone, now)})) {
         return {success: true, skipped: true, scheduledCount: 0, lockedCount: lockedEvents.size, message: "Nothing changed since the last run; existing events were kept."};
       }
@@ -327,8 +331,8 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
     const lockedByTask = new Map([...lockedEvents].map(([id, ev]) => [id, eventWindow(ev, timeZone)]));
     const fixed = buildFixedSlots({tasks: currentTasks, inScopeIds: subset ? new Set(inScope.map((t) => t.id)) : null, lockedWindows: lockedByTask, timeZone});
     const projects = await readProjects();
-    const validation = {busy: busySlots, now, horizon: sevenDaysLater, timeZone, allTasks: currentTasks, fixed};
-    const result = await requestValidSchedule(toSchedule, busySlots, now, settings, weather.text, {projects, fixed, allTasks: currentTasks}, validation);
+    const validation = {busy: busySlots, now, horizon, timeZone, allTasks: currentTasks, fixed};
+    const result = await requestValidSchedule(toSchedule, busySlots, now, settings, weather.text, {projects, fixed, allTasks: currentTasks, forecast: weather.forecast}, validation);
     scheduledList = result.items;
     slots = result.slots;
     unscheduled = result.dropped;
