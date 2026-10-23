@@ -1026,7 +1026,8 @@
       ["priority", "Priority"],
       ["added", "Date added"],
       ["due", "Due date"],
-      ["scheduled", "Scheduled date"]
+      ["scheduled", "Scheduled date"],
+      ["name", "Name"]
     ];
     const PRIORITY_RANK = ["HIGH", "MEDIUM", "LOW"];
     // A saved or typed sort key as a known one; anything else is "order".
@@ -1066,6 +1067,8 @@
     // The tasks in the order of the "Sort by" choice `key`, reversed when `descending` (which applies to every key,
     // so missing dates move to the front). "order" is the standard list order (sortTasksForList), reversed as a
     // whole; every other key sorts by that value alone, with ties kept in task number order whichever way it runs.
+    // "name" sorts by title A to Z, ignoring case and surrounding spaces, with numbers in numeric order ("Task 2"
+    // before "Task 10"), so tasks with the same title end up next to each other.
     // Pure: the input is not modified.
     function sortTasks(tasks, key = "order", descending = false, now = new Date()) {
       const sortKey = normalizeSortKey(key);
@@ -1073,8 +1076,13 @@
         const list = sortTasksForList(tasks, now);
         return descending ? list.reverse() : list;
       }
-      const clock = new Intl.DateTimeFormat("en-GB", { timeZone: appTimeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
       const sign = descending ? -1 : 1;
+      if (sortKey === "name") {
+        const collator = new Intl.Collator("en-NZ", { sensitivity: "base", numeric: true });
+        const name = t => (typeof t.title === "string" ? t.title.trim() : "");
+        return [...tasks].sort((a, b) => collator.compare(name(a), name(b)) * sign || a.order - b.order);
+      }
+      const clock = new Intl.DateTimeFormat("en-GB", { timeZone: appTimeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
       const values = new Map(tasks.map(t => [t, sortValueOf(t, sortKey, clock)]));
       return [...tasks].sort((a, b) => {
         const va = values.get(a), vb = values.get(b);

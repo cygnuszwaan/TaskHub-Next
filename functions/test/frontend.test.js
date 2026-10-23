@@ -976,9 +976,9 @@ describe("public/index.html helpers", () => {
       {id: "t4", order: 4, priority: "HIGH", dueDate: "2026-10-25", addedAt: "2026-10-21T01:00:00.000Z", scheduledStart: "2026-10-27"},
     ];
 
-    it("offers Task number, Priority, Date added, Due date and Scheduled date, and falls back to Task number", () => {
+    it("offers Task number, Priority, Date added, Due date, Scheduled date and Name, and falls back to Task number", () => {
       const {SORT_OPTIONS, normalizeSortKey} = load();
-      assert.deepEqual(SORT_OPTIONS.map((o) => o[1]), ["Task number", "Priority", "Date added", "Due date", "Scheduled date"]);
+      assert.deepEqual(SORT_OPTIONS.map((o) => o[1]), ["Task number", "Priority", "Date added", "Due date", "Scheduled date", "Name"]);
       assert.equal(normalizeSortKey("due"), "due");
       assert.equal(normalizeSortKey("nonsense"), "order");
       assert.equal(normalizeSortKey(undefined), "order");
@@ -1009,6 +1009,21 @@ describe("public/index.html helpers", () => {
       const {sortTasks} = load();
       assert.deepEqual(ids(sortTasks(tasks(), "scheduled", false, now)), ["t4", "t2", "t1", "t3"]);
       assert.deepEqual(ids(sortTasks(tasks(), "scheduled", true, now)), ["t3", "t1", "t2", "t4"]);
+    });
+    it("sorts by name A to Z ignoring case, with numbers in numeric order and same-named tasks together by task number", () => {
+      const {sortTasks} = load();
+      const list = [
+        {id: "w", order: 1, title: "Water plants"},
+        {id: "t10", order: 2, title: "Task 10"},
+        {id: "b2", order: 3, title: "buy milk"},
+        {id: "t2", order: 4, title: "Task 2"},
+        {id: "a", order: 5, title: "  Answer email"},
+        {id: "b1", order: 6, title: "Buy milk"},
+        {id: "none", order: 7},
+      ];
+      assert.deepEqual(ids(sortTasks(list, "name", false, now)), ["none", "a", "b2", "b1", "t2", "t10", "w"]);
+      assert.deepEqual(ids(sortTasks(list, "name", true, now)), ["w", "t10", "t2", "b2", "b1", "a", "none"]);
+      assert.deepEqual(ids(list), ["w", "t10", "b2", "t2", "a", "b1", "none"], "the input is not reordered");
     });
     it("places an all-day slot before a timed one on the same local day, and orders timed slots by local time", () => {
       const {sortTasks} = load();
