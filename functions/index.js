@@ -13,6 +13,7 @@ const {validateSchedule, matchLockedEvents} = require("./schedule");
 const {mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {annotateDue} = require("./due");
 const {makeTaskStore} = require("./store");
+const {clampLimit, serializeCompleted} = require("./completed");
 const {makeOwnerOnly} = require("./auth");
 const {randomUUID} = require("crypto");
 
@@ -506,6 +507,17 @@ exports.getTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res)
 }));
 
 // 6. Endpoint: Direct Update / Delete
+// Recently completed tasks from the archive, newest first. Optional ?limit= (default 50, at most 200).
+exports.getCompletedTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const snap = await db.collection("completed_tasks").orderBy("completedAt", "desc").limit(clampLimit(req.query.limit)).get();
+    res.status(200).send({success: true, tasks: serializeCompleted(snap.docs.map((d) => d.data()))});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
 exports.updateTaskDirect = onRequest({
   secrets: [{name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"}],
   cors: ALLOWED_ORIGINS,

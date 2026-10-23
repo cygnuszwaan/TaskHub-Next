@@ -93,6 +93,13 @@
     <div id="taskList">Loading tasks...</div>
   </div>
 
+  <div class="card">
+    <details id="completedDetails">
+      <summary style="cursor: pointer; font-weight: 600;">Recently Completed</summary>
+      <div id="completedList" style="margin-top: 12px;"></div>
+    </details>
+  </div>
+
   <div id="editModal" class="modal-overlay" onclick="closeModalOnOverlay(event)">
     <div class="modal-card">
       <h3>Edit Task Details</h3>
@@ -162,6 +169,7 @@
     const COMPLETE_TASK_URL = endpoint("completeTask");
     const SCHEDULE_URL = endpoint("generateWeeklySchedule");
     const RESCHEDULE_URL = endpoint("rescheduleTask");
+    const COMPLETED_URL = endpoint("getCompletedTasks");
 
     // Firebase Auth. The SDK loads from the CDN and the web config from Hosting's reserved URL, so there is no build step or key in this file.
     let authLib = null;
@@ -369,6 +377,7 @@
         allTasks = data.tasks || [];
         renderFilterBar();
         renderTasks();
+        if (document.getElementById("completedDetails").open) fetchCompleted();
       } catch (err) {
         alert("Error completing task: " + err.message);
       }
@@ -579,6 +588,43 @@
         alert("Error deleting task: " + err.message);
       }
     }
+
+    async function fetchCompleted() {
+      const list = document.getElementById("completedList");
+      list.textContent = "Loading...";
+      try {
+        const res = await apiFetch(COMPLETED_URL);
+        const data = await res.json();
+        const tasks = data.tasks || [];
+        if (tasks.length === 0) {
+          list.innerHTML = "<p style='color:#666; margin:0;'>No completed tasks yet.</p>";
+          return;
+        }
+        list.innerHTML = tasks.map(t => {
+          const done = t.completedAt ? new Date(t.completedAt) : null;
+          const when = done && !isNaN(done) ? `${nzDayFmt.format(done)}, ${nzTimeFmt.format(done)}` : "";
+          return `
+            <div class="task-item" style="cursor: default;">
+              <div style="flex:1;">
+                <strong>${esc(t.title)}</strong>
+                <div class="task-meta">
+                  <span class="badge ${PRIORITIES.includes(t.priority) ? t.priority : ''}">${esc(t.priority)}</span>
+                  <span class="time-chip">⏱️ ${esc(t.estimatedMinutes || 15)}m</span>
+                  ${(t.tags || []).map(tag => `<span class="chip">${esc(tag)}</span>`).join('')}
+                  ${when ? `<span class="chip">✅ ${esc(when)}</span>` : ''}
+                </div>
+              </div>
+            </div>`;
+        }).join("");
+      } catch (err) {
+        list.innerHTML = "<p>Error loading completed tasks: " + esc(err.message) + "</p>";
+      }
+    }
+
+    // Loaded each time the section is opened, so it is never stale
+    document.getElementById("completedDetails").addEventListener("toggle", e => {
+      if (e.target.open) fetchCompleted();
+    });
 
     function setLoading(isLoading) {
       document.getElementById("addBtn").disabled = isLoading;
