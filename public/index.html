@@ -135,6 +135,10 @@
     .form-group input[type="checkbox"] { width: auto; margin-right: 6px; }
     .settings-current { font-size: 14px; color: var(--text-strong); }
     .place-results { margin-top: 6px; }
+    .template-results { margin-top: 6px; }
+    .template-option { display: block; width: 100%; text-align: left; background: var(--chip-bg); color: var(--text-strong); font-weight: 500; white-space: normal; margin-top: 4px; }
+    .template-option small { display: block; font-weight: normal; color: var(--text-faint); }
+    .template-note { font-size: 12px; color: var(--text-faint); margin: 0 0 2px; }
     .place-option { display: block; width: 100%; text-align: left; background: var(--chip-bg); color: var(--text-strong); font-weight: 500; white-space: normal; margin-top: 4px; }
     .settings-note { font-size: 12px; color: var(--text-faint); margin: 4px 0 0; }
     .settings-status { font-size: 13px; margin-top: 10px; min-height: 18px; color: var(--text-strong); }
@@ -187,9 +191,11 @@
       <input type="text" id="taskInput" placeholder="Add New Task">
       <button onclick="submitTask()" id="addBtn">Add</button>
     </div>
-    <div class="form-group" style="margin: 10px 0 0;">
+    <div class="form-group" style="margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px;">
       <label style="font-weight: normal;"><input type="checkbox" id="manualToggle"> Enter the details myself</label>
+      <label style="font-weight: normal;"><input type="checkbox" id="startNow"> Start immediately</label>
     </div>
+    <div id="templateResults" class="template-results" hidden></div>
     <div id="manualFields" hidden style="margin-top: 10px;">
       <div style="display: flex; gap: 10px;">
         <div class="form-group" style="flex: 1;">
@@ -523,6 +529,7 @@
     };
     const endpoint = name => `${CONFIG.functionsBase}/${name}`;
     const ADD_TASK_URL = endpoint("addOrUpdateTask");
+    const TEMPLATES_URL = endpoint("getCompletedTemplates");
     const GET_TASKS_URL = endpoint("getTasks");
     const DIRECT_UPDATE_URL = endpoint("updateTaskDirect");
     const COMPLETE_TASK_URL = endpoint("completeTask");
@@ -1174,6 +1181,51 @@
       const text = [count(data && data.tasks, "task", "tasks"), count(data && data.projects, "project", "projects"), `${count(data && data.completedTasks, "completed task", "completed")}`].join(", ");
       return data && data.completedTruncated ? `${text} (the newest completed tasks only)` : text;
     }
+
+    // Completed tasks (templates from getCompletedTemplates, newest first) whose title matches the text typed in the
+    // add field, at most `limit` of them. Matching is the Queue search's (see matchesSearch); nothing is offered for an
+    // empty or one-letter text. Pure: the input is not modified.
+    function templateMatches(templates, query, limit = 6) {
+      if (String(query || "").trim().length < 2) return [];
+      return (templates || []).filter(t => matchesSearch(t, query)).slice(0, limit);
+    }
+
+    // The second line of a template in the results: "HIGH · 45 min · Outdoor, Garden" (the tags are left out when it has none)
+    function templateMeta(t) {
+      const parts = [t.priority || "MEDIUM", `${t.estimatedMinutes || 15} min`];
+      if (Array.isArray(t.tags) && t.tags.length > 0) parts.push(t.tags.join(", "));
+      return parts.join(" · ");
+    }
+
+    // The add form's fields for a new task copied from a template. The due date is left empty (the old one belongs to
+    // that instance), the project only when it is in `projectIds` (with its order number), and every material comes
+    // back unchecked. Pure.
+    function templateFormValues(t, projectIds = []) {
+      const inProject = typeof t.projectId === "string" && projectIds.includes(t.projectId);
+      const recurrence = t.recurrence && RECUR_FREQUENCIES.includes(t.recurrence.frequency) ? t.recurrence : null;
+      return {
+        title: t.title || "",
+        priority: ["HIGH", "MEDIUM", "LOW"].includes(t.priority) ? t.priority : "MEDIUM",
+        estimatedMinutes: t.estimatedMinutes > 0 ? t.estimatedMinutes : 15,
+        tags: Array.isArray(t.tags) ? t.tags.join(", ") : "",
+        dueDate: "",
+        recurFreq: recurrence ? recurrence.frequency : "NONE",
+        recurInterval: recurrence && recurrence.interval > 0 ? recurrence.interval : 1,
+        projectId: inProject ? t.projectId : "",
+        projectOrder: inProject && Number.isInteger(t.projectOrder) ? t.projectOrder : "",
+        materials: (Array.isArray(t.materials) ? t.materials : []).slice(0, MAX_MATERIALS).map(text => ({ id: "", text: String(text), checked: false })),
+        comments: typeof t.comments === "string" ? t.comments : ""
+      };
+    }
+
+    // What submitTask posts besides the entry itself: `startNow` when the box is ticked and `noAi` for a copy of a completed
+    // task, which the server then adds without asking the model for anything
+    function addTaskExtras({ startNow, copied, manual }) {
+      const extras = {};
+      if (startNow) extras.startNow = true;
+      if (manual && copied) extras.noAi = true;
+      return extras;
+    }
     // </pure-helpers>
 
     // Dark mode: a data-theme attribute on <html> overrides the device setting (see the stylesheet), the theme-color
@@ -1337,6 +1389,7 @@
           materials: manualMaterials,
           comments: document.getElementById("manualComments").value
         }) : { input };
+        Object.assign(body, addTaskExtras({ startNow: document.getElementById("startNow").checked, copied: copiedFromCompleted, manual }));
         const res = await apiFetch(ADD_TASK_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1345,6 +1398,9 @@
         const data = await res.json();
         allTasks = data.tasks || [];
         document.getElementById("taskInput").value = "";
+        document.getElementById("startNow").checked = false; // it applies to this task only
+        copiedFromCompleted = false;
+        renderTemplateResults();
         if (manual) {
           document.getElementById("manualTags").value = "";
           document.getElementById("manualDue").value = "";
@@ -1357,6 +1413,63 @@
       } finally {
         setLoading(false);
       }
+    }
+
+    // Live search of completed tasks under the add field. The list comes from getCompletedTemplates the first time the
+    // owner types, is searched in the page, and is fetched again after the next completion or undo (the archive changed).
+    let templates = null;
+    let templatesLoading = null;
+    let copiedFromCompleted = false; // the manual form holds a copy of a completed task: add it without the model
+    function loadTemplates() {
+      if (templates) return Promise.resolve(templates);
+      if (!templatesLoading) {
+        templatesLoading = apiFetch(TEMPLATES_URL).then(r => r.json()).then(data => {
+          templates = data.templates || [];
+          return templates;
+        }).catch(() => []).finally(() => { templatesLoading = null; });
+      }
+      return templatesLoading;
+    }
+
+    let shownTemplates = [];
+    function renderTemplateResults() {
+      const box = document.getElementById("templateResults");
+      shownTemplates = templateMatches(templates, document.getElementById("taskInput").value);
+      box.hidden = shownTemplates.length === 0;
+      box.innerHTML = shownTemplates.length === 0 ? "" :
+        '<p class="template-note">Completed before — tap one to copy its details:</p>' +
+        shownTemplates.map((t, i) => `<button type="button" class="template-option" data-index="${i}">${esc(t.title)}<small>${esc(templateMeta(t))}</small></button>`).join("");
+    }
+
+    async function searchTemplates() {
+      if (document.getElementById("taskInput").value.trim().length < 2) return renderTemplateResults();
+      await loadTemplates();
+      renderTemplateResults(); // the text may have changed while the list loaded; this uses the current text
+    }
+
+    // Opens the details form filled with a completed task's details, ready to edit; Add then posts it as a manual entry
+    function useTemplate(t) {
+      const v = templateFormValues(t, allProjects.map(p => p.id));
+      document.getElementById("taskInput").value = v.title;
+      const toggle = document.getElementById("manualToggle");
+      toggle.checked = true;
+      document.getElementById("manualFields").hidden = false;
+      document.getElementById("manualPriority").value = v.priority;
+      document.getElementById("manualMinutes").value = v.estimatedMinutes;
+      document.getElementById("manualTags").value = v.tags;
+      document.getElementById("manualDue").value = v.dueDate;
+      document.getElementById("manualRecurFreq").value = v.recurFreq;
+      document.getElementById("manualRecurInterval").value = v.recurInterval;
+      updateRecurUnit("manual");
+      document.getElementById("manualProject").value = projectsLoaded ? v.projectId : "";
+      document.getElementById("manualProjectOrder").value = projectsLoaded ? v.projectOrder : "";
+      updateProjectOrderField("manual");
+      manualMaterials = v.materials;
+      document.getElementById("manualNewMaterialText").value = "";
+      renderManualMaterials();
+      document.getElementById("manualComments").value = v.comments;
+      copiedFromCompleted = true;
+      document.getElementById("templateResults").hidden = true; // the form replaces the list
     }
 
     // Repeats, project, materials and comments belong to one task, so they are cleared after each manual add
@@ -1400,6 +1513,7 @@
         const res = await apiFetch(UNDO_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
         const data = await res.json();
         allTasks = data.tasks || [];
+        templates = null; // an undone completion leaves the archive
         renderFilterBar();
         renderTasks();
       } catch (err) {
@@ -1417,6 +1531,7 @@
         });
         const data = await res.json();
         allTasks = data.tasks || [];
+        templates = null; // the archive has a new row
         renderFilterBar();
         renderTasks();
         if (task && !allTasks.some(t => t.id === taskId)) showUndoToast("COMPLETE", task.title);
@@ -2266,6 +2381,12 @@
     document.getElementById("lunchEnabled").addEventListener("change", updateLunchFields);
     document.getElementById("manualToggle").addEventListener("change", e => {
       document.getElementById("manualFields").hidden = !e.target.checked;
+      if (!e.target.checked) copiedFromCompleted = false;
+    });
+    document.getElementById("taskInput").addEventListener("input", searchTemplates);
+    document.getElementById("templateResults").addEventListener("click", e => {
+      const option = e.target.closest(".template-option");
+      if (option && shownTemplates[Number(option.dataset.index)]) useTemplate(shownTemplates[Number(option.dataset.index)]);
     });
     document.getElementById("placeSearchBtn").addEventListener("click", searchPlaces);
     document.getElementById("placeQuery").addEventListener("keydown", e => {

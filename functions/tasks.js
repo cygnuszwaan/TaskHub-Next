@@ -115,6 +115,33 @@ function manualTaskChange(manual) {
   return change;
 }
 
+// Whether a manual entry's change has no usable tag, so the model is asked to fill them. Pure.
+function needsTagFill(change) {
+  return !change || !Array.isArray(change.tags) || !change.tags.some((t) => typeof t === "string" && t.trim());
+}
+
+// Tags from the model as a clean list: strings only, trimmed, duplicates (ignoring case) removed, at most `max`. Pure.
+function cleanTags(raw, max = 5) {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const tag of raw) {
+    if (typeof tag !== "string") continue;
+    const text = tag.trim();
+    if (!text || text.length > 40 || seen.has(text.toLowerCase())) continue;
+    seen.add(text.toLowerCase());
+    out.push(text);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+// Ids of the tasks in `after` that are not in `before`, in `after`'s list order. Pure.
+function newTaskIds(before, after) {
+  const old = new Set(before.map((t) => t.id));
+  return after.filter((t) => !old.has(t.id)).map((t) => t.id);
+}
+
 // Place `task` at the 1-based rank `rank` in `list` (clamped), removing any earlier copy.
 function placeAtRank(list, task, rank) {
   const rest = list.filter((t) => t.id !== task.id);
@@ -309,4 +336,4 @@ function applyScheduleResults({tasks, knownIds, locked, scheduled, createdEvents
   return {tasks: updatedTasks, orphanEventIds};
 }
 
-module.exports = {FREQUENCIES, MAX_INTERVAL, UNDO_WINDOW_MS, normalizeRecurrence, manualTaskChange, applyDirectUpdate, completeInList, removalRecord, isUndoable, undoInList, mergeTaskChanges, applyScheduleResults};
+module.exports = {needsTagFill, cleanTags, newTaskIds, FREQUENCIES, MAX_INTERVAL, UNDO_WINDOW_MS, normalizeRecurrence, manualTaskChange, applyDirectUpdate, completeInList, removalRecord, isUndoable, undoInList, mergeTaskChanges, applyScheduleResults};

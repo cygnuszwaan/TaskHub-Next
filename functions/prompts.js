@@ -42,4 +42,20 @@ function buildTaskPrompt({tasks, projects, input, today}) {
     `;
 }
 
-module.exports = {buildTaskPrompt};
+// The prompt that suggests tags for a task the owner entered by hand without any. Pure: no I/O.
+//   title:     the task's title
+//   knownTags: tags already used on the list, so the model reuses the owner's vocabulary
+// The model sees only the title, never the task's comments or materials.
+function buildTagPrompt({title, knownTags = []}) {
+  const known = [...new Set(knownTags.map(oneLine).filter(Boolean))].slice(0, 50);
+  return `
+      You label to-do tasks with concise contextual tags such as Outdoor, Garden (for gardening), Indoor, Shopping, Mentally Focused, Physical.
+      Tags already in use (prefer these when they fit): ${JSON.stringify(known)}
+      
+      Task title: "${oneLine(title)}"
+      
+      Return 1 to 3 tags for this task. Return ONLY the tags.
+    `;
+}
+
+module.exports = {buildTaskPrompt, buildTagPrompt};

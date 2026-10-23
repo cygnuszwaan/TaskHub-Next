@@ -729,3 +729,24 @@ describe("undoing a delete or completion", () => {
     });
   });
 });
+
+describe("tag fill and new ids", () => {
+  const {needsTagFill, cleanTags, newTaskIds} = require("../tasks");
+  it("asks for tags when a manual entry has none", () => {
+    assert.equal(needsTagFill({title: "x"}), true);
+    assert.equal(needsTagFill({title: "x", tags: []}), true);
+    assert.equal(needsTagFill({title: "x", tags: ["", "  ", 4]}), true);
+    assert.equal(needsTagFill({title: "x", tags: ["Outdoor"]}), false);
+    assert.equal(needsTagFill(null), true);
+  });
+  it("cleans the model's tags: strings only, trimmed, no repeats, at most five, none too long", () => {
+    assert.deepEqual(cleanTags([" Outdoor ", "outdoor", "Garden", 3, "", "a", "b", "c", "d"]), ["Outdoor", "Garden", "a", "b", "c"]);
+    assert.deepEqual(cleanTags(["x".repeat(41), "ok"]), ["ok"]);
+    assert.deepEqual(cleanTags("Outdoor"), []);
+    assert.deepEqual(cleanTags(undefined), []);
+  });
+  it("lists the ids that are new, in list order", () => {
+    assert.deepEqual(newTaskIds([{id: "a"}, {id: "b"}], [{id: "a"}, {id: "n1"}, {id: "b"}, {id: "n2"}]), ["n1", "n2"]);
+    assert.deepEqual(newTaskIds([{id: "a"}], [{id: "a"}]), []);
+  });
+});

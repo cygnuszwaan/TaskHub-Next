@@ -13,11 +13,12 @@ const {repairSchedule, buildFixedSlots, matchLockedEvents} = require("./schedule
 const {planSchedule} = require("./planner");
 const {lunchWindows, padWindows} = require("./breaks");
 const {setTimerInList, pauseTimer} = require("./timer");
-const {applyDirectUpdate, completeInList, removalRecord, isUndoable, undoInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
+const {needsTagFill, cleanTags, newTaskIds, applyDirectUpdate, completeInList, removalRecord, isUndoable, undoInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
 const {UNAVAILABLE, weatherUrl, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
-const {buildTaskPrompt} = require("./prompts");
+const {buildTaskPrompt, buildTagPrompt} = require("./prompts");
+const {MAX_TEMPLATES, buildTemplates} = require("./templates");
 const {heldTaskIds} = require("./materials");
 const {SUMMARY_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted} = require("./completed");
 const {EXPORT_MAX_ROWS, buildExport} = require("./export");
@@ -52,6 +53,13 @@ const OWNER_EMAIL = defineString("OWNER_EMAIL");
 // Browser origins allowed to call the endpoints: the Hosting site
 const ALLOWED_ORIGINS = ["https://taskhub-next.web.app", "https://taskhub-next.firebaseapp.com"];
 const ownerOnly = makeOwnerOnly((token) => admin.auth().verifyIdToken(token), () => OWNER_EMAIL.value());
+
+// JSON Schema for the tags the model suggests for a task entered by hand
+const tagSchema = {
+  type: Type.OBJECT,
+  properties: {tags: {type: Type.ARRAY, items: {type: Type.STRING}}},
+  required: ["tags"],
+};
 
 // JSON Schema for the new or changed tasks the model returns on ingestion
 const changeSchema = {
@@ -419,7 +427,10 @@ exports.rescheduleTask = onRequest({
 // 3. Endpoint: Add / Ingest Task. The model returns only new or changed tasks; they are merged into the
 // stored list inside a transaction, so everything else on the list is preserved. With a `manual` body ({title,
 // priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?, comments?}) no model is
-// called: the fields are used as entered (validated like the model's) and the task is added at the end of the list.
+// called to parse it: the fields are used as entered (validated like the model's) and the task is added at the end of the
+// list. The one exception is a manual entry with no tags, for which the model is asked for tags only (a failure leaves
+// the task untagged), unless the body has `noAi: true` (a copy of a completed task). `startNow: true` starts the timer of
+// the first task the request adds, which also makes it the active task.
 exports.addOrUpdateTask = onRequest({
   secrets: ["GEMINI_API_KEY"], cors: ALLOWED_ORIGINS, timeoutSeconds: 120,
 }, ownerOnly(async (req, res) => {
@@ -430,6 +441,21 @@ exports.addOrUpdateTask = onRequest({
       const change = manualTaskChange(body.manual);
       if (!change) return res.status(400).send({error: "A manual entry needs a title"});
       changes = [change];
+      if (body.noAi !== true && needsTagFill(change)) {
+        try {
+          const currentTasks = await readTaskList();
+          const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
+          const response = await ai.models.generateContent({
+            model: MODEL_NAME,
+            contents: buildTagPrompt({title: change.title, knownTags: currentTasks.flatMap((t) => t.tags || [])}),
+            config: {responseMimeType: "application/json", responseSchema: tagSchema},
+          });
+          const tags = cleanTags(JSON.parse(response.text).tags);
+          if (tags.length > 0) change.tags = tags;
+        } catch (err) {
+          console.warn("Tag suggestion failed; adding the task without tags:", err.message);
+        }
+      }
     } else {
       const userInput = body.input;
       if (!userInput) return res.status(400).send({error: "Missing input"});
@@ -456,7 +482,12 @@ exports.addOrUpdateTask = onRequest({
     const result = await updateTaskList((tasks, tx, {projects: stored}) => {
       const merged = mergeTaskChanges(tasks, changes, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined, comments: body.manual !== undefined, now: new Date().toISOString()});
       const changed = merged.added + merged.updated > 0;
-      return {...merged, tasks: changed ? merged.tasks : null, current: changed ? merged.tasks : tasks};
+      let list = merged.tasks;
+      if (body.startNow === true) {
+        const [firstNew] = newTaskIds(tasks, list);
+        if (firstNew) list = setTimerInList(list, firstNew, "START", Date.now()).tasks;
+      }
+      return {...merged, tasks: changed ? list : null, current: changed ? list : tasks};
     }, {withProjects: true});
 
     res.status(200).send({
@@ -531,6 +562,20 @@ exports.getCompletedTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (
     ]);
     const summary = {...summarizeCompleted(windowSnap.docs.map((d) => d.data()), timeZone, now, undefined, projects), truncated: windowSnap.size >= SUMMARY_MAX_ROWS};
     res.status(200).send({success: true, tasks: serializeCompleted(listSnap.docs.map((d) => d.data())), summary});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 6b. Endpoint: Completed tasks as templates for a new task
+// One entry per distinct title (ignoring case) from the newest SUMMARY_MAX_ROWS (1000) archive rows, newest first, see buildTemplates.
+// The page searches the list itself as the owner types. Read-only.
+exports.getCompletedTemplates = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const snap = await db.collection("completed_tasks").orderBy("completedAt", "desc").limit(SUMMARY_MAX_ROWS).get();
+    const templates = buildTemplates(serializeCompleted(snap.docs.map((d) => d.data())), MAX_TEMPLATES);
+    res.status(200).send({success: true, templates});
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});

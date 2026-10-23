@@ -56,3 +56,15 @@ describe("prompts.js", () => {
     });
   });
 });
+
+describe("buildTagPrompt", () => {
+  const {buildTagPrompt} = require("../prompts");
+  it("shows the model only the title and the tags already in use, one line each", () => {
+    const p = buildTagPrompt({title: "Paint\n the fence", knownTags: ["Outdoor", "Outdoor", " Physical ", ""]});
+    assert.match(p, /Task title: "Paint the fence"/);
+    assert.match(p, /\["Outdoor","Physical"\]/);
+  });
+  it("works without known tags", () => {
+    assert.match(buildTagPrompt({title: "x"}), /Tags already in use[^\n]*\[\]/);
+  });
+});
