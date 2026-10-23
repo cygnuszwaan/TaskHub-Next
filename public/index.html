@@ -146,6 +146,22 @@
         </div>
       </div>
 
+      <div class="form-group">
+        <label>Repeats</label>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <select id="editRecurFreq" style="flex: 1;" onchange="updateRecurUnit()">
+            <option value="NONE">Does not repeat</option>
+            <option value="DAILY">Daily</option>
+            <option value="WEEKLY">Weekly</option>
+            <option value="MONTHLY">Monthly</option>
+            <option value="YEARLY">Yearly</option>
+          </select>
+          <span id="editRecurEvery">every</span>
+          <input type="number" id="editRecurInterval" min="1" max="365" step="1" value="1" style="width: 70px;">
+          <span id="editRecurUnit"></span>
+        </div>
+      </div>
+
       <div style="margin-top: 14px;">
         <button type="button" class="btn-secondary" title="Save these changes, then find a new time for this task" onclick="rescheduleFromModal()">🔄 Reschedule</button>
       </div>
@@ -502,8 +518,23 @@
       document.getElementById("editDuration").value = task.estimatedMinutes || 15;
       document.getElementById("editTags").value = (task.tags || []).join(", ");
       document.getElementById("editDueDate").value = task.dueDate || "";
+      const recurrence = task.recurrence;
+      document.getElementById("editRecurFreq").value = recurrence && RECUR_UNITS[recurrence.frequency] ? recurrence.frequency : "NONE";
+      document.getElementById("editRecurInterval").value = recurrence && recurrence.interval > 0 ? recurrence.interval : 1;
+      updateRecurUnit();
 
       document.getElementById("editModal").style.display = "flex";
+    }
+
+    const RECUR_UNITS = { DAILY: "day(s)", WEEKLY: "week(s)", MONTHLY: "month(s)", YEARLY: "year(s)" };
+
+    // Shows the interval controls only when the task repeats
+    function updateRecurUnit() {
+      const freq = document.getElementById("editRecurFreq").value;
+      const repeats = freq !== "NONE";
+      document.getElementById("editRecurEvery").style.display = repeats ? "" : "none";
+      document.getElementById("editRecurInterval").style.display = repeats ? "" : "none";
+      document.getElementById("editRecurUnit").textContent = repeats ? RECUR_UNITS[freq] : "";
     }
 
     function clearEditDueDate() {
@@ -527,7 +558,10 @@
       const dueDate = document.getElementById("editDueDate").value;
 
       const tags = tagsRaw.split(",").map(s => s.trim()).filter(Boolean);
-      const updatedFields = { title, priority, estimatedMinutes, tags, dueDate };
+      const freq = document.getElementById("editRecurFreq").value;
+      const interval = Math.min(Math.max(parseInt(document.getElementById("editRecurInterval").value) || 1, 1), 365);
+      const recurrence = freq === "NONE" ? null : { frequency: freq, interval };
+      const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence };
 
       closeEditModal();
       try {

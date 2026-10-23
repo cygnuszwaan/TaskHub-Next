@@ -10,7 +10,7 @@ const {google} = require("googleapis");
 const {TIME_ZONE, getNZDate, getNZOffset, formatNZNow, getNZStartOfDay} = require("./time");
 const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
 const {validateSchedule, matchLockedEvents} = require("./schedule");
-const {mergeTaskChanges, applyScheduleResults} = require("./tasks");
+const {applyDirectUpdate, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {annotateDue} = require("./due");
 const {makeTaskStore} = require("./store");
 const {SUMMARY_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted} = require("./completed");
@@ -69,6 +69,15 @@ const changeSchema = {
             type: Type.ARRAY,
             items: {type: Type.STRING},
             description: "Concise contextual tags like Outdoor, Indoor, Shopping, Mentally Focused, Physical, etc.",
+          },
+          recurrence: {
+            type: Type.OBJECT,
+            description: "How often the task repeats. Omit to leave an existing task's recurrence unchanged; frequency NONE makes it stop repeating",
+            properties: {
+              frequency: {type: Type.STRING, enum: ["NONE", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"]},
+              interval: {type: Type.INTEGER, description: "Repeat every this many days, weeks, months or years (1 or more)"},
+            },
+            required: ["frequency", "interval"],
           },
           order: {
             type: Type.INTEGER,
@@ -416,7 +425,7 @@ exports.addOrUpdateTask = onRequest({
 
     const currentTasks = await readTaskList();
     // The model sees only the fields it may change, plus the id and rank
-    const visibleTasks = currentTasks.map(({id, title, priority, dueDate, estimatedMinutes, tags, order}) => ({id, title, priority, dueDate, estimatedMinutes, tags, order}));
+    const visibleTasks = currentTasks.map(({id, title, priority, dueDate, estimatedMinutes, tags, recurrence, order}) => ({id, title, priority, dueDate, estimatedMinutes, tags, recurrence, order}));
 
     const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
     const today = getNZDate();
@@ -434,6 +443,9 @@ exports.addOrUpdateTask = onRequest({
       For a change to an existing task, return it with that task's id and its complete updated fields.
       For a new task, leave id empty.
       Set order to the rank (from 1) the task should hold in the full list.
+      If the input says a task repeats (for example "every Monday", "monthly", "every 2 weeks"), set recurrence
+      to the frequency and interval, and set dueDate to its first occurrence. Leave recurrence out for tasks that do not repeat
+      and for existing tasks whose repetition the input does not mention. To stop an existing task repeating, return frequency NONE.
     `;
 
     const response = await ai.models.generateContent({
@@ -542,7 +554,7 @@ exports.updateTaskDirect = onRequest({
         return {tasks: remaining, current: remaining, removedTask};
       }
       if (action === "UPDATE" && tasks.some((t) => t.id === taskId)) {
-        const next = tasks.map((t) => (t.id === taskId ? {...t, ...updatedFields} : t));
+        const next = tasks.map((t) => (t.id === taskId ? applyDirectUpdate(t, updatedFields) : t));
         return {tasks: next, current: next};
       }
       return {current: tasks};

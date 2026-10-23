@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {mergeTaskChanges, applyScheduleResults} = require("../tasks");
+const {MAX_INTERVAL, normalizeRecurrence, applyDirectUpdate, mergeTaskChanges, applyScheduleResults} = require("../tasks");
 
 function makeIdGenerator() {
   let n = 0;
@@ -18,6 +18,95 @@ function existingTasks() {
 }
 
 describe("tasks.js", () => {
+  describe("normalizeRecurrence", () => {
+    it("accepts each frequency with a whole interval", () => {
+      for (const frequency of ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"]) {
+        assert.deepEqual(normalizeRecurrence({frequency, interval: 2}), {frequency, interval: 2});
+      }
+    });
+    it("is case-insensitive about the frequency and ignores extra fields", () => {
+      assert.deepEqual(normalizeRecurrence({frequency: " weekly ", interval: 1, extra: true}), {frequency: "WEEKLY", interval: 1});
+    });
+    it("rounds and clamps the interval, defaulting to 1", () => {
+      assert.equal(normalizeRecurrence({frequency: "DAILY", interval: 2.6}).interval, 3);
+      assert.equal(normalizeRecurrence({frequency: "DAILY", interval: 0}).interval, 1);
+      assert.equal(normalizeRecurrence({frequency: "DAILY", interval: -4}).interval, 1);
+      assert.equal(normalizeRecurrence({frequency: "DAILY", interval: 10000}).interval, MAX_INTERVAL);
+      for (const interval of [undefined, null, "3", NaN, Infinity]) {
+        assert.equal(normalizeRecurrence({frequency: "MONTHLY", interval}).interval, 1);
+      }
+    });
+    it("returns null for null and for frequency NONE, meaning the task does not repeat", () => {
+      assert.equal(normalizeRecurrence(null), null);
+      assert.equal(normalizeRecurrence({frequency: "NONE", interval: 1}), null);
+      assert.equal(normalizeRecurrence({frequency: "none"}), null);
+    });
+    it("returns undefined, meaning no change, for missing or unusable values", () => {
+      for (const value of [undefined, "", "WEEKLY", 5, [], {}, {frequency: "HOURLY", interval: 1}, {frequency: 7}, {interval: 2}]) {
+        assert.equal(normalizeRecurrence(value), undefined);
+      }
+    });
+  });
+
+  describe("applyDirectUpdate", () => {
+    const base = {id: "a", title: "A", priority: "LOW"};
+    const weekly = {frequency: "WEEKLY", interval: 1};
+
+    it("applies the fields and leaves the task alone when recurrence is not mentioned", () => {
+      assert.deepEqual(applyDirectUpdate({...base, recurrence: weekly}, {title: "A2"}), {...base, title: "A2", recurrence: weekly});
+    });
+    it("sets a validated recurrence", () => {
+      assert.deepEqual(applyDirectUpdate(base, {recurrence: {frequency: "monthly", interval: 2.2, junk: 1}}).recurrence, {frequency: "MONTHLY", interval: 2});
+    });
+    it("removes the recurrence for null or NONE, leaving no key behind", () => {
+      for (const recurrence of [null, {frequency: "NONE", interval: 1}]) {
+        const out = applyDirectUpdate({...base, recurrence: weekly}, {recurrence});
+        assert.equal("recurrence" in out, false);
+      }
+    });
+    it("keeps the existing recurrence when the new value is unusable, and adds none to a task without one", () => {
+      assert.deepEqual(applyDirectUpdate({...base, recurrence: weekly}, {recurrence: "often"}).recurrence, weekly);
+      assert.equal("recurrence" in applyDirectUpdate(base, {recurrence: "often"}), false);
+      assert.equal("recurrence" in applyDirectUpdate(base, {recurrence: undefined}), false);
+    });
+    it("does not modify its input", () => {
+      const task = {...base, recurrence: weekly};
+      applyDirectUpdate(task, {recurrence: null, title: "x"});
+      assert.deepEqual(task, {...base, recurrence: weekly});
+    });
+  });
+
+  describe("mergeTaskChanges: recurrence", () => {
+    const weekly = {frequency: "WEEKLY", interval: 1};
+
+    it("stores a recurrence on a new task", () => {
+      const r = mergeTaskChanges(existingTasks(), [{title: "Bins", recurrence: {frequency: "weekly", interval: 2}}], makeIdGenerator());
+      assert.deepEqual(r.tasks[3].recurrence, {frequency: "WEEKLY", interval: 2});
+    });
+    it("gives a new task no recurrence key when none, NONE or an invalid value is given", () => {
+      for (const recurrence of [undefined, null, {frequency: "NONE", interval: 1}, {frequency: "HOURLY", interval: 1}]) {
+        const r = mergeTaskChanges(existingTasks(), [{title: "T", recurrence}], makeIdGenerator());
+        assert.equal("recurrence" in r.tasks[3], false);
+      }
+    });
+    it("sets a recurrence on an existing task", () => {
+      const r = mergeTaskChanges(existingTasks(), [{id: "b", recurrence: weekly}], makeIdGenerator());
+      assert.deepEqual(r.tasks[1].recurrence, weekly);
+    });
+    it("keeps an existing recurrence when the change omits it or gives an invalid one", () => {
+      const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, recurrence: weekly} : t));
+      for (const change of [{id: "b", title: "B2"}, {id: "b", recurrence: "weekly"}, {id: "b", recurrence: {frequency: "x"}}]) {
+        assert.deepEqual(mergeTaskChanges(tasks, [change], makeIdGenerator()).tasks[1].recurrence, weekly);
+      }
+    });
+    it("removes an existing recurrence for frequency NONE, leaving no key behind", () => {
+      const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, recurrence: weekly} : t));
+      const r = mergeTaskChanges(tasks, [{id: "b", recurrence: {frequency: "NONE", interval: 1}}], makeIdGenerator());
+      assert.equal("recurrence" in r.tasks[1], false);
+      assert.equal(r.updated, 1);
+    });
+  });
+
   describe("mergeTaskChanges: updates", () => {
     it("updates model-owned fields and preserves server-owned ones", () => {
       const r = mergeTaskChanges(existingTasks(), [{id: "a", title: "A2", priority: "MEDIUM", estimatedMinutes: 45, tags: ["x"], dueDate: "2026-11-01"}], makeIdGenerator());
