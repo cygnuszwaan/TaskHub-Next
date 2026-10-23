@@ -93,6 +93,5 @@ None planned.
 
 ## Open questions
 
-- Is the site served only from `taskhub-next.web.app` and `.firebaseapp.com`? A custom domain would need adding to `ALLOWED_ORIGINS` and to Auth's authorized domains.
 - `firebase.json` is gitignored, so Hosting and Functions config aren't tracked. Should it be committed?
 - Should the Gemini calls stay, or should some or all of them move to Claude models?
