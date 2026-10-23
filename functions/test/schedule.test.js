@@ -441,3 +441,55 @@ describe("parseScheduleResponse", () => {
     assert.throws(() => parseScheduleResponse("{\"other\":1}"), /no scheduledTasks/);
   });
 });
+
+describe("weather rule for Outdoor and Garden tasks", () => {
+  // NOW is 2026-10-22 07:00 NZDT; the window ends 2026-10-24 and the 23rd is rainy.
+  const WEATHER = {lastDate: "2026-10-24", rainyDates: ["2026-10-23"]};
+  const T = [{id: "out", tags: ["Outdoor"]}, {id: "gar", tags: ["garden"]}, {id: "in", tags: ["Indoor"]}];
+  const check = (items, weather) => repairSchedule({items, tasks: T, busy: [], now: NOW, horizon: HORIZON, timeZone: "Pacific/Auckland", weather: weather === undefined ? WEATHER : weather});
+  const ids = (r) => r.slots.map((s) => s.taskId).sort();
+
+  it("allows a weather-dependent task on a dry day inside the window, including the last day", () => {
+    const r = check([slot("out", "2026-10-22T09:00:00+13:00", "2026-10-22T10:00:00+13:00"), slot("gar", "2026-10-24T09:00:00+13:00", "2026-10-24T10:00:00+13:00")]);
+    assert.deepEqual(ids(r), ["gar", "out"]);
+    assert.deepEqual(r.dropped, []);
+  });
+  it("drops a timed slot on a rainy day", () => {
+    const r = check([slot("out", "2026-10-23T09:00:00+13:00", "2026-10-23T10:00:00+13:00")]);
+    assert.deepEqual(r.slots, []);
+    assert.match(r.dropped[0].reason, /rainy day 2026-10-23/);
+  });
+  it("drops a timed slot after the window", () => {
+    const r = check([slot("gar", "2026-10-25T09:00:00+13:00", "2026-10-25T10:00:00+13:00")]);
+    assert.deepEqual(r.slots, []);
+    assert.match(r.dropped[0].reason, /after the forecast window ending 2026-10-24/);
+  });
+  it("applies the rule to all-day slots", () => {
+    const r = check([slot("out", "2026-10-25", "2026-10-26", {isAllDay: true}), slot("gar", "2026-10-23", "2026-10-24", {isAllDay: true}), slot("out2", "2026-10-22", "2026-10-23", {isAllDay: true})]);
+    assert.deepEqual(r.slots, []);
+    assert.deepEqual(r.dropped.map((d) => d.taskId).sort(), ["gar", "out"]);
+  });
+  it("judges a slot by its local date, not its UTC date", () => {
+    // 2026-10-24 08:00 NZDT is 2026-10-23 19:00 UTC (the rainy date in UTC), but the local day is dry and in the window
+    const r = check([slot("out", "2026-10-24T08:00:00+13:00", "2026-10-24T09:00:00+13:00")]);
+    assert.deepEqual(ids(r), ["out"]);
+  });
+  it("leaves other tasks unrestricted, rain or not and inside or beyond the window", () => {
+    const r = check([slot("in", "2026-10-23T09:00:00+13:00", "2026-10-23T10:00:00+13:00"), slot("in", "2026-10-27T09:00:00+13:00", "2026-10-27T10:00:00+13:00")]);
+    assert.deepEqual(ids(r), ["in"]);
+  });
+  it("restricts nothing when no weather rules are given", () => {
+    const r = check([slot("out", "2026-10-27T09:00:00+13:00", "2026-10-27T10:00:00+13:00")], null);
+    assert.deepEqual(ids(r), ["out"]);
+  });
+  it("keeps the rest of the schedule when one weather-dependent slot is dropped", () => {
+    const r = check([slot("out", "2026-10-26T09:00:00+13:00", "2026-10-26T10:00:00+13:00"), slot("in", "2026-10-26T11:00:00+13:00", "2026-10-26T12:00:00+13:00")]);
+    assert.deepEqual(ids(r), ["in"]);
+    assert.deepEqual(r.errors, []);
+  });
+  it("is reported by validateSchedule too", () => {
+    const {errors} = validateSchedule({items: [slot("out", "2026-10-26T09:00:00+13:00", "2026-10-26T10:00:00+13:00")], tasks: T, busy: [], now: NOW, horizon: HORIZON, timeZone: "Pacific/Auckland", weather: WEATHER});
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /Outdoor\/Garden/);
+  });
+});

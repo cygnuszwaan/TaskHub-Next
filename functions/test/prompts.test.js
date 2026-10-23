@@ -22,11 +22,11 @@ describe("prompts.js", () => {
   describe("buildSchedulePrompt", () => {
     it("limits the rain rule to the first three local days", () => {
       const auckland = build(AUCKLAND); // 22 October local
-      assert.match(auckland, /only for the first 3 days, 2026-10-22 to 2026-10-24/);
-      assert.match(auckland, /From 2026-10-25 onwards ignore the weather completely/);
+      assert.match(auckland, /only known for the first 3 days, 2026-10-22 to 2026-10-24/);
+      assert.match(auckland, /Never schedule them from 2026-10-25 onwards: leave them out/);
       const la = build(LA); // 21 October local
       assert.match(la, /2026-10-21 to 2026-10-23/);
-      assert.match(la, /From 2026-10-24 onwards/);
+      assert.match(la, /from 2026-10-24 onwards/);
     });
     describe("daily forecast", () => {
       const fc = (date, rainy, extra = {}) => ({date, conditions: rainy ? "Slight rain" : "Clear sky", minTemp: 10, maxTemp: 17, precipitationMm: rainy ? 4 : 0, rainChance: rainy ? 80 : 5, rainy, ...extra});
@@ -39,20 +39,22 @@ describe("prompts.js", () => {
       });
       it("bases the rain rule on the forecast's rainy flag and ignores weather on unlisted days", () => {
         const prompt = build(AUCKLAND, {forecast: FORECAST});
-        assert.match(prompt, /on a day the daily forecast above marks "rainy": true/);
-        assert.match(prompt, /on every other day ignore the weather completely/);
+        assert.match(prompt, /never on a day the daily forecast above marks "rainy": true/);
+        assert.match(prompt, /Tasks tagged Outdoor or Garden depend on the weather, which is only known for 2026-10-22 to 2026-10-24/);
+        assert.match(prompt, /Never schedule them from 2026-10-25 onwards: leave them out of the schedule\. Other tasks ignore the weather/);
         assert.doesNotMatch(prompt, /The weather above is the current conditions/);
       });
       it("keeps only forecast days inside the first three local days", () => {
         const prompt = build(AUCKLAND, {forecast: [fc("2026-10-21", true), ...FORECAST, fc("2026-10-25", true)]});
-        assert.doesNotMatch(prompt, /2026-10-21/);
-        assert.doesNotMatch(prompt, /2026-10-25/);
+        assert.doesNotMatch(prompt, /"date": "2026-10-21"/);
+        assert.doesNotMatch(prompt, /"date": "2026-10-25"/);
       });
       it("falls back to the current-weather rule when there is no usable forecast", () => {
         for (const forecast of [undefined, [], [fc("2026-11-30", true)]]) {
           const prompt = build(AUCKLAND, {forecast});
           assert.doesNotMatch(prompt, /Daily weather forecast/);
-          assert.match(prompt, /The weather above is the current conditions/);
+          assert.match(prompt, /not at all if the current conditions above are rainy/);
+          assert.match(prompt, /Never schedule them from 2026-10-25 onwards/);
         }
       });
       it("still shows the current weather line", () => {
@@ -62,7 +64,7 @@ describe("prompts.js", () => {
     it("rolls the weather window over a month end", () => {
       const prompt = buildSchedulePrompt({tasks: TASKS, busySlots: [], now: new Date("2026-10-30T20:00:00Z"), weather: "Clear", settings: AUCKLAND});
       assert.match(prompt, /2026-10-31 to 2026-11-02/);
-      assert.match(prompt, /From 2026-11-03 onwards/);
+      assert.match(prompt, /from 2026-11-03 onwards/);
     });
     it("states the configured number of days", () => {
       assert.match(build(AUCKLAND), /across the next 7 days/);

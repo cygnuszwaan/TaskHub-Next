@@ -37,8 +37,8 @@ function buildSchedulePrompt({tasks, busySlots, now, weather, settings, projects
     ${JSON.stringify(days, null, 2)}
     `;
   const weatherRule = days.length === 0 ?
-    `The weather above is the current conditions. Use it only for the first ${WEATHER_DAYS} days, ${today} to ${lastWeatherDay}: if it is rainy, do not schedule Outdoor tasks on those days. From ${firstDryDay} onwards ignore the weather completely and schedule Outdoor tasks like any others.` :
-    `Do not schedule Outdoor tasks on a day the daily forecast above marks "rainy": true. Weather only affects the days listed in that forecast; on every other day ignore the weather completely and schedule Outdoor tasks like any others.`;
+    `Tasks tagged Outdoor or Garden depend on the weather, which is only known for the first ${WEATHER_DAYS} days, ${today} to ${lastWeatherDay}. Schedule them only on those days, and not at all if the current conditions above are rainy. Never schedule them from ${firstDryDay} onwards: leave them out of the schedule. Other tasks ignore the weather.` :
+    `Tasks tagged Outdoor or Garden depend on the weather, which is only known for ${today} to ${lastWeatherDay}. Schedule them only on those days, and never on a day the daily forecast above marks "rainy": true. Never schedule them from ${firstDryDay} onwards: leave them out of the schedule. Other tasks ignore the weather.`;
 
   const projectName = new Map(projects.map((p) => [p.id, oneLine(p.name)]));
   const annotated = annotateDue(tasks, today).map((t) => (projectName.has(t.projectId) ? {...t, project: projectName.get(t.projectId)} : t));

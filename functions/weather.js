@@ -11,6 +11,8 @@ const WEATHER_CODES = {
   95: "Thunderstorm", 96: "Thunderstorm with slight hail", 99: "Thunderstorm with heavy hail",
 };
 
+const {addDays} = require("./time");
+
 const UNAVAILABLE = "Weather data currently unavailable";
 
 // Days of daily forecast the scheduler uses. Weather says nothing useful about days further out, so later days are
@@ -84,4 +86,29 @@ function forecastKey(forecast, current) {
   return weatherKey(current);
 }
 
-module.exports = {WEATHER_CODES, UNAVAILABLE, WEATHER_DAYS, WET_DAY_MM, weatherUrl, describeWeather, weatherKey, parseForecast, forecastKey};
+// Tags (compared ignoring case) that make a task depend on the weather: it is only scheduled inside the forecast
+// window and never on a rainy day.
+const WEATHER_TAGS = ["outdoor", "garden"];
+
+// True when the task carries a weather-dependent tag. Pure: no I/O.
+function isWeatherSensitive(task) {
+  return Boolean(task) && Array.isArray(task.tags) && task.tags.some((tag) => typeof tag === "string" && WEATHER_TAGS.includes(tag.trim().toLowerCase()));
+}
+
+// Where weather-dependent tasks may go. Pure: no I/O.
+//   today:    the current local date, YYYY-MM-DD
+//   forecast: the daily forecast (see parseForecast), possibly empty
+//   current:  the coarse current-weather key (weatherKey), used for the window's days when there is no forecast
+// Returns {lastDate, rainyDates}: the last local date inside the forecast window (WEATHER_DAYS days from today)
+// and the dates in the window that count as rainy. Without a forecast, a WET current key makes every day of the
+// window rainy. Later dates are outside the window whatever the weather.
+function weatherWindow({today, forecast, current}) {
+  const lastDate = addDays(today, WEATHER_DAYS - 1);
+  const inWindow = (Array.isArray(forecast) ? forecast : []).filter((d) => d.date >= today && d.date <= lastDate);
+  if (inWindow.length > 0) return {lastDate, rainyDates: inWindow.filter((d) => d.rainy).map((d) => d.date)};
+  const rainyDates = [];
+  if (current === "WET") for (let i = 0; i < WEATHER_DAYS; i++) rainyDates.push(addDays(today, i));
+  return {lastDate, rainyDates};
+}
+
+module.exports = {WEATHER_CODES, UNAVAILABLE, WEATHER_DAYS, WET_DAY_MM, WEATHER_TAGS, weatherUrl, describeWeather, weatherKey, parseForecast, forecastKey, isWeatherSensitive, weatherWindow};

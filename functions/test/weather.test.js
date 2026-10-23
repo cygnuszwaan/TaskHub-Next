@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {WEATHER_CODES, UNAVAILABLE, WEATHER_DAYS, weatherUrl, describeWeather, weatherKey, parseForecast, forecastKey} = require("../weather");
+const {WEATHER_CODES, UNAVAILABLE, WEATHER_DAYS, weatherUrl, describeWeather, weatherKey, parseForecast, forecastKey, isWeatherSensitive, weatherWindow} = require("../weather");
 
 describe("weather.js", () => {
   describe("weatherUrl", () => {
@@ -135,6 +135,41 @@ describe("weather.js", () => {
       assert.equal(forecastKey([], {weathercode: 61, temperature: 10}), "WET");
       assert.equal(forecastKey(undefined, {weathercode: 0, temperature: 10}), "DRY");
       assert.equal(forecastKey([], undefined), UNAVAILABLE);
+    });
+  });
+
+  describe("isWeatherSensitive", () => {
+    it("is true for an Outdoor or Garden tag, ignoring case and spaces", () => {
+      for (const tag of ["Outdoor", "outdoor", " GARDEN ", "Garden"]) assert.equal(isWeatherSensitive({tags: ["Physical", tag]}), true, tag);
+    });
+    it("is false for other tags, no tags or no task", () => {
+      assert.equal(isWeatherSensitive({tags: ["Indoor", "Gardening tools", "Outdoors"]}), false);
+      assert.equal(isWeatherSensitive({tags: []}), false);
+      assert.equal(isWeatherSensitive({}), false);
+      assert.equal(isWeatherSensitive({tags: [null, 3]}), false);
+      assert.equal(isWeatherSensitive(undefined), false);
+    });
+  });
+
+  describe("weatherWindow", () => {
+    const day = (date, rainy) => ({date, rainy});
+    it("ends the window WEATHER_DAYS days from today and lists the rainy days in it", () => {
+      const w = weatherWindow({today: "2026-10-22", forecast: [day("2026-10-22", false), day("2026-10-23", true), day("2026-10-24", true)], current: "W"});
+      assert.deepEqual(w, {lastDate: "2026-10-24", rainyDates: ["2026-10-23", "2026-10-24"]});
+    });
+    it("ignores forecast days outside the window", () => {
+      const w = weatherWindow({today: "2026-10-22", forecast: [day("2026-10-21", true), day("2026-10-22", false), day("2026-10-25", true)], current: "DRY"});
+      assert.deepEqual(w.rainyDates, []);
+    });
+    it("rolls over a month end", () => {
+      assert.equal(weatherWindow({today: "2026-10-30", forecast: [], current: "DRY"}).lastDate, "2026-11-01");
+    });
+    it("without a forecast, treats every window day as rainy when the current weather is wet", () => {
+      assert.deepEqual(weatherWindow({today: "2026-10-22", forecast: [], current: "WET"}), {lastDate: "2026-10-24", rainyDates: ["2026-10-22", "2026-10-23", "2026-10-24"]});
+      assert.deepEqual(weatherWindow({today: "2026-10-22", forecast: undefined, current: "WET"}).rainyDates.length, WEATHER_DAYS);
+    });
+    it("without a forecast, treats dry or unknown weather as no rainy days but still ends the window", () => {
+      for (const current of ["DRY", "OTHER", UNAVAILABLE]) assert.deepEqual(weatherWindow({today: "2026-10-22", forecast: [], current}), {lastDate: "2026-10-24", rainyDates: []});
     });
   });
 });

@@ -1,6 +1,7 @@
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
 const {localDate, localMinutesOfDay, addDays, localDayStart} = require("./time");
+const {isWeatherSensitive} = require("./weather");
 
 // Scheduling hours in the owner's local time, as minutes since midnight.
 const DAY_START_MIN = 8 * 60;
@@ -15,9 +16,11 @@ function isRealDate(dateStr) {
 }
 
 // What per-slot checks need, computed once per run.
-function makeContext({tasks, busy, now, horizon, timeZone}) {
+function makeContext({tasks, busy, now, horizon, timeZone, weather}) {
   return {
     taskIds: new Set(tasks.map((t) => t.id)),
+    sensitiveIds: new Set(tasks.filter(isWeatherSensitive).map((t) => t.id)),
+    weather: weather || null,
     busyMs: busy
         .map((w) => ({startMs: Date.parse(w.start), endMs: Date.parse(w.end)}))
         .filter((w) => !Number.isNaN(w.startMs) && !Number.isNaN(w.endMs)),
@@ -29,8 +32,18 @@ function makeContext({tasks, busy, now, horizon, timeZone}) {
   };
 }
 
-// Check one slot on its own (shape, time window, busy overlap). Returns {slot} or {error}.
-function checkItem(item, {taskIds, busyMs, now, horizon, timeZone, firstDate, lastDate}) {
+// Weather rule for a slot on a local date. Weather-dependent tasks (Outdoor, Garden tags) may only go inside the
+// forecast window and not on a rainy day; `weather` is {lastDate, rainyDates} (see weather.js `weatherWindow`).
+// Returns an error string or null. Without `weather` nothing is restricted.
+function weatherError(date, weather) {
+  if (!weather) return null;
+  if (date > weather.lastDate) return `weather-dependent (Outdoor/Garden) task on ${date}, after the forecast window ending ${weather.lastDate}`;
+  if ((weather.rainyDates || []).includes(date)) return `weather-dependent (Outdoor/Garden) task on rainy day ${date}`;
+  return null;
+}
+
+// Check one slot on its own (shape, time window, busy overlap, weather). Returns {slot} or {error}.
+function checkItem(item, {taskIds, sensitiveIds, weather, busyMs, now, horizon, timeZone, firstDate, lastDate}) {
   if (!item || typeof item !== "object") return {error: "not an object"};
   if (!taskIds.has(item.taskId)) return {error: "unknown task id"};
 
@@ -38,6 +51,8 @@ function checkItem(item, {taskIds, busyMs, now, horizon, timeZone, firstDate, la
     const date = typeof item.startISO === "string" ? item.startISO.slice(0, 10) : "";
     if (!DATE_ONLY.test(date) || !isRealDate(date)) return {error: "invalid all-day date"};
     if (date < firstDate || date > lastDate) return {error: `all-day date ${date} outside ${firstDate}..${lastDate}`};
+    const dayWeather = sensitiveIds.has(item.taskId) ? weatherError(date, weather) : null;
+    if (dayWeather) return {error: dayWeather};
     return {slot: {taskId: item.taskId, item, allDay: true, date, endDate: addDays(date, 1)}};
   }
 
@@ -58,6 +73,8 @@ function checkItem(item, {taskIds, busyMs, now, horizon, timeZone, firstDate, la
     return {error: "outside 8:00-19:00 local time"};
   }
   if (busyMs.some((w) => startMs < w.endMs && endMs > w.startMs)) return {error: "overlaps a busy window"};
+  const timedWeather = sensitiveIds.has(item.taskId) ? weatherError(localDate(timeZone, start), weather) : null;
+  if (timedWeather) return {error: timedWeather};
 
   return {slot: {taskId: item.taskId, item, allDay: false, startMs, endMs}};
 }
@@ -68,16 +85,18 @@ function checkItem(item, {taskIds, busyMs, now, horizon, timeZone, firstDate, la
 //   busy:    merged busy windows [{start, end}] (ISO strings)
 //   now, horizon: Date objects bounding the schedulable range
 //   timeZone: the owner's IANA time zone, which defines days and the 8:00-19:00 window
+//   weather:  optional {lastDate, rainyDates} (weather.js `weatherWindow`): tasks tagged Outdoor or Garden must sit on
+//             a local date up to lastDate that is not rainy
 //   allTasks: every active task (default `tasks`), for project membership; see checkProjectOrder
 //   fixed:    slots of tasks outside this run ([{taskId, start, end}], ISO instants); see checkProjectOrder
 // Returns {slots, errors}. Slots are only meaningful when errors is empty.
 // Timed slots must be parseable, in the future, end by the horizon, sit on one local day
 // inside 8:00-19:00, and not overlap busy windows or each other. All-day slots must fall
 // on a local date between today and the horizon's date; they are reminders and skip overlap checks.
-function validateSchedule({items, tasks, busy, now, horizon, timeZone, allTasks = tasks, fixed = []}) {
+function validateSchedule({items, tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = []}) {
   const errors = [];
   const slots = [];
-  const ctx = makeContext({tasks, busy, now, horizon, timeZone});
+  const ctx = makeContext({tasks, busy, now, horizon, timeZone, weather});
   const {taskIds} = ctx;
   const seen = new Set();
 
@@ -164,12 +183,12 @@ function checkProjectOrder(args) {
 // validateSchedule and returns {slots, dropped, errors}: `slots` are the slots that survive, `dropped` is
 // [{taskId, reason}] for every task of the run that ended up without a slot, and `errors` is whatever
 // validateSchedule still finds in the survivors (empty by construction; kept as a safety net).
-// Rules: a slot that fails its own checks is dropped, a repeated task keeps its first slot, of two overlapping
+// Rules: a slot that fails its own checks (including the weather rule) is dropped, a repeated task keeps its first slot, of two overlapping
 // timed slots the earlier one is kept, and a project-order violation drops the later-tier task (or, when that task
 // is fixed outside the run, the run's earlier-tier task). Dropping a task can only create new violations for the
 // higher tiers of its project, so the order check repeats until nothing more is dropped.
-function repairSchedule({items, tasks, busy, now, horizon, timeZone, allTasks = tasks, fixed = []}) {
-  const ctx = makeContext({tasks, busy, now, horizon, timeZone});
+function repairSchedule({items, tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = []}) {
+  const ctx = makeContext({tasks, busy, now, horizon, timeZone, weather});
   const dropped = [];
   const drop = (taskId, reason) => dropped.push({taskId, reason});
   let slots = [];
@@ -218,7 +237,7 @@ function repairSchedule({items, tasks, busy, now, horizon, timeZone, allTasks = 
 
   const kept = new Set(slots.map((s) => s.taskId));
   // Tasks the model left out entirely are not "dropped": they simply have no slot. Only report ones it tried.
-  const result = validateSchedule({items: slots.map((s) => s.item), tasks, busy, now, horizon, timeZone, allTasks, fixed});
+  const result = validateSchedule({items: slots.map((s) => s.item), tasks, busy, now, horizon, timeZone, weather, allTasks, fixed});
   return {slots: result.slots, dropped: dropped.filter((d) => !kept.has(d.taskId)), errors: result.errors};
 }
 

@@ -12,7 +12,7 @@ const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eve
 const {repairSchedule, parseScheduleResponse, buildFixedSlots, matchLockedEvents} = require("./schedule");
 const {applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
-const {UNAVAILABLE, weatherUrl, describeWeather, parseForecast, forecastKey} = require("./weather");
+const {UNAVAILABLE, weatherUrl, describeWeather, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
 const {buildSchedulePrompt, buildTaskPrompt} = require("./prompts");
 const {SUMMARY_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted} = require("./completed");
@@ -78,7 +78,7 @@ const changeSchema = {
           tags: {
             type: Type.ARRAY,
             items: {type: Type.STRING},
-            description: "Concise contextual tags like Outdoor, Indoor, Shopping, Mentally Focused, Physical, etc.",
+            description: "Concise contextual tags like Outdoor, Garden (for gardening), Indoor, Shopping, Mentally Focused, Physical, etc.",
           },
           recurrence: {
             type: Type.OBJECT,
@@ -332,7 +332,9 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
     const fixed = buildFixedSlots({tasks: currentTasks, inScopeIds: subset ? new Set(inScope.map((t) => t.id)) : null, lockedWindows: lockedByTask, timeZone});
     const projects = await readProjects();
     console.log(`Scheduling ${toSchedule.length} tasks over ${settings.scheduleDays} days (${busySlots.length} busy windows, to ${horizon.toISOString()})`);
-    const validation = {busy: busySlots, now, horizon, timeZone, allTasks: currentTasks, fixed};
+    // Outdoor and Garden tasks stay inside the forecast window and off rainy days (enforced on Gemini's slots)
+    const weatherRules = weatherWindow({today: localDate(timeZone, now), forecast: weather.forecast, current: weather.key});
+    const validation = {busy: busySlots, now, horizon, timeZone, weather: weatherRules, allTasks: currentTasks, fixed};
     const result = await requestValidSchedule(toSchedule, busySlots, now, settings, weather.text, {projects, fixed, allTasks: currentTasks, forecast: weather.forecast}, validation);
     scheduledList = result.items;
     slots = result.slots;
