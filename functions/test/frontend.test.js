@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS};`)();
+    return {TABS, normalizeTab, removalMessage, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -217,6 +217,16 @@ describe("public/index.html helpers", () => {
       assert.match(html, /getElementById\("taskSearch"\)\.addEventListener\("input", renderTasks\)/);
       assert.match(html, /filterTasks\(allTasks, selectedTagFilter, selectedProjectFilter, document\.getElementById\("taskSearch"\)\.value\)/);
     });
+    it("has an Undo toast outside the pages, shown after a delete or completion, and deletes without a confirmation", () => {
+      const toast = at(`id="undoToast"`);
+      assert.ok(toast > at("</main>", at(`id="pageSettings"`)) && toast < at(`id="editModal"`));
+      assert.match(html, /\.toast\[hidden\]\s*\{\s*display:\s*none/);
+      assert.match(html, /const UNDO_URL = endpoint\("undoRemove"\)/);
+      assert.match(html, /showUndoToast\("COMPLETE", task\.title\)/);
+      assert.match(html, /showUndoToast\("DELETE", task\.title\)/);
+      const del = html.slice(html.indexOf("async function deleteTask("), html.indexOf("function fmtMinutes"));
+      assert.doesNotMatch(del, /confirm\(/);
+    });
     it("starts the Tags and Projects sections collapsed", () => {
       for (const id of ["tagsDetails", "projectsDetails"]) {
         const i = at(`id="${id}"`);
@@ -249,6 +259,24 @@ describe("public/index.html helpers", () => {
         assert.equal(r.settings.schedule.time, h.DAILY_TIME);
       }
       assert.equal(h.DAILY_TIME, "20:00");
+    });
+  });
+
+  describe("removalMessage", () => {
+    it("says what was done to the task", () => {
+      const h = load();
+      assert.equal(h.removalMessage("COMPLETE", "Mow lawn"), "Completed “Mow lawn”");
+      assert.equal(h.removalMessage("DELETE", "Mow lawn"), "Deleted “Mow lawn”");
+    });
+    it("shortens a long title to 40 characters including the ellipsis", () => {
+      const msg = load().removalMessage("DELETE", "A".repeat(60));
+      assert.equal(msg, `Deleted “${"A".repeat(39)}…”`);
+    });
+    it("leaves a title of exactly 40 characters alone, and copes with a missing one", () => {
+      const h = load();
+      assert.equal(h.removalMessage("COMPLETE", "B".repeat(40)), `Completed “${"B".repeat(40)}”`);
+      assert.equal(h.removalMessage("DELETE", ""), "Deleted task");
+      assert.equal(h.removalMessage("COMPLETE", undefined), "Completed task");
     });
   });
 

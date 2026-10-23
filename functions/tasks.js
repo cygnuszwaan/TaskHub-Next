@@ -201,6 +201,45 @@ function completeInList(tasks, taskId, today, makeId) {
   return {tasks: [...rest, spawned], completedTask, spawned};
 }
 
+// How long after a delete or completion it can still be undone.
+const UNDO_WINDOW_MS = 10 * 60 * 1000;
+
+// The record kept (one at a time, `settings/lastRemoved`) so the last delete or completion can be undone.
+//   kind:    "DELETE" or "COMPLETE"
+//   task:    the task as it was on the list
+//   archiveId: id of its `completed_tasks` document (a completion), else null
+//   spawned: the next occurrence a completion created (or null)
+//   now:     milliseconds since the epoch
+function removalRecord(kind, task, archiveId, spawned, now) {
+  return {kind, task, archiveId: archiveId || null, spawnedId: spawned ? spawned.id : null, at: now};
+}
+
+// Whether a stored record can still be undone at `now`.
+function isUndoable(record, now) {
+  return Boolean(record) && typeof record.at === "number" && now - record.at >= 0 && now - record.at <= UNDO_WINDOW_MS &&
+    Boolean(record.task) && typeof record.task.id === "string" && record.task.id !== "";
+}
+
+// Put a removed task back on the list. Pure: no I/O.
+//   tasks:   the list as stored now
+//   record:  see removalRecord
+// The next occurrence a completion created is taken off again. The task returns with its own id, rank and fields; its
+// calendar event was deleted with it, so its schedule fields are dropped (the next run schedules it again), unless it is
+// pinned to a personal-calendar event (`locked`), whose event was never touched.
+// Returns null when the task is already on the list (nothing to restore), otherwise {tasks, restored}.
+function undoInList(tasks, record) {
+  const task = record && record.task;
+  if (!task || typeof task.id !== "string" || tasks.some((t) => t.id === task.id)) return null;
+  const rest = record.spawnedId ? tasks.filter((t) => t.id !== record.spawnedId) : tasks;
+  const restored = {...task};
+  if (!restored.locked) {
+    delete restored.googleCalendarEventId;
+    delete restored.scheduledStart;
+    delete restored.scheduledEnd;
+  }
+  return {tasks: [...rest, restored], restored};
+}
+
 // Record an engine run's results on the freshly read list. Pure: no I/O.
 //   tasks:       the list as stored now (it may have changed while the engine ran)
 //   knownIds:    ids of the tasks the engine read at the start of its run
@@ -236,4 +275,4 @@ function applyScheduleResults({tasks, knownIds, locked, scheduled, createdEvents
   return {tasks: updatedTasks, orphanEventIds};
 }
 
-module.exports = {FREQUENCIES, MAX_INTERVAL, normalizeRecurrence, manualTaskChange, applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults};
+module.exports = {FREQUENCIES, MAX_INTERVAL, UNDO_WINDOW_MS, normalizeRecurrence, manualTaskChange, applyDirectUpdate, completeInList, removalRecord, isUndoable, undoInList, mergeTaskChanges, applyScheduleResults};

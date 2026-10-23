@@ -12,7 +12,7 @@ const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eve
 const {repairSchedule, parseScheduleResponse, buildFixedSlots, matchLockedEvents} = require("./schedule");
 const {planSchedule} = require("./planner");
 const {lunchWindows, padWindows} = require("./breaks");
-const {applyDirectUpdate, completeInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
+const {applyDirectUpdate, completeInList, removalRecord, isUndoable, undoInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
 const {UNAVAILABLE, weatherUrl, describeWeather, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
@@ -31,6 +31,8 @@ const db = admin.firestore();
 // Active tasks: one document per task in `tasks/{id}`. updateTaskList(mutate) is a transactional read-modify-write
 // of the whole list (see store.js); readTaskList() is a plain read.
 const {updateTaskList, getTasks: readTaskList} = makeTaskStore(db);
+// The last task deleted or completed, for undoRemove: one document, replaced by each removal
+const LAST_REMOVED_REF = db.doc("settings/lastRemoved");
 // Projects that tasks can belong to, in `projects/{id}`; see projects.js and store.js.
 const {getProjects: readProjects, createProject, renameProject, deleteProject} = makeProjectStore(db);
 // Runtime settings (location, time zone, auto-run schedule) in `settings/app`; see settings.js.
@@ -594,10 +596,13 @@ exports.completeTask = onRequest({
     const result = await updateTaskList((tasks, tx) => {
       const done = completeInList(tasks, taskId, today, randomUUID);
       if (!done) return {current: tasks};
-      tx.create(db.collection("completed_tasks").doc(), {
+      const archiveRef = db.collection("completed_tasks").doc();
+      tx.create(archiveRef, {
         ...done.completedTask,
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+      // Kept for undoRemove, in the same commit
+      tx.set(LAST_REMOVED_REF, removalRecord("COMPLETE", done.completedTask, archiveRef.id, done.spawned, Date.now()));
       return {tasks: done.tasks, current: done.tasks, completedTask: done.completedTask, spawned: done.spawned};
     });
     await removeTaskCalendarEvent(result.completedTask);
@@ -654,6 +659,7 @@ exports.updateTaskDirect = onRequest({
         const removedTask = tasks.find((t) => t.id === taskId);
         if (!removedTask) return {current: tasks};
         const remaining = tasks.filter((t) => t.id !== taskId);
+        tx.set(LAST_REMOVED_REF, removalRecord("DELETE", removedTask, null, null, Date.now())); // kept for undoRemove
         return {tasks: remaining, current: remaining, removedTask};
       }
       if (action === "UPDATE" && tasks.some((t) => t.id === taskId)) {
@@ -666,6 +672,30 @@ exports.updateTaskDirect = onRequest({
     await removeTaskCalendarEvent(result.removedTask);
 
     res.status(200).send({success: true, tasks: result.current});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 7b. Endpoint: Undo the last delete or completion
+// No body. Puts the task most recently deleted or completed back on the list (taking off the next occurrence a
+// completion created, and deleting its archive entry), if that was within 10 minutes and it is not already back.
+// Only the last removal is kept, so it undoes one step. Responds {success, tasks, kind}; 404 when there is nothing
+// to undo. The task's calendar event stays deleted: the next schedule run books it again.
+exports.undoRemove = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const snap = await LAST_REMOVED_REF.get();
+    const record = snap.exists ? snap.data() : null;
+    if (!isUndoable(record, Date.now())) return res.status(404).send({error: "Nothing to undo"});
+    const result = await updateTaskList((tasks, tx) => {
+      const undone = undoInList(tasks, record);
+      tx.delete(LAST_REMOVED_REF);
+      if (!undone) return {current: tasks};
+      if (record.archiveId) tx.delete(db.collection("completed_tasks").doc(record.archiveId));
+      return {tasks: undone.tasks, current: undone.tasks, restored: true};
+    });
+    res.status(200).send({success: true, tasks: result.current, kind: record.kind, restored: Boolean(result.restored)});
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});

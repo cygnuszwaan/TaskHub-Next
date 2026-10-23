@@ -71,6 +71,9 @@
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; overscroll-behavior: contain; }
     .modal-card { background: white; width: 90%; max-width: 480px; max-height: 90vh; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; padding: 20px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
     body.modal-open { overflow: hidden; }
+    .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 1100; display: flex; align-items: center; gap: 14px; max-width: 90%; background: #1f2937; color: #fff; padding: 10px 14px; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.3); font-size: 14px; }
+    .toast[hidden] { display: none; }
+    .toast button { background: transparent; color: #7cc0ff; font-weight: 700; padding: 4px 6px; }
     .modal-card h3 { margin-top: 0; margin-bottom: 16px; font-size: 18px; }
     .form-group { margin-bottom: 12px; }
     .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #475569; }
@@ -290,6 +293,11 @@
   </div>
   </main>
 
+  <div id="undoToast" class="toast" role="status" hidden>
+    <span id="undoToastText"></span>
+    <button type="button" id="undoToastBtn">Undo</button>
+  </div>
+
   <div id="editModal" class="modal-overlay" onclick="closeModalOnOverlay(event)">
     <div class="modal-card">
       <h3>Edit Task Details</h3>
@@ -392,6 +400,7 @@
     const GET_TASKS_URL = endpoint("getTasks");
     const DIRECT_UPDATE_URL = endpoint("updateTaskDirect");
     const COMPLETE_TASK_URL = endpoint("completeTask");
+    const UNDO_URL = endpoint("undoRemove");
     const SCHEDULE_URL = endpoint("generateWeeklySchedule");
     const RESCHEDULE_URL = endpoint("rescheduleTask");
     const COMPLETED_URL = endpoint("getCompletedTasks");
@@ -532,6 +541,13 @@
         time: DAILY_TIME,
         intervalMinutes: daily ? (Number(storedInterval) || DEFAULT_INTERVAL_MINUTES) : Number(choice)
       };
+    }
+
+    // The toast text after a delete or completion: the task's title is shortened to 40 characters.
+    function removalMessage(kind, title) {
+      const text = String(title || "").trim();
+      const shown = text.length > 40 ? text.slice(0, 39).trimEnd() + "…" : text;
+      return (kind === "COMPLETE" ? "Completed" : "Deleted") + (shown ? ` “${shown}”` : " task");
     }
 
     const TABS = ["tasks", "materials", "stats", "settings"];
@@ -925,7 +941,34 @@
       updateProjectOrderField("manual");
     }
 
+    // The "Undo" toast after a delete or completion: shown for 8 seconds; Undo asks the server to put the last removed
+    // task back (it keeps one step for ten minutes, see undoRemove).
+    let undoTimer = null;
+    function showUndoToast(kind, title) {
+      document.getElementById("undoToastText").textContent = removalMessage(kind, title);
+      document.getElementById("undoToast").hidden = false;
+      clearTimeout(undoTimer);
+      undoTimer = setTimeout(hideUndoToast, 8000);
+    }
+    function hideUndoToast() {
+      clearTimeout(undoTimer);
+      document.getElementById("undoToast").hidden = true;
+    }
+    async function undoRemoval() {
+      hideUndoToast();
+      try {
+        const res = await apiFetch(UNDO_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+        const data = await res.json();
+        allTasks = data.tasks || [];
+        renderFilterBar();
+        renderTasks();
+      } catch (err) {
+        alert("Error undoing: " + err.message);
+      }
+    }
+
     async function completeTask(taskId) {
+      const task = allTasks.find(t => t.id === taskId);
       try {
         const res = await apiFetch(COMPLETE_TASK_URL, {
           method: "POST",
@@ -936,6 +979,7 @@
         allTasks = data.tasks || [];
         renderFilterBar();
         renderTasks();
+        if (task && !allTasks.some(t => t.id === taskId)) showUndoToast("COMPLETE", task.title);
       } catch (err) {
         alert("Error completing task: " + err.message);
       }
@@ -1285,8 +1329,9 @@
       await deleteTask(taskId);
     }
 
+    // No confirmation: the Undo toast is the safety net
     async function deleteTask(taskId) {
-      if (!confirm("Delete this task?")) return;
+      const task = allTasks.find(t => t.id === taskId);
       try {
         const res = await apiFetch(DIRECT_UPDATE_URL, {
           method: "POST",
@@ -1297,6 +1342,7 @@
         allTasks = data.tasks || [];
         renderFilterBar();
         renderTasks();
+        if (task && !allTasks.some(t => t.id === taskId)) showUndoToast("DELETE", task.title);
       } catch (err) {
         alert("Error deleting task: " + err.message);
       }
@@ -1608,6 +1654,7 @@
       }
     }
 
+    document.getElementById("undoToastBtn").addEventListener("click", undoRemoval);
     document.getElementById("tabBar").addEventListener("click", e => {
       const btn = e.target.closest("[data-tab]");
       if (btn) showTab(btn.dataset.tab);

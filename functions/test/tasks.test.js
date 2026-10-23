@@ -570,3 +570,75 @@ describe("manualTaskChange", () => {
     assert.deepEqual(merged.tasks, [{id: "new1", title: "Pay rates", priority: "HIGH", dueDate: "2026-11-01", estimatedMinutes: 10, tags: [], status: "PENDING", order: 1}]);
   });
 });
+
+describe("undoing a delete or completion", () => {
+  const {removalRecord, isUndoable, undoInList, completeInList, UNDO_WINDOW_MS} = require("../tasks");
+  const task = {id: "t1", title: "Mow lawn", priority: "LOW", dueDate: "", estimatedMinutes: 30, tags: ["Outdoor"], status: "PENDING", order: 2, googleCalendarEventId: "ev1", scheduledStart: "2026-11-02T09:00:00+13:00", scheduledEnd: "2026-11-02T09:30:00+13:00"};
+  const other = {id: "t2", title: "Other", priority: "LOW", dueDate: "", estimatedMinutes: 15, tags: [], status: "PENDING", order: 1};
+
+  describe("removalRecord", () => {
+    it("keeps the kind, task, archive id, next occurrence's id and time", () => {
+      assert.deepEqual(removalRecord("COMPLETE", task, "a1", {id: "n1"}, 1000), {kind: "COMPLETE", task, archiveId: "a1", spawnedId: "n1", at: 1000});
+    });
+    it("uses null for a missing archive id or next occurrence", () => {
+      const r = removalRecord("DELETE", task, undefined, undefined, 5);
+      assert.equal(r.archiveId, null);
+      assert.equal(r.spawnedId, null);
+    });
+  });
+
+  describe("isUndoable", () => {
+    const rec = removalRecord("DELETE", task, null, null, 1000000);
+    it("is true within the window, including its end", () => {
+      assert.equal(isUndoable(rec, 1000000), true);
+      assert.equal(isUndoable(rec, 1000000 + UNDO_WINDOW_MS), true);
+    });
+    it("is false after the window, for a time before the record, or without a usable record", () => {
+      assert.equal(isUndoable(rec, 1000000 + UNDO_WINDOW_MS + 1), false);
+      assert.equal(isUndoable(rec, 999999), false);
+      for (const bad of [null, undefined, {}, {at: 1}, {at: 1, task: {}}, {at: "1", task: {id: "x"}}]) assert.equal(isUndoable(bad, 2), false);
+    });
+    it("allows ten minutes", () => assert.equal(UNDO_WINDOW_MS, 600000));
+  });
+
+  describe("undoInList", () => {
+    it("puts a deleted task back with its own id and rank, without its schedule fields", () => {
+      const r = undoInList([other], removalRecord("DELETE", task, null, null, 1));
+      assert.deepEqual(r.tasks.map((t) => t.id), ["t2", "t1"]);
+      assert.equal(r.restored.order, 2);
+      for (const key of ["googleCalendarEventId", "scheduledStart", "scheduledEnd"]) assert.equal(key in r.restored, false, key);
+      assert.equal(r.restored.title, "Mow lawn");
+    });
+    it("keeps the schedule fields of a task pinned to a personal-calendar event", () => {
+      const locked = {...task, locked: true};
+      const r = undoInList([], removalRecord("DELETE", locked, null, null, 1));
+      assert.deepEqual(r.restored, locked);
+    });
+    it("takes off the next occurrence a completion created", () => {
+      const recurring = {...task, recurrence: {frequency: "WEEKLY", interval: 1}, dueDate: "2026-11-01"};
+      const done = completeInList([recurring, other], "t1", "2026-10-24", () => "next1");
+      assert.equal(done.spawned.id, "next1");
+      const r = undoInList(done.tasks, removalRecord("COMPLETE", done.completedTask, "a1", done.spawned, 1));
+      assert.deepEqual(r.tasks.map((t) => t.id).sort(), ["t1", "t2"]);
+    });
+    it("round-trips a plain completion back to the original list (apart from the dropped schedule)", () => {
+      const done = completeInList([task, other], "t1", "2026-10-24", () => "x");
+      const r = undoInList(done.tasks, removalRecord("COMPLETE", done.completedTask, "a1", null, 1));
+      assert.equal(r.tasks.length, 2);
+      assert.equal(r.restored.id, "t1");
+    });
+    it("does nothing when the task is already on the list, or the record is unusable", () => {
+      assert.equal(undoInList([task], removalRecord("DELETE", task, null, null, 1)), null);
+      assert.equal(undoInList([other], null), null);
+      assert.equal(undoInList([other], {kind: "DELETE"}), null);
+      assert.equal(undoInList([other], {task: {title: "no id"}}), null);
+    });
+    it("does not change the list it was given, or the record's task", () => {
+      const list = [other];
+      const rec = removalRecord("DELETE", task, null, null, 1);
+      undoInList(list, rec);
+      assert.deepEqual(list, [other]);
+      assert.equal(rec.task.googleCalendarEventId, "ev1");
+    });
+  });
+});
