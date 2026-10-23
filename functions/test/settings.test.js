@@ -314,3 +314,47 @@ describe("settings.js: gap between tasks and lunch break", () => {
     assert.match(applySettingsUpdate(mergeSettings(undefined), {schedule: {time: "7pm"}}).error, /schedule\.time/);
   });
 });
+
+describe("settings.js: daily window", () => {
+  const {dayWindowMinutes, MIN_DAY_MINUTES} = require("../settings");
+  it("defaults to 09:00-17:00", () => {
+    assert.deepEqual(mergeSettings(undefined).day, {start: "09:00", end: "17:00"});
+    assert.deepEqual(dayWindowMinutes(mergeSettings(undefined)), {dayStartMin: 540, dayEndMin: 1020});
+  });
+  it("agrees with the scheduler's default hours", () => {
+    const {DAY_START_MIN, DAY_END_MIN} = require("../schedule");
+    assert.deepEqual(dayWindowMinutes(undefined), {dayStartMin: DAY_START_MIN, dayEndMin: DAY_END_MIN});
+  });
+  it("keeps a valid stored window and falls back to both defaults for a bad one", () => {
+    assert.deepEqual(mergeSettings({day: {start: "07:15", end: "21:00"}}).day, {start: "07:15", end: "21:00"});
+    assert.deepEqual(mergeSettings({day: {start: "7am", end: "21:00"}}).day, {start: "09:00", end: "21:00"});
+    assert.deepEqual(mergeSettings({day: {start: "18:00", end: "09:00"}}).day, {start: "09:00", end: "17:00"});
+    assert.deepEqual(mergeSettings({day: {start: "09:00", end: "09:30"}}).day, {start: "09:00", end: "17:00"});
+    assert.deepEqual(mergeSettings({day: "9-5"}).day, {start: "09:00", end: "17:00"});
+  });
+  it("does not let a returned window change the defaults", () => {
+    mergeSettings(undefined).day.start = "03:00";
+    assert.equal(mergeSettings(undefined).day.start, "09:00");
+  });
+  it("is editable one end at a time, and the whole window at once", () => {
+    const current = mergeSettings(undefined);
+    assert.deepEqual(applySettingsUpdate(current, {day: {end: "18:30"}}).settings.day, {start: "09:00", end: "18:30"});
+    assert.deepEqual(applySettingsUpdate(current, {day: {start: "06:00"}}).settings.day, {start: "06:00", end: "17:00"});
+    assert.deepEqual(applySettingsUpdate(current, {day: {start: "10:00", end: "11:00"}}).settings.day, {start: "10:00", end: "11:00"});
+    assert.equal(MIN_DAY_MINUTES, 60);
+  });
+  it("rejects a malformed time, a window shorter than an hour and one that is backwards, saving nothing", () => {
+    const current = mergeSettings(undefined);
+    assert.match(applySettingsUpdate(current, {day: {start: "9:00"}}).error, /day\.start/);
+    assert.match(applySettingsUpdate(current, {day: {end: "25:00"}}).error, /day\.end/);
+    assert.match(applySettingsUpdate(current, {day: {end: "09:30"}}).error, /at least 60 minutes after day\.start/);
+    assert.match(applySettingsUpdate(current, {day: {start: "17:00"}}).error, /at least 60 minutes after/);
+    assert.match(applySettingsUpdate(current, {day: {start: "18:00", end: "08:00"}}).error, /at least 60 minutes after/);
+    assert.match(applySettingsUpdate(current, {day: "9-5"}).error, /day must be an object/);
+    assert.match(applySettingsUpdate(current, {gapMinutes: 10, day: {end: "09:00"}}).error, /day\.end/);
+  });
+  it("leaves the automatic run's own 8:00-19:00 window alone", () => {
+    const s = base({day: {start: "10:00", end: "15:00"}, schedule: {...DEFAULTS.schedule, frequency: "INTERVAL", intervalMinutes: 15}});
+    assert.equal(isRunDue(s, new Date("2026-10-22T08:15:00+13:00")), true);
+  });
+});

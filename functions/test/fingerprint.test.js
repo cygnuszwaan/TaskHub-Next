@@ -147,6 +147,17 @@ describe("fingerprint.js", () => {
   });
 });
 
+describe("fingerprint.js: daily window", () => {
+  it("changes with the start or the end of the day", () => {
+    assert.notEqual(fp({settings: {...settings, day: {start: "08:00", end: "17:00"}}}), fp());
+    assert.notEqual(fp({settings: {...settings, day: {start: "09:00", end: "18:00"}}}), fp());
+    assert.equal(fp({settings: {...settings, day: {start: "09:00", end: "17:00"}}}), fp());
+  });
+  it("accepts settings without a window", () => {
+    assert.equal(typeof fp({settings: {...settings, day: undefined}}), "string");
+  });
+});
+
 describe("fingerprint.js: gap setting", () => {
   it("changes with the gap between tasks and treats a missing gap as 0", () => {
     assert.notEqual(fp({settings: {...settings, gapMinutes: 15}}), fp());

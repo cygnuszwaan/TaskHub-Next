@@ -3,9 +3,15 @@
 const {localDate, localMinutesOfDay, addDays, localDayStart} = require("./time");
 const {isWeatherSensitive} = require("./weather");
 
-// Scheduling hours in the owner's local time, as minutes since midnight.
-const DAY_START_MIN = 8 * 60;
-const DAY_END_MIN = 19 * 60;
+// Default scheduling hours in the owner's local time, as minutes since midnight (the settings' day window overrides
+// them; see settings.js `dayWindowMinutes`).
+const DAY_START_MIN = 9 * 60;
+const DAY_END_MIN = 17 * 60;
+
+// Minutes since midnight as H:MM, for messages.
+function clockText(minutes) {
+  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;
+}
 
 const ISO_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -21,8 +27,10 @@ function gapToMs(gapMinutes) {
   return Number.isFinite(gapMinutes) && gapMinutes > 0 ? Math.round(gapMinutes) * 60000 : 0;
 }
 
-function makeContext({tasks, busy, now, horizon, timeZone, weather}) {
+function makeContext({tasks, busy, now, horizon, timeZone, weather, dayStartMin = DAY_START_MIN, dayEndMin = DAY_END_MIN}) {
   return {
+    dayStartMin,
+    dayEndMin,
     taskIds: new Set(tasks.map((t) => t.id)),
     sensitiveIds: new Set(tasks.filter(isWeatherSensitive).map((t) => t.id)),
     weather: weather || null,
@@ -48,7 +56,7 @@ function weatherError(date, weather) {
 }
 
 // Check one slot on its own (shape, time window, busy overlap, weather). Returns {slot} or {error}.
-function checkItem(item, {taskIds, sensitiveIds, weather, busyMs, now, horizon, timeZone, firstDate, lastDate}) {
+function checkItem(item, {taskIds, sensitiveIds, weather, busyMs, now, horizon, timeZone, firstDate, lastDate, dayStartMin, dayEndMin}) {
   if (!item || typeof item !== "object") return {error: "not an object"};
   if (!taskIds.has(item.taskId)) return {error: "unknown task id"};
 
@@ -74,8 +82,8 @@ function checkItem(item, {taskIds, sensitiveIds, weather, busyMs, now, horizon, 
   const start = new Date(startMs);
   const end = new Date(endMs);
   if (localDate(timeZone, start) !== localDate(timeZone, end)) return {error: "spans more than one local day"};
-  if (localMinutesOfDay(timeZone, start) < DAY_START_MIN || localMinutesOfDay(timeZone, end) > DAY_END_MIN) {
-    return {error: "outside 8:00-19:00 local time"};
+  if (localMinutesOfDay(timeZone, start) < dayStartMin || localMinutesOfDay(timeZone, end) > dayEndMin) {
+    return {error: `outside ${clockText(dayStartMin)}-${clockText(dayEndMin)} local time`};
   }
   if (busyMs.some((w) => startMs < w.endMs && endMs > w.startMs)) return {error: "overlaps a busy window"};
   const timedWeather = sensitiveIds.has(item.taskId) ? weatherError(localDate(timeZone, start), weather) : null;
@@ -89,7 +97,8 @@ function checkItem(item, {taskIds, sensitiveIds, weather, busyMs, now, horizon, 
 //   tasks:   the active task list
 //   busy:    merged busy windows [{start, end}] (ISO strings)
 //   now, horizon: Date objects bounding the schedulable range
-//   timeZone: the owner's IANA time zone, which defines days and the 8:00-19:00 window
+//   timeZone: the owner's IANA time zone, which defines days and the daily window
+//   dayStartMin, dayEndMin: the daily window as minutes since midnight (default 9:00-17:00)
 //   weather:  optional {lastDate, rainyDates} (weather.js `weatherWindow`): tasks tagged Outdoor or Garden must sit on
 //             a local date up to lastDate that is not rainy
 //   allTasks: every active task (default `tasks`), for project membership; see checkProjectOrder
@@ -97,13 +106,13 @@ function checkItem(item, {taskIds, sensitiveIds, weather, busyMs, now, horizon, 
 //   gapMinutes: free minutes required between two timed slots of this run (default 0)
 // Returns {slots, errors}. Slots are only meaningful when errors is empty.
 // Timed slots must be parseable, in the future, end by the horizon, sit on one local day
-// inside 8:00-19:00, and not overlap busy windows or each other. All-day slots must fall
+// inside the daily window, and not overlap busy windows or each other. All-day slots must fall
 // on a local date between today and the horizon's date; they are reminders and skip overlap checks.
-function validateSchedule({items, tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = [], gapMinutes = 0}) {
+function validateSchedule({items, tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = [], gapMinutes = 0, dayStartMin, dayEndMin}) {
   const gapMs = gapToMs(gapMinutes);
   const errors = [];
   const slots = [];
-  const ctx = makeContext({tasks, busy, now, horizon, timeZone, weather});
+  const ctx = makeContext({tasks, busy, now, horizon, timeZone, weather, dayStartMin, dayEndMin});
   const {taskIds} = ctx;
   const seen = new Set();
 
@@ -194,9 +203,9 @@ function checkProjectOrder(args) {
 // timed slots the earlier one is kept, and a project-order violation drops the later-tier task (or, when that task
 // is fixed outside the run, the run's earlier-tier task). Dropping a task can only create new violations for the
 // higher tiers of its project, so the order check repeats until nothing more is dropped.
-function repairSchedule({items, tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = [], gapMinutes = 0}) {
+function repairSchedule({items, tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = [], gapMinutes = 0, dayStartMin, dayEndMin}) {
   const gapMs = gapToMs(gapMinutes);
-  const ctx = makeContext({tasks, busy, now, horizon, timeZone, weather});
+  const ctx = makeContext({tasks, busy, now, horizon, timeZone, weather, dayStartMin, dayEndMin});
   const dropped = [];
   const drop = (taskId, reason) => dropped.push({taskId, reason});
   let slots = [];
@@ -245,7 +254,7 @@ function repairSchedule({items, tasks, busy, now, horizon, timeZone, weather, al
 
   const kept = new Set(slots.map((s) => s.taskId));
   // Tasks the model left out entirely are not "dropped": they simply have no slot. Only report ones it tried.
-  const result = validateSchedule({items: slots.map((s) => s.item), tasks, busy, now, horizon, timeZone, weather, allTasks, fixed, gapMinutes});
+  const result = validateSchedule({items: slots.map((s) => s.item), tasks, busy, now, horizon, timeZone, weather, allTasks, fixed, gapMinutes, dayStartMin, dayEndMin});
   return {slots: result.slots, dropped: dropped.filter((d) => !kept.has(d.taskId)), errors: result.errors};
 }
 

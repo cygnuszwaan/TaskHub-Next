@@ -31,8 +31,8 @@ function lunchWindows({lunch, timeZone, now, horizon}) {
 }
 
 // `windows` ([{start, end}], ISO strings) widened by `minutes` on both sides, so that nothing else is placed within
-// that distance of them. Used for the tasks the run does not place itself (pinned or already scheduled ones), to
-// keep the gap between tasks around them too. Unusable windows are dropped; with no gap the windows are the same instants.
+// that distance of them. Used for every calendar event and for the tasks the run does not place itself (pinned or
+// already scheduled ones), to keep the gap around them. Unusable windows are dropped; with no gap the windows are the same instants.
 function padWindows(windows, minutes) {
   const pad = Number.isFinite(minutes) && minutes > 0 ? minutes * MINUTE_MS : 0;
   return (Array.isArray(windows) ? windows : [])

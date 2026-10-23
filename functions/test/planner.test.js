@@ -8,6 +8,8 @@ const {weatherWindow} = require("../weather");
 
 const NZ = "Pacific/Auckland";
 // "now" is 07:00 NZDT on Thursday 22 Oct 2026, before the working day; the horizon is seven days later (07:00 on the 29th).
+// These tests were written for a 8:00-19:00 day; the library default is 9:00-17:00, so they ask for the wide one
+const WIDE = {dayStartMin: 480, dayEndMin: 1140};
 const NOW = new Date("2026-10-21T18:00:00Z");
 const DAY_MS = 24 * 60 * 60 * 1000;
 const horizonFor = (now, days = 7) => new Date(now.getTime() + days * DAY_MS);
@@ -18,11 +20,11 @@ const win = (start, end) => ({start, end});
 // Plan, and check the result against the engine's own rules (validateSchedule, which repairSchedule is built on)
 function plan(tasks, extra = {}) {
   const now = extra.now || NOW;
-  const args = {tasks, busy: [], now, horizon: extra.horizon || horizonFor(now), timeZone: NZ, ...extra};
+  const args = {tasks, busy: [], now, horizon: extra.horizon || horizonFor(now), timeZone: NZ, ...WIDE, ...extra};
   const result = planSchedule(args);
-  const checked = validateSchedule({items: result.items, tasks, busy: args.busy, now, horizon: args.horizon, timeZone: args.timeZone, weather: args.weather, allTasks: args.allTasks || tasks, fixed: args.fixed || []});
+  const checked = validateSchedule({items: result.items, tasks, busy: args.busy, now, horizon: args.horizon, timeZone: args.timeZone, ...WIDE, weather: args.weather, allTasks: args.allTasks || tasks, fixed: args.fixed || []});
   assert.deepEqual(checked.errors, [], "the planner's own output must pass validation");
-  const repaired = repairSchedule({items: result.items, tasks, busy: args.busy, now, horizon: args.horizon, timeZone: args.timeZone, weather: args.weather, allTasks: args.allTasks || tasks, fixed: args.fixed || []});
+  const repaired = repairSchedule({items: result.items, tasks, busy: args.busy, now, horizon: args.horizon, timeZone: args.timeZone, ...WIDE, weather: args.weather, allTasks: args.allTasks || tasks, fixed: args.fixed || []});
   assert.deepEqual(repaired.dropped, [], "repairSchedule must have nothing to drop");
   return result;
 }
@@ -393,14 +395,14 @@ describe("planner.js", () => {
     it("uses the zone's working hours, not the server's", () => {
       const now = new Date("2026-10-22T08:00:00Z"); // 01:00 in Los Angeles
       const zone = "America/Los_Angeles";
-      const result = planSchedule({tasks: [task("a")], busy: [], now, horizon: horizonFor(now), timeZone: zone});
+      const result = planSchedule({tasks: [task("a")], busy: [], now, horizon: horizonFor(now), timeZone: zone, ...WIDE});
       assert.deepEqual([result.items[0].startISO, result.items[0].endISO], ["2026-10-22T08:00:00-07:00", "2026-10-22T08:30:00-07:00"]);
-      assert.deepEqual(validateSchedule({items: result.items, tasks: [task("a")], busy: [], now, horizon: horizonFor(now), timeZone: zone}).errors, []);
+      assert.deepEqual(validateSchedule({items: result.items, tasks: [task("a")], busy: [], now, horizon: horizonFor(now), timeZone: zone, ...WIDE}).errors, []);
     });
     it("handles a zone with a half-hour offset", () => {
       const now = new Date("2026-10-22T00:00:00Z"); // 05:30 in Kolkata
       const zone = "Asia/Kolkata";
-      const result = planSchedule({tasks: [task("a")], busy: [], now, horizon: horizonFor(now), timeZone: zone});
+      const result = planSchedule({tasks: [task("a")], busy: [], now, horizon: horizonFor(now), timeZone: zone, ...WIDE});
       assert.deepEqual([result.items[0].startISO, result.items[0].endISO], ["2026-10-22T08:00:00+05:30", "2026-10-22T08:30:00+05:30"]);
     });
   });
@@ -441,13 +443,13 @@ describe("planner.js", () => {
         });
         const rainy = ["2026-10-22", "2026-10-23", "2026-10-24", "2026-10-25"].filter(() => r() < 0.4);
         const weather = r() < 0.7 ? {lastDate: pick(["2026-10-22", "2026-10-24", "2026-10-30"]), rainyDates: rainy} : null;
-        const planned = planSchedule({tasks, busy, now, horizon, timeZone: NZ, weather});
+        const planned = planSchedule({tasks, busy, now, horizon, timeZone: NZ, ...WIDE, weather});
 
         // Every task is placed or explained, never both and never twice
         const ids = [...planned.items.map((i) => i.taskId), ...planned.unplaced.map((u) => u.taskId)];
         assert.deepEqual([...ids].sort(), tasks.map((t) => t.id).sort());
 
-        const checked = validateSchedule({items: planned.items, tasks, busy, now, horizon, timeZone: NZ, weather});
+        const checked = validateSchedule({items: planned.items, tasks, busy, now, horizon, timeZone: NZ, ...WIDE, weather});
         assert.deepEqual(checked.errors, []);
       });
     }
@@ -479,9 +481,9 @@ describe("planner.js", () => {
 describe("planner.js: gap between tasks", () => {
   const gapPlan = (tasks, gapMinutes, extra = {}) => {
     const now = extra.now || NOW;
-    const args = {tasks, busy: [], now, horizon: horizonFor(now), timeZone: NZ, gapMinutes, ...extra};
+    const args = {tasks, busy: [], now, horizon: horizonFor(now), timeZone: NZ, gapMinutes, ...WIDE, ...extra};
     const result = planSchedule(args);
-    const repaired = repairSchedule({items: result.items, tasks, busy: args.busy, now, horizon: args.horizon, timeZone: NZ, allTasks: args.allTasks || tasks, fixed: args.fixed || [], gapMinutes});
+    const repaired = repairSchedule({items: result.items, tasks, busy: args.busy, now, horizon: args.horizon, timeZone: NZ, ...WIDE, allTasks: args.allTasks || tasks, fixed: args.fixed || [], gapMinutes});
     assert.deepEqual(repaired.errors, []);
     assert.deepEqual(repaired.dropped, [], "the planner's output must pass the gap validation");
     return result;
@@ -494,7 +496,7 @@ describe("planner.js: gap between tasks", () => {
   });
   it("changes nothing with a gap of 0, or none given", () => {
     const tasks = [task("a", {order: 1}), task("b", {order: 2})];
-    assert.deepEqual(gapPlan(tasks, 0), planSchedule({tasks, busy: [], now: NOW, horizon: horizonFor(NOW), timeZone: NZ}));
+    assert.deepEqual(gapPlan(tasks, 0), planSchedule({tasks, busy: [], now: NOW, horizon: horizonFor(NOW), timeZone: NZ, ...WIDE}));
     assert.deepEqual(times(gapPlan(tasks, 0), "b"), ["2026-10-22T08:30:00+13:00", "2026-10-22T09:00:00+13:00"]);
   });
   it("does not leave a gap after a calendar event, only between tasks", () => {
@@ -533,5 +535,61 @@ describe("planner.js: gap between tasks", () => {
     const result = gapPlan(tasks, 10, {busy: [lunch]});
     assert.deepEqual(times(result, "a"), ["2026-10-22T08:00:00+13:00", "2026-10-22T11:50:00+13:00"]);
     assert.deepEqual(times(result, "b"), ["2026-10-22T12:30:00+13:00", "2026-10-22T13:00:00+13:00"]);
+  });
+});
+
+describe("planner.js: daily window", () => {
+  const {padWindows} = require("../breaks");
+  const run = (tasks, extra = {}) => {
+    const args = {tasks, busy: [], now: NOW, horizon: horizonFor(NOW), timeZone: NZ, ...extra};
+    const result = planSchedule(args);
+    const checked = validateSchedule({items: result.items, tasks, busy: args.busy, now: NOW, horizon: args.horizon, timeZone: NZ, gapMinutes: args.gapMinutes, dayStartMin: args.dayStartMin, dayEndMin: args.dayEndMin});
+    assert.deepEqual(checked.errors, [], "the planner's own output must pass validation");
+    return result;
+  };
+
+  it("works from 9:00 to 17:00 by default", () => {
+    const tasks = [task("a", {estimatedMinutes: 240}), task("b", {estimatedMinutes: 240}), task("c", {estimatedMinutes: 30})];
+    const result = run(tasks);
+    assert.deepEqual(times(result, "a"), ["2026-10-22T09:00:00+13:00", "2026-10-22T13:00:00+13:00"]);
+    assert.deepEqual(times(result, "b"), ["2026-10-22T13:00:00+13:00", "2026-10-22T17:00:00+13:00"]);
+    assert.deepEqual(times(result, "c"), ["2026-10-23T09:00:00+13:00", "2026-10-23T09:30:00+13:00"]);
+  });
+  it("uses the window it is given", () => {
+    const result = run([task("a", {estimatedMinutes: 60}), task("b", {estimatedMinutes: 60}), task("c", {estimatedMinutes: 60})], {dayStartMin: 10 * 60 + 30, dayEndMin: 13 * 60});
+    assert.deepEqual(times(result, "a"), ["2026-10-22T10:30:00+13:00", "2026-10-22T11:30:00+13:00"]);
+    assert.deepEqual(times(result, "b"), ["2026-10-22T11:30:00+13:00", "2026-10-22T12:30:00+13:00"]);
+    assert.deepEqual(times(result, "c"), ["2026-10-23T10:30:00+13:00", "2026-10-23T11:30:00+13:00"]);
+  });
+  it("turns a task longer than the window into an all-day reminder", () => {
+    const result = run([task("long", {estimatedMinutes: 500}), task("fits", {estimatedMinutes: 480})], {dayStartMin: 9 * 60, dayEndMin: 17 * 60});
+    assert.equal(slotOf(result, "long").isAllDay, true);
+    assert.equal(slotOf(result, "fits").isAllDay, false);
+    assert.deepEqual(times(result, "fits"), ["2026-10-22T09:00:00+13:00", "2026-10-22T17:00:00+13:00"]);
+  });
+  it("starts today's tasks at the window's start even when it is already past 9:00 elsewhere", () => {
+    const now = new Date("2026-10-21T18:00:00Z"); // 07:00 NZDT
+    assert.equal(times(run([task("a")], {now}), "a")[0], "2026-10-22T09:00:00+13:00");
+  });
+
+  describe("around calendar events (windows widened by the gap, as the engine does)", () => {
+    const events = [win("2026-10-22T11:00:00+13:00", "2026-10-22T12:00:00+13:00")];
+    it("keeps the gap before and after an event", () => {
+      const busy = padWindows(events, 15);
+      const result = run([task("a", {estimatedMinutes: 120}), task("b", {estimatedMinutes: 30})], {busy, gapMinutes: 15});
+      // 09:00-10:45 is free before the event (10:45 = 11:00 less the gap): a 2-hour task does not fit, b does
+      assert.deepEqual(times(result, "b"), ["2026-10-22T09:00:00+13:00", "2026-10-22T09:30:00+13:00"]);
+      assert.deepEqual(times(result, "a"), ["2026-10-22T12:15:00+13:00", "2026-10-22T14:15:00+13:00"]);
+    });
+    it("places a task right up to the event when there is no gap", () => {
+      const result = run([task("a", {estimatedMinutes: 120})], {busy: padWindows(events, 0), gapMinutes: 0});
+      assert.deepEqual(times(result, "a"), ["2026-10-22T09:00:00+13:00", "2026-10-22T11:00:00+13:00"]);
+    });
+    it("is rejected by the validation when a slot sits closer than the gap to an event", () => {
+      const tooClose = [{taskId: "a", title: "A", startISO: "2026-10-22T10:30:00+13:00", endISO: "2026-10-22T10:55:00+13:00", transparency: "opaque", isAllDay: false}];
+      const args = {items: tooClose, tasks: [task("a")], now: NOW, horizon: horizonFor(NOW), timeZone: NZ};
+      assert.deepEqual(validateSchedule({...args, busy: events}).errors, []);
+      assert.match(validateSchedule({...args, busy: padWindows(events, 15)}).errors[0], /overlaps a busy window/);
+    });
   });
 });

@@ -16,7 +16,6 @@ const QUICK_MINUTES = 15;
 // Used for a task without a usable estimate (the same default a new task gets).
 const DEFAULT_MINUTES = 15;
 // A task longer than the working day cannot sit in one timed slot, so it becomes an all-day reminder.
-const DAY_MINUTES = DAY_END_MIN - DAY_START_MIN;
 
 const PRIORITY_RANK = {HIGH: 0, MEDIUM: 1, LOW: 2};
 
@@ -89,32 +88,34 @@ function reasonFor(task, today) {
 //   tasks:    the tasks to place (unlocked, not held)
 //   busy:     merged busy windows [{start, end}] (ISO strings); never overlapped
 //   now, horizon: Date objects bounding the schedulable range
-//   timeZone: the owner's IANA zone, which defines days and the 8:00-19:00 working window
+//   timeZone: the owner's IANA zone, which defines days and the working window
+//   dayStartMin, dayEndMin: the working window as minutes since midnight (default 9:00-17:00)
 //   weather:  optional {lastDate, rainyDates} (weather.js `weatherWindow`): tasks tagged Outdoor or Garden only go on a
 //             local date up to lastDate that is not rainy
 //   allTasks: every active task (default `tasks`), for project membership
 //   fixed:    [{taskId, start, end}] slots of project members outside the run (see schedule.js `buildFixedSlots`)
 //   gapMinutes: free minutes kept between the tasks the run places (default 0): each placed task also blocks that long
-//             before and after itself for the tasks that follow. Busy windows are not padded here (the engine pads the
-//             tasks it does not place), so a task may still sit right next to a calendar event.
+//             before and after itself for the tasks that follow. Busy windows are not padded here: the engine widens
+//             them by the gap before they arrive.
 // Tasks are taken most urgent first (see sortByUrgency) and each goes in the earliest gap that fits, so a short task can
 // fill a gap a longer, more urgent one did not fit. Within a project, a task starts only after every lower-numbered
 // member has ended (and ends before any fixed higher-numbered member starts); a task whose lower-numbered member has no
 // slot is left out. A task longer than the working day becomes an all-day reminder on the earliest day allowed.
 // Returns {items, unplaced}: `items` in the shape of Gemini's scheduledTasks, `unplaced` [{taskId, reason}] for every
 // task that got no slot.
-function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = [], gapMinutes = 0}) {
+function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = [], gapMinutes = 0, dayStartMin = DAY_START_MIN, dayEndMin = DAY_END_MIN}) {
+  const dayMinutes = dayEndMin - dayStartMin;
   const gapMs = Number.isFinite(gapMinutes) && gapMinutes > 0 ? Math.round(gapMinutes) * 60000 : 0;
   const today = localDate(timeZone, now);
   const lastDate = localDate(timeZone, horizon);
   const nowMs = snapUp(now.getTime());
   const horizonMs = horizon.getTime();
 
-  // The working window of each local day that has any time left: [8:00, 19:00], cut to [now, horizon]
+  // The working window of each local day that has any time left: [dayStartMin, dayEndMin], cut to [now, horizon]
   const days = [];
   for (let date = today; date <= lastDate && days.length < 400; date = addDays(date, 1)) {
-    const open = localInstant(timeZone, date, DAY_START_MIN);
-    const close = localInstant(timeZone, date, DAY_END_MIN);
+    const open = localInstant(timeZone, date, dayStartMin);
+    const close = localInstant(timeZone, date, dayEndMin);
     if (!open || !close) continue;
     const startMs = Math.max(open.getTime(), nowMs);
     const endMs = Math.min(close.getTime(), horizonMs);
@@ -167,7 +168,7 @@ function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = 
     const minutes = durationMinutes(task);
     const base = {taskId: task.id, title: task.title, reasoning: reasonFor(task, today)};
 
-    if (minutes > DAY_MINUTES) {
+    if (minutes > dayMinutes) {
       const day = allowed.find((d) => localDayStart(timeZone, d.date).getTime() >= minStartMs && localDayStart(timeZone, addDays(d.date, 1)).getTime() <= maxEndMs);
       if (!day) {
         unplaced.push({taskId: task.id, reason: sensitive ? "no dry day left inside the forecast window" : "no day left before the horizon or its project order allows"});

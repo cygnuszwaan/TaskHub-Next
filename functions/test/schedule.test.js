@@ -5,6 +5,8 @@ const assert = require("node:assert/strict");
 const {validateSchedule, repairSchedule, parseScheduleResponse, checkProjectOrder, buildFixedSlots, matchLockedEvents, DAY_START_MIN, DAY_END_MIN} = require("../schedule");
 
 // "now" is 07:00 NZDT on Thursday 22 Oct 2026; the horizon is seven days later.
+// These tests were written for a 8:00-19:00 day; the library default is 9:00-17:00, so they ask for the wide one
+const WIDE = {dayStartMin: 480, dayEndMin: 1140};
 const NOW = new Date("2026-10-21T18:00:00Z");
 const HORIZON = new Date(NOW.getTime() + 7 * 24 * 60 * 60 * 1000);
 const TASKS = [{id: "a"}, {id: "b"}, {id: "c"}];
@@ -14,13 +16,30 @@ function slot(taskId, startISO, endISO, extra) {
 }
 
 function run(items, busy = [], zone = "Pacific/Auckland") {
-  return validateSchedule({items, tasks: TASKS, busy, now: NOW, horizon: HORIZON, timeZone: zone});
+  return validateSchedule({items, tasks: TASKS, busy, now: NOW, horizon: HORIZON, timeZone: zone, ...WIDE});
 }
 
 describe("schedule.js", () => {
-  it("schedules within 8:00-19:00", () => {
-    assert.equal(DAY_START_MIN, 480);
-    assert.equal(DAY_END_MIN, 1140);
+  it("schedules within 9:00-17:00 unless told otherwise", () => {
+    assert.equal(DAY_START_MIN, 540);
+    assert.equal(DAY_END_MIN, 1020);
+    const item = (start, end) => [slot("a", start, end)];
+    const byDefault = (items) => validateSchedule({items, tasks: TASKS, busy: [], now: NOW, horizon: HORIZON, timeZone: "Pacific/Auckland"});
+    assert.deepEqual(byDefault(item("2026-10-22T09:00:00+13:00", "2026-10-22T17:00:00+13:00")).errors, []);
+    assert.match(byDefault(item("2026-10-22T08:30:00+13:00", "2026-10-22T09:30:00+13:00")).errors[0], /outside 9:00-17:00 local time/);
+    assert.match(byDefault(item("2026-10-22T16:30:00+13:00", "2026-10-22T17:30:00+13:00")).errors[0], /outside 9:00-17:00 local time/);
+  });
+
+  it("takes the daily window from dayStartMin and dayEndMin, in validation and in repair", () => {
+    const window = {dayStartMin: 10 * 60 + 30, dayEndMin: 15 * 60};
+    const args = {tasks: TASKS, busy: [], now: NOW, horizon: HORIZON, timeZone: "Pacific/Auckland", ...window};
+    const inside = slot("a", "2026-10-22T10:30:00+13:00", "2026-10-22T15:00:00+13:00");
+    assert.deepEqual(validateSchedule({items: [inside], ...args}).errors, []);
+    const early = slot("a", "2026-10-22T10:00:00+13:00", "2026-10-22T11:00:00+13:00");
+    assert.match(validateSchedule({items: [early], ...args}).errors[0], /outside 10:30-15:00 local time/);
+    const repaired = repairSchedule({items: [early, slot("b", "2026-10-22T11:00:00+13:00", "2026-10-22T12:00:00+13:00")], ...args});
+    assert.deepEqual(repaired.slots.map((s) => s.taskId), ["b"]);
+    assert.deepEqual(repaired.dropped.map((d) => d.taskId), ["a"]);
   });
 
   describe("validateSchedule: timed slots", () => {
@@ -245,7 +264,7 @@ describe("schedule.js", () => {
     const member = (id, projectOrder, extra = {}) => ({id, projectId: "p1", ...(projectOrder === undefined ? {} : {projectOrder}), ...extra});
     const tasks = [member("a", 1), member("b", 2), member("c", 2), member("d", 3), {id: "x"}, member("u"), {id: "o", projectId: "p2", projectOrder: 1}];
     const check = (items, fixed = [], list = tasks) => {
-      const {slots, errors} = validateSchedule({items, tasks: list.filter((t) => !fixed.some((f) => f.taskId === t.id)), busy: [], now: NOW, horizon: HORIZON, timeZone: ZONE, allTasks: list, fixed});
+      const {slots, errors} = validateSchedule({items, tasks: list.filter((t) => !fixed.some((f) => f.taskId === t.id)), busy: [], now: NOW, horizon: HORIZON, timeZone: ZONE, ...WIDE, allTasks: list, fixed});
       assert.deepEqual(errors.filter((e) => !e.startsWith("Project order")), []);
       return checkProjectOrder({slots, tasks: list, fixed, timeZone: ZONE});
     };
@@ -305,12 +324,12 @@ describe("schedule.js", () => {
       assert.deepEqual(check([], both), []);
     });
     it("fails validateSchedule, so the run aborts", () => {
-      const {errors} = validateSchedule({items: [at("a", "10:00", "11:00"), at("b", "09:00", "09:30")], tasks: [member("a", 1), member("b", 2)], busy: [], now: NOW, horizon: HORIZON, timeZone: ZONE});
+      const {errors} = validateSchedule({items: [at("a", "10:00", "11:00"), at("b", "09:00", "09:30")], tasks: [member("a", 1), member("b", 2)], busy: [], now: NOW, horizon: HORIZON, timeZone: ZONE, ...WIDE});
       assert.equal(errors.length, 1);
     });
     it("ignores project fields when no task has an order number", () => {
       const plain = [{id: "a"}, {id: "b", projectId: "p1"}];
-      assert.deepEqual(validateSchedule({items: [at("b", "09:00", "10:00")], tasks: plain, busy: [], now: NOW, horizon: HORIZON, timeZone: ZONE}).errors, []);
+      assert.deepEqual(validateSchedule({items: [at("b", "09:00", "10:00")], tasks: plain, busy: [], now: NOW, horizon: HORIZON, timeZone: ZONE, ...WIDE}).errors, []);
     });
   });
 
@@ -348,7 +367,7 @@ describe("repairSchedule", () => {
     {id: "p3", projectId: "k", projectOrder: 3},
     {id: "free"},
   ];
-  const repair = (items, extra = {}) => repairSchedule({items, tasks: P, busy: [], now: NOW, horizon: HORIZON, timeZone: "Pacific/Auckland", ...extra});
+  const repair = (items, extra = {}) => repairSchedule({items, tasks: P, busy: [], now: NOW, horizon: HORIZON, timeZone: "Pacific/Auckland", ...WIDE, ...extra});
   const ids = (r) => r.slots.map((s) => s.taskId).sort();
 
   it("keeps a clean schedule untouched", () => {
@@ -446,7 +465,7 @@ describe("weather rule for Outdoor and Garden tasks", () => {
   // NOW is 2026-10-22 07:00 NZDT; the window ends 2026-10-24 and the 23rd is rainy.
   const WEATHER = {lastDate: "2026-10-24", rainyDates: ["2026-10-23"]};
   const T = [{id: "out", tags: ["Outdoor"]}, {id: "gar", tags: ["garden"]}, {id: "in", tags: ["Indoor"]}];
-  const check = (items, weather) => repairSchedule({items, tasks: T, busy: [], now: NOW, horizon: HORIZON, timeZone: "Pacific/Auckland", weather: weather === undefined ? WEATHER : weather});
+  const check = (items, weather) => repairSchedule({items, tasks: T, busy: [], now: NOW, horizon: HORIZON, timeZone: "Pacific/Auckland", ...WIDE, weather: weather === undefined ? WEATHER : weather});
   const ids = (r) => r.slots.map((s) => s.taskId).sort();
 
   it("allows a weather-dependent task on a dry day inside the window, including the last day", () => {
@@ -488,7 +507,7 @@ describe("weather rule for Outdoor and Garden tasks", () => {
     assert.deepEqual(r.errors, []);
   });
   it("is reported by validateSchedule too", () => {
-    const {errors} = validateSchedule({items: [slot("out", "2026-10-26T09:00:00+13:00", "2026-10-26T10:00:00+13:00")], tasks: T, busy: [], now: NOW, horizon: HORIZON, timeZone: "Pacific/Auckland", weather: WEATHER});
+    const {errors} = validateSchedule({items: [slot("out", "2026-10-26T09:00:00+13:00", "2026-10-26T10:00:00+13:00")], tasks: T, busy: [], now: NOW, horizon: HORIZON, timeZone: "Pacific/Auckland", ...WIDE, weather: WEATHER});
     assert.equal(errors.length, 1);
     assert.match(errors[0], /Outdoor\/Garden/);
   });
@@ -498,8 +517,8 @@ describe("schedule.js: gap between tasks", () => {
   const a = slot("a", "2026-10-22T09:00:00+13:00", "2026-10-22T09:30:00+13:00");
   const near = slot("b", "2026-10-22T09:35:00+13:00", "2026-10-22T10:00:00+13:00");
   const far = slot("b", "2026-10-22T09:45:00+13:00", "2026-10-22T10:10:00+13:00");
-  const check = (items, gapMinutes) => validateSchedule({items, tasks: TASKS, busy: [], now: NOW, horizon: HORIZON, timeZone: "Pacific/Auckland", gapMinutes});
-  const repair = (items, gapMinutes) => repairSchedule({items, tasks: TASKS, busy: [], now: NOW, horizon: HORIZON, timeZone: "Pacific/Auckland", gapMinutes});
+  const check = (items, gapMinutes) => validateSchedule({items, tasks: TASKS, busy: [], now: NOW, horizon: HORIZON, timeZone: "Pacific/Auckland", ...WIDE, gapMinutes});
+  const repair = (items, gapMinutes) => repairSchedule({items, tasks: TASKS, busy: [], now: NOW, horizon: HORIZON, timeZone: "Pacific/Auckland", ...WIDE, gapMinutes});
   it("rejects two slots closer together than the gap, and accepts exactly the gap", () => {
     assert.match(check([a, near], 10).errors[0], /less than 10 minutes apart/);
     assert.deepEqual(check([a, far], 15).errors, []);

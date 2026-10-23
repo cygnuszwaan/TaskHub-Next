@@ -20,7 +20,7 @@ function load() {
 
 describe("public/index.html helpers", () => {
   describe("layout", () => {
-    it("has a manual-entry checkbox and fields in the add card, and gap and lunch fields in Settings", () => {
+    it("has a manual-entry checkbox and fields in the add card, and gap, day and lunch fields in Settings", () => {
       const add = html.indexOf(`id="taskInput"`);
       const queue = html.indexOf(`id="queueDetails"`);
       for (const id of ["manualToggle", "manualFields", "manualPriority", "manualMinutes", "manualTags", "manualDue"]) {
@@ -30,11 +30,18 @@ describe("public/index.html helpers", () => {
       assert.match(html.slice(html.indexOf(`id="manualFields"`), html.indexOf(">", html.indexOf(`id="manualFields"`))), /hidden/);
       const settings = html.indexOf(`id="settingsDetails"`);
       const modal = html.indexOf(`id="editModal"`);
-      for (const id of ["gapMinutes", "lunchEnabled", "lunchTime", "lunchMinutes"]) {
+      for (const id of ["gapMinutes", "dayStart", "dayEnd", "lunchEnabled", "lunchTime", "lunchMinutes"]) {
         const i = html.indexOf(`id="${id}"`);
         assert.ok(i > settings && i < modal, `${id} sits in the Settings card`);
       }
       assert.match(html.slice(html.indexOf(`id="lunchEnabled"`) - 30, html.indexOf(`id="lunchEnabled"`)), /type="checkbox"/);
+    });
+    it("labels the add card \"Add New Task\" and the manual-entry checkbox without an explanation in brackets", () => {
+      assert.match(html, /<h3[^>]*>Add New Task<\/h3>/);
+      assert.doesNotMatch(html, /Add \/ Modify Task/);
+      const box = html.indexOf(`id="manualToggle"`);
+      const label = html.slice(html.indexOf(">", box) + 1, html.indexOf("</label>", box)).trim();
+      assert.equal(label, "Enter the details myself");
     });
     it("puts the Materials card right after the Organized Queue and before Projects", () => {
       const q = html.indexOf(`id="queueDetails"`);
@@ -204,7 +211,7 @@ describe("public/index.html helpers", () => {
   });
 
   describe("settingsPayload", () => {
-    const form = {location: {name: "Oslo", latitude: 59.9, longitude: 10.7, extra: "dropped"}, timeZone: "Europe/Oslo", scheduleDays: "14", gapMinutes: "10", lunchEnabled: 1, lunchTime: "12:30", lunchMinutes: "45", enabled: 1, frequency: "INTERVAL", time: "06:30", intervalMinutes: "30"};
+    const form = {location: {name: "Oslo", latitude: 59.9, longitude: 10.7, extra: "dropped"}, timeZone: "Europe/Oslo", scheduleDays: "14", gapMinutes: "10", dayStart: "08:30", dayEnd: "16:00", lunchEnabled: 1, lunchTime: "12:30", lunchMinutes: "45", enabled: 1, frequency: "INTERVAL", time: "06:30", intervalMinutes: "30"};
     it("builds the updateSettings body from the form", () => {
       const h = load();
       assert.deepEqual(h.settingsPayload(form), {
@@ -212,6 +219,7 @@ describe("public/index.html helpers", () => {
         timeZone: "Europe/Oslo",
         scheduleDays: 14,
         gapMinutes: 10,
+        day: {start: "08:30", end: "16:00"},
         lunch: {enabled: true, time: "12:30", minutes: 45},
         schedule: {enabled: true, frequency: "INTERVAL", time: "06:30", intervalMinutes: 30},
       });
@@ -225,6 +233,7 @@ describe("public/index.html helpers", () => {
       assert.equal(r.settings.schedule.intervalMinutes, 30);
       assert.equal(r.settings.scheduleDays, 14);
       assert.equal(r.settings.gapMinutes, 10);
+      assert.deepEqual(r.settings.day, {start: "08:30", end: "16:00"});
       assert.deepEqual(r.settings.lunch, {enabled: true, time: "12:30", minutes: 45});
       assert.equal(r.settings.location.name, "Oslo");
     });
@@ -236,6 +245,15 @@ describe("public/index.html helpers", () => {
       assert.equal(reject({gapMinutes: ""}), undefined); // an empty gap field means no gap
       assert.match(reject({lunchTime: ""}), /lunch\.time/);
       assert.match(reject({lunchMinutes: "1"}), /lunch\.minutes/);
+    });
+    it("leaves an empty or too short day window for the server to reject", () => {
+      const h = load();
+      const {mergeSettings, applySettingsUpdate} = require("../settings");
+      const reject = (extra) => applySettingsUpdate(mergeSettings(undefined), h.settingsPayload({...form, ...extra})).error;
+      assert.match(reject({dayStart: ""}), /day\.start/);
+      assert.match(reject({dayEnd: ""}), /day\.end/);
+      assert.match(reject({dayStart: "16:30", dayEnd: "17:00"}), /at least 60 minutes/);
+      assert.equal(reject({dayStart: "09:00", dayEnd: "17:00"}), undefined);
     });
     it("leaves an empty or out-of-range day count for the server to reject", () => {
       const h = load();

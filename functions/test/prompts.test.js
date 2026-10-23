@@ -107,9 +107,18 @@ describe("prompts.js", () => {
       assert.ok(prompt.includes("2026-10-22T10:00:00+13:00"));
       assert.ok(prompt.indexOf("Task that is overdue") < prompt.indexOf("Task without a date"));
     });
-    it("states the 8:00-19:00 window in the configured zone", () => {
-      assert.match(build(LA), /between 8:00 AM and 7:00 PM local time in America\/Los_Angeles/);
+    it("states the daily window in the configured zone (9:00 AM to 5:00 PM by default)", () => {
+      assert.match(build(LA), /between 9:00 AM and 5:00 PM local time in America\/Los_Angeles/);
+      assert.match(build(LA), /within one day's 9:00 AM-5:00 PM window/);
       assert.match(build(LA), /in local time in America\/Los_Angeles using the UTC offset/);
+    });
+    it("states the window set in the settings", () => {
+      const prompt = build(mergeSettings({day: {start: "07:30", end: "20:00"}}));
+      assert.match(prompt, /between 7:30 AM and 8:00 PM local time/);
+      assert.match(build(mergeSettings({day: {start: "00:00", end: "12:00"}})), /between 12:00 AM and 12:00 PM local time/);
+    });
+    it("falls back to 9:00 AM-5:00 PM for settings without a window", () => {
+      assert.match(build({...AUCKLAND, day: undefined}), /between 9:00 AM and 5:00 PM local time/);
     });
     it("keeps a typed place name on one line", () => {
       const settings = mergeSettings({location: {name: "Perth,\n  WA"}});
@@ -205,7 +214,7 @@ describe("prompts.js: gap between tasks", () => {
   it("asks for the gap when one is set", () => {
     const prompt = build(mergeSettings({gapMinutes: 15}));
     assert.match(prompt, /Leave at least 15 minutes free between any two scheduled task slots/);
-    assert.match(prompt, /Calendar events and the lunch break need no extra gap/);
+    assert.match(prompt, /The same gap applies before and after every busy window/);
   });
   it("says nothing about a gap by default", () => {
     assert.doesNotMatch(build(AUCKLAND), /minutes free between/);

@@ -3,6 +3,13 @@
 const {localDate, utcOffset, formatLocalNow, addDays} = require("./time");
 const {annotateDue} = require("./due");
 const {WEATHER_DAYS} = require("./weather");
+const {dayWindowMinutes} = require("./settings");
+
+// Minutes since midnight as a 12-hour clock text, e.g. 540 -> "9:00 AM", 1020 -> "5:00 PM".
+function clock12(minutes) {
+  const h = Math.floor(minutes / 60);
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(minutes % 60).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+}
 
 
 // Place names are typed by the owner; keep one to a single line before it goes into a prompt.
@@ -18,7 +25,7 @@ function oneLine(text) {
 //   forecast:  daily forecast [{date, conditions, minTemp, maxTemp, precipitationMm, rainChance, rainy}] (see weather.js
 //              `parseForecast`); only the first WEATHER_DAYS local days from today are used. Empty when unavailable, and
 //              the rain rule then rests on the current weather for those days.
-//   settings:  {location: {name}, timeZone, scheduleDays, gapMinutes?}; the zone defines the local time, the date and the 8:00-19:00 window;
+//   settings:  {location: {name}, timeZone, scheduleDays, gapMinutes?}; day: {start, end} (HH:MM, default 09:00-17:00); the zone defines the local time, the date and the daily window;
 //              gapMinutes (default none) is the free time asked between tasks. The lunch break arrives as a busy window
 //   projects:  [{id, name}], the stored projects; a task's project name is added to its annotations
 //   fixed:     [{taskId, start, end}] slots of tasks outside this run (see buildFixedSlots)
@@ -49,8 +56,11 @@ function buildSchedulePrompt({tasks, busySlots, now, weather, settings, projects
       .filter(({task}) => task && projectName.has(task.projectId) && Number.isInteger(task.projectOrder))
       .map(({f, task}) => ({project: projectName.get(task.projectId), projectOrder: task.projectOrder, start: f.start, end: f.end}));
 
+  const {dayStartMin, dayEndMin} = dayWindowMinutes(settings);
+  const dayFrom = clock12(dayStartMin);
+  const dayTo = clock12(dayEndMin);
   const gap = Number.isInteger(settings.gapMinutes) && settings.gapMinutes > 0 ? settings.gapMinutes : 0;
-  const gapRule = gap === 0 ? "" : `Leave at least ${gap} minutes free between any two scheduled task slots (a slot may start exactly ${gap} minutes after the previous one ends, no sooner). Calendar events and the lunch break need no extra gap. `;
+  const gapRule = gap === 0 ? "" : `Leave at least ${gap} minutes free between any two scheduled task slots (a slot may start exactly ${gap} minutes after the previous one ends, no sooner). The same gap applies before and after every busy window, and that is already included in the windows listed above. `;
 
   const retry = feedback.length === 0 ? "" : `
     Your previous answer had problems. Fix them in this answer:
@@ -74,7 +84,7 @@ function buildSchedulePrompt({tasks, busySlots, now, weather, settings, projects
     ${JSON.stringify(fixedMembers, null, 2)}
     
     Rules:
-    1. Schedule uncompleted tasks across the next ${settings.scheduleDays} days in open gaps between 8:00 AM and 7:00 PM local time in ${zone}. Each timed slot must start after the current time, fit entirely within one day's 8:00 AM-7:00 PM window, and must not overlap a busy window or another slot.
+    1. Schedule uncompleted tasks across the next ${settings.scheduleDays} days in open gaps between ${dayFrom} and ${dayTo} local time in ${zone}. Each timed slot must start after the current time, fit entirely within one day's ${dayFrom}-${dayTo} window, and must not overlap a busy window or another slot.
     2. Schedule each task at most once. Place overdue tasks first, in the earliest open gaps, then tasks with the nearest due dates. Where possible, place a task with a dueDate on or before that date; a task that cannot fit before its due date goes in the earliest gap left. Tasks without a dueDate fill the remaining gaps by priority.
     3. Project order, which overrides due dates and priority: tasks with the same "project" and a "projectOrder" must run in order. Every task with a lower projectOrder must end before any task of that project with a higher projectOrder starts (a task scheduled all-day occupies its whole date, so it must be on a later date). Tasks sharing a projectOrder may go in any order, and a task without a projectOrder is unconstrained. The placed project members listed above count too. If a task cannot be scheduled, leave out every task of that project with a higher projectOrder as well.
     4. Set transparency: "opaque" for focus tasks (blocks busy); "transparent" for quick chores/reminders.

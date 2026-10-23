@@ -4,7 +4,7 @@ const {localParts} = require("./time");
 
 const INTERVALS = [15, 30, 60, 120, 240];
 const FREQUENCIES = ["DAILY", "INTERVAL"];
-// INTERVAL runs happen only inside this local window (the engine schedules nothing outside 8:00-19:00).
+// INTERVAL runs happen only inside this local window, whatever the daily scheduling window is.
 const WINDOW_START_MINUTES = 8 * 60;
 const WINDOW_END_MINUTES = 19 * 60;
 // The dispatcher ticks every 15 minutes and a tick can fire a little early or late, so an interval counts as
@@ -29,6 +29,7 @@ const DEFAULTS = Object.freeze({
   timeZone: "Pacific/Auckland",
   scheduleDays: 7,
   gapMinutes: 0,
+  day: Object.freeze({start: "09:00", end: "17:00"}),
   lunch: Object.freeze({enabled: false, time: "12:00", minutes: 30}),
   schedule: Object.freeze({enabled: true, frequency: "DAILY", time: "20:00", intervalMinutes: 60}),
   lastAutoRunAt: null,
@@ -99,6 +100,30 @@ function checkLunchMinutes(v) {
   return v;
 }
 
+function checkDayStart(v) {
+  if (typeof v !== "string" || !TIME_PATTERN.test(v)) throw new Error("day.start must be HH:MM in 24-hour time");
+  return v;
+}
+
+function checkDayEnd(v) {
+  if (typeof v !== "string" || !TIME_PATTERN.test(v)) throw new Error("day.end must be HH:MM in 24-hour time");
+  return v;
+}
+
+function minutesOf(time) {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
+// The daily window must hold at least this many minutes (a task longer than it becomes an all-day reminder).
+const MIN_DAY_MINUTES = 60;
+
+function checkDayWindow(day) {
+  if (minutesOf(day.end) - minutesOf(day.start) < MIN_DAY_MINUTES) {
+    throw new Error(`day.end must be at least ${MIN_DAY_MINUTES} minutes after day.start`);
+  }
+}
+
 function checkFrequency(v) {
   if (!FREQUENCIES.includes(v)) throw new Error(`schedule.frequency must be one of ${FREQUENCIES.join(", ")}`);
   return v;
@@ -123,6 +148,8 @@ const EDITABLE = [
   ["timeZone", null, checkTimeZone],
   ["scheduleDays", null, checkScheduleDays],
   ["gapMinutes", null, checkGapMinutes],
+  ["day", "start", checkDayStart],
+  ["day", "end", checkDayEnd],
   ["lunch", "enabled", checkLunchEnabled],
   ["lunch", "time", checkLunchTime],
   ["lunch", "minutes", checkLunchMinutes],
@@ -149,7 +176,7 @@ function isoOrNull(v) {
 // Full settings from whatever is stored (possibly nothing). A missing or unusable stored field falls back to
 // its default, so a hand-edited document can never break the app. Pure: returns a new object.
 function mergeSettings(stored) {
-  const out = {location: {...DEFAULTS.location}, timeZone: DEFAULTS.timeZone, scheduleDays: DEFAULTS.scheduleDays, gapMinutes: DEFAULTS.gapMinutes, lunch: {...DEFAULTS.lunch}, schedule: {...DEFAULTS.schedule}};
+  const out = {location: {...DEFAULTS.location}, timeZone: DEFAULTS.timeZone, scheduleDays: DEFAULTS.scheduleDays, gapMinutes: DEFAULTS.gapMinutes, day: {...DEFAULTS.day}, lunch: {...DEFAULTS.lunch}, schedule: {...DEFAULTS.schedule}};
   for (const [group, key, check] of EDITABLE) {
     const value = readField(stored, group, key);
     if (value === undefined) continue;
@@ -158,6 +185,12 @@ function mergeSettings(stored) {
     } catch (err) {
       // keep the default
     }
+  }
+  // A stored window that is too short or backwards cannot be used; both ends fall back together
+  try {
+    checkDayWindow(out.day);
+  } catch (err) {
+    out.day = {...DEFAULTS.day};
   }
   out.lastAutoRunAt = isoOrNull(stored && stored.lastAutoRunAt);
   out.lastRunFingerprint = typeof (stored && stored.lastRunFingerprint) === "string" ? stored.lastRunFingerprint : null;
@@ -168,7 +201,7 @@ function mergeSettings(stored) {
 // {settings} or {error}; nothing is applied if any provided field is invalid. Run state is carried over.
 function applySettingsUpdate(current, patch) {
   if (!isPlainObject(patch)) return {error: "Settings update must be an object"};
-  for (const group of ["location", "lunch", "schedule"]) {
+  for (const group of ["location", "day", "lunch", "schedule"]) {
     if (patch[group] !== undefined && !isPlainObject(patch[group])) return {error: `${group} must be an object`};
   }
   const next = mergeSettings(current);
@@ -177,12 +210,23 @@ function applySettingsUpdate(current, patch) {
       const value = readField(patch, group, key);
       if (value !== undefined) writeField(next, group, key, check(value));
     }
+    checkDayWindow(next.day);
   } catch (err) {
     return {error: err.message};
   }
   next.lastAutoRunAt = current.lastAutoRunAt || null;
   next.lastRunFingerprint = current.lastRunFingerprint || null;
   return {settings: next};
+}
+
+// The daily scheduling window of merged settings as minutes since midnight: {dayStartMin, dayEndMin}. Settings
+// without a usable `day` give the defaults.
+function dayWindowMinutes(settings) {
+  const day = settings && settings.day;
+  if (day && typeof day.start === "string" && typeof day.end === "string" && TIME_PATTERN.test(day.start) && TIME_PATTERN.test(day.end)) {
+    return {dayStartMin: minutesOf(day.start), dayEndMin: minutesOf(day.end)};
+  }
+  return {dayStartMin: minutesOf(DEFAULTS.day.start), dayEndMin: minutesOf(DEFAULTS.day.end)};
 }
 
 // Whether the automatic run should fire now. Called on every 15-minute tick with settings from mergeSettings.
@@ -212,4 +256,4 @@ function claimRun(settings, now = new Date()) {
   return {due: true, settings: {...settings, lastAutoRunAt: now.toISOString()}};
 }
 
-module.exports = {MIN_SCHEDULE_DAYS, MAX_SCHEDULE_DAYS, MIN_GAP_MINUTES, MAX_GAP_MINUTES, MIN_LUNCH_MINUTES, MAX_LUNCH_MINUTES, INTERVALS, FREQUENCIES, TICK_GRACE_MS, DEFAULTS, mergeSettings, applySettingsUpdate, isRunDue, claimRun};
+module.exports = {MIN_DAY_MINUTES, dayWindowMinutes, MIN_SCHEDULE_DAYS, MAX_SCHEDULE_DAYS, MIN_GAP_MINUTES, MAX_GAP_MINUTES, MIN_LUNCH_MINUTES, MAX_LUNCH_MINUTES, INTERVALS, FREQUENCIES, TICK_GRACE_MS, DEFAULTS, mergeSettings, applySettingsUpdate, isRunDue, claimRun};

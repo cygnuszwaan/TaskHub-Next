@@ -20,6 +20,7 @@ const {buildSchedulePrompt, buildTaskPrompt} = require("./prompts");
 const {heldTaskIds} = require("./materials");
 const {SUMMARY_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted} = require("./completed");
 const {makeOwnerOnly} = require("./auth");
+const {dayWindowMinutes} = require("./settings");
 const {randomUUID} = require("crypto");
 
 admin.initializeApp();
@@ -338,12 +339,14 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
   const agentBusy = await getForeignBusyWindows(calendar, calendarId, now.toISOString(), horizon.toISOString(), timeZone, oldEventIds);
   // In a subset run the app events that stay put block their time, whatever their transparency.
   const keptAppBusy = subset ? appBusyWindows(agentEvents, timeZone, oldEventIds) : [];
-  // Gap between tasks: the tasks the run does not place (pinned ones, and in a subset run the other scheduled ones) keep
-  // that distance too; the tasks it places get theirs from the planner. The lunch break is busy time on every day.
+  // Gap between tasks: every calendar event (personal or agent calendar), every pinned task and, in a subset run, every
+  // other scheduled task keeps that distance from the tasks this run places (those get theirs from the planner among
+  // themselves). The lunch break is busy time on every day and is not padded.
   const gap = settings.gapMinutes;
-  const keptTaskWindows = gap > 0 ? padWindows([...lockedWindows, ...keptAppBusy], gap) : [...lockedWindows, ...keptAppBusy];
+  const paddedBusy = padWindows([...personalBusy, ...lockedWindows, ...keptAppBusy, ...agentBusy], gap);
   const lunchBusy = lunchWindows({lunch: settings.lunch, timeZone, now, horizon});
-  const busySlots = mergeBusyWindows([...personalBusy, ...keptTaskWindows, ...agentBusy, ...lunchBusy]);
+  const busySlots = mergeBusyWindows([...paddedBusy, ...lunchBusy]);
+  const {dayStartMin, dayEndMin} = dayWindowMinutes(settings);
 
   // 3. Get slots for the unlocked tasks (from the planner, or from Gemini), then validate before touching the calendar
   let scheduledList = [];
@@ -362,10 +365,10 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
     const lockedByTask = new Map([...lockedEvents].map(([id, ev]) => [id, eventWindow(ev, timeZone)]));
     const fixed = buildFixedSlots({tasks: currentTasks, inScopeIds: subset ? new Set(inScope.map((t) => t.id)) : null, lockedWindows: lockedByTask, timeZone});
     const projects = await readProjects();
-    console.log(`Scheduling ${toSchedule.length} tasks over ${settings.scheduleDays} days (${busySlots.length} busy windows, gap ${gap} min, lunch ${settings.lunch.enabled ? "on" : "off"}, to ${horizon.toISOString()})`);
+    console.log(`Scheduling ${toSchedule.length} tasks over ${settings.scheduleDays} days (${busySlots.length} busy windows, gap ${gap} min, day ${settings.day.start}-${settings.day.end}, lunch ${settings.lunch.enabled ? "on" : "off"}, to ${horizon.toISOString()})`);
     // Outdoor and Garden tasks stay inside the forecast window and off rainy days (enforced on Gemini's slots)
     const weatherRules = weatherWindow({today: localDate(timeZone, now), forecast: weather.forecast, current: weather.key});
-    const validation = {busy: busySlots, now, horizon, timeZone, weather: weatherRules, allTasks: currentTasks, fixed, gapMinutes: gap};
+    const validation = {busy: busySlots, now, horizon, timeZone, weather: weatherRules, allTasks: currentTasks, fixed, gapMinutes: gap, dayStartMin, dayEndMin};
     const result = SCHEDULER === "gemini" ?
       await requestValidSchedule(toSchedule, busySlots, now, settings, weather.text, {projects, fixed, allTasks: currentTasks, forecast: weather.forecast}, validation) :
       planValidSchedule(toSchedule, validation);
@@ -681,7 +684,7 @@ exports.getSettings = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, r
 }));
 
 // 9. Endpoint: Update Settings
-// Body: {settings: {location?, timeZone?, schedule?}}, any subset of the editable fields. 400 with the reason
+// Body: {settings: {location?, timeZone?, scheduleDays?, gapMinutes?, day?, lunch?, schedule?}}, any subset of the editable fields. 400 with the reason
 // when a field is invalid (nothing is saved); run state cannot be set.
 exports.updateSettings = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
