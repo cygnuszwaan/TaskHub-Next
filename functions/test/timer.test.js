@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {isRunning, elapsedSeconds, pauseTimer, startTimer, setTimerInList, settleTimer} = require("../timer");
+const {clearActive, isRunning, elapsedSeconds, pauseTimer, startTimer, setTimerInList, settleTimer} = require("../timer");
 
 const T0 = Date.parse("2026-10-24T09:00:00.000Z");
 
@@ -94,6 +94,32 @@ describe("timer.js", () => {
       assert.deepEqual(settleTimer({id: "a"}, T0), {id: "a", trackedSeconds: 0});
       assert.deepEqual(settleTimer({id: "a", trackedSeconds: 20, timerStartedAt: new Date(T0).toISOString()}, T0 + 40000), {id: "a", trackedSeconds: 60});
       assert.deepEqual(settleTimer({id: "a", trackedSeconds: 20}, T0), {id: "a", trackedSeconds: 20});
+    });
+  });
+
+  describe("the active mark", () => {
+    it("is set by a start, kept by a pause, and taken from every other task by the next start", () => {
+      const tasks = [{id: "a", order: 1}, {id: "b", order: 2}];
+      const afterA = setTimerInList(tasks, "a", "START", T0).tasks;
+      assert.equal(afterA[0].active, true);
+      assert.equal("active" in afterA[1], false);
+      const paused = setTimerInList(afterA, "a", "PAUSE", T0 + 60000).tasks;
+      assert.equal(paused[0].active, true, "a paused task stays active");
+      assert.equal("timerStartedAt" in paused[0], false);
+      const afterB = setTimerInList(paused, "b", "START", T0 + 120000).tasks;
+      assert.equal("active" in afterB[0], false);
+      assert.equal(afterB[1].active, true);
+      assert.equal(afterB[0].trackedSeconds, 60, "the paused task keeps its time");
+    });
+    it("is not given to a task by pausing it", () => {
+      const out = setTimerInList([{id: "a"}], "a", "PAUSE", T0).tasks[0];
+      assert.equal("active" in out, false);
+    });
+    it("is left off a task as archived", () => {
+      assert.equal("active" in settleTimer({id: "a", active: true, trackedSeconds: 5}, T0), false);
+      assert.equal("active" in clearActive({id: "a", active: true}), false);
+      const plain = {id: "a"};
+      assert.equal(clearActive(plain), plain);
     });
   });
 });

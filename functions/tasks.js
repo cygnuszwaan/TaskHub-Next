@@ -34,7 +34,7 @@ function normalizeRecurrence(value) {
 // validated by normalizeMaterials (null or an empty list removes it, an unusable value leaves it as it was; new
 // items get ids from `makeId`); and `snoozedUntil`, validated by normalizeSnooze (null or an empty string removes it, an
 // unusable value leaves it as it was); and `comments`, validated by normalizeComments (null or empty text removes it, a
-// non-string leaves it as it was). `addedAt`, `trackedSeconds` and `timerStartedAt` are never changed by an edit.
+// non-string leaves it as it was). `addedAt`, `trackedSeconds`, `timerStartedAt` and `active` are never changed by an edit.
 // Pure apart from `makeId`: the input is not modified.
 function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   const rest = {...fields};
@@ -46,6 +46,7 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   delete rest.addedAt;
   delete rest.trackedSeconds;
   delete rest.timerStartedAt;
+  delete rest.active;
   const next = {...task, ...rest};
   if (fields && "recurrence" in fields) {
     const recurrence = normalizeRecurrence(fields.recurrence);
@@ -72,7 +73,7 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
 }
 
 // Fields the model may set. Everything else on a task (id, status, order, calendar and schedule fields, locked,
-// materials, snoozedUntil, comments, addedAt, trackedSeconds, timerStartedAt) is server-owned.
+// materials, snoozedUntil, comments, addedAt, trackedSeconds, timerStartedAt, active) is server-owned.
 function cleanFields(change) {
   const out = {};
   if (typeof change.title === "string" && change.title.trim()) out.title = change.title.trim();
@@ -199,7 +200,7 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
 //   makeId: () => new task id
 //   now:    ISO text; the next occurrence's `addedAt` (left off when omitted), and the instant a running timer on the
 //           completed task stops at. The completed task always carries `trackedSeconds` (0 if never timed) and no
-//           `timerStartedAt`; the next occurrence starts with no tracked time.
+//           `timerStartedAt` or `active`; the next occurrence starts with no tracked time.
 // The next occurrence copies title, priority, estimatedMinutes, tags, recurrence and project membership
 // (projectId, projectOrder), materials (all unchecked, as the next occurrence needs them again) and comments, is PENDING and not snoozed, has the next due date (see nextDueDate) and takes the completed task's
 // rank; it has no schedule, calendar event or lock.
@@ -263,7 +264,8 @@ function undoInList(tasks, record) {
   if (!task || typeof task.id !== "string" || tasks.some((t) => t.id === task.id)) return null;
   const rest = record.spawnedId ? tasks.filter((t) => t.id !== record.spawnedId) : tasks;
   const restored = {...task};
-  delete restored.timerStartedAt; // a restored task never comes back with its timer running
+  delete restored.timerStartedAt; // a restored task never comes back with its timer running or as the active task
+  delete restored.active;
   if (!restored.locked) {
     delete restored.googleCalendarEventId;
     delete restored.scheduledStart;

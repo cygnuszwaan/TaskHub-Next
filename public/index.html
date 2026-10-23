@@ -155,6 +155,9 @@
     .snooze-choices { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
     .snooze-choices button { flex: 1 1 auto; }
     .task-comments { margin-top: 6px; font-size: 13px; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .active-task-box { margin-bottom: 14px; border: 2px solid var(--primary); border-radius: 8px; padding: 6px 6px 2px; }
+    .active-task-box > .summary-label { margin: 2px 6px 0; }
+    .active-task-box .task-item { border-bottom: none; }
     .modal-extra-actions { display: flex; gap: 8px; margin-top: 14px; align-items: center; }
     .timer-group { display: flex; gap: 8px; align-items: center; }
     .elapsed-time { font-size: 15px; font-variant-numeric: tabular-nums; color: var(--text-muted); min-width: 3.5em; }
@@ -250,6 +253,10 @@
   </div>
 
   <div class="card" id="queueCard">
+      <div class="active-task-box" id="activeTaskBox" hidden>
+        <div class="summary-label">Active task</div>
+        <div id="activeTask"></div>
+      </div>
       <div class="search-row">
         <input type="search" id="taskSearch" class="search-box" placeholder="Search tasks" autocomplete="off" enterkeyhint="search" aria-label="Search tasks">
         <button type="button" class="btn-secondary" id="clearSearchBtn" hidden>Clear</button>
@@ -1087,6 +1094,11 @@
       const start = Date.parse(task && task.timerStartedAt);
       return saved + (isNaN(start) || !(nowMs > start) ? 0 : Math.round((nowMs - start) / 1000));
     }
+    // The task the Queue shows at the very top: the one whose timer is running, else the one marked `active` (the last
+    // task a timer was started on, kept after a pause until another is started). Null when there is none.
+    function activeTaskOf(tasks) {
+      return tasks.find(isTimerRunning) || tasks.find(t => t.active === true) || null;
+    }
     // "7:05" under an hour, "1:02:09" from an hour on.
     function formatElapsed(seconds) {
       const total = Math.max(0, Math.floor(Number(seconds) || 0));
@@ -1102,10 +1114,10 @@
       if (m < 60) return `${m}m`;
       return m % 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${Math.floor(m / 60)}h`;
     }
-    // The time chip text of a completed task: the time tracked on it, or its estimate (marked "est.") for a task
-    // completed before time tracking began, which has no tracked time.
+    // The time chip text of a completed task: the time tracked on it, or its estimate (marked "est.") when its timer
+    // was never started (or it was completed before time tracking began).
     function completedTimeText(task) {
-      if (task && Number.isFinite(task.trackedSeconds)) return durationText(task.trackedSeconds);
+      if (task && Number.isFinite(task.trackedSeconds) && task.trackedSeconds > 0) return durationText(task.trackedSeconds);
       return `${(task && task.estimatedMinutes) || 15}m est.`;
     }
     // The Stats line for the streak: "Current streak: 3 days · Longest: 9 days". A number that may be larger than shown
@@ -1223,7 +1235,8 @@
         setProjectFilter(chip.hasAttribute("data-all") ? null : chip.dataset.project);
       });
 
-      document.getElementById("taskList").addEventListener("click", e => {
+      // Rows in the list and the active task above the search box behave the same
+      const onTaskRowClick = e => {
         const item = e.target.closest(".task-item");
         if (!item) return;
         const taskId = item.dataset.id;
@@ -1235,7 +1248,9 @@
           return;
         }
         openEditModal(taskId);
-      });
+      };
+      document.getElementById("taskList").addEventListener("click", onTaskRowClick);
+      document.getElementById("activeTask").addEventListener("click", onTaskRowClick);
 
       // The materials lists of the edit modal and of the add form share their behaviour
       for (const [boxId, getList, render, addBtnId, textId, add] of [
@@ -1497,30 +1512,15 @@
       return t.googleCalendarEventId ? `<span class="chip sched-chip">📅 Synced</span>` : "";
     }
 
-    function renderTasks() {
-      tasksLoaded = true;
-      renderProjects();
-      renderMaterialsCard();
-      const listContainer = document.getElementById("taskList");
-      let filtered = filterTasks(allTasks, selectedTagFilter, selectedProjectFilter, document.getElementById("taskSearch").value);
-
-      if (filtered.length === 0) {
-        listContainer.innerHTML = allTasks.length === 0 ?
-          "<p style='color:var(--text-faint);'>No active tasks in queue.</p>" :
-          "<p style='color:var(--text-faint);'>No tasks match the search and filters.</p>";
-        return;
-      }
-
-      // Task number: snoozed tasks last, then overdue first (most overdue first), then by rank; the other choices sort by their own field
-      filtered = sortTasks(filtered, sortKey, sortDescending);
-
-      listContainer.innerHTML = filtered.map(t => `
-        <div class="task-item" data-id="${esc(t.id)}">
+    // One task as a list row. The active task, shown above the search box, also carries its tracked time.
+    function taskItemHtml(t, isActive = false) {
+      return `        <div class="task-item" data-id="${esc(t.id)}">
           <div style="flex:1;">
             <strong>#${esc(t.order)} ${esc(t.title)}</strong>
             <div class="task-meta">
               <span class="badge ${PRIORITIES.includes(t.priority) ? t.priority : ''}">${esc(t.priority)}</span>
               <span class="time-chip">⏱️ ${esc(t.estimatedMinutes || 15)}m</span>
+              ${isActive ? `<span class="time-chip" id="activeElapsed" title="Time tracked on this task">Tracked ${esc(formatElapsed(elapsedSecondsOf(t)))}</span>` : ''}
               ${(t.tags || []).map(tag => `<span class="chip">${esc(tag)}</span>`).join('')}
               ${projectChip(t)}
               ${(() => { const d = daysUntilDue(t); return d !== null && d < 0 ? `<span class="chip overdue-chip" title="Due ${esc(t.dueDate)}">⚠️ Overdue ${esc(-d)}d</span>` : ''; })()}
@@ -1538,8 +1538,47 @@
             <button class="complete-btn" title="Snooze: keep it off the schedule until a later day" data-action="snooze">💤</button>
             <button class="complete-btn" title="Complete & Archive Task" data-action="complete">✅</button>
           </div>
-        </div>
-      `).join("");
+        </div>`;
+    }
+
+    // The active task's tracked time ticks every second while its timer runs
+    let activeTicker = null;
+    function stopActiveTicker() {
+      if (activeTicker !== null) clearInterval(activeTicker);
+      activeTicker = null;
+    }
+
+    function renderTasks() {
+      tasksLoaded = true;
+      renderProjects();
+      renderMaterialsCard();
+      const listContainer = document.getElementById("taskList");
+
+      // The active task sits above the search box whatever the search, filters and sort; it is not repeated in the list
+      stopActiveTicker();
+      const active = activeTaskOf(allTasks);
+      const activeBox = document.getElementById("activeTaskBox");
+      activeBox.hidden = !active;
+      document.getElementById("activeTask").innerHTML = active ? taskItemHtml(active, true) : "";
+      if (active && isTimerRunning(active)) {
+        const show = () => { const el = document.getElementById("activeElapsed"); if (el) el.textContent = `Tracked ${formatElapsed(elapsedSecondsOf(active))}`; };
+        activeTicker = setInterval(show, 1000);
+      }
+
+      const rest = allTasks.filter(t => t !== active);
+      let filtered = filterTasks(rest, selectedTagFilter, selectedProjectFilter, document.getElementById("taskSearch").value);
+
+      if (filtered.length === 0) {
+        listContainer.innerHTML = rest.length === 0 ?
+          (active ? "" : "<p style='color:var(--text-faint);'>No active tasks in queue.</p>") :
+          "<p style='color:var(--text-faint);'>No tasks match the search and filters.</p>";
+        return;
+      }
+
+      // Task number: snoozed tasks last, then overdue first (most overdue first), then by rank; the other choices sort by their own field
+      filtered = sortTasks(filtered, sortKey, sortDescending);
+
+      listContainer.innerHTML = filtered.map(t => taskItemHtml(t)).join("");
     }
 
     function renderMaterialRows(boxId, list) {
@@ -1930,7 +1969,7 @@
                 <strong>${esc(t.title)}</strong>
                 <div class="task-meta">
                   <span class="badge ${PRIORITIES.includes(t.priority) ? t.priority : ''}">${esc(t.priority)}</span>
-                  <span class="time-chip" title="${Number.isFinite(t.trackedSeconds) ? 'Time tracked' : 'Estimate: completed before time tracking began'}">⏱️ ${esc(completedTimeText(t))}</span>
+                  <span class="time-chip" title="${t.trackedSeconds > 0 ? 'Time tracked' : 'Estimate: no time was tracked'}">⏱️ ${esc(completedTimeText(t))}</span>
                   ${(t.tags || []).map(tag => `<span class="chip">${esc(tag)}</span>`).join('')}
                   ${when ? `<span class="chip">✅ ${esc(when)}</span>` : ''}
                 </div>

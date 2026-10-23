@@ -161,6 +161,8 @@ describe("tasks.js", () => {
       assert.equal(out.trackedSeconds, 50);
       assert.equal(out.timerStartedAt, "2026-10-23T08:00:00.000Z");
       assert.equal("trackedSeconds" in applyDirectUpdate(base, {trackedSeconds: 5}), false);
+      assert.equal("active" in applyDirectUpdate(base, {active: true}), false);
+      assert.equal(applyDirectUpdate({...base, active: true}, {active: false}).active, true);
     });
     it("sets a validated recurrence", () => {
       assert.deepEqual(applyDirectUpdate(base, {recurrence: {frequency: "monthly", interval: 2.2, junk: 1}}).recurrence, {frequency: "MONTHLY", interval: 2});
@@ -720,6 +722,10 @@ describe("undoing a delete or completion", () => {
       const out = undoInList([], record);
       assert.equal(out.restored.trackedSeconds, 40);
       assert.equal("timerStartedAt" in out.restored, false);
+    });
+    it("never restores a task as the active one", () => {
+      const out = undoInList([], {task: {id: "x", title: "X", active: true}, spawnedId: null});
+      assert.equal("active" in out.restored, false);
     });
   });
 });

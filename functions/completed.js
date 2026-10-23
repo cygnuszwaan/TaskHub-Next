@@ -46,11 +46,11 @@ function summaryWindowStart(timeZone, now = new Date(), weeks = SUMMARY_WEEKS) {
   return localDayStart(timeZone, firstSummaryWeek(timeZone, now, weeks));
 }
 
-// The minutes a completed task counts for: the time tracked on it when the row has `trackedSeconds` (every row
-// archived since time tracking began does, 0 for a task never timed), else its estimate (a row from before that has
-// nothing else). Tracked time is fractional here and only rounded when the totals are returned.
+// The minutes a completed task counts for: the time tracked on it (`trackedSeconds`) when there is any, else its
+// estimate (a task whose timer was never started, or one archived before time tracking began). Tracked time is
+// fractional here and only rounded when the totals are returned.
 function minutesOf(row) {
-  if (Number.isFinite(row.trackedSeconds)) return Math.max(row.trackedSeconds, 0) / 60;
+  if (Number.isFinite(row.trackedSeconds) && row.trackedSeconds > 0) return row.trackedSeconds / 60;
   return Number.isFinite(row.estimatedMinutes) && row.estimatedMinutes > 0 ? Math.round(row.estimatedMinutes) : 0;
 }
 

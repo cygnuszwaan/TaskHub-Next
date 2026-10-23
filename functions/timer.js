@@ -3,6 +3,8 @@
 
 // Time tracking on a task. A task keeps the seconds it has accrued (`trackedSeconds`, a whole number >= 0, absent
 // until first used) and, while its timer runs, the instant it started (`timerStartedAt`, ISO text; absent when paused).
+// The task whose timer was started last also carries `active: true`, which a pause leaves in place, so the page can keep
+// showing it until another task is started; at most one task has it.
 // Everything here is pure: the caller passes the clock as `nowMs` (milliseconds since the epoch).
 
 function startedMs(task) {
@@ -37,14 +39,23 @@ function pauseTimer(task, nowMs) {
   return next;
 }
 
-// The task with its timer running from `nowMs`; one already running is returned as it is.
+// The task without the `active` mark; a task without it is returned as it is.
+function clearActive(task) {
+  if (!task || !task.active) return task;
+  const next = {...task};
+  delete next.active;
+  return next;
+}
+
+// The task with its timer running from `nowMs` and marked `active`; one already running is returned as it is.
 function startTimer(task, nowMs) {
   if (isRunning(task) || !Number.isFinite(nowMs)) return task;
-  return {...task, timerStartedAt: new Date(nowMs).toISOString()};
+  return {...task, timerStartedAt: new Date(nowMs).toISOString(), active: true};
 }
 
 // Start or pause one task's timer on the list. Starting also pauses every other running timer, so at most one runs
-// at a time. Pure: the input is not modified; tasks not touched are returned as they were.
+// at a time, and takes the `active` mark from every other task (a start of a running timer changes nothing, and a
+// pause keeps the mark). Pure: the input is not modified; tasks not touched are returned as they were.
 //   action: "START" or "PAUSE" (case-insensitive); anything else, or an unknown task id, returns null
 // Returns {tasks, task} (the changed task).
 function setTimerInList(tasks, taskId, action, nowMs) {
@@ -56,16 +67,16 @@ function setTimerInList(tasks, taskId, action, nowMs) {
       changed = verb === "START" ? startTimer(t, nowMs) : pauseTimer(t, nowMs);
       return changed;
     }
-    return verb === "START" ? pauseTimer(t, nowMs) : t;
+    return verb === "START" ? clearActive(pauseTimer(t, nowMs)) : t;
   });
   return {tasks: next, task: changed};
 }
 
-// A task as it is archived or removed: its timer stopped and `trackedSeconds` holding everything accrued (0 for a
-// task that was never timed). Pure.
+// A task as it is archived: its timer stopped, `trackedSeconds` holding everything accrued (0 for a task that was
+// never timed) and no `active` mark. Pure.
 function settleTimer(task, nowMs) {
   const paused = pauseTimer(task, nowMs);
-  return {...paused, trackedSeconds: savedSeconds(paused)};
+  return {...clearActive(paused), trackedSeconds: savedSeconds(paused)};
 }
 
-module.exports = {isRunning, elapsedSeconds, pauseTimer, startTimer, setTimerInList, settleTimer};
+module.exports = {clearActive, isRunning, elapsedSeconds, pauseTimer, startTimer, setTimerInList, settleTimer};

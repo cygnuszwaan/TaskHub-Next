@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, sortTasksForList, SORT_OPTIONS, normalizeSortKey, sortTasks, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, sortTasksForList, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -87,7 +87,7 @@ describe("public/index.html helpers", () => {
       assert.deepEqual(tasks.map((t) => t.id), ["snoozed", "plain", "overdue", "snoozed-overdue", "over-snooze"], "the input is not reordered");
     });
     it("puts a Snooze button next to Complete on the task card, and a dialog outside the edit modal", () => {
-      const list = html.slice(html.indexOf("function renderTasks"), html.indexOf("function renderTasks") + 6000);
+      const list = html.slice(html.indexOf("function taskItemHtml"), html.indexOf("function renderTasks"));
       assert.match(list, /data-action="snooze"/);
       assert.ok(list.indexOf("data-action=\"snooze\"") < list.indexOf("data-action=\"complete\""));
       assert.match(list, /snoozeChip\(t\)/);
@@ -301,14 +301,14 @@ describe("public/index.html helpers", () => {
       assert.ok(q < at(`id="tagFilterBar"`, q) && at(`id="tagFilterBar"`, q) < at(`id="taskList"`, q));
       assert.ok(at(`id="taskList"`, q) < at("</main>", q));
     });
-    it("puts a live search box at the top of the Queue, above Tags, redrawing the list as you type", () => {
+    it("puts a live search box at the top of the Queue (below the active task), above Tags, redrawing the list as you type", () => {
       const q = at(`id="queueCard"`);
       const search = at(`id="taskSearch"`, q);
       assert.ok(search > q && search < at(`id="tagsDetails"`, q));
       assert.match(html.slice(html.lastIndexOf("<input", search), html.indexOf(">", search)), /type="search"[^>]*placeholder="Search tasks"/);
       const input = html.slice(html.indexOf(`getElementById("taskSearch").addEventListener("input"`), html.indexOf(`getElementById("clearSearchBtn").addEventListener("click"`));
       assert.match(input, /renderTasks\(\)/);
-      assert.match(html, /filterTasks\(allTasks, selectedTagFilter, selectedProjectFilter, document\.getElementById\("taskSearch"\)\.value\)/);
+      assert.match(html, /filterTasks\(rest, selectedTagFilter, selectedProjectFilter, document\.getElementById\("taskSearch"\)\.value\)/);
     });
     it("shows a Clear button beside the search box only while it holds text", () => {
       const row = html.slice(at(`class="search-row"`), at("</div>", at(`class="search-row"`)));
@@ -1065,10 +1065,10 @@ describe("public/index.html helpers", () => {
       const {durationText} = load();
       assert.deepEqual([0, 45, 60, 89, 3600, 3900, 7200].map(durationText), ["0s", "45s", "1m", "1m", "1h", "1h 5m", "2h"]);
     });
-    it("shows a completed task's tracked time, or its estimate marked as one when it predates tracking", () => {
+    it("shows a completed task's tracked time, or its estimate marked as one when no time was tracked", () => {
       const {completedTimeText} = load();
       assert.equal(completedTimeText({trackedSeconds: 1500, estimatedMinutes: 60}), "25m");
-      assert.equal(completedTimeText({trackedSeconds: 0, estimatedMinutes: 60}), "0s");
+      assert.equal(completedTimeText({trackedSeconds: 0, estimatedMinutes: 60}), "60m est.");
       assert.equal(completedTimeText({estimatedMinutes: 30}), "30m est.");
       assert.equal(completedTimeText({}), "15m est.");
     });
@@ -1078,6 +1078,23 @@ describe("public/index.html helpers", () => {
       assert.ok(modal.includes("id=\"editTimerBtn\"") && modal.includes("id=\"editElapsed\"") && modal.includes("snoozeFromModal"));
       assert.equal(html.includes("rescheduleFromModal"), false);
       assert.equal(html.includes("Reschedule</button>"), false);
+    });
+    it("picks the running task as the active one, else the marked one, else none", () => {
+      const {activeTaskOf} = load();
+      const running = {id: "r", timerStartedAt: "2026-10-24T09:00:00.000Z", active: true};
+      const marked = {id: "m", active: true, trackedSeconds: 30};
+      const plain = {id: "p"};
+      assert.equal(activeTaskOf([plain, marked, running]), running);
+      assert.equal(activeTaskOf([plain, marked]), marked);
+      assert.equal(activeTaskOf([plain, {id: "legacy", timerStartedAt: "2026-10-24T09:00:00.000Z"}]).id, "legacy", "a running timer counts even without the mark");
+      assert.equal(activeTaskOf([plain]), null);
+      assert.equal(activeTaskOf([]), null);
+    });
+    it("puts the active task in a box above the search row of the Queue card", () => {
+      const queue = html.slice(html.indexOf("id=\"queueCard\""), html.indexOf("id=\"taskList\""));
+      assert.ok(queue.indexOf("id=\"activeTaskBox\"") > 0);
+      assert.ok(queue.indexOf("id=\"activeTaskBox\"") < queue.indexOf("id=\"taskSearch\""));
+      assert.ok(html.includes("activeTaskOf(allTasks)"));
     });
   });
 });
