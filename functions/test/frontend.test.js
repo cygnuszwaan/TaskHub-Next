@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, scheduleSummary, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS};`)();
+    return {TABS, normalizeTab, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, scheduleSummary, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -28,11 +28,11 @@ describe("public/index.html helpers", () => {
         assert.ok(i > add && i < queue, `${id} sits in the add card`);
       }
       assert.match(html.slice(html.indexOf(`id="manualFields"`), html.indexOf(">", html.indexOf(`id="manualFields"`))), /hidden/);
-      const settings = html.indexOf(`id="settingsDetails"`);
+      const settings = html.indexOf(`id="pageSettings"`);
       const modal = html.indexOf(`id="editModal"`);
       for (const id of ["gapMinutes", "dayStart", "dayEnd", "lunchEnabled", "lunchTime", "lunchMinutes"]) {
         const i = html.indexOf(`id="${id}"`);
-        assert.ok(i > settings && i < modal, `${id} sits in the Settings card`);
+        assert.ok(i > settings && i < modal, `${id} sits on the Settings page`);
       }
       assert.match(html.slice(html.indexOf(`id="lunchEnabled"`) - 30, html.indexOf(`id="lunchEnabled"`)), /type="checkbox"/);
     });
@@ -59,26 +59,54 @@ describe("public/index.html helpers", () => {
       }
       throw new Error("unclosed <details>");
     };
-    it("puts the Materials card right after the Queue and before Recently Completed", () => {
-      const q = at(`id="queueDetails"`);
-      const m = at(`id="materialsDetails"`);
-      assert.ok(m > closeOf(html.lastIndexOf("<details", q)) && m < at(`id="completedDetails"`));
+    it("has a pinned header with the Tasks, Materials and Settings tabs, in that order", () => {
+      assert.match(html, /\.app-header\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0/);
+      const header = html.slice(at("<header"), at("</header>"));
+      assert.ok(header.includes("Sign out") && header.includes(`id="tabBar"`));
+      const tabs = [...header.matchAll(/data-tab="(\w+)"/g)].map((m) => m[1]);
+      assert.deepEqual(tabs, ["tasks", "materials", "settings"]);
+      assert.ok(header.indexOf(`id="materialsCount"`) > header.indexOf(`data-tab="materials"`));
+      assert.ok(header.indexOf(`id="materialsCount"`) < header.indexOf(`data-tab="settings"`));
+    });
+    it("has one page per tab, with only the Tasks page visible at first", () => {
+      const pages = [...html.matchAll(/<main id="(\w+)" data-page="(\w+)"([^>]*)>/g)];
+      assert.deepEqual(pages.map((m) => m[2]), ["tasks", "materials", "settings"]);
+      assert.deepEqual(pages.map((m) => /\bhidden\b/.test(m[3])), [false, true, true]);
+    });
+    it("puts add task, the Queue and Recently Completed on the Tasks page", () => {
+      const tasks = at(`id="pageTasks"`);
+      const end = at("</main>", tasks);
+      for (const id of ["taskInput", "queueDetails", "tagsDetails", "projectsDetails", "taskList", "completedDetails"]) {
+        const i = at(`id="${id}"`);
+        assert.ok(i > tasks && i < end, `${id} is on the Tasks page`);
+      }
+      assert.ok(at(`id="taskInput"`) < at(`id="queueDetails"`) && at(`id="queueDetails"`) < at(`id="completedDetails"`));
+    });
+    it("makes Materials a page, not a collapsible card", () => {
+      const page = at(`id="pageMaterials"`);
+      const end = at("</main>", page);
+      for (const id of ["materialsList", "materialsStatus"]) {
+        const i = at(`id="${id}"`);
+        assert.ok(i > page && i < end, `${id} is on the Materials page`);
+      }
+      assert.doesNotMatch(html.slice(page, end), /<details/);
+      assert.doesNotMatch(html, /id="materialsDetails"/);
       assert.ok(html.indexOf(`id="editMaterials"`) > html.indexOf(`id="editModal"`));
     });
-    it("puts the Settings card last, with Save settings and Update now side by side", () => {
-      const settings = at(`id="settingsDetails"`);
-      assert.ok(settings > at(`id="taskInput"`) && settings > at(`id="queueDetails"`) && settings > at(`id="projectsDetails"`) && settings > at(`id="completedDetails"`));
-      assert.ok(settings < at(`id="editModal"`));
+    it("makes Settings a page with Save settings, Update now and the schedule result line", () => {
+      const page = at(`id="pageSettings"`);
+      const end = at("</main>", page);
+      assert.ok(page > at(`id="pageMaterials"`) && end < at(`id="editModal"`));
+      assert.doesNotMatch(html.slice(page, end), /<details/);
+      assert.doesNotMatch(html, /id="settingsDetails"/);
       const save = at(`id="saveSettingsBtn"`);
       const row = html.slice(html.lastIndexOf(`<div class="action-row"`, save), at(`id="settingsStatus"`));
       assert.match(row, /id="saveSettingsBtn"/);
       assert.match(row, /id="schedBtn"[^>]*onclick="scheduleWeek\(\)"[^>]*>[^<]*Update now/);
-      assert.ok(at(`id="schedBtn"`) < at("</details>", save), "Update now is inside the Settings details");
-    });
-    it("keeps the schedule status outside the collapsible Settings details so it stays visible", () => {
-      const closeSettings = at("</details>", at(`id="saveSettingsBtn"`));
-      assert.ok(at(`id="scheduleStatus"`) > closeSettings);
-      assert.ok(at(`id="scheduleStatus"`) < at(`id="editModal"`));
+      for (const id of ["schedBtn", "scheduleStatus"]) {
+        const i = at(`id="${id}"`);
+        assert.ok(i > page && i < end, `${id} is on the Settings page`);
+      }
     });
     it("has no Projects card of its own: Projects is a collapsible section of the Queue, just below Tags", () => {
       const q = at(`<details id="queueDetails" open>`);
@@ -115,6 +143,15 @@ describe("public/index.html helpers", () => {
       assert.ok(q < at(`id="tagFilterBar"`, q) && at(`id="tagFilterBar"`, q) < at(`id="taskList"`, q));
       assert.ok(at(`id="taskList"`, q) < close);
       assert.ok(close < at(`id="completedDetails"`));
+    });
+  });
+
+  describe("tabs", () => {
+    it("lists the tabs and falls back to Tasks for an unknown name", () => {
+      const {TABS, normalizeTab} = load();
+      assert.deepEqual([...TABS], ["tasks", "materials", "settings"]);
+      for (const name of TABS) assert.equal(normalizeTab(name), name);
+      for (const name of ["", "other", undefined, null, "Tasks"]) assert.equal(normalizeTab(name), "tasks");
     });
   });
 

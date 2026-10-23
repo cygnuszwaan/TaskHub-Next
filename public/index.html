@@ -87,8 +87,13 @@
     [hidden] { display: none !important; }
     .gate { max-width: 360px; margin: 80px auto; text-align: center; }
     .gate-msg { color: #b91c1c; font-size: 14px; min-height: 20px; margin: 10px 0; }
-    .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .app-header { position: sticky; top: 0; z-index: 100; background: #f4f6f8; padding: 12px 0 0; margin-bottom: 16px; border-bottom: 1px solid #dbe1e8; }
+    .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
     .header-row h1 { margin: 0; }
+    .tab-bar { display: flex; gap: 4px; }
+    .tab-btn { flex: 1; background: transparent; color: #475569; border-radius: 6px 6px 0 0; border-bottom: 3px solid transparent; padding: 10px 8px; }
+    .tab-btn small { font-weight: normal; color: #64748b; }
+    .tab-btn.active { color: #0266c8; border-bottom-color: #0266c8; background: #fff; }
   </style>
 </head>
 <body>
@@ -100,11 +105,19 @@
   </div>
 
   <div id="app" hidden>
-  <div class="header-row">
-    <h1 style="font-size: 22px;">TaskHub Next</h1>
-    <button class="btn-secondary" onclick="signOutUser()">Sign out</button>
-  </div>
+  <header class="app-header">
+    <div class="header-row">
+      <h1 style="font-size: 22px;">TaskHub Next</h1>
+      <button class="btn-secondary" onclick="signOutUser()">Sign out</button>
+    </div>
+    <nav class="tab-bar" id="tabBar">
+      <button type="button" class="tab-btn active" data-tab="tasks">Tasks</button>
+      <button type="button" class="tab-btn" data-tab="materials">Materials <small id="materialsCount"></small></button>
+      <button type="button" class="tab-btn" data-tab="settings">Settings</button>
+    </nav>
+  </header>
 
+  <main id="pageTasks" data-page="tasks">
   <div class="card">
     <h3 style="margin-top:0; margin-bottom:12px;">Add New Task</h3>
     <div class="input-row">
@@ -162,24 +175,26 @@
   </div>
 
   <div class="card">
-    <details id="materialsDetails">
-      <summary style="cursor: pointer; font-weight: 600;">Materials <small id="materialsCount" style="font-size:11px; font-weight:normal; color:#64748b;"></small></summary>
-      <div id="materialsList" style="margin-top: 12px;"></div>
-      <div id="materialsStatus" class="settings-status"></div>
-    </details>
-  </div>
-
-  <div class="card">
     <details id="completedDetails">
       <summary style="cursor: pointer; font-weight: 600;">Recently Completed</summary>
       <div id="completedList" style="margin-top: 12px;"></div>
     </details>
   </div>
+  </main>
 
+  <main id="pageMaterials" data-page="materials" hidden>
   <div class="card">
-    <details id="settingsDetails">
-      <summary style="cursor: pointer; font-weight: 600;">Settings</summary>
-      <div style="margin-top: 12px;">
+    <h3 style="margin-top:0; margin-bottom:12px;">Materials to get</h3>
+    <div id="materialsList"></div>
+    <div id="materialsStatus" class="settings-status"></div>
+  </div>
+  </main>
+
+  <main id="pageSettings" data-page="settings" hidden>
+  <div class="card">
+    <h3 style="margin-top:0; margin-bottom:12px;">Settings</h3>
+    <div id="settingsBody">
+      <div>
         <div class="form-group">
           <label>Location (weather and time zone)</label>
           <div id="settingsLocation" class="settings-current">Loading...</div>
@@ -251,9 +266,10 @@
         </div>
         <div id="settingsStatus" class="settings-status"></div>
       </div>
-    </details>
+    </div>
     <div id="scheduleStatus" class="coach-box" style="display:none;"></div>
   </div>
+  </main>
 
   <div id="editModal" class="modal-overlay" onclick="closeModalOnOverlay(event)">
     <div class="modal-card">
@@ -382,6 +398,15 @@
       document.getElementById("app").hidden = false;
     }
 
+    // The header tabs: one page visible at a time, the others hidden (not removed, so their state survives).
+    function showTab(name) {
+      const tab = normalizeTab(name);
+      document.querySelectorAll("[data-page]").forEach(page => { page.hidden = page.dataset.page !== tab; });
+      document.querySelectorAll("[data-tab]").forEach(btn => btn.classList.toggle("active", btn.dataset.tab === tab));
+      if (tab === "settings" && !currentSettings) loadSettings();
+      window.scrollTo(0, 0);
+    }
+
     async function initAuth() {
       try {
         const [appLib, lib, config] = await Promise.all([
@@ -471,6 +496,12 @@
     }
 
     // <pure-helpers>
+    const TABS = ["tasks", "materials", "settings"];
+    // The tab to show for a requested name; anything unknown falls back to the first tab.
+    function normalizeTab(name) {
+      return TABS.includes(name) ? name : TABS[0];
+    }
+
     // No DOM or network access in this block: functions/test/frontend.test.js extracts it and runs it under Node.
     const DEFAULT_TIME_ZONE = "Pacific/Auckland"; // used until the settings load
     const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -970,7 +1001,7 @@
     function renderMaterialsCard() {
       const groups = openMaterialGroups(allTasks);
       const count = openMaterialCount(allTasks);
-      document.getElementById("materialsCount").textContent = count === 0 ? "" : `(${count} to get)`;
+      document.getElementById("materialsCount").textContent = count === 0 ? "" : `(${count})`;
       document.getElementById("materialsList").innerHTML = groups.length === 0 ?
         "<p style='color:#666; margin:0;'>Nothing to get.</p>" :
         groups.map(g => `
@@ -1140,7 +1171,7 @@
         statusDiv.innerText = `Rescheduled "${task ? task.title : "task"}".`;
       } catch (err) {
         statusDiv.innerText = "Error rescheduling: " + err.message;
-        alert("Error rescheduling: " + err.message); // the status line is at the bottom of the page, out of sight from the list
+        alert("Error rescheduling: " + err.message); // the status line lives on the Settings page, out of sight from the list
       }
     }
 
@@ -1491,8 +1522,9 @@
       }
     }
 
-    document.getElementById("settingsDetails").addEventListener("toggle", e => {
-      if (e.target.open && !currentSettings) loadSettings();
+    document.getElementById("tabBar").addEventListener("click", e => {
+      const btn = e.target.closest("[data-tab]");
+      if (btn) showTab(btn.dataset.tab);
     });
     document.getElementById("schedFrequency").addEventListener("change", updateScheduleFields);
     document.getElementById("lunchEnabled").addEventListener("change", updateLunchFields);
