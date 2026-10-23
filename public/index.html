@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TaskHub Next - Whangaparāoa</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0266c8">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 680px; margin: 20px auto; padding: 0 15px; background: #f4f6f8; color: #222; }
     .card { background: white; padding: 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 16px; }
@@ -425,6 +429,12 @@
       gateNotice = "";
     }
 
+    // Shows a message on the sign-in screen whether or not it is already up (the auth state callback may come first).
+    function noteGate(message) {
+      if (document.getElementById("signInGate").hidden) gateNotice = message;
+      else document.getElementById("gateMsg").textContent = message;
+    }
+
     function showApp() {
       document.getElementById("signInGate").hidden = true;
       document.getElementById("app").hidden = false;
@@ -452,6 +462,8 @@
         ]);
         authLib = lib;
         firebaseAuth = lib.getAuth(appLib.initializeApp(config));
+        // Completes a redirect sign-in (see signIn); a success arrives through onAuthStateChanged below.
+        lib.getRedirectResult(firebaseAuth).catch(err => noteGate("Sign-in failed: " + err.message));
         lib.onAuthStateChanged(firebaseAuth, user => {
           if (user) {
             showApp();
@@ -470,10 +482,17 @@
     async function signIn() {
       if (!authLib) return;
       document.getElementById("gateMsg").textContent = "";
+      const provider = new authLib.GoogleAuthProvider();
       try {
-        await authLib.signInWithPopup(firebaseAuth, new authLib.GoogleAuthProvider());
+        await authLib.signInWithPopup(firebaseAuth, provider);
       } catch (err) {
-        if (err.code !== "auth/popup-closed-by-user" && err.code !== "auth/cancelled-popup-request") {
+        if (needsRedirectSignIn(err.code)) {
+          try {
+            await authLib.signInWithRedirect(firebaseAuth, provider); // leaves the page; the result comes back on load
+          } catch (redirectErr) {
+            document.getElementById("gateMsg").textContent = "Sign-in failed: " + redirectErr.message;
+          }
+        } else if (err.code !== "auth/popup-closed-by-user" && err.code !== "auth/cancelled-popup-request") {
           document.getElementById("gateMsg").textContent = "Sign-in failed: " + err.message;
         }
       }
@@ -806,6 +825,17 @@
       if (!count) return `Delete project "${name}"?`;
       return `Delete project "${name}"? ${count === 1 ? "Its 1 task stays" : `Its ${count} tasks stay`} on the list but ${count === 1 ? "leaves" : "leave"} the project.`;
     }
+
+    // Sign-in errors that mean the popup cannot work here (blocked, or an environment without popups, such as some
+    // installed windows); the page then signs in by redirect instead. A closed popup is not one of them.
+    const REDIRECT_SIGN_IN_CODES = [
+      "auth/popup-blocked",
+      "auth/operation-not-supported-in-this-environment",
+      "auth/web-storage-unsupported"
+    ];
+    function needsRedirectSignIn(code) {
+      return REDIRECT_SIGN_IN_CODES.includes(code);
+    }
     // </pure-helpers>
 
     window.addEventListener("DOMContentLoaded", () => {
@@ -884,6 +914,8 @@
 
       updateRecurUnit("manual"); // hides the interval controls until a frequency is chosen
       initAuth();
+      // The service worker caches only the app shell (see sw.js); the page works without it.
+      if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
     });
 
     async function fetchTasks() {

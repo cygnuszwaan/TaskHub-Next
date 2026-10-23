@@ -15,10 +15,24 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn};`)();
 }
 
 describe("public/index.html helpers", () => {
+  describe("needsRedirectSignIn", () => {
+    it("is true for the errors that mean a popup cannot be used here", () => {
+      const {needsRedirectSignIn} = load();
+      for (const code of ["auth/popup-blocked", "auth/operation-not-supported-in-this-environment", "auth/web-storage-unsupported"]) {
+        assert.equal(needsRedirectSignIn(code), true, code);
+      }
+    });
+    it("is false for a closed popup, a cancelled request, other errors and no code", () => {
+      const {needsRedirectSignIn} = load();
+      for (const code of ["auth/popup-closed-by-user", "auth/cancelled-popup-request", "auth/network-request-failed", "", undefined]) {
+        assert.equal(needsRedirectSignIn(code), false, String(code));
+      }
+    });
+  });
   describe("layout", () => {
     it("has a manual-entry checkbox and fields in the add card, and gap, day and lunch fields in Settings", () => {
       const add = html.indexOf(`id="taskInput"`);

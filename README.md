@@ -39,3 +39,7 @@ firebase deploy --only hosting --project taskhub-next
 `npm run lint` runs automatically before the functions deploy (`predeploy` in `firebase.json`), so `npm install` in `functions/` must have been run.
 
 Logs: `cd functions && npm run logs`.
+
+## Install on Android
+
+Open the site in Chrome, then menu → Install app. Remove any old home-screen shortcut first, so there is one icon.
