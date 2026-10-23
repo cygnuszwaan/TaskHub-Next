@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {localParts, localDate, localMinutesOfDay, utcOffsetMinutes, utcOffset, localDayStart, startOfLocalDay, formatLocalNow, addDays} = require("../time");
+const {localParts, localDate, localMinutesOfDay, utcOffsetMinutes, utcOffset, localInstant, formatLocalISO, localDayStart, startOfLocalDay, formatLocalNow, addDays} = require("../time");
 
 const NZ = "Pacific/Auckland";
 const SYDNEY = "Australia/Sydney";
@@ -158,6 +158,62 @@ describe("time.js", () => {
     it("starts after a changeover that skips midnight", () => {
       // Cuba moved its clocks from 00:00 to 01:00 on 8 March 2026, so that day begins at 01:00 CDT (05:00 UTC).
       assert.equal(localDayStart("America/Havana", "2026-03-08").toISOString(), "2026-03-08T05:00:00.000Z");
+    });
+  });
+
+  describe("localInstant", () => {
+    it("is the instant the local clock reads the given minutes", () => {
+      assert.equal(localInstant(NZ, "2026-10-22", 8 * 60).toISOString(), "2026-10-21T19:00:00.000Z"); // 08:00 NZDT
+      assert.equal(localInstant(NZ, "2026-07-22", 19 * 60).toISOString(), "2026-07-22T07:00:00.000Z"); // 19:00 NZST
+      assert.equal(localInstant(LA, "2026-10-22", 8 * 60).toISOString(), "2026-10-22T15:00:00.000Z"); // 08:00 PDT
+    });
+    it("agrees with localDayStart at midnight", () => {
+      for (const zone of [NZ, SYDNEY, LA, "Asia/Kolkata"]) {
+        assert.equal(localInstant(zone, "2026-10-22", 0).getTime(), localDayStart(zone, "2026-10-22").getTime(), zone);
+      }
+    });
+    it("uses the offset in force on that day around a changeover", () => {
+      assert.equal(localInstant(NZ, "2026-09-27", 8 * 60).toISOString(), "2026-09-26T19:00:00.000Z"); // NZDT from 02:00 on the 27th
+      assert.equal(localInstant(NZ, "2026-04-05", 8 * 60).toISOString(), "2026-04-04T20:00:00.000Z"); // NZST from 03:00 on the 5th
+      assert.equal(localInstant(LA, "2026-11-01", 8 * 60).toISOString(), "2026-11-01T16:00:00.000Z"); // PST after 02:00 on 1 November
+    });
+    it("round-trips through the local clock for working hours on every day around the changeovers", () => {
+      for (const zone of [NZ, SYDNEY, LA, "Asia/Kolkata", "Pacific/Chatham", "America/St_Johns", "Europe/London"]) {
+        for (const date of ["2026-03-08", "2026-03-29", "2026-04-05", "2026-09-27", "2026-10-04", "2026-10-25", "2026-11-01"]) {
+          for (const minutes of [8 * 60, 19 * 60]) {
+            const at = localInstant(zone, date, minutes);
+            assert.ok(at, `${zone} ${date} ${minutes}`);
+            assert.deepEqual(localParts(zone, at), {date, minutes}, `${zone} ${date} ${minutes}`);
+          }
+        }
+      }
+    });
+    it("is null when the clock skips that time", () => {
+      // Sydney's clocks went from 02:00 to 03:00 on 4 October 2026, so 02:30 never happened
+      assert.equal(localInstant(SYDNEY, "2026-10-04", 2 * 60 + 30), null);
+    });
+    it("requires a zone", () => {
+      assert.throws(() => localInstant(undefined, "2026-10-22", 480), /time zone is required/);
+    });
+  });
+
+  describe("formatLocalISO", () => {
+    it("writes the local time with its UTC offset", () => {
+      assert.equal(formatLocalISO(NZ, new Date("2026-10-21T20:00:00Z")), "2026-10-22T09:00:00+13:00");
+      assert.equal(formatLocalISO(NZ, new Date("2026-07-22T00:15:00Z")), "2026-07-22T12:15:00+12:00");
+      assert.equal(formatLocalISO(LA, new Date("2026-10-22T15:00:00Z")), "2026-10-22T08:00:00-07:00");
+      assert.equal(formatLocalISO("Asia/Kolkata", new Date("2026-10-22T02:30:00Z")), "2026-10-22T08:00:00+05:30");
+      assert.equal(formatLocalISO("UTC", new Date("2026-10-22T00:00:00Z")), "2026-10-22T00:00:00+00:00");
+    });
+    it("reads back as the same instant", () => {
+      const at = new Date("2026-10-22T03:05:00Z");
+      assert.equal(Date.parse(formatLocalISO(NZ, at)), at.getTime());
+    });
+    it("truncates to the minute", () => {
+      assert.equal(formatLocalISO(NZ, new Date("2026-10-21T20:00:45Z")), "2026-10-22T09:00:00+13:00");
+    });
+    it("requires a zone", () => {
+      assert.throws(() => formatLocalISO("", new Date()), /time zone is required/);
     });
   });
 

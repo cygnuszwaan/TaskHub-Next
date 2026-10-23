@@ -66,6 +66,25 @@ function localDayStart(timeZone, dateStr) {
   return new Date(guess);
 }
 
+// The instant at which the zone's clock reads `minutes` past midnight on the YYYY-MM-DD local date (e.g. 480 for
+// 8:00), or null when no instant has that reading (a clock that skips over it). When a clock set back repeats the
+// reading, the instant found is one of the two; changeovers happen at night, so this does not matter for working hours.
+function localInstant(timeZone, dateStr, minutes) {
+  const wall = Date.parse(`${dateStr}T00:00:00Z`) + minutes * 60000;
+  let guess = wall - utcOffsetMinutes(timeZone, new Date(wall)) * 60000;
+  guess = wall - utcOffsetMinutes(timeZone, new Date(guess)) * 60000;
+  const parts = localParts(timeZone, new Date(guess));
+  return parts.date === dateStr && parts.minutes === minutes ? new Date(guess) : null;
+}
+
+// The instant as ISO 8601 in the zone's local time with its UTC offset, to the minute, e.g. "2026-10-22T09:00:00+13:00".
+function formatLocalISO(timeZone, date) {
+  const {date: day, minutes} = localParts(timeZone, date);
+  const hh = String(Math.floor(minutes / 60)).padStart(2, "0");
+  const mm = String(minutes % 60).padStart(2, "0");
+  return `${day}T${hh}:${mm}:00${utcOffset(timeZone, date)}`;
+}
+
 // First instant of the local day containing the given instant.
 function startOfLocalDay(timeZone, date = new Date()) {
   return localDayStart(timeZone, localDate(timeZone, date));
@@ -87,4 +106,4 @@ function addDays(dateStr, n) {
   return d.toISOString().slice(0, 10);
 }
 
-module.exports = {localParts, localDate, localMinutesOfDay, utcOffsetMinutes, utcOffset, localDayStart, startOfLocalDay, formatLocalNow, addDays};
+module.exports = {localParts, localDate, localMinutesOfDay, utcOffsetMinutes, utcOffset, localInstant, formatLocalISO, localDayStart, startOfLocalDay, formatLocalNow, addDays};

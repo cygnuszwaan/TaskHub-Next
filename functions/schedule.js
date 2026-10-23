@@ -313,4 +313,4 @@ function matchLockedEvents(events, tasks) {
   return byTask;
 }
 
-module.exports = {DAY_START_MIN, DAY_END_MIN, validateSchedule, repairSchedule, parseScheduleResponse, checkProjectOrder, buildFixedSlots, matchLockedEvents};
+module.exports = {DAY_START_MIN, DAY_END_MIN, tierOf, validateSchedule, repairSchedule, parseScheduleResponse, checkProjectOrder, buildFixedSlots, matchLockedEvents};

@@ -10,6 +10,7 @@ const {google} = require("googleapis");
 const {localDate, startOfLocalDay} = require("./time");
 const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
 const {repairSchedule, parseScheduleResponse, buildFixedSlots, matchLockedEvents} = require("./schedule");
+const {planSchedule} = require("./planner");
 const {applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
 const {UNAVAILABLE, weatherUrl, describeWeather, parseForecast, forecastKey, weatherWindow} = require("./weather");
@@ -37,6 +38,10 @@ const MODEL_NAME = "gemini-3.5-flash-lite";
 // Each Gemini scheduling request is cut off after this long; a run makes at most SCHEDULE_ATTEMPTS of them.
 const GEMINI_TIMEOUT_MS = 60 * 1000;
 const SCHEDULE_ATTEMPTS = 3;
+// What places the tasks on the calendar: "deterministic" (planner.js: earliest open gap, most urgent first; no model
+// call) or "gemini" (the scheduling prompt, with its repair and retry loop). Either way every slot goes through the same
+// validation (repairSchedule) before the calendar is touched. Switching it re-runs the schedule (see fingerprint.js).
+const SCHEDULER = "deterministic";
 
 
 // Target Google Calendar for all scheduling (set in functions/.env)
@@ -253,8 +258,22 @@ async function requestValidSchedule(toSchedule, busySlots, now, settings, weathe
   throw new Error(`${lastProblem}; existing events were kept.`);
 }
 
-// Core Scheduling Engine Logic. Nothing on the calendar is touched until Gemini's
-// slots have been validated; a failure before that point leaves existing events as they are.
+// Place the tasks with the deterministic planner and check the result against the same rules as a model's answer.
+// Returns {slots, items, dropped} like requestValidSchedule. Unlike a model's answer, an empty result is a real one
+// (nothing fits), so it is not an error; slots that fail validation would be a planner bug, so those stop the run
+// with the calendar untouched.
+function planValidSchedule(toSchedule, validation) {
+  const plan = planSchedule({tasks: toSchedule, ...validation});
+  const repaired = repairSchedule({items: plan.items, tasks: toSchedule, ...validation});
+  if (repaired.dropped.length > 0 || repaired.errors.length > 0) {
+    console.error("Planner output failed validation:", JSON.stringify({dropped: repaired.dropped, errors: repaired.errors}));
+    throw new Error(`The planner produced an invalid schedule (${[...repaired.errors, ...repaired.dropped.map((d) => `task ${d.taskId}: ${d.reason}`)].slice(0, 5).join("; ")}); existing events were kept.`);
+  }
+  return {slots: repaired.slots, items: plan.items, dropped: plan.unplaced};
+}
+
+// Core Scheduling Engine Logic. Nothing on the calendar is touched until the slots
+// have been validated; a failure before that point leaves existing events as they are.
 // The personal calendar is only ever read.
 // With `taskIds`, only those tasks are offered to Gemini and have their events replaced; every other app
 // event stays and counts as busy, and the other tasks' schedule fields are left alone.
@@ -320,15 +339,15 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
   const keptAppBusy = subset ? appBusyWindows(agentEvents, timeZone, oldEventIds) : [];
   const busySlots = mergeBusyWindows([...personalBusy, ...lockedWindows, ...agentBusy, ...keptAppBusy]);
 
-  // 3. Ask Gemini for slots for the unlocked tasks, then validate before touching the calendar
+  // 3. Get slots for the unlocked tasks (from the planner, or from Gemini), then validate before touching the calendar
   let scheduledList = [];
   let slots = [];
-  let unscheduled = []; // tasks Gemini tried to place but whose slots were dropped, [{taskId, reason}]
+  let unscheduled = []; // tasks that got no slot with the reason, [{taskId, reason}] (from Gemini: only those it tried to place)
   let fingerprint = null;
   if (toSchedule.length > 0) {
     const weather = await getWeather(settings.location, timeZone);
     if (!subset) {
-      fingerprint = computeFingerprint({tasks: toSchedule, busySlots, weatherKey: weather.key, settings, now, horizon});
+      fingerprint = computeFingerprint({tasks: toSchedule, busySlots, weatherKey: weather.key, settings, now, horizon, scheduler: SCHEDULER});
       if (shouldSkipRun({skipIfUnchanged, fingerprint, lastRunFingerprint: settings.lastRunFingerprint, endedSlot: hasEndedSlot(toSchedule, timeZone, now)})) {
         return {success: true, skipped: true, scheduledCount: 0, lockedCount: lockedEvents.size, heldCount, message: "Nothing changed since the last run; existing events were kept."};
       }
@@ -341,7 +360,9 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
     // Outdoor and Garden tasks stay inside the forecast window and off rainy days (enforced on Gemini's slots)
     const weatherRules = weatherWindow({today: localDate(timeZone, now), forecast: weather.forecast, current: weather.key});
     const validation = {busy: busySlots, now, horizon, timeZone, weather: weatherRules, allTasks: currentTasks, fixed};
-    const result = await requestValidSchedule(toSchedule, busySlots, now, settings, weather.text, {projects, fixed, allTasks: currentTasks, forecast: weather.forecast}, validation);
+    const result = SCHEDULER === "gemini" ?
+      await requestValidSchedule(toSchedule, busySlots, now, settings, weather.text, {projects, fixed, allTasks: currentTasks, forecast: weather.forecast}, validation) :
+      planValidSchedule(toSchedule, validation);
     scheduledList = result.items;
     slots = result.slots;
     unscheduled = result.dropped;
