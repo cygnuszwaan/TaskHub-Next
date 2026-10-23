@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {validateSchedule, repairSchedule, parseScheduleResponse, checkProjectOrder, buildFixedSlots, matchLockedEvents, DAY_START_MIN, DAY_END_MIN} = require("../schedule");
+const {validateSchedule, repairSchedule, checkProjectOrder, buildFixedSlots, matchLockedEvents, DAY_START_MIN, DAY_END_MIN} = require("../schedule");
 
 // "now" is 07:00 NZDT on Thursday 22 Oct 2026; the horizon is seven days later.
 // These tests were written for a 8:00-19:00 day; the library default is 9:00-17:00, so they ask for the wide one
@@ -437,27 +437,6 @@ describe("repairSchedule", () => {
     const r = repair([slot("p1", "2026-10-22T10:30:00+13:00", "2026-10-22T11:30:00+13:00")], {fixed});
     assert.deepEqual(r.slots, []);
     assert.equal(r.dropped[0].taskId, "p1");
-  });
-});
-
-describe("parseScheduleResponse", () => {
-  it("parses the scheduledTasks list", () => {
-    assert.deepEqual(parseScheduleResponse("{\"scheduledTasks\":[{\"taskId\":\"a\"}]}"), [{taskId: "a"}]);
-  });
-  it("accepts an empty list", () => {
-    assert.deepEqual(parseScheduleResponse("{\"scheduledTasks\":[]}"), []);
-  });
-  it("strips a Markdown code fence", () => {
-    assert.deepEqual(parseScheduleResponse("```json\n{\"scheduledTasks\":[]}\n```"), []);
-  });
-  it("accepts a bare array", () => {
-    assert.deepEqual(parseScheduleResponse("[{\"taskId\":\"a\"}]"), [{taskId: "a"}]);
-  });
-  it("explains an empty, truncated or shapeless answer", () => {
-    assert.throws(() => parseScheduleResponse(undefined), /empty response/);
-    assert.throws(() => parseScheduleResponse("   "), /empty response/);
-    assert.throws(() => parseScheduleResponse("{\"scheduledTasks\":[{\"taskId\":"), /malformed JSON/);
-    assert.throws(() => parseScheduleResponse("{\"other\":1}"), /no scheduledTasks/);
   });
 });
 

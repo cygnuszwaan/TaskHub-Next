@@ -271,22 +271,6 @@ function repairSchedule({items, tasks, busy, now, horizon, timeZone, weather, al
   return {slots: result.slots, dropped: dropped.filter((d) => !kept.has(d.taskId)), errors: result.errors};
 }
 
-// Parse the text of Gemini's scheduling answer into its scheduledTasks list. Pure: no I/O. Tolerates a Markdown code
-// fence around the JSON and a bare array. Throws an Error with a readable reason when there is nothing usable.
-function parseScheduleResponse(text) {
-  if (typeof text !== "string" || text.trim() === "") throw new Error("Gemini returned an empty response");
-  const body = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  let data;
-  try {
-    data = JSON.parse(body);
-  } catch (err) {
-    throw new Error("Gemini returned malformed JSON (the answer may have been cut off)");
-  }
-  const list = Array.isArray(data) ? data : data && data.scheduledTasks;
-  if (!Array.isArray(list)) throw new Error("Gemini's answer had no scheduledTasks list");
-  return list;
-}
-
 // ISO instant for a stored schedule value (an ISO time, or a YYYY-MM-DD date taken as local midnight), or null.
 function toInstant(value, timeZone) {
   if (typeof value !== "string") return null;
@@ -343,4 +327,4 @@ function matchLockedEvents(events, tasks) {
   return byTask;
 }
 
-module.exports = {DAY_START_MIN, DAY_END_MIN, tierOf, validateSchedule, repairSchedule, parseScheduleResponse, checkProjectOrder, buildFixedSlots, matchLockedEvents};
+module.exports = {DAY_START_MIN, DAY_END_MIN, tierOf, validateSchedule, repairSchedule, checkProjectOrder, buildFixedSlots, matchLockedEvents};

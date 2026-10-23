@@ -58,6 +58,7 @@
     .input-row { display: flex; gap: 8px; }
     input[type="text"], input[type="search"], input[type="number"], input[type="date"], input[type="time"], select { padding: 10px 12px; font-size: 15px; border: 1px solid var(--border-input); border-radius: 6px; box-sizing: border-box; }
     input[type="text"] { flex: 1; min-width: 0; }
+    textarea { padding: 10px 12px; font-size: 15px; font-family: inherit; border: 1px solid var(--border-input); border-radius: 6px; box-sizing: border-box; resize: vertical; background: var(--surface); color: var(--text); }
     button { padding: 10px 14px; font-size: 14px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; white-space: nowrap; }
     button:disabled { background: var(--primary-disabled); }
 
@@ -126,7 +127,7 @@
     .modal-card h3 { margin-top: 0; margin-bottom: 16px; font-size: 18px; }
     .form-group { margin-bottom: 12px; }
     .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: var(--text-muted); }
-    .form-group input, .form-group select { width: 100%; }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; }
     .modal-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 18px; }
     .form-group input[type="checkbox"] { width: auto; margin-right: 6px; }
     .settings-current { font-size: 14px; color: var(--text-strong); }
@@ -150,6 +151,8 @@
     .snooze-chip { background: var(--snooze-bg); color: var(--snooze-fg); font-weight: 600; }
     .snooze-choices { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
     .snooze-choices button { flex: 1 1 auto; }
+    .task-comments { margin-top: 6px; font-size: 13px; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .modal-extra-actions { display: flex; gap: 8px; margin-top: 14px; }
   </style>
 </head>
 <body>
@@ -233,6 +236,10 @@
           <input type="text" id="manualNewMaterialText" maxlength="100" placeholder="Add a material, e.g. 2 litres of paint">
           <button type="button" class="btn-secondary" id="addManualMaterialBtn">Add</button>
         </div>
+      </div>
+      <div class="form-group">
+        <label for="manualComments">Comments</label>
+        <textarea id="manualComments" rows="3" maxlength="2000" placeholder="Notes for yourself (never read by the AI)"></textarea>
       </div>
     </div>
   </div>
@@ -440,8 +447,14 @@
         </div>
       </div>
 
-      <div style="margin-top: 14px;">
+      <div class="form-group">
+        <label for="editComments">Comments <small style="font-weight:normal; color:var(--text-faint);">(notes for yourself; never read by the AI)</small></label>
+        <textarea id="editComments" rows="3" maxlength="2000"></textarea>
+      </div>
+
+      <div class="modal-extra-actions">
         <button type="button" class="btn-secondary" title="Save these changes, then find a new time for this task" onclick="rescheduleFromModal()">🔄 Reschedule</button>
+        <button type="button" class="btn-secondary" title="Save these changes, then keep this task off the schedule until a later day" onclick="snoozeFromModal()">💤 Snooze</button>
       </div>
 
       <div class="modal-actions">
@@ -795,6 +808,8 @@
       if (form.projectId) Object.assign(manual, projectFields(form.projectId, form.projectOrder));
       const materials = materialsFields(form.materials || []);
       if (materials) manual.materials = materials;
+      const comments = String(form.comments || "").trim();
+      if (comments) manual.comments = comments;
       return { manual };
     }
 
@@ -910,6 +925,13 @@
     function deleteProjectPrompt(name, count) {
       if (!count) return `Delete project "${name}"?`;
       return `Delete project "${name}"? ${count === 1 ? "Its 1 task stays" : `Its ${count} tasks stay`} on the list but ${count === 1 ? "leaves" : "leave"} the project.`;
+    }
+
+    // The confirmation text for marking a task complete; a repeating task says its next occurrence will be added.
+    function completePrompt(task) {
+      const name = task && task.title ? `"${task.title}"` : "this task";
+      const repeats = task && task.recurrence ? " It repeats, so its next occurrence will be added." : "";
+      return `Mark ${name} as complete?${repeats}`;
     }
 
     // Sign-in errors that mean the popup cannot work here (blocked, or an environment without popups, such as some
@@ -1077,7 +1099,7 @@
         const taskId = item.dataset.id;
         const btn = e.target.closest("[data-action]");
         if (btn && item.contains(btn)) {
-          if (btn.dataset.action === "complete") completeTask(taskId);
+          if (btn.dataset.action === "complete") { if (confirmComplete(taskId)) completeTask(taskId); }
           else if (btn.dataset.action === "snooze") openSnoozeModal(taskId);
           return;
         }
@@ -1158,7 +1180,8 @@
           // Without the project list the form cannot offer a project, so it sends none
           projectId: projectsLoaded ? document.getElementById("manualProject").value : "",
           projectOrder: document.getElementById("manualProjectOrder").value,
-          materials: manualMaterials
+          materials: manualMaterials,
+          comments: document.getElementById("manualComments").value
         }) : { input };
         const res = await apiFetch(ADD_TASK_URL, {
           method: "POST",
@@ -1182,7 +1205,7 @@
       }
     }
 
-    // Repeats, project and materials belong to one task, so they are cleared after each manual add
+    // Repeats, project, materials and comments belong to one task, so they are cleared after each manual add
     function resetManualExtras() {
       document.getElementById("manualRecurFreq").value = "NONE";
       document.getElementById("manualRecurInterval").value = 1;
@@ -1190,6 +1213,7 @@
       document.getElementById("manualProject").value = "";
       updateProjectOrderField("manual");
       manualMaterials = [];
+      document.getElementById("manualComments").value = "";
       document.getElementById("manualNewMaterialText").value = "";
       renderManualMaterials();
     }
@@ -1247,8 +1271,15 @@
       }
     }
 
+    // Asks before a task is marked complete; false when the owner cancels (the edit modal, if open, stays open)
+    function confirmComplete(taskId) {
+      const task = allTasks.find(t => t.id === taskId);
+      return confirm(completePrompt(task));
+    }
+
     async function completeTaskFromModal() {
       const taskId = document.getElementById("editTaskId").value;
+      if (!confirmComplete(taskId)) return;
       closeEditModal();
       await completeTask(taskId);
     }
@@ -1369,6 +1400,7 @@
               ${snoozeChip(t)}
               ${t.locked ? `<span class="chip lock-chip" title="Pinned: its event was moved to your personal calendar, so Update now leaves it alone">🔒 Locked</span>` : ''}
             </div>
+            ${t.comments ? `<div class="task-comments">${esc(t.comments)}</div>` : ''}
           </div>
           <div class="action-btns">
             <button class="complete-btn" title="Snooze: keep it off the schedule until a later day" data-action="snooze">💤</button>
@@ -1471,6 +1503,7 @@
       editMaterials = (Array.isArray(task.materials) ? task.materials : []).map(m => ({ id: m.id, text: m.text, checked: m.checked === true }));
       document.getElementById("newMaterialText").value = "";
       renderEditMaterials();
+      document.getElementById("editComments").value = typeof task.comments === "string" ? task.comments : "";
 
       document.getElementById("editModal").style.display = "flex";
       document.body.classList.add("modal-open"); // the page behind must not scroll with the modal
@@ -1576,7 +1609,7 @@
 
       const tags = tagsRaw.split(",").map(s => s.trim()).filter(Boolean);
       const recurrence = recurrenceFields(document.getElementById("editRecurFreq").value, document.getElementById("editRecurInterval").value);
-      const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence, materials: materialsFields(editMaterials) };
+      const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence, materials: materialsFields(editMaterials), comments: document.getElementById("editComments").value };
       // Without the project list the form cannot show the task's project, so it must not send one
       if (projectsLoaded) {
         Object.assign(updatedFields, projectFields(document.getElementById("editProject").value, document.getElementById("editProjectOrder").value));
@@ -1605,6 +1638,13 @@
       const taskId = document.getElementById("editTaskId").value;
       if (!(await saveTaskEdits())) return;
       await rescheduleTask(taskId);
+    }
+
+    // Saves the edits first, then opens the snooze dialog for this task
+    async function snoozeFromModal() {
+      const taskId = document.getElementById("editTaskId").value;
+      if (!(await saveTaskEdits())) return;
+      openSnoozeModal(taskId);
     }
 
     async function rescheduleTask(taskId) {

@@ -9,14 +9,14 @@ const {GoogleGenAI, Type} = require("@google/genai");
 const {google} = require("googleapis");
 const {localDate, startOfLocalDay} = require("./time");
 const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
-const {repairSchedule, parseScheduleResponse, buildFixedSlots, matchLockedEvents} = require("./schedule");
+const {repairSchedule, buildFixedSlots, matchLockedEvents} = require("./schedule");
 const {planSchedule} = require("./planner");
 const {lunchWindows, padWindows} = require("./breaks");
 const {applyDirectUpdate, completeInList, removalRecord, isUndoable, undoInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
-const {UNAVAILABLE, weatherUrl, describeWeather, parseForecast, forecastKey, weatherWindow} = require("./weather");
+const {UNAVAILABLE, weatherUrl, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
-const {buildSchedulePrompt, buildTaskPrompt} = require("./prompts");
+const {buildTaskPrompt} = require("./prompts");
 const {heldTaskIds} = require("./materials");
 const {SUMMARY_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted} = require("./completed");
 const {EXPORT_MAX_ROWS, buildExport} = require("./export");
@@ -40,14 +40,6 @@ const {getProjects: readProjects, createProject, renameProject, deleteProject} =
 const {getSettings: readSettings, updateSettings: writeSettings, claimAutoRun, setRunFingerprint} = makeSettingsStore(db);
 
 const MODEL_NAME = "gemini-3.5-flash-lite";
-// Each Gemini scheduling request is cut off after this long; a run makes at most SCHEDULE_ATTEMPTS of them.
-const GEMINI_TIMEOUT_MS = 60 * 1000;
-const SCHEDULE_ATTEMPTS = 3;
-// What places the tasks on the calendar: "deterministic" (planner.js: earliest open gap, most urgent first; no model
-// call) or "gemini" (the scheduling prompt, with its repair and retry loop). Either way every slot goes through the same
-// validation (repairSchedule) before the calendar is touched. Switching it re-runs the schedule (see fingerprint.js).
-const SCHEDULER = "deterministic";
-
 
 // Target Google Calendar for all scheduling (set in functions/.env)
 const CALENDAR_ID = defineString("USER_CALENDAR_ID");
@@ -120,43 +112,6 @@ const changeSchema = {
   required: ["tasks"],
 };
 
-// JSON Schema for Calendar Scheduler
-const scheduleSchema = {
-  type: Type.OBJECT,
-  properties: {
-    scheduledTasks: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          taskId: {type: Type.STRING},
-          title: {type: Type.STRING},
-          startISO: {
-            type: Type.STRING,
-            description: "ISO 8601 start date time in the owner's local time with its UTC offset, e.g. 2026-10-22T09:00:00+13:00",
-          },
-          endISO: {
-            type: Type.STRING,
-            description: "ISO 8601 end date time in the owner's local time with its UTC offset, e.g. 2026-10-22T09:45:00+13:00",
-          },
-          transparency: {
-            type: Type.STRING,
-            enum: ["opaque", "transparent"],
-            description: "'opaque' for Busy time blocks; 'transparent' for Available/Reminders",
-          },
-          isAllDay: {
-            type: Type.BOOLEAN,
-            description: "true if this is a general all-day reminder or flexible task",
-          },
-          reasoning: {type: Type.STRING, description: "Brief justification for this time slot"},
-        },
-        required: ["taskId", "title", "startISO", "endISO", "transparency", "isAllDay"],
-      },
-    },
-  },
-  required: ["scheduledTasks"],
-};
-
 // Helper: Authenticated Google Calendar Client
 async function getCalendarClient() {
   const credentialsRaw = process.env.GOOGLE_CALENDAR_CREDENTIALS;
@@ -188,7 +143,7 @@ async function removeTaskCalendarEvent(task) {
   }
 }
 
-// Helper: Fetch the weather at a location ({latitude, longitude}) as {text, forecast, key}: the current conditions as one
+// Helper: Fetch the weather at a location ({latitude, longitude}) as {forecast, key}: the current conditions as one
 // line for the prompt, the daily forecast for the first days (empty when unavailable) and the coarse summary for the
 // run fingerprint. A failed request gives the unavailable text, no forecast and the unavailable key.
 async function getWeather(location, timeZone) {
@@ -197,76 +152,16 @@ async function getWeather(location, timeZone) {
     if (!res.ok) throw new Error(`Open-Meteo answered ${res.status}`);
     const data = await res.json();
     const forecast = parseForecast(data);
-    return {text: describeWeather(data.current_weather), forecast, key: forecastKey(forecast, data.current_weather)};
+    return {forecast, key: forecastKey(forecast, data.current_weather)};
   } catch (err) {
     console.warn("Weather unavailable:", err.message);
-    return {text: UNAVAILABLE, forecast: [], key: UNAVAILABLE};
+    return {forecast: [], key: UNAVAILABLE};
   }
 }
 
-// One Gemini request for slots. Returns the raw scheduledTasks list (unvalidated). Throws a readable Error when the
-// request fails, is cut off or is not usable JSON. Each request is bounded so a stuck call cannot run the whole
-// function into its own timeout (which the browser sees as a bare 500).
-// `weather` is the one-line current conditions and `forecast` the daily forecast; `settings` supplies the location name and the time zone for the prompt.
-async function requestSchedule(tasks, busySlots, now, settings, weather, {projects, fixed, allTasks, feedback, forecast}) {
-  const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
-  const prompt = buildSchedulePrompt({tasks, busySlots, now, weather, settings, projects, fixed, allTasks, feedback, forecast});
-
-  const response = await ai.models.generateContent({
-    model: MODEL_NAME,
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: scheduleSchema,
-      maxOutputTokens: 16384,
-      httpOptions: {timeout: GEMINI_TIMEOUT_MS},
-    },
-  });
-  const candidate = (response.candidates || [])[0] || {};
-  if (candidate.finishReason === "MAX_TOKENS") throw new Error("Gemini's answer was cut off");
-  return parseScheduleResponse(response.text);
-}
-
-// Ask Gemini for a schedule and make it usable, up to SCHEDULE_ATTEMPTS requests. A request that fails (overload,
-// timeout, malformed JSON) is retried after a short pause; an answer with no usable slot is retried once more with
-// the problems listed. Slots that break a rule are dropped rather than failing the run (see repairSchedule), so one
-// bad slot no longer costs the whole schedule. Returns {slots, items, dropped}, or throws when no attempt gives a slot.
-async function requestValidSchedule(toSchedule, busySlots, now, settings, weather, context, validation) {
-  let feedback = [];
-  let lastProblem = "Gemini returned no slots";
-  for (let attempt = 1; attempt <= SCHEDULE_ATTEMPTS; attempt++) {
-    let items;
-    try {
-      items = await requestSchedule(toSchedule, busySlots, now, settings, weather, {...context, feedback});
-    } catch (err) {
-      console.warn(`Gemini scheduling request ${attempt} failed:`, err.message);
-      lastProblem = `Gemini request failed: ${err.message}`;
-      if (attempt < SCHEDULE_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
-      continue;
-    }
-    const repaired = repairSchedule({items, tasks: toSchedule, ...validation});
-    if (repaired.dropped.length > 0) console.warn("Schedule slots dropped:", JSON.stringify(repaired.dropped));
-    if (repaired.errors.length > 0) {
-      console.warn("Schedule validation failed after repair:", repaired.errors);
-      lastProblem = `the schedule was rejected: ${repaired.errors.slice(0, 5).join("; ")}`;
-      feedback = repaired.errors.slice(0, 5);
-      continue;
-    }
-    if (repaired.slots.length > 0) return {slots: repaired.slots, items, dropped: repaired.dropped};
-    lastProblem = items.length === 0 ?
-      "Gemini returned no slots" :
-      `none of Gemini's slots were usable: ${repaired.dropped.slice(0, 5).map((d) => `task ${d.taskId}: ${d.reason}`).join("; ")}`;
-    feedback = items.length === 0 ?
-      ["You returned no slots. Schedule as many tasks as fit, in the open gaps."] :
-      repaired.dropped.slice(0, 5).map((d) => `task ${d.taskId}: ${d.reason}`);
-  }
-  throw new Error(`${lastProblem}; existing events were kept.`);
-}
-
-// Place the tasks with the deterministic planner and check the result against the same rules as a model's answer.
-// Returns {slots, items, dropped} like requestValidSchedule. Unlike a model's answer, an empty result is a real one
-// (nothing fits), so it is not an error; slots that fail validation would be a planner bug, so those stop the run
-// with the calendar untouched.
+// Place the tasks with the deterministic planner and check the result against the slot rules (repairSchedule).
+// Returns {slots, items, dropped}. An empty result is a real one (nothing fits), so it is not an error; slots that fail
+// validation would be a planner bug, so those stop the run with the calendar untouched.
 function planValidSchedule(toSchedule, validation) {
   const plan = planSchedule({tasks: toSchedule, ...validation});
   const repaired = repairSchedule({items: plan.items, tasks: toSchedule, ...validation});
@@ -280,10 +175,10 @@ function planValidSchedule(toSchedule, validation) {
 // Core Scheduling Engine Logic. Nothing on the calendar is touched until the slots
 // have been validated; a failure before that point leaves existing events as they are.
 // The personal calendar is only ever read.
-// With `taskIds`, only those tasks are offered to Gemini and have their events replaced; every other app
+// With `taskIds`, only those tasks are offered to the planner and have their events replaced; every other app
 // event stays and counts as busy, and the other tasks' schedule fields are left alone.
 // With `skipIfUnchanged` (automatic runs), a full run whose fingerprint equals the last successful full run's is
-// skipped before Gemini is called; see fingerprint.js. A full run that succeeds records its fingerprint.
+// skipped before the planner runs; see fingerprint.js. A full run that succeeds records its fingerprint.
 async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
   const subset = Array.isArray(taskIds) ? new Set(taskIds) : null;
   const currentTasks = await readTaskList();
@@ -351,15 +246,15 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
   const busySlots = mergeBusyWindows([...paddedBusy, ...lunchBusy]);
   const {dayStartMin, dayEndMin} = dayWindowMinutes(settings);
 
-  // 3. Get slots for the unlocked tasks (from the planner, or from Gemini), then validate before touching the calendar
+  // 3. Get slots for the unlocked tasks from the planner, then validate before touching the calendar
   let scheduledList = [];
   let slots = [];
-  let unscheduled = []; // tasks that got no slot with the reason, [{taskId, reason}] (from Gemini: only those it tried to place)
+  let unscheduled = []; // tasks that got no slot with the reason, [{taskId, reason}]
   let fingerprint = null;
   if (toSchedule.length > 0) {
     const weather = await getWeather(settings.location, timeZone);
     if (!subset) {
-      fingerprint = computeFingerprint({tasks: toSchedule, busySlots, weatherKey: weather.key, settings, now, horizon, scheduler: SCHEDULER});
+      fingerprint = computeFingerprint({tasks: toSchedule, busySlots, weatherKey: weather.key, settings, now, horizon});
       if (shouldSkipRun({skipIfUnchanged, fingerprint, lastRunFingerprint: settings.lastRunFingerprint, endedSlot: hasEndedSlot(toSchedule, timeZone, now)})) {
         return {success: true, skipped: true, scheduledCount: 0, lockedCount: lockedEvents.size, heldCount, message: "Nothing changed since the last run; existing events were kept."};
       }
@@ -367,14 +262,11 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
     // Project members outside this run (locked, or already scheduled in a subset run) that the order rule respects
     const lockedByTask = new Map([...lockedEvents].map(([id, ev]) => [id, eventWindow(ev, timeZone)]));
     const fixed = buildFixedSlots({tasks: currentTasks, inScopeIds: subset ? new Set(inScope.map((t) => t.id)) : null, lockedWindows: lockedByTask, timeZone});
-    const projects = await readProjects();
     console.log(`Scheduling ${toSchedule.length} tasks over ${settings.scheduleDays} days (${busySlots.length} busy windows, gap ${gap} min, day ${settings.day.start}-${settings.day.end}, lunch ${settings.lunch.enabled ? "on" : "off"}, to ${horizon.toISOString()})`);
-    // Outdoor and Garden tasks stay inside the forecast window and off rainy days (enforced on Gemini's slots)
+    // Outdoor and Garden tasks stay inside the forecast window and off rainy days (enforced by the slot validation)
     const weatherRules = weatherWindow({today: localDate(timeZone, now), forecast: weather.forecast, current: weather.key});
     const validation = {busy: busySlots, now, horizon, timeZone, weather: weatherRules, allTasks: currentTasks, fixed, gapMinutes: gap, dayStartMin, dayEndMin};
-    const result = SCHEDULER === "gemini" ?
-      await requestValidSchedule(toSchedule, busySlots, now, settings, weather.text, {projects, fixed, allTasks: currentTasks, forecast: weather.forecast}, validation) :
-      planValidSchedule(toSchedule, validation);
+    const result = planValidSchedule(toSchedule, validation);
     scheduledList = result.items;
     slots = result.slots;
     unscheduled = result.dropped;
@@ -461,9 +353,8 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
 // records the attempt even if the run then fails, which keeps a failing run from retrying on every tick.
 exports.autoScheduleDaily = onSchedule({
   schedule: "*/15 * * * *",
-  timeoutSeconds: 300,
+  timeoutSeconds: 120,
   secrets: [
-    "GEMINI_API_KEY",
     {name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"},
   ],
 }, async (event) => {
@@ -481,11 +372,10 @@ exports.autoScheduleDaily = onSchedule({
 // 2. HTTP Endpoint: Manual / On-Demand full run (the "Update now" button)
 exports.generateWeeklySchedule = onRequest({
   secrets: [
-    "GEMINI_API_KEY",
     {name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"},
   ],
   cors: ALLOWED_ORIGINS,
-  timeoutSeconds: 300,
+  timeoutSeconds: 120,
 }, ownerOnly(async (req, res) => {
   try {
     const result = await runScheduleEngine();
@@ -499,11 +389,10 @@ exports.generateWeeklySchedule = onRequest({
 // Reschedule one task: replace just its calendar event, leaving every other task's event in place.
 exports.rescheduleTask = onRequest({
   secrets: [
-    "GEMINI_API_KEY",
     {name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"},
   ],
   cors: ALLOWED_ORIGINS,
-  timeoutSeconds: 300,
+  timeoutSeconds: 120,
 }, ownerOnly(async (req, res) => {
   try {
     const {taskId} = req.body || {};
@@ -528,7 +417,7 @@ exports.rescheduleTask = onRequest({
 
 // 3. Endpoint: Add / Ingest Task. The model returns only new or changed tasks; they are merged into the
 // stored list inside a transaction, so everything else on the list is preserved. With a `manual` body ({title,
-// priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?}) no model is
+// priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?, comments?}) no model is
 // called: the fields are used as entered (validated like the model's) and the task is added at the end of the list.
 exports.addOrUpdateTask = onRequest({
   secrets: ["GEMINI_API_KEY"], cors: ALLOWED_ORIGINS, timeoutSeconds: 120,
@@ -564,7 +453,7 @@ exports.addOrUpdateTask = onRequest({
     // Merge into the list as it is now, not as it was when the model was asked. The projects are read in the same
     // transaction, so a task only joins a project that still exists at commit time.
     const result = await updateTaskList((tasks, tx, {projects: stored}) => {
-      const merged = mergeTaskChanges(tasks, changes, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined});
+      const merged = mergeTaskChanges(tasks, changes, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined, comments: body.manual !== undefined});
       const changed = merged.added + merged.updated > 0;
       return {...merged, tasks: changed ? merged.tasks : null, current: changed ? merged.tasks : tasks};
     }, {withProjects: true});

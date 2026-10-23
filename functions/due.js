@@ -19,21 +19,4 @@ function isOverdue(task, today) {
   return days !== null && days < 0;
 }
 
-// Tasks for the scheduling prompt: each gains `overdue` and `daysUntilDue` (null without a due date), and the
-// list is ordered most overdue first, then earliest due date, then undated tasks. Ties keep their `order` rank
-// (then their input position). Pure: the input list and its tasks are not modified.
-function annotateDue(tasks, today) {
-  return tasks
-      .map((task, index) => ({task, index, days: daysUntilDue(task, today)}))
-      .sort((a, b) => {
-        if (a.days !== b.days) {
-          if (a.days === null) return 1;
-          if (b.days === null) return -1;
-          return a.days - b.days;
-        }
-        return ((a.task.order || 0) - (b.task.order || 0)) || (a.index - b.index);
-      })
-      .map(({task, days}) => ({...task, overdue: days !== null && days < 0, daysUntilDue: days}));
-}
-
-module.exports = {daysUntilDue, isOverdue, annotateDue};
+module.exports = {daysUntilDue, isOverdue};

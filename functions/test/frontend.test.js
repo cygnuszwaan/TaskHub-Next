@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, sortTasksForList, streakText, statProjectName, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, sortTasksForList, streakText, statProjectName, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -686,6 +686,16 @@ describe("public/index.html helpers", () => {
       assert.equal(manual.projectOrder, 3);
       assert.deepEqual(manual.materials.map((m) => [m.text, m.checked]), [["Paint", false], ["Brushes", true]]);
     });
+    it("adds trimmed comments only when there are some", () => {
+      assert.equal(load().manualTaskBody({...form, comments: "  Use the blue paint.\nAsk Sam. "}).manual.comments, "Use the blue paint.\nAsk Sam.");
+      for (const comments of ["", "   ", undefined]) assert.equal("comments" in load().manualTaskBody({...form, comments}).manual, false, JSON.stringify(comments));
+    });
+    it("gives a new task its comments through the server-side merge", () => {
+      const {manualTaskChange, mergeTaskChanges} = require("../tasks");
+      const body = load().manualTaskBody({...form, comments: " Hinge is loose "}).manual;
+      const merged = mergeTaskChanges([], [manualTaskChange(body)], () => "id1", [], {comments: true});
+      assert.equal(merged.tasks[0].comments, "Hinge is loose");
+    });
     it("sends a project without an order number as unordered", () => {
       const manual = load().manualTaskBody({...form, projectId: "p1", projectOrder: ""}).manual;
       assert.equal(manual.projectId, "p1");
@@ -785,6 +795,12 @@ describe("public/index.html helpers", () => {
       const {projectTaskCounts: c} = load();
       assert.deepEqual(c([{projectId: "p1"}, {projectId: "p1"}, {projectId: "p2"}, {}, {projectId: ""}]), {p1: 2, p2: 1});
       assert.deepEqual(c([]), {});
+    });
+    it("completePrompt: names the task and mentions the next occurrence of a repeating one", () => {
+      const {completePrompt: c} = load();
+      assert.equal(c({title: "Mow lawn"}), "Mark \"Mow lawn\" as complete?");
+      assert.equal(c({title: "Mow lawn", recurrence: {frequency: "WEEKLY", interval: 1}}), "Mark \"Mow lawn\" as complete? It repeats, so its next occurrence will be added.");
+      assert.equal(c(undefined), "Mark this task as complete?");
     });
     it("deleteProjectPrompt: says what happens to the member tasks", () => {
       const {deleteProjectPrompt: d} = load();

@@ -30,14 +30,6 @@ function weatherUrl(location, timeZone) {
     `&daily=${daily}&forecast_days=${WEATHER_DAYS}&timezone=${encodeURIComponent(timeZone)}`;
 }
 
-// One-line description of Open-Meteo's `current_weather` object, e.g. "Slight rain, 14.2°C". An unknown code reads
-// as "Variable conditions"; a missing or unusable object (or temperature) gives the unavailable text.
-function describeWeather(current) {
-  if (!current || typeof current !== "object" || typeof current.temperature !== "number" || !Number.isFinite(current.temperature)) return UNAVAILABLE;
-  const description = Object.prototype.hasOwnProperty.call(WEATHER_CODES, current.weathercode) ? WEATHER_CODES[current.weathercode] : "Variable conditions";
-  return `${description}, ${current.temperature}°C`;
-}
-
 // Coarse condition used to decide whether weather changed enough to matter: WET (drizzle, rain, showers, snow,
 // thunderstorm), DRY (clear, cloudy, fog), OTHER (unknown code) or the unavailable text. Temperature and cloud
 // cover are ignored because they drift every few minutes and the scheduler only avoids outdoor tasks in rain.
@@ -111,4 +103,4 @@ function weatherWindow({today, forecast, current}) {
   return {lastDate, rainyDates};
 }
 
-module.exports = {WEATHER_CODES, UNAVAILABLE, WEATHER_DAYS, WET_DAY_MM, WEATHER_TAGS, weatherUrl, describeWeather, weatherKey, parseForecast, forecastKey, isWeatherSensitive, weatherWindow};
+module.exports = {WEATHER_CODES, UNAVAILABLE, WEATHER_DAYS, WET_DAY_MM, WEATHER_TAGS, weatherUrl, weatherKey, parseForecast, forecastKey, isWeatherSensitive, weatherWindow};

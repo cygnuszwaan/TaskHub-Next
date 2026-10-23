@@ -5,7 +5,7 @@ const {localDate} = require("./time");
 const {snoozeDate} = require("./snooze");
 
 // Bump when the scheduling prompt or the engine's rules change, so the first run after a deploy is never skipped.
-const FINGERPRINT_VERSION = 12;
+const FINGERPRINT_VERSION = 13;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 // The fields of a task that can change what Gemini is asked or how it answers. Calendar and schedule fields are
@@ -54,17 +54,15 @@ function hasEndedSlot(tasks, timeZone, now) {
 
 // Hash of everything an automatic run's outcome depends on.
 //   tasks:      the unlocked tasks being scheduled
-//   busySlots:  merged busy windows, as passed to Gemini
+//   busySlots:  merged busy windows, as passed to the planner
 //   weatherKey: coarse weather summary (see weather.js `forecastKey`)
 //   settings:   {timeZone, location, scheduleDays, gapMinutes, day} (the lunch break is already part of busySlots)
 //   now, horizon: the run's instant and the end of the scheduling window
-//   scheduler:  which scheduler places the tasks ("deterministic" or "gemini"), so switching it re-runs the schedule
-function computeFingerprint({tasks, busySlots, weatherKey, settings, now, horizon, scheduler = null}) {
+function computeFingerprint({tasks, busySlots, weatherKey, settings, now, horizon}) {
   const timeZone = settings.timeZone;
   const l = settings.location;
   const payload = {
     version: FINGERPRINT_VERSION,
-    scheduler,
     timeZone,
     scheduleDays: settings.scheduleDays,
     gapMinutes: settings.gapMinutes || 0,

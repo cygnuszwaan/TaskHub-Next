@@ -70,12 +70,6 @@ describe("fingerprint.js", () => {
     it("is not affected by the settings' schedule or run state", () => {
       assert.equal(fp({settings: {...settings, schedule: {...settings.schedule, time: "06:00"}, lastAutoRunAt: "2026-10-22T07:00:00.000Z", lastRunFingerprint: "x"}}), fp());
     });
-    it("changes with the scheduler that places the tasks", () => {
-      const base = fp({scheduler: "deterministic"});
-      assert.notEqual(fp({scheduler: "gemini"}), base);
-      assert.equal(fp({scheduler: "deterministic"}), base);
-      assert.notEqual(fp(), base);
-    });
     it("exposes a version in the hash", () => {
       assert.equal(typeof FINGERPRINT_VERSION, "number");
     });

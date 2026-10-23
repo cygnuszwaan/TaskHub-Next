@@ -7,7 +7,6 @@ const {planSchedule} = require("../planner");
 const {validateSchedule, repairSchedule} = require("../schedule");
 const {applyDirectUpdate, mergeTaskChanges, completeInList} = require("../tasks");
 const {computeFingerprint} = require("../fingerprint");
-const {buildSchedulePrompt} = require("../prompts");
 const {mergeSettings} = require("../settings");
 
 const NZ = "Pacific/Auckland";
@@ -165,20 +164,6 @@ describe("snooze", () => {
     });
     it("ignores an unusable snooze value", () => {
       assert.equal(fp(task("a", {snoozedUntil: "soon"})), fp(task("a")));
-    });
-  });
-
-  describe("scheduling prompt", () => {
-    const settings = mergeSettings(undefined);
-    const build = (tasks) => buildSchedulePrompt({tasks, busySlots: [], now: new Date("2026-10-21T20:00:00Z"), weather: "Clear", settings});
-    it("shows the snooze date of a snoozed task and states the rule", () => {
-      const prompt = build([task("a", {snoozedUntil: "2026-10-24"})]);
-      assert.match(prompt, /"snoozedUntil": "2026-10-24"/);
-      assert.match(prompt, /must not be scheduled on any local date before it/);
-    });
-    it("leaves out a snooze date that has passed and tasks that were never snoozed", () => {
-      assert.doesNotMatch(build([task("a", {snoozedUntil: "2026-10-22"})]), /"snoozedUntil": "/);
-      assert.doesNotMatch(build([task("a")]), /"snoozedUntil": "/);
     });
   });
 });
