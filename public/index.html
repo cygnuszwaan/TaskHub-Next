@@ -114,9 +114,8 @@
 
   <main id="pageTasks" data-page="tasks">
   <div class="card">
-    <h3 style="margin-top:0; margin-bottom:12px;">Add New Task</h3>
     <div class="input-row">
-      <input type="text" id="taskInput" placeholder="e.g. MOW LAWN 45M OUTDOOR">
+      <input type="text" id="taskInput" placeholder="Add New Task">
       <button onclick="submitTask()" id="addBtn">Add</button>
     </div>
     <div class="form-group" style="margin: 10px 0 0;">
@@ -148,14 +147,12 @@
     </div>
   </div>
 
-  <div class="card">
-    <details id="queueDetails" open>
-      <summary style="cursor: pointer; font-weight: 600;">Queue <small style="font-size:11px; font-weight:normal; color:#64748b;">(Tap to edit)</small></summary>
-      <details class="filter-section" id="tagsDetails" open>
+  <div class="card" id="queueCard">
+      <details class="filter-section" id="tagsDetails">
         <summary>Tags <small id="tagsActive"></small></summary>
         <div class="tag-filter-bar" id="tagFilterBar"></div>
       </details>
-      <details class="filter-section" id="projectsDetails" open>
+      <details class="filter-section" id="projectsDetails">
         <summary>Projects <small id="projectsActive"></small></summary>
         <div class="tag-filter-bar" id="projectFilterBar"></div>
         <div class="project-actions" id="projectActions"></div>
@@ -166,7 +163,6 @@
         <div id="projectsStatus" class="settings-status"></div>
       </details>
       <div id="taskList" style="margin-top: 15px;">Loading tasks...</div>
-    </details>
   </div>
 
   </main>

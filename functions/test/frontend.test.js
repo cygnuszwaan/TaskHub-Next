@@ -22,7 +22,7 @@ describe("public/index.html helpers", () => {
   describe("layout", () => {
     it("has a manual-entry checkbox and fields in the add card, and gap, day and lunch fields in Settings", () => {
       const add = html.indexOf(`id="taskInput"`);
-      const queue = html.indexOf(`id="queueDetails"`);
+      const queue = html.indexOf(`id="queueCard"`);
       for (const id of ["manualToggle", "manualFields", "manualPriority", "manualMinutes", "manualTags", "manualDue"]) {
         const i = html.indexOf(`id="${id}"`);
         assert.ok(i > add && i < queue, `${id} sits in the add card`);
@@ -36,8 +36,9 @@ describe("public/index.html helpers", () => {
       }
       assert.match(html.slice(html.indexOf(`id="lunchEnabled"`) - 30, html.indexOf(`id="lunchEnabled"`)), /type="checkbox"/);
     });
-    it("labels the add card \"Add New Task\" and the manual-entry checkbox without an explanation in brackets", () => {
-      assert.match(html, /<h3[^>]*>Add New Task<\/h3>/);
+    it("has no heading on the add card: \"Add New Task\" is the empty text field's placeholder, and the manual-entry checkbox has no explanation in brackets", () => {
+      assert.doesNotMatch(html, /<h3[^>]*>Add New Task<\/h3>/);
+      assert.match(html.slice(html.indexOf(`id="taskInput"`) - 30, html.indexOf(">", html.indexOf(`id="taskInput"`))), /placeholder="Add New Task"/);
       assert.doesNotMatch(html, /Add \/ Modify Task/);
       const box = html.indexOf(`id="manualToggle"`);
       const label = html.slice(html.indexOf(">", box) + 1, html.indexOf("</label>", box)).trim();
@@ -80,11 +81,11 @@ describe("public/index.html helpers", () => {
     it("puts add task and the Queue on the Tasks page", () => {
       const tasks = at(`id="pageTasks"`);
       const end = at("</main>", tasks);
-      for (const id of ["taskInput", "queueDetails", "tagsDetails", "projectsDetails", "taskList"]) {
+      for (const id of ["taskInput", "queueCard", "tagsDetails", "projectsDetails", "taskList"]) {
         const i = at(`id="${id}"`);
         assert.ok(i > tasks && i < end, `${id} is on the Tasks page`);
       }
-      assert.ok(at(`id="taskInput"`) < at(`id="queueDetails"`));
+      assert.ok(at(`id="taskInput"`) < at(`id="queueCard"`));
       assert.ok(at(`id="pageStats"`) > end, "Recently Completed is not on the Tasks page");
     });
     it("makes Materials a page, not a collapsible card", () => {
@@ -151,12 +152,11 @@ describe("public/index.html helpers", () => {
         assert.ok(i > page && i < end, `${id} is on the Settings page`);
       }
     });
-    it("has no Projects card of its own: Projects is a collapsible section of the Queue, just below Tags", () => {
-      const q = at(`<details id="queueDetails" open>`);
-      const qClose = closeOf(q);
-      const tags = at(`<details class="filter-section" id="tagsDetails" open>`, q);
-      const projects = at(`<details class="filter-section" id="projectsDetails" open>`, q);
-      assert.ok(q < tags && closeOf(tags) < projects && closeOf(projects) < at(`id="taskList"`, q) && at(`id="taskList"`, q) < qClose);
+    it("has no Projects card of its own: Projects is a collapsible section of the Queue, just below Tags, and both start collapsed", () => {
+      const q = at(`id="queueCard"`);
+      const tags = at(`<details class="filter-section" id="tagsDetails">`, q);
+      const projects = at(`<details class="filter-section" id="projectsDetails">`, q);
+      assert.ok(q < tags && closeOf(tags) < projects && closeOf(projects) < at(`id="taskList"`, q));
       assert.ok(at(`id="tagFilterBar"`, tags) < closeOf(tags));
       for (const id of ["projectFilterBar", "projectActions", "newProjectName", "addProjectBtn", "projectsStatus"]) {
         assert.ok(at(`id="${id}"`, projects) < closeOf(projects), `${id} sits in the Projects section`);
@@ -178,14 +178,18 @@ describe("public/index.html helpers", () => {
     it("no longer offers Plan My Week anywhere on the page", () => {
       assert.doesNotMatch(html, /Plan My Week/);
     });
-    it("calls the Queue card \"Queue\" and makes it collapsible (open by default) around the filters and list", () => {
-      const q = at(`<details id="queueDetails" open>`);
-      const close = closeOf(q);
-      assert.match(html.slice(at("<summary", q), at("</summary>", q)), />Queue </);
-      assert.doesNotMatch(html, /Organized Queue/);
+    it("has a Queue card with no heading of its own (no collapsible Queue), holding the filters and the list", () => {
+      const q = at(`id="queueCard"`);
+      assert.doesNotMatch(html, /queueDetails|Organized Queue|Tap to edit/);
+      assert.doesNotMatch(html.slice(q, at(`id="tagsDetails"`, q)), /<summary|<h3/);
       assert.ok(q < at(`id="tagFilterBar"`, q) && at(`id="tagFilterBar"`, q) < at(`id="taskList"`, q));
-      assert.ok(at(`id="taskList"`, q) < close);
-      assert.ok(close < at("</main>", q));
+      assert.ok(at(`id="taskList"`, q) < at("</main>", q));
+    });
+    it("starts the Tags and Projects sections collapsed", () => {
+      for (const id of ["tagsDetails", "projectsDetails"]) {
+        const i = at(`id="${id}"`);
+        assert.doesNotMatch(html.slice(html.lastIndexOf("<details", i), html.indexOf(">", i)), /\bopen\b/, `${id} is collapsed`);
+      }
     });
   });
 
