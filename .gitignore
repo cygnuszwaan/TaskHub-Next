@@ -3,7 +3,6 @@
 /firebase-debug.*.log
 
 # Firebase Hosting
-/firebase.json
 *.cache
 hosting/.cache
 
