@@ -17,7 +17,8 @@ function oneLine(text) {
 //   projects:  [{id, name}], the stored projects; a task's project name is added to its annotations
 //   fixed:     [{taskId, start, end}] slots of tasks outside this run (see buildFixedSlots)
 //   allTasks:  every active task (default `tasks`), to say which project and order number each fixed slot has
-function buildSchedulePrompt({tasks, busySlots, now, weather, settings, projects = [], fixed = [], allTasks = tasks}) {
+//   feedback:  problems found in the previous answer (strings), asked to be avoided on a retry
+function buildSchedulePrompt({tasks, busySlots, now, weather, settings, projects = [], fixed = [], allTasks = tasks, feedback = []}) {
   const place = oneLine(settings.location.name);
   const zone = settings.timeZone;
   const nowString = formatLocalNow(zone, now);
@@ -31,6 +32,11 @@ function buildSchedulePrompt({tasks, busySlots, now, weather, settings, projects
       .map((f) => ({f, task: taskById.get(f.taskId)}))
       .filter(({task}) => task && projectName.has(task.projectId) && Number.isInteger(task.projectOrder))
       .map(({f, task}) => ({project: projectName.get(task.projectId), projectOrder: task.projectOrder, start: f.start, end: f.end}));
+
+  const retry = feedback.length === 0 ? "" : `
+    Your previous answer had problems. Fix them in this answer:
+    ${feedback.map((f) => `- ${oneLine(f)}`).join("\n    ")}
+    `;
 
   return `
     You are an AI calendar scheduler in ${place}.
@@ -54,7 +60,8 @@ function buildSchedulePrompt({tasks, busySlots, now, weather, settings, projects
     4. Set transparency: "opaque" for focus tasks (blocks busy); "transparent" for quick chores/reminders.
     5. Avoid scheduling Outdoor tasks if weather is rainy.
     6. Write every startISO/endISO in local time in ${zone} using the UTC offset that applies on that date (currently ${offset}; it changes if the date falls after a daylight saving change).
-    7. Return the non-conflicting schedule matching the JSON schema.
+    7. Return the non-conflicting schedule matching the JSON schema. Always return as many tasks as fit; return an empty list only if nothing fits at all.
+    ${retry}
   `;
 }
 

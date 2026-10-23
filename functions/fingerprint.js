@@ -4,7 +4,7 @@ const {createHash} = require("crypto");
 const {localDate} = require("./time");
 
 // Bump when the scheduling prompt or the engine's rules change, so the first run after a deploy is never skipped.
-const FINGERPRINT_VERSION = 2;
+const FINGERPRINT_VERSION = 3;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 // The fields of a task that can change what Gemini is asked or how it answers. Calendar and schedule fields are

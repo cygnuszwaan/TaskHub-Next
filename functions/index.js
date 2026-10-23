@@ -9,7 +9,7 @@ const {GoogleGenAI, Type} = require("@google/genai");
 const {google} = require("googleapis");
 const {localDate, startOfLocalDay} = require("./time");
 const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
-const {validateSchedule, buildFixedSlots, matchLockedEvents} = require("./schedule");
+const {repairSchedule, parseScheduleResponse, buildFixedSlots, matchLockedEvents} = require("./schedule");
 const {applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
 const {UNAVAILABLE, weatherUrl, describeWeather, weatherKey} = require("./weather");
@@ -33,6 +33,9 @@ const {getProjects: readProjects, createProject, renameProject, deleteProject} =
 const {getSettings: readSettings, updateSettings: writeSettings, claimAutoRun, setRunFingerprint} = makeSettingsStore(db);
 
 const MODEL_NAME = "gemini-3.5-flash-lite";
+// Each Gemini scheduling request is cut off after this long; a run makes at most SCHEDULE_ATTEMPTS of them.
+const GEMINI_TIMEOUT_MS = 60 * 1000;
+const SCHEDULE_ATTEMPTS = 3;
 
 
 // Target Google Calendar for all scheduling (set in functions/.env)
@@ -186,11 +189,13 @@ async function getWeather(location) {
   }
 }
 
-// Ask Gemini for slots for the given tasks. Returns the raw scheduledTasks list (unvalidated).
+// One Gemini request for slots. Returns the raw scheduledTasks list (unvalidated). Throws a readable Error when the
+// request fails, is cut off or is not usable JSON. Each request is bounded so a stuck call cannot run the whole
+// function into its own timeout (which the browser sees as a bare 500).
 // `weather` is the one-line description; `settings` supplies the location name and the time zone for the prompt.
-async function requestSchedule(tasks, busySlots, now, settings, weather, {projects, fixed, allTasks}) {
+async function requestSchedule(tasks, busySlots, now, settings, weather, {projects, fixed, allTasks, feedback}) {
   const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
-  const prompt = buildSchedulePrompt({tasks, busySlots, now, weather, settings, projects, fixed, allTasks});
+  const prompt = buildSchedulePrompt({tasks, busySlots, now, weather, settings, projects, fixed, allTasks, feedback});
 
   const response = await ai.models.generateContent({
     model: MODEL_NAME,
@@ -198,9 +203,49 @@ async function requestSchedule(tasks, busySlots, now, settings, weather, {projec
     config: {
       responseMimeType: "application/json",
       responseSchema: scheduleSchema,
+      maxOutputTokens: 16384,
+      httpOptions: {timeout: GEMINI_TIMEOUT_MS},
     },
   });
-  return JSON.parse(response.text).scheduledTasks || [];
+  const candidate = (response.candidates || [])[0] || {};
+  if (candidate.finishReason === "MAX_TOKENS") throw new Error("Gemini's answer was cut off");
+  return parseScheduleResponse(response.text);
+}
+
+// Ask Gemini for a schedule and make it usable, up to SCHEDULE_ATTEMPTS requests. A request that fails (overload,
+// timeout, malformed JSON) is retried after a short pause; an answer with no usable slot is retried once more with
+// the problems listed. Slots that break a rule are dropped rather than failing the run (see repairSchedule), so one
+// bad slot no longer costs the whole schedule. Returns {slots, items, dropped}, or throws when no attempt gives a slot.
+async function requestValidSchedule(toSchedule, busySlots, now, settings, weather, context, validation) {
+  let feedback = [];
+  let lastProblem = "Gemini returned no slots";
+  for (let attempt = 1; attempt <= SCHEDULE_ATTEMPTS; attempt++) {
+    let items;
+    try {
+      items = await requestSchedule(toSchedule, busySlots, now, settings, weather, {...context, feedback});
+    } catch (err) {
+      console.warn(`Gemini scheduling request ${attempt} failed:`, err.message);
+      lastProblem = `Gemini request failed: ${err.message}`;
+      if (attempt < SCHEDULE_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+      continue;
+    }
+    const repaired = repairSchedule({items, tasks: toSchedule, ...validation});
+    if (repaired.dropped.length > 0) console.warn("Schedule slots dropped:", JSON.stringify(repaired.dropped));
+    if (repaired.errors.length > 0) {
+      console.warn("Schedule validation failed after repair:", repaired.errors);
+      lastProblem = `the schedule was rejected: ${repaired.errors.slice(0, 5).join("; ")}`;
+      feedback = repaired.errors.slice(0, 5);
+      continue;
+    }
+    if (repaired.slots.length > 0) return {slots: repaired.slots, items, dropped: repaired.dropped};
+    lastProblem = items.length === 0 ?
+      "Gemini returned no slots" :
+      `none of Gemini's slots were usable: ${repaired.dropped.slice(0, 5).map((d) => `task ${d.taskId}: ${d.reason}`).join("; ")}`;
+    feedback = items.length === 0 ?
+      ["You returned no slots. Schedule as many tasks as fit, in the open gaps."] :
+      repaired.dropped.slice(0, 5).map((d) => `task ${d.taskId}: ${d.reason}`);
+  }
+  throw new Error(`${lastProblem}; existing events were kept.`);
 }
 
 // Core Scheduling Engine Logic. Nothing on the calendar is touched until Gemini's
@@ -268,6 +313,7 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
   // 3. Ask Gemini for slots for the unlocked tasks, then validate before touching the calendar
   let scheduledList = [];
   let slots = [];
+  let unscheduled = []; // tasks Gemini tried to place but whose slots were dropped, [{taskId, reason}]
   let fingerprint = null;
   if (toSchedule.length > 0) {
     const weather = await getWeather(settings.location);
@@ -281,16 +327,11 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
     const lockedByTask = new Map([...lockedEvents].map(([id, ev]) => [id, eventWindow(ev, timeZone)]));
     const fixed = buildFixedSlots({tasks: currentTasks, inScopeIds: subset ? new Set(inScope.map((t) => t.id)) : null, lockedWindows: lockedByTask, timeZone});
     const projects = await readProjects();
-    scheduledList = await requestSchedule(toSchedule, busySlots, now, settings, weather.text, {projects, fixed, allTasks: currentTasks});
-    if (scheduledList.length === 0) {
-      throw new Error("Gemini returned no slots; existing events were kept.");
-    }
-    const result = validateSchedule({items: scheduledList, tasks: toSchedule, busy: busySlots, now, horizon: sevenDaysLater, timeZone, allTasks: currentTasks, fixed});
-    if (result.errors.length > 0) {
-      console.warn("Schedule validation failed:", result.errors);
-      throw new Error(`Gemini's schedule was rejected and existing events were kept: ${result.errors.slice(0, 5).join("; ")}`);
-    }
+    const validation = {busy: busySlots, now, horizon: sevenDaysLater, timeZone, allTasks: currentTasks, fixed};
+    const result = await requestValidSchedule(toSchedule, busySlots, now, settings, weather.text, {projects, fixed, allTasks: currentTasks}, validation);
+    scheduledList = result.items;
     slots = result.slots;
+    unscheduled = result.dropped;
   }
 
   // 4. Insert the new events first; if any insert fails, remove the ones already created and keep the old schedule
@@ -358,6 +399,8 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
     success: true,
     scheduledCount: slots.length,
     lockedCount: lockedEvents.size,
+    unscheduledCount: toSchedule.length - slots.length,
+    dropped: unscheduled,
     schedule: scheduledList,
   };
 }
@@ -369,6 +412,7 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
 // records the attempt even if the run then fails, which keeps a failing run from retrying on every tick.
 exports.autoScheduleDaily = onSchedule({
   schedule: "*/15 * * * *",
+  timeoutSeconds: 300,
   secrets: [
     "GEMINI_API_KEY",
     {name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"},
@@ -392,7 +436,7 @@ exports.generateWeeklySchedule = onRequest({
     {name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"},
   ],
   cors: ALLOWED_ORIGINS,
-  timeoutSeconds: 120,
+  timeoutSeconds: 300,
 }, ownerOnly(async (req, res) => {
   try {
     const result = await runScheduleEngine();
@@ -410,7 +454,7 @@ exports.rescheduleTask = onRequest({
     {name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"},
   ],
   cors: ALLOWED_ORIGINS,
-  timeoutSeconds: 120,
+  timeoutSeconds: 300,
 }, ownerOnly(async (req, res) => {
   try {
     const {taskId} = req.body || {};

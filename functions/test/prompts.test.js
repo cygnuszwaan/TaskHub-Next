@@ -20,6 +20,12 @@ const build = (settings, extra = {}) => buildSchedulePrompt({tasks: TASKS, busyS
 
 describe("prompts.js", () => {
   describe("buildSchedulePrompt", () => {
+    it("adds the previous answer's problems only on a retry", () => {
+      assert.doesNotMatch(build(AUCKLAND), /previous answer had problems/);
+      const prompt = build(AUCKLAND, {feedback: ["task x: outside 8:00-19:00 local time"]});
+      assert.match(prompt, /previous answer had problems/);
+      assert.match(prompt, /- task x: outside 8:00-19:00 local time/);
+    });
     it("names the configured place, zone, local time, offset and date", () => {
       const prompt = build(LA);
       assert.match(prompt, /AI calendar scheduler in Los Angeles, CA\./);

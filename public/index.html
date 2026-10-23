@@ -613,7 +613,8 @@
         const data = await res.json();
         if (data.success) {
           const locked = data.lockedCount ? ` Locked tasks left as pinned: ${data.lockedCount}.` : "";
-          statusDiv.innerText = `Success! Scheduled ${data.scheduledCount} tasks onto your Google Calendar.${locked}`;
+          const left = data.unscheduledCount ? ` ${data.unscheduledCount} could not be placed this week and stay unscheduled.` : "";
+          statusDiv.innerText = `Success! Scheduled ${data.scheduledCount} tasks onto your Google Calendar.${left}${locked}`;
           fetchTasks();
         } else {
           statusDiv.innerText = data.error || data.message || "Failed to generate schedule.";

@@ -14,6 +14,54 @@ function isRealDate(dateStr) {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === dateStr;
 }
 
+// What per-slot checks need, computed once per run.
+function makeContext({tasks, busy, now, horizon, timeZone}) {
+  return {
+    taskIds: new Set(tasks.map((t) => t.id)),
+    busyMs: busy
+        .map((w) => ({startMs: Date.parse(w.start), endMs: Date.parse(w.end)}))
+        .filter((w) => !Number.isNaN(w.startMs) && !Number.isNaN(w.endMs)),
+    now,
+    horizon,
+    timeZone,
+    firstDate: localDate(timeZone, now),
+    lastDate: localDate(timeZone, horizon),
+  };
+}
+
+// Check one slot on its own (shape, time window, busy overlap). Returns {slot} or {error}.
+function checkItem(item, {taskIds, busyMs, now, horizon, timeZone, firstDate, lastDate}) {
+  if (!item || typeof item !== "object") return {error: "not an object"};
+  if (!taskIds.has(item.taskId)) return {error: "unknown task id"};
+
+  if (item.isAllDay) {
+    const date = typeof item.startISO === "string" ? item.startISO.slice(0, 10) : "";
+    if (!DATE_ONLY.test(date) || !isRealDate(date)) return {error: "invalid all-day date"};
+    if (date < firstDate || date > lastDate) return {error: `all-day date ${date} outside ${firstDate}..${lastDate}`};
+    return {slot: {taskId: item.taskId, item, allDay: true, date, endDate: addDays(date, 1)}};
+  }
+
+  if (!ISO_WITH_OFFSET.test(item.startISO || "") || !ISO_WITH_OFFSET.test(item.endISO || "")) {
+    return {error: "start/end must be ISO 8601 with a UTC offset"};
+  }
+  const startMs = Date.parse(item.startISO);
+  const endMs = Date.parse(item.endISO);
+  if (Number.isNaN(startMs) || Number.isNaN(endMs)) return {error: "unparseable start/end"};
+  if (endMs <= startMs) return {error: "end is not after start"};
+  if (startMs < now.getTime()) return {error: "starts in the past"};
+  if (endMs > horizon.getTime()) return {error: "ends after the 7-day horizon"};
+
+  const start = new Date(startMs);
+  const end = new Date(endMs);
+  if (localDate(timeZone, start) !== localDate(timeZone, end)) return {error: "spans more than one local day"};
+  if (localMinutesOfDay(timeZone, start) < DAY_START_MIN || localMinutesOfDay(timeZone, end) > DAY_END_MIN) {
+    return {error: "outside 8:00-19:00 local time"};
+  }
+  if (busyMs.some((w) => startMs < w.endMs && endMs > w.startMs)) return {error: "overlaps a busy window"};
+
+  return {slot: {taskId: item.taskId, item, allDay: false, startMs, endMs}};
+}
+
 // Validate the slots Gemini returned. Pure: no I/O.
 //   items:   scheduledTasks from the model ({taskId, startISO, endISO, transparency, isAllDay, reasoning})
 //   tasks:   the active task list
@@ -29,50 +77,19 @@ function isRealDate(dateStr) {
 function validateSchedule({items, tasks, busy, now, horizon, timeZone, allTasks = tasks, fixed = []}) {
   const errors = [];
   const slots = [];
-  const taskIds = new Set(tasks.map((t) => t.id));
+  const ctx = makeContext({tasks, busy, now, horizon, timeZone});
+  const {taskIds} = ctx;
   const seen = new Set();
-  const busyMs = busy
-      .map((w) => ({startMs: Date.parse(w.start), endMs: Date.parse(w.end)}))
-      .filter((w) => !Number.isNaN(w.startMs) && !Number.isNaN(w.endMs));
-  const firstDate = localDate(timeZone, now);
-  const lastDate = localDate(timeZone, horizon);
 
   items.forEach((item, i) => {
     const label = `Slot ${i + 1} (task ${item && item.taskId})`;
-    const fail = (msg) => errors.push(`${label}: ${msg}`);
-
-    if (!item || typeof item !== "object") return fail("not an object");
-    if (!taskIds.has(item.taskId)) return fail("unknown task id");
-    if (seen.has(item.taskId)) return fail("task scheduled more than once");
-    seen.add(item.taskId);
-
-    if (item.isAllDay) {
-      const date = typeof item.startISO === "string" ? item.startISO.slice(0, 10) : "";
-      if (!DATE_ONLY.test(date) || !isRealDate(date)) return fail("invalid all-day date");
-      if (date < firstDate || date > lastDate) return fail(`all-day date ${date} outside ${firstDate}..${lastDate}`);
-      slots.push({taskId: item.taskId, item, allDay: true, date, endDate: addDays(date, 1)});
-      return;
+    if (item && typeof item === "object" && taskIds.has(item.taskId)) {
+      if (seen.has(item.taskId)) return errors.push(`${label}: task scheduled more than once`);
+      seen.add(item.taskId);
     }
-
-    if (!ISO_WITH_OFFSET.test(item.startISO || "") || !ISO_WITH_OFFSET.test(item.endISO || "")) {
-      return fail("start/end must be ISO 8601 with a UTC offset");
-    }
-    const startMs = Date.parse(item.startISO);
-    const endMs = Date.parse(item.endISO);
-    if (Number.isNaN(startMs) || Number.isNaN(endMs)) return fail("unparseable start/end");
-    if (endMs <= startMs) return fail("end is not after start");
-    if (startMs < now.getTime()) return fail("starts in the past");
-    if (endMs > horizon.getTime()) return fail("ends after the 7-day horizon");
-
-    const start = new Date(startMs);
-    const end = new Date(endMs);
-    if (localDate(timeZone, start) !== localDate(timeZone, end)) return fail("spans more than one local day");
-    if (localMinutesOfDay(timeZone, start) < DAY_START_MIN || localMinutesOfDay(timeZone, end) > DAY_END_MIN) {
-      return fail("outside 8:00-19:00 local time");
-    }
-    if (busyMs.some((w) => startMs < w.endMs && endMs > w.startMs)) return fail("overlaps a busy window");
-
-    slots.push({taskId: item.taskId, item, allDay: false, startMs, endMs});
+    const checked = checkItem(item, ctx);
+    if (checked.error) return errors.push(`${label}: ${checked.error}`);
+    slots.push(checked.slot);
   });
 
   // Timed slots must not overlap each other
@@ -110,8 +127,8 @@ function slotInterval(slot, timeZone) {
 // sharing a tier are unconstrained among themselves, as are tasks without an order number. A task of this run is
 // left unscheduled when a lower-tier member of its project has no slot, so that is an error. Two tasks that are
 // both outside this run are not checked, and a fixed task never requires a missing slot.
-function checkProjectOrder({slots, tasks, fixed = [], timeZone}) {
-  const errors = [];
+function projectOrderViolations({slots, tasks, fixed = [], timeZone}) {
+  const out = [];
   const intervals = new Map(); // task id -> {startMs, endMs, inRun}
   for (const s of slots) intervals.set(s.taskId, {...slotInterval(s, timeZone), inRun: true});
   for (const f of fixed) {
@@ -130,13 +147,95 @@ function checkProjectOrder({slots, tasks, fixed = [], timeZone}) {
       const loSlot = intervals.get(lo.id);
       const names = `task ${hi.id} (order ${tierOf(hi)}) and task ${lo.id} (order ${tierOf(lo)}) of the same project`;
       if (!loSlot) {
-        if (hiSlot.inRun) errors.push(`Project order: ${names}: the earlier one has no slot`);
+        if (hiSlot.inRun) out.push({hiId: hi.id, loId: lo.id, hiInRun: true, loInRun: false, message: `Project order: ${names}: the earlier one has no slot`});
       } else if ((hiSlot.inRun || loSlot.inRun) && hiSlot.startMs < loSlot.endMs) {
-        errors.push(`Project order: ${names}: the later one starts before the earlier one ends`);
+        out.push({hiId: hi.id, loId: lo.id, hiInRun: hiSlot.inRun, loInRun: loSlot.inRun, message: `Project order: ${names}: the later one starts before the earlier one ends`});
       }
     }
   }
-  return errors;
+  return out;
+}
+
+function checkProjectOrder(args) {
+  return projectOrderViolations(args).map((v) => v.message);
+}
+
+// Make Gemini's answer usable instead of rejecting all of it. Pure: no I/O. Takes the same arguments as
+// validateSchedule and returns {slots, dropped, errors}: `slots` are the slots that survive, `dropped` is
+// [{taskId, reason}] for every task of the run that ended up without a slot, and `errors` is whatever
+// validateSchedule still finds in the survivors (empty by construction; kept as a safety net).
+// Rules: a slot that fails its own checks is dropped, a repeated task keeps its first slot, of two overlapping
+// timed slots the earlier one is kept, and a project-order violation drops the later-tier task (or, when that task
+// is fixed outside the run, the run's earlier-tier task). Dropping a task can only create new violations for the
+// higher tiers of its project, so the order check repeats until nothing more is dropped.
+function repairSchedule({items, tasks, busy, now, horizon, timeZone, allTasks = tasks, fixed = []}) {
+  const ctx = makeContext({tasks, busy, now, horizon, timeZone});
+  const dropped = [];
+  const drop = (taskId, reason) => dropped.push({taskId, reason});
+  let slots = [];
+  const seen = new Set();
+
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    if (item && typeof item === "object" && ctx.taskIds.has(item.taskId)) {
+      if (seen.has(item.taskId)) return; // the first slot for a task wins; the repeat is not a task loss
+      seen.add(item.taskId);
+    }
+    const checked = checkItem(item, ctx);
+    if (checked.error) {
+      if (item && ctx.taskIds.has(item.taskId)) drop(item.taskId, checked.error);
+      return;
+    }
+    slots.push(checked.slot);
+  });
+
+  // Overlaps between timed slots: keep the one that starts first
+  const timed = slots.filter((s) => !s.allDay).sort((a, b) => a.startMs - b.startMs);
+  const overlapDropped = new Set();
+  let lastEnd = -Infinity;
+  for (const s of timed) {
+    if (s.startMs < lastEnd) {
+      overlapDropped.add(s.taskId);
+      drop(s.taskId, "overlaps another scheduled task");
+    } else {
+      lastEnd = s.endMs;
+    }
+  }
+  slots = slots.filter((s) => !overlapDropped.has(s.taskId));
+
+  // Project order, to a fixed point
+  for (let guard = 0; guard <= tasks.length + 1; guard++) {
+    const violations = projectOrderViolations({slots, tasks: allTasks, fixed, timeZone});
+    if (violations.length === 0) break;
+    const victims = new Map();
+    for (const v of violations) {
+      if (v.hiInRun) victims.set(v.hiId, v.message);
+      else if (v.loInRun) victims.set(v.loId, v.message);
+    }
+    if (victims.size === 0) break;
+    for (const [id, message] of victims) drop(id, message);
+    slots = slots.filter((s) => !victims.has(s.taskId));
+  }
+
+  const kept = new Set(slots.map((s) => s.taskId));
+  // Tasks the model left out entirely are not "dropped": they simply have no slot. Only report ones it tried.
+  const result = validateSchedule({items: slots.map((s) => s.item), tasks, busy, now, horizon, timeZone, allTasks, fixed});
+  return {slots: result.slots, dropped: dropped.filter((d) => !kept.has(d.taskId)), errors: result.errors};
+}
+
+// Parse the text of Gemini's scheduling answer into its scheduledTasks list. Pure: no I/O. Tolerates a Markdown code
+// fence around the JSON and a bare array. Throws an Error with a readable reason when there is nothing usable.
+function parseScheduleResponse(text) {
+  if (typeof text !== "string" || text.trim() === "") throw new Error("Gemini returned an empty response");
+  const body = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  let data;
+  try {
+    data = JSON.parse(body);
+  } catch (err) {
+    throw new Error("Gemini returned malformed JSON (the answer may have been cut off)");
+  }
+  const list = Array.isArray(data) ? data : data && data.scheduledTasks;
+  if (!Array.isArray(list)) throw new Error("Gemini's answer had no scheduledTasks list");
+  return list;
 }
 
 // ISO instant for a stored schedule value (an ISO time, or a YYYY-MM-DD date taken as local midnight), or null.
@@ -195,4 +294,4 @@ function matchLockedEvents(events, tasks) {
   return byTask;
 }
 
-module.exports = {DAY_START_MIN, DAY_END_MIN, validateSchedule, checkProjectOrder, buildFixedSlots, matchLockedEvents};
+module.exports = {DAY_START_MIN, DAY_END_MIN, validateSchedule, repairSchedule, parseScheduleResponse, checkProjectOrder, buildFixedSlots, matchLockedEvents};

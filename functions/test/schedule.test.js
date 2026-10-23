@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {validateSchedule, checkProjectOrder, buildFixedSlots, matchLockedEvents, DAY_START_MIN, DAY_END_MIN} = require("../schedule");
+const {validateSchedule, repairSchedule, parseScheduleResponse, checkProjectOrder, buildFixedSlots, matchLockedEvents, DAY_START_MIN, DAY_END_MIN} = require("../schedule");
 
 // "now" is 07:00 NZDT on Thursday 22 Oct 2026; the horizon is seven days later.
 const NOW = new Date("2026-10-21T18:00:00Z");
@@ -338,5 +338,106 @@ describe("schedule.js", () => {
       const bad = [member("m", 2, {scheduledStart: "soon", scheduledEnd: "2026-10-22T14:00:00+13:00"})];
       assert.deepEqual(buildFixedSlots({tasks: bad, inScopeIds: new Set(), lockedWindows: new Map(), timeZone: ZONE}), []);
     });
+  });
+});
+
+describe("repairSchedule", () => {
+  const P = [
+    {id: "p1", projectId: "k", projectOrder: 1},
+    {id: "p2", projectId: "k", projectOrder: 2},
+    {id: "p3", projectId: "k", projectOrder: 3},
+    {id: "free"},
+  ];
+  const repair = (items, extra = {}) => repairSchedule({items, tasks: P, busy: [], now: NOW, horizon: HORIZON, timeZone: "Pacific/Auckland", ...extra});
+  const ids = (r) => r.slots.map((s) => s.taskId).sort();
+
+  it("keeps a clean schedule untouched", () => {
+    const r = repair([
+      slot("p1", "2026-10-22T09:00:00+13:00", "2026-10-22T10:00:00+13:00"),
+      slot("p2", "2026-10-22T10:00:00+13:00", "2026-10-22T11:00:00+13:00"),
+    ]);
+    assert.deepEqual(ids(r), ["p1", "p2"]);
+    assert.deepEqual(r.dropped, []);
+    assert.deepEqual(r.errors, []);
+  });
+  it("drops a later tier whose earlier tier has no slot, and the tiers above it", () => {
+    const r = repair([
+      slot("p1", "2026-10-22T09:00:00+13:00", "2026-10-22T10:00:00+13:00"),
+      slot("p3", "2026-10-22T12:00:00+13:00", "2026-10-22T13:00:00+13:00"),
+      slot("free", "2026-10-22T14:00:00+13:00", "2026-10-22T15:00:00+13:00"),
+    ]);
+    assert.deepEqual(ids(r), ["free", "p1"]);
+    assert.deepEqual(r.dropped.map((d) => d.taskId), ["p3"]);
+    assert.deepEqual(r.errors, []);
+  });
+  it("drops a later tier that starts before an earlier one ends, cascading upward", () => {
+    const r = repair([
+      slot("p1", "2026-10-22T11:00:00+13:00", "2026-10-22T12:00:00+13:00"),
+      slot("p2", "2026-10-22T09:00:00+13:00", "2026-10-22T10:00:00+13:00"),
+      slot("p3", "2026-10-22T13:00:00+13:00", "2026-10-22T14:00:00+13:00"),
+    ]);
+    assert.deepEqual(ids(r), ["p1"]);
+    assert.deepEqual(r.dropped.map((d) => d.taskId).sort(), ["p2", "p3"]);
+    assert.deepEqual(r.errors, []);
+  });
+  it("drops only the invalid slot and keeps the rest", () => {
+    const r = repair([
+      slot("p1", "2026-10-22T09:00:00+13:00", "2026-10-22T10:00:00+13:00"),
+      slot("free", "2026-10-23T06:00:00+13:00", "2026-10-23T07:00:00+13:00"),
+    ]);
+    assert.deepEqual(ids(r), ["p1"]);
+    assert.equal(r.dropped[0].taskId, "free");
+    assert.match(r.dropped[0].reason, /8:00-19:00/);
+  });
+  it("keeps the earlier of two overlapping slots", () => {
+    const r = repair([
+      slot("p1", "2026-10-22T09:00:00+13:00", "2026-10-22T10:00:00+13:00"),
+      slot("free", "2026-10-22T09:30:00+13:00", "2026-10-22T10:30:00+13:00"),
+    ]);
+    assert.deepEqual(ids(r), ["p1"]);
+    assert.equal(r.dropped[0].taskId, "free");
+  });
+  it("keeps the first slot of a repeated task without reporting a loss", () => {
+    const r = repair([
+      slot("free", "2026-10-22T09:00:00+13:00", "2026-10-22T10:00:00+13:00"),
+      slot("free", "2026-10-22T11:00:00+13:00", "2026-10-22T12:00:00+13:00"),
+    ]);
+    assert.equal(r.slots.length, 1);
+    assert.deepEqual(r.dropped, []);
+  });
+  it("ignores unknown ids and non-object items", () => {
+    const r = repair([null, "x", slot("nope", "2026-10-22T09:00:00+13:00", "2026-10-22T10:00:00+13:00")]);
+    assert.deepEqual(r.slots, []);
+    assert.deepEqual(r.dropped, []);
+  });
+  it("tolerates a non-array result", () => {
+    assert.deepEqual(repair(undefined).slots, []);
+  });
+  it("drops the run's earlier tier when a fixed later tier would start before it ends", () => {
+    const fixed = [{taskId: "p2", start: "2026-10-21T21:00:00Z", end: "2026-10-21T22:00:00Z"}]; // 10:00-11:00 on the 22nd, NZDT
+    const r = repair([slot("p1", "2026-10-22T10:30:00+13:00", "2026-10-22T11:30:00+13:00")], {fixed});
+    assert.deepEqual(r.slots, []);
+    assert.equal(r.dropped[0].taskId, "p1");
+  });
+});
+
+describe("parseScheduleResponse", () => {
+  it("parses the scheduledTasks list", () => {
+    assert.deepEqual(parseScheduleResponse("{\"scheduledTasks\":[{\"taskId\":\"a\"}]}"), [{taskId: "a"}]);
+  });
+  it("accepts an empty list", () => {
+    assert.deepEqual(parseScheduleResponse("{\"scheduledTasks\":[]}"), []);
+  });
+  it("strips a Markdown code fence", () => {
+    assert.deepEqual(parseScheduleResponse("```json\n{\"scheduledTasks\":[]}\n```"), []);
+  });
+  it("accepts a bare array", () => {
+    assert.deepEqual(parseScheduleResponse("[{\"taskId\":\"a\"}]"), [{taskId: "a"}]);
+  });
+  it("explains an empty, truncated or shapeless answer", () => {
+    assert.throws(() => parseScheduleResponse(undefined), /empty response/);
+    assert.throws(() => parseScheduleResponse("   "), /empty response/);
+    assert.throws(() => parseScheduleResponse("{\"scheduledTasks\":[{\"taskId\":"), /malformed JSON/);
+    assert.throws(() => parseScheduleResponse("{\"other\":1}"), /no scheduledTasks/);
   });
 });
