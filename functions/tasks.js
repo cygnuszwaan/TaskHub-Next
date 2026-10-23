@@ -54,6 +54,17 @@ function cleanFields(change) {
   return out;
 }
 
+// The project fields the model may set, as {projectId?, projectOrder?} for applyProjectFields. Pure: no I/O.
+// Only an id in `projectIds` counts, and only a number is an order, so the model can put a task in a project or
+// move it to another and give it an order number, but an empty, null, unknown or missing value changes nothing:
+// it never removes a task from a project or clears its order number, and never invents a project.
+function modelProjectFields(change, projectIds) {
+  const out = {};
+  if (typeof change.projectId === "string" && projectIds.includes(change.projectId)) out.projectId = change.projectId;
+  if (Number.isFinite(change.projectOrder)) out.projectOrder = change.projectOrder;
+  return out;
+}
+
 // Place `task` at the 1-based rank `rank` in `list` (clamped), removing any earlier copy.
 function placeAtRank(list, task, rank) {
   const rest = list.filter((t) => t.id !== task.id);
@@ -64,13 +75,16 @@ function placeAtRank(list, task, rank) {
 
 // Merge the model's new or changed tasks into the stored list. Pure: no I/O.
 //   existing: stored tasks
-//   changes:  [{id?, title, priority, dueDate, estimatedMinutes, tags, recurrence?, order?}]. A change whose id matches a
-//             stored task updates its model-owned fields; any other change is a new task and gets a server id.
+//   changes:  [{id?, title, priority, dueDate, estimatedMinutes, tags, recurrence?, projectId?, projectOrder?, order?}].
+//             A change whose id matches a stored task updates its model-owned fields; any other change is a new task
+//             and gets a server id.
 //   makeId:   () => new task id
+//   projectIds: ids of the projects that exist (none when omitted). The model's projectId and projectOrder are applied
+//             through applyProjectFields (see modelProjectFields for what counts).
 // Untouched tasks, and every server-owned field of updated tasks, are preserved. A change naming an id that is
 // no longer stored is skipped. Ranks are renumbered 1..n in list order.
 // Returns {tasks, added, updated, skipped}.
-function mergeTaskChanges(existing, changes, makeId) {
+function mergeTaskChanges(existing, changes, makeId, projectIds = []) {
   let list = [...existing].sort((a, b) => (a.order || 0) - (b.order || 0));
   let added = 0;
   let updated = 0;
@@ -85,7 +99,7 @@ function mergeTaskChanges(existing, changes, makeId) {
     const current = change.id ? list.find((t) => t.id === change.id) : null;
 
     if (current) {
-      const next = {...current, ...fields};
+      const next = applyProjectFields({...current, ...fields}, modelProjectFields(change, projectIds), projectIds);
       if (next.recurrence === null) delete next.recurrence;
       if (Number.isInteger(change.order)) {
         list = placeAtRank(list, next, change.order);
@@ -96,7 +110,7 @@ function mergeTaskChanges(existing, changes, makeId) {
     } else if (change.id) {
       skipped++; // names a task that no longer exists
     } else if (fields.title) {
-      const task = {
+      const base = {
         id: makeId(),
         title: fields.title,
         priority: fields.priority || "MEDIUM",
@@ -105,7 +119,8 @@ function mergeTaskChanges(existing, changes, makeId) {
         tags: fields.tags || [],
         status: "PENDING",
       };
-      if (fields.recurrence) task.recurrence = fields.recurrence;
+      if (fields.recurrence) base.recurrence = fields.recurrence;
+      const task = applyProjectFields(base, modelProjectFields(change, projectIds), projectIds);
       list = placeAtRank(list, task, change.order);
       added++;
     } else {

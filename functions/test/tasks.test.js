@@ -200,20 +200,89 @@ describe("tasks.js", () => {
   });
 
   describe("mergeTaskChanges: updates", () => {
-    it("never changes project membership or order, whatever the model sends", () => {
+    it("keeps project membership and order when the change does not mention them", () => {
       const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, projectId: "p1", projectOrder: 2} : t));
-      const r = mergeTaskChanges(tasks, [{id: "b", title: "B2", projectId: "p9", projectOrder: 7, priority: "LOW", estimatedMinutes: 10, tags: []}], makeIdGenerator());
+      const r = mergeTaskChanges(tasks, [{id: "b", title: "B2", priority: "LOW", estimatedMinutes: 10, tags: []}], makeIdGenerator(), ["p1"]);
       const b = r.tasks.find((t) => t.id === "b");
       assert.equal(b.title, "B2");
       assert.equal(b.projectId, "p1");
       assert.equal(b.projectOrder, 2);
     });
-    it("does not put a new task into a project, whatever the model sends", () => {
-      const r = mergeTaskChanges(existingTasks(), [{title: "N", projectId: "p1", projectOrder: 1, priority: "LOW", estimatedMinutes: 10, tags: []}], makeIdGenerator());
+  });
+
+  describe("mergeTaskChanges: projects", () => {
+    const ids = ["p1", "p2"];
+    const inProject = (extra = {}) => existingTasks().map((t) => (t.id === "b" ? {...t, projectId: "p1", projectOrder: 2, ...extra} : t));
+    const byId = (r, id) => r.tasks.find((t) => t.id === id);
+
+    it("puts a new task into an existing project with an order number", () => {
+      const r = mergeTaskChanges(existingTasks(), [{title: "N", projectId: "p1", projectOrder: 3}], makeIdGenerator(), ids);
       const n = r.tasks.find((t) => t.title === "N");
+      assert.equal(n.projectId, "p1");
+      assert.equal(n.projectOrder, 3);
+      assert.equal(r.added, 1);
+    });
+    it("puts a new task into a project without an order number (unordered)", () => {
+      const n = mergeTaskChanges(existingTasks(), [{title: "N", projectId: "p1"}], makeIdGenerator(), ids).tasks.find((t) => t.title === "N");
+      assert.equal(n.projectId, "p1");
+      assert.equal("projectOrder" in n, false);
+    });
+    it("ignores an unknown project id, and an order number that has no project to belong to", () => {
+      const n = mergeTaskChanges(existingTasks(), [{title: "N", projectId: "p9", projectOrder: 1}], makeIdGenerator(), ids).tasks.find((t) => t.title === "N");
       assert.equal("projectId" in n, false);
       assert.equal("projectOrder" in n, false);
     });
+    it("ignores every project id when no project ids are given", () => {
+      const n = mergeTaskChanges(existingTasks(), [{title: "N", projectId: "p1", projectOrder: 1}], makeIdGenerator()).tasks.find((t) => t.title === "N");
+      assert.equal("projectId" in n, false);
+    });
+    it("still adds the task when its project id is unusable", () => {
+      const r = mergeTaskChanges(existingTasks(), [{title: "N", projectId: "p9"}], makeIdGenerator(), ids);
+      assert.deepEqual([r.added, r.skipped], [1, 0]);
+    });
+    it("puts an existing task into a project", () => {
+      const b = byId(mergeTaskChanges(existingTasks(), [{id: "b", projectId: "p2", projectOrder: 1}], makeIdGenerator(), ids), "b");
+      assert.equal(b.projectId, "p2");
+      assert.equal(b.projectOrder, 1);
+    });
+    it("moves a task to another project and drops the old order number unless one is given", () => {
+      assert.equal("projectOrder" in byId(mergeTaskChanges(inProject(), [{id: "b", projectId: "p2"}], makeIdGenerator(), ids), "b"), false);
+      assert.equal(byId(mergeTaskChanges(inProject(), [{id: "b", projectId: "p2"}], makeIdGenerator(), ids), "b").projectId, "p2");
+      assert.equal(byId(mergeTaskChanges(inProject(), [{id: "b", projectId: "p2", projectOrder: 5}], makeIdGenerator(), ids), "b").projectOrder, 5);
+    });
+    it("changes the order number of a task already in a project", () => {
+      assert.equal(byId(mergeTaskChanges(inProject(), [{id: "b", projectOrder: 4}], makeIdGenerator(), ids), "b").projectOrder, 4);
+      assert.equal(byId(mergeTaskChanges(inProject(), [{id: "b", projectId: "p1", projectOrder: 1}], makeIdGenerator(), ids), "b").projectOrder, 1);
+    });
+    it("rounds and clamps an order number to 1..999", () => {
+      assert.equal(byId(mergeTaskChanges(inProject(), [{id: "b", projectOrder: 2.6}], makeIdGenerator(), ids), "b").projectOrder, 3);
+      assert.equal(byId(mergeTaskChanges(inProject(), [{id: "b", projectOrder: 0}], makeIdGenerator(), ids), "b").projectOrder, 1);
+      assert.equal(byId(mergeTaskChanges(inProject(), [{id: "b", projectOrder: 5000}], makeIdGenerator(), ids), "b").projectOrder, 999);
+    });
+    it("never removes a task from a project or clears its order number", () => {
+      for (const change of [{projectId: ""}, {projectId: null}, {projectOrder: null}, {projectId: "", projectOrder: null}, {projectId: "p9"}, {projectOrder: "2"}, {projectOrder: NaN}]) {
+        const b = byId(mergeTaskChanges(inProject(), [{id: "b", ...change}], makeIdGenerator(), ids), "b");
+        assert.equal(b.projectId, "p1", JSON.stringify(change));
+        assert.equal(b.projectOrder, 2, JSON.stringify(change));
+      }
+    });
+    it("gives an order number to a task without a project only when it joins one in the same change", () => {
+      assert.equal("projectOrder" in byId(mergeTaskChanges(existingTasks(), [{id: "b", projectOrder: 3}], makeIdGenerator(), ids), "b"), false);
+    });
+    it("does not let the model touch other server-owned fields along the way", () => {
+      const a = byId(mergeTaskChanges(existingTasks(), [{id: "a", projectId: "p1", projectOrder: 1, locked: false, googleCalendarEventId: "x"}], makeIdGenerator(), ids), "a");
+      assert.equal(a.locked, true);
+      assert.equal(a.googleCalendarEventId, "ev1");
+    });
+    it("does not modify the stored tasks it is given", () => {
+      const tasks = inProject();
+      const copy = structuredClone(tasks);
+      mergeTaskChanges(tasks, [{id: "b", projectId: "p2", projectOrder: 1}, {title: "N", projectId: "p1"}], makeIdGenerator(), ids);
+      assert.deepEqual(tasks, copy);
+    });
+  });
+
+  describe("mergeTaskChanges: other updates", () => {
     it("updates model-owned fields and preserves server-owned ones", () => {
       const r = mergeTaskChanges(existingTasks(), [{id: "a", title: "A2", priority: "MEDIUM", estimatedMinutes: 45, tags: ["x"], dueDate: "2026-11-01"}], makeIdGenerator());
       const a = r.tasks[0];

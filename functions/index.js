@@ -14,7 +14,7 @@ const {applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults
 const {makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
 const {UNAVAILABLE, weatherUrl, describeWeather, weatherKey} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
-const {buildSchedulePrompt} = require("./prompts");
+const {buildSchedulePrompt, buildTaskPrompt} = require("./prompts");
 const {SUMMARY_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted} = require("./completed");
 const {makeOwnerOnly} = require("./auth");
 const {randomUUID} = require("crypto");
@@ -85,6 +85,14 @@ const changeSchema = {
               interval: {type: Type.INTEGER, description: "Repeat every this many days, weeks, months or years (1 or more)"},
             },
             required: ["frequency", "interval"],
+          },
+          projectId: {
+            type: Type.STRING,
+            description: "Id of an existing project the input puts the task in, copied exactly from the project list; omit otherwise",
+          },
+          projectOrder: {
+            type: Type.INTEGER,
+            description: "Position (from 1) in the project's sequence when the input gives one; omit otherwise",
           },
           order: {
             type: Type.INTEGER,
@@ -430,30 +438,10 @@ exports.addOrUpdateTask = onRequest({
     const userInput = req.body.input;
     if (!userInput) return res.status(400).send({error: "Missing input"});
 
-    const [currentTasks, {timeZone}] = await Promise.all([readTaskList(), readSettings()]);
-    // The model sees only the fields it may change, plus the id and rank
-    const visibleTasks = currentTasks.map(({id, title, priority, dueDate, estimatedMinutes, tags, recurrence, order}) => ({id, title, priority, dueDate, estimatedMinutes, tags, recurrence, order}));
+    const [currentTasks, {timeZone}, projects] = await Promise.all([readTaskList(), readSettings(), readProjects()]);
 
     const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
-    const today = localDate(timeZone);
-
-    const prompt = `
-      You are an expert task queue organizer. Today's date is: ${today}.
-      
-      Current Task List (for context; do not return tasks you leave unchanged):
-      ${JSON.stringify(visibleTasks, null, 2)}
-      
-      New Input: "${userInput}"
-      
-      Parse the input into tasks, inferring priority, estimatedMinutes and tags.
-      Return ONLY the tasks that are new or that the input changes.
-      For a change to an existing task, return it with that task's id and its complete updated fields.
-      For a new task, leave id empty.
-      Set order to the rank (from 1) the task should hold in the full list.
-      If the input says a task repeats (for example "every Monday", "monthly", "every 2 weeks"), set recurrence
-      to the frequency and interval, and set dueDate to its first occurrence. Leave recurrence out for tasks that do not repeat
-      and for existing tasks whose repetition the input does not mention. To stop an existing task repeating, return frequency NONE.
-    `;
+    const prompt = buildTaskPrompt({tasks: currentTasks, projects, input: userInput, today: localDate(timeZone)});
 
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
@@ -466,12 +454,13 @@ exports.addOrUpdateTask = onRequest({
 
     const changes = JSON.parse(response.text).tasks || [];
 
-    // Merge into the list as it is now, not as it was when the model was asked
-    const result = await updateTaskList((tasks) => {
-      const merged = mergeTaskChanges(tasks, changes, randomUUID);
+    // Merge into the list as it is now, not as it was when the model was asked. The projects are read in the same
+    // transaction, so a task only joins a project that still exists at commit time.
+    const result = await updateTaskList((tasks, tx, {projects: stored}) => {
+      const merged = mergeTaskChanges(tasks, changes, randomUUID, stored.map((p) => p.id));
       const changed = merged.added + merged.updated > 0;
       return {...merged, tasks: changed ? merged.tasks : null, current: changed ? merged.tasks : tasks};
-    });
+    }, {withProjects: true});
 
     res.status(200).send({
       success: true,
