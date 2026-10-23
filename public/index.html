@@ -88,34 +88,6 @@
   </div>
 
   <div class="card">
-    <div class="action-row">
-      <button onclick="scheduleWeek()" id="schedBtn" style="background: #16a34a;">📅 Plan My Week</button>
-    </div>
-    <div id="scheduleStatus" class="coach-box" style="display:none;"></div>
-  </div>
-
-  <div class="card">
-    <h3 style="margin-top:0; margin-bottom:12px;">Add / Modify Task</h3>
-    <div class="input-row">
-      <input type="text" id="taskInput" placeholder="e.g. MOW LAWN 45M OUTDOOR">
-      <button onclick="submitTask()" id="addBtn">Add</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3 style="margin-top:0; margin-bottom:12px;">Organized Queue <small style="font-size:11px; font-weight:normal; color:#64748b;">(Tap to edit)</small></h3>
-    <div class="tag-filter-bar" id="tagFilterBar"></div>
-    <div id="taskList">Loading tasks...</div>
-  </div>
-
-  <div class="card">
-    <details id="completedDetails">
-      <summary style="cursor: pointer; font-weight: 600;">Recently Completed</summary>
-      <div id="completedList" style="margin-top: 12px;"></div>
-    </details>
-  </div>
-
-  <div class="card">
     <details id="settingsDetails">
       <summary style="cursor: pointer; font-weight: 600;">Settings</summary>
       <div style="margin-top: 12px;">
@@ -153,11 +125,37 @@
           </select>
         </div>
         <p class="settings-note" id="settingsLastRun"></p>
-        <div style="margin-top: 14px;">
+        <div class="action-row" style="margin-top: 14px;">
           <button type="button" id="saveSettingsBtn">Save settings</button>
+          <button type="button" id="schedBtn" style="background: #16a34a;" title="Read your calendar and reschedule every task now" onclick="scheduleWeek()">📅 Update now</button>
         </div>
         <div id="settingsStatus" class="settings-status"></div>
       </div>
+    </details>
+    <div id="scheduleStatus" class="coach-box" style="display:none;"></div>
+  </div>
+
+
+  <div class="card">
+    <h3 style="margin-top:0; margin-bottom:12px;">Add / Modify Task</h3>
+    <div class="input-row">
+      <input type="text" id="taskInput" placeholder="e.g. MOW LAWN 45M OUTDOOR">
+      <button onclick="submitTask()" id="addBtn">Add</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <details id="queueDetails" open>
+      <summary style="cursor: pointer; font-weight: 600;">Organized Queue <small style="font-size:11px; font-weight:normal; color:#64748b;">(Tap to edit)</small></summary>
+      <div class="tag-filter-bar" id="tagFilterBar" style="margin-top: 12px;"></div>
+      <div id="taskList">Loading tasks...</div>
+    </details>
+  </div>
+
+  <div class="card">
+    <details id="completedDetails">
+      <summary style="cursor: pointer; font-weight: 600;">Recently Completed</summary>
+      <div id="completedList" style="margin-top: 12px;"></div>
     </details>
   </div>
 
@@ -536,6 +534,8 @@
 
     async function scheduleWeek() {
       const statusDiv = document.getElementById("scheduleStatus");
+      const btn = document.getElementById("schedBtn");
+      btn.disabled = true;
       statusDiv.style.display = "block";
       statusDiv.innerText = "Reading calendar, checking weather, and scheduling tasks...";
 
@@ -555,6 +555,8 @@
         }
       } catch (err) {
         statusDiv.innerText = "Error scheduling week: " + err.message;
+      } finally {
+        btn.disabled = false;
       }
     }
 
@@ -580,7 +582,7 @@
     function scheduleChip(t) {
       const when = formatSchedule(t.scheduledStart, t.scheduledEnd);
       if (when) return `<span class="chip sched-chip" title="Scheduled on your calendar">📅 ${esc(when)}</span>`;
-      // Scheduled before times were stored; refreshed by the next Plan My Week
+      // Scheduled before times were stored; refreshed by the next full run
       return t.googleCalendarEventId ? `<span class="chip sched-chip">📅 Synced</span>` : "";
     }
 
@@ -619,7 +621,7 @@
               ${t.dueDate ? `<span class="chip">Due: ${esc(t.dueDate)}</span>` : ''}
               ${recurrenceChip(t)}
               ${scheduleChip(t)}
-              ${t.locked ? `<span class="chip lock-chip" title="Pinned: its event was moved to your personal calendar, so Plan My Week leaves it alone">🔒 Locked</span>` : ''}
+              ${t.locked ? `<span class="chip lock-chip" title="Pinned: its event was moved to your personal calendar, so Update now leaves it alone">🔒 Locked</span>` : ''}
             </div>
           </div>
           <div class="action-btns">

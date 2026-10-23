@@ -371,7 +371,7 @@ exports.autoScheduleDaily = onSchedule({
   }
 });
 
-// 2. HTTP Endpoint: Manual / On-Demand "Plan My Week" Trigger
+// 2. HTTP Endpoint: Manual / On-Demand full run (the "Update now" button)
 exports.generateWeeklySchedule = onRequest({
   secrets: [
     "GEMINI_API_KEY",

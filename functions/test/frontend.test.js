@@ -19,6 +19,38 @@ function load() {
 }
 
 describe("public/index.html helpers", () => {
+  describe("layout", () => {
+    const at = (needle, from = 0) => {
+      const i = html.indexOf(needle, from);
+      assert.ok(i > 0, `${needle} not found`);
+      return i;
+    };
+    it("puts the Settings card first, with Save settings and Update now side by side", () => {
+      const settings = at(`id="settingsDetails"`);
+      assert.ok(settings < at(`id="taskInput"`) && settings < at(`id="queueDetails"`) && settings < at(`id="completedDetails"`));
+      const save = at(`id="saveSettingsBtn"`);
+      const row = html.slice(html.lastIndexOf(`<div class="action-row"`, save), at(`id="settingsStatus"`));
+      assert.match(row, /id="saveSettingsBtn"/);
+      assert.match(row, /id="schedBtn"[^>]*onclick="scheduleWeek\(\)"[^>]*>[^<]*Update now/);
+      assert.ok(at(`id="schedBtn"`) < at("</details>", save), "Update now is inside the Settings details");
+    });
+    it("keeps the schedule status outside the collapsible Settings details so it stays visible", () => {
+      const closeSettings = at("</details>", at(`id="saveSettingsBtn"`));
+      assert.ok(at(`id="scheduleStatus"`) > closeSettings);
+      assert.ok(at(`id="scheduleStatus"`) < at(`id="taskInput"`));
+    });
+    it("no longer offers Plan My Week anywhere on the page", () => {
+      assert.doesNotMatch(html, /Plan My Week/);
+    });
+    it("makes Organized Queue collapsible (open by default) around the filter bar and list", () => {
+      const q = at(`<details id="queueDetails" open>`);
+      const close = at("</details>", q);
+      assert.ok(q < at(`id="tagFilterBar"`, q) && at(`id="tagFilterBar"`, q) < at(`id="taskList"`, q));
+      assert.ok(at(`id="taskList"`, q) < close);
+      assert.ok(close < at(`id="completedDetails"`));
+    });
+  });
+
   it("shows the page's script without leftover NZ-only formatters", () => {
     assert.doesNotMatch(html, /nzKeyFmt|nzDayFmt|nzTimeFmt|NZ_TIME_ZONE/);
   });
