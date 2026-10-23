@@ -20,7 +20,10 @@
     .tag-filter-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 15px; }
     .filter-chip { font-size: 12px; padding: 4px 10px; border-radius: 16px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; user-select: none; }
     .filter-chip.active { background: #0266c8; color: white; border-color: #0266c8; }
-    .search-box { width: 100%; }
+    .search-row { display: flex; gap: 6px; align-items: center; }
+    .search-row button[hidden] { display: none; }
+    .search-box { flex: 1; min-width: 0; }
+    .search-box::-webkit-search-cancel-button { -webkit-appearance: none; } /* the Clear button replaces it, as phones show none */
     .filter-section { margin-top: 12px; }
     .filter-section > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: #475569; }
     .filter-section > summary small { font-weight: normal; color: #0266c8; }
@@ -65,8 +68,6 @@
 
     .action-btns { display: flex; gap: 4px; }
     .complete-btn { background: transparent; color: #16a34a; border: none; padding: 4px 6px; font-size: 16px; cursor: pointer; }
-    .delete-btn { background: transparent; color: #94a3b8; border: none; padding: 4px 6px; font-size: 16px; cursor: pointer; }
-    .delete-btn:hover { color: #ef4444; }
 
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; overscroll-behavior: contain; }
     .modal-card { background: white; width: 90%; max-width: 480px; max-height: 90vh; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; padding: 20px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
@@ -185,7 +186,10 @@
   </div>
 
   <div class="card" id="queueCard">
-      <input type="search" id="taskSearch" class="search-box" placeholder="Search tasks" autocomplete="off" enterkeyhint="search" aria-label="Search tasks">
+      <div class="search-row">
+        <input type="search" id="taskSearch" class="search-box" placeholder="Search tasks" autocomplete="off" enterkeyhint="search" aria-label="Search tasks">
+        <button type="button" class="btn-secondary" id="clearSearchBtn" hidden>Clear</button>
+      </div>
       <details class="filter-section" id="tagsDetails">
         <summary>Tags <small id="tagsActive"></small></summary>
         <div class="tag-filter-bar" id="tagFilterBar"></div>
@@ -543,6 +547,14 @@
       };
     }
 
+    // Every tag in use, once each, alphabetically (ignoring case; the exact spelling breaks a tie). Pure.
+    function sortedTags(tasks) {
+      const tags = new Set();
+      tasks.forEach(t => (t.tags || []).forEach(tag => tags.add(tag)));
+      const key = tag => tag.toLowerCase();
+      return [...tags].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : a < b ? -1 : a > b ? 1 : 0));
+    }
+
     // The toast text after a delete or completion: the task's title is shortened to 40 characters.
     function removalMessage(kind, title) {
       const text = String(title || "").trim();
@@ -798,7 +810,17 @@
 
     window.addEventListener("DOMContentLoaded", () => {
       // Live search: the list is redrawn on every keystroke (the box sits outside the list, so typing is not interrupted)
-      document.getElementById("taskSearch").addEventListener("input", renderTasks);
+      document.getElementById("taskSearch").addEventListener("input", () => {
+        document.getElementById("clearSearchBtn").hidden = document.getElementById("taskSearch").value === "";
+        renderTasks();
+      });
+      document.getElementById("clearSearchBtn").addEventListener("click", () => {
+        const box = document.getElementById("taskSearch");
+        box.value = "";
+        document.getElementById("clearSearchBtn").hidden = true;
+        box.focus();
+        renderTasks();
+      });
       document.getElementById("tagFilterBar").addEventListener("click", e => {
         const chip = e.target.closest(".filter-chip");
         if (!chip) return;
@@ -818,7 +840,6 @@
         const btn = e.target.closest("[data-action]");
         if (btn && item.contains(btn)) {
           if (btn.dataset.action === "complete") completeTask(taskId);
-          else if (btn.dataset.action === "delete") deleteTask(taskId);
           return;
         }
         openEditModal(taskId);
@@ -1027,11 +1048,8 @@
 
     function renderFilterBar() {
       const bar = document.getElementById("tagFilterBar");
-      const tagMap = new Set();
-      allTasks.forEach(t => (t.tags || []).forEach(tag => tagMap.add(tag)));
-
       let html = `<div class="filter-chip ${selectedTagFilter === null ? 'active' : ''}" data-all="1">All (${allTasks.length})</div>`;
-      tagMap.forEach(tag => {
+      sortedTags(allTasks).forEach(tag => {
         const count = allTasks.filter(t => (t.tags || []).includes(tag)).length;
         html += `<div class="filter-chip ${selectedTagFilter === tag ? 'active' : ''}" data-tag="${esc(tag)}">${esc(tag)} (${count})</div>`;
       });
@@ -1113,7 +1131,6 @@
           </div>
           <div class="action-btns">
             <button class="complete-btn" title="Complete & Archive Task" data-action="complete">✅</button>
-            <button class="delete-btn" title="Delete Task" data-action="delete">❌</button>
           </div>
         </div>
       `).join("");
@@ -1323,13 +1340,15 @@
       }
     }
 
+    // Tasks are deleted only from the edit modal, after a confirmation (cancelling leaves the modal open); the Undo
+    // toast that follows is a second safety net
     async function deleteTaskFromModal() {
+      if (!confirm("Delete this task?")) return;
       const taskId = document.getElementById("editTaskId").value;
       closeEditModal();
       await deleteTask(taskId);
     }
 
-    // No confirmation: the Undo toast is the safety net
     async function deleteTask(taskId) {
       const task = allTasks.find(t => t.id === taskId);
       try {

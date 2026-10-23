@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -214,18 +214,38 @@ describe("public/index.html helpers", () => {
       const search = at(`id="taskSearch"`, q);
       assert.ok(search > q && search < at(`id="tagsDetails"`, q));
       assert.match(html.slice(html.lastIndexOf("<input", search), html.indexOf(">", search)), /type="search"[^>]*placeholder="Search tasks"/);
-      assert.match(html, /getElementById\("taskSearch"\)\.addEventListener\("input", renderTasks\)/);
+      const input = html.slice(html.indexOf(`getElementById("taskSearch").addEventListener("input"`), html.indexOf(`getElementById("clearSearchBtn").addEventListener("click"`));
+      assert.match(input, /renderTasks\(\)/);
       assert.match(html, /filterTasks\(allTasks, selectedTagFilter, selectedProjectFilter, document\.getElementById\("taskSearch"\)\.value\)/);
     });
-    it("has an Undo toast outside the pages, shown after a delete or completion, and deletes without a confirmation", () => {
+    it("shows a Clear button beside the search box only while it holds text", () => {
+      const row = html.slice(at(`class="search-row"`), at("</div>", at(`class="search-row"`)));
+      assert.ok(row.indexOf(`id="taskSearch"`) < row.indexOf(`id="clearSearchBtn"`));
+      assert.match(row, /id="clearSearchBtn"[^>]*\bhidden\b[^>]*>Clear</);
+      assert.match(html, /clearSearchBtn"\)\.hidden = document\.getElementById\("taskSearch"\)\.value === ""/);
+      assert.match(html, /\.search-row button\[hidden\]\s*\{\s*display:\s*none/);
+    });
+    it("lists the tag chips alphabetically", () => {
+      const bar = html.slice(html.indexOf("function renderFilterBar"), html.indexOf("function setFilter"));
+      assert.match(bar, /sortedTags\(allTasks\)\.forEach/);
+    });
+    it("has no delete button on the task cards: a task is deleted only from the edit modal, after a confirmation", () => {
+      const list = html.slice(html.indexOf("function renderTasks"), html.indexOf("function renderTasks") + 6000);
+      assert.doesNotMatch(list, /data-action="delete"|delete-btn/);
+      assert.doesNotMatch(html, /\.delete-btn/);
+      const click = html.slice(html.indexOf(`getElementById("taskList").addEventListener("click"`), html.indexOf(`getElementById("taskList").addEventListener("click"`) + 700);
+      assert.doesNotMatch(click, /deleteTask/);
+      const fromModal = html.slice(html.indexOf("async function deleteTaskFromModal"), html.indexOf("async function deleteTask("));
+      assert.match(fromModal, /if \(!confirm\("Delete this task\?"\)\) return;\s*const taskId/);
+      assert.ok(fromModal.indexOf("confirm(") < fromModal.indexOf("closeEditModal()"), "cancelling keeps the modal open");
+    });
+    it("has an Undo toast outside the pages, shown after a delete or completion", () => {
       const toast = at(`id="undoToast"`);
       assert.ok(toast > at("</main>", at(`id="pageSettings"`)) && toast < at(`id="editModal"`));
       assert.match(html, /\.toast\[hidden\]\s*\{\s*display:\s*none/);
       assert.match(html, /const UNDO_URL = endpoint\("undoRemove"\)/);
       assert.match(html, /showUndoToast\("COMPLETE", task\.title\)/);
       assert.match(html, /showUndoToast\("DELETE", task\.title\)/);
-      const del = html.slice(html.indexOf("async function deleteTask("), html.indexOf("function fmtMinutes"));
-      assert.doesNotMatch(del, /confirm\(/);
     });
     it("starts the Tags and Projects sections collapsed", () => {
       for (const id of ["tagsDetails", "projectsDetails"]) {
@@ -259,6 +279,23 @@ describe("public/index.html helpers", () => {
         assert.equal(r.settings.schedule.time, h.DAILY_TIME);
       }
       assert.equal(h.DAILY_TIME, "20:00");
+    });
+  });
+
+  describe("sortedTags", () => {
+    it("lists each tag once, alphabetically, whatever order the tasks use them in", () => {
+      const tasks = [{tags: ["Work", "Indoor"]}, {tags: ["Outdoor", "Work"]}, {tags: ["Errand"]}];
+      assert.deepEqual(load().sortedTags(tasks), ["Errand", "Indoor", "Outdoor", "Work"]);
+    });
+    it("ignores case when sorting and keeps both spellings, capitalised first on a tie", () => {
+      const tasks = [{tags: ["banana", "Apple", "cherry"]}, {tags: ["Banana", "apple"]}];
+      assert.deepEqual(load().sortedTags(tasks), ["Apple", "apple", "Banana", "banana", "cherry"]);
+    });
+    it("copes with tasks without tags, and does not modify them", () => {
+      const tasks = [{}, {tags: ["b", "a"]}, {tags: []}];
+      assert.deepEqual(load().sortedTags(tasks), ["a", "b"]);
+      assert.deepEqual(tasks[1].tags, ["b", "a"]);
+      assert.deepEqual(load().sortedTags([]), []);
     });
   });
 
