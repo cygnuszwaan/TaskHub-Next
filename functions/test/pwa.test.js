@@ -23,8 +23,14 @@ describe("web app manifest", () => {
     assert.ok(manifest.name && manifest.short_name);
     assert.equal(manifest.start_url, "/");
     assert.equal(manifest.scope, "/");
-    assert.match(manifest.theme_color, /^#[0-9a-f]{6}$/i);
     assert.match(manifest.background_color, /^#[0-9a-f]{6}$/i);
+  });
+  it("keeps the Android navigation bar dark and leaves the status bar to the page", () => {
+    // Chromium paints an installed app's bottom navigation bar from background_color (older versions) or theme_color
+    // (newer ones), and a manifest colour cannot follow the device's scheme: so background_color is the dark page
+    // colour and there is no theme_color; the page's two theme-color metas colour the status bar.
+    assert.equal(manifest.background_color.toLowerCase(), "#0f172a");
+    assert.equal("theme_color" in manifest, false);
   });
   it("lists icons that exist at their declared size, including a maskable one", () => {
     const purposes = new Set();
@@ -46,7 +52,7 @@ describe("web app manifest", () => {
 describe("public/index.html", () => {
   it("links the manifest, the theme colour and the icons", () => {
     assert.match(html, /<link rel="manifest" href="\/manifest\.webmanifest">/);
-    assert.match(html, new RegExp(`<meta name="theme-color" content="${manifest.theme_color}" media="\\(prefers-color-scheme: light\\)" data-scheme="light">`));
+    assert.match(html, new RegExp(`<meta name="theme-color" content="#0266c8" media="\\(prefers-color-scheme: light\\)" data-scheme="light">`));
     assert.match(html, /<meta name="theme-color" content="#[0-9a-f]{6}" media="\(prefers-color-scheme: dark\)" data-scheme="dark">/i);
     assert.match(html, /<link rel="apple-touch-icon" href="\/icons\/apple-touch-icon\.png">/);
   });
