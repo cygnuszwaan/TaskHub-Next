@@ -113,7 +113,7 @@ function mergeTaskChanges(existing, changes, makeId) {
 // Remove a completed task from the list and, if it repeats, create its next occurrence. Pure: no I/O.
 //   tasks:  the stored list
 //   taskId: the task being completed
-//   today:  the current NZ date, YYYY-MM-DD
+//   today:  the current local date, YYYY-MM-DD
 //   makeId: () => new task id
 // The next occurrence copies title, priority, estimatedMinutes, tags and recurrence, is PENDING, has the next
 // due date (see nextDueDate) and takes the completed task's rank; it has no schedule, calendar event or lock.

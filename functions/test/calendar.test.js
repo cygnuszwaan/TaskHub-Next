@@ -2,6 +2,8 @@
 /* eslint-disable require-jsdoc */
 const {describe, it, beforeEach, afterEach, mock} = require("node:test");
 const assert = require("node:assert/strict");
+
+const NZ = "Pacific/Auckland";
 const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("../calendar");
 
 // Minimal stand-in for the googleapis calendar client
@@ -36,20 +38,25 @@ describe("calendar.js", () => {
   describe("eventWindow", () => {
     it("returns timed events' start and end as given", () => {
       const ev = {start: {dateTime: "2026-10-22T09:00:00+13:00"}, end: {dateTime: "2026-10-22T10:00:00+13:00"}};
-      assert.deepEqual(eventWindow(ev), {start: "2026-10-22T09:00:00+13:00", end: "2026-10-22T10:00:00+13:00"});
+      assert.deepEqual(eventWindow(ev, NZ), {start: "2026-10-22T09:00:00+13:00", end: "2026-10-22T10:00:00+13:00"});
     });
-    it("spans NZ midnight to NZ midnight for all-day events (exclusive end)", () => {
+    it("spans local midnight to local midnight for all-day events (exclusive end)", () => {
       const ev = {start: {date: "2026-10-22"}, end: {date: "2026-10-24"}};
-      assert.deepEqual(eventWindow(ev), {start: "2026-10-21T11:00:00.000Z", end: "2026-10-23T11:00:00.000Z"});
+      assert.deepEqual(eventWindow(ev, NZ), {start: "2026-10-21T11:00:00.000Z", end: "2026-10-23T11:00:00.000Z"});
     });
     it("handles an all-day event on a daylight-saving changeover", () => {
       const ev = {start: {date: "2026-09-27"}, end: {date: "2026-09-28"}};
-      assert.deepEqual(eventWindow(ev), {start: "2026-09-26T12:00:00.000Z", end: "2026-09-27T11:00:00.000Z"});
+      assert.deepEqual(eventWindow(ev, NZ), {start: "2026-09-26T12:00:00.000Z", end: "2026-09-27T11:00:00.000Z"});
+    });
+    it("spans local midnight to local midnight in the given zone", () => {
+      const ev = {start: {date: "2026-10-22"}, end: {date: "2026-10-23"}};
+      assert.deepEqual(eventWindow(ev, "America/Los_Angeles"), {start: "2026-10-22T07:00:00.000Z", end: "2026-10-23T07:00:00.000Z"});
+      assert.deepEqual(eventWindow(ev, "Asia/Kolkata"), {start: "2026-10-21T18:30:00.000Z", end: "2026-10-22T18:30:00.000Z"});
     });
     it("returns null when the times are missing or incomplete", () => {
-      assert.equal(eventWindow({}), null);
-      assert.equal(eventWindow({start: {dateTime: "2026-10-22T09:00:00+13:00"}}), null);
-      assert.equal(eventWindow({start: {date: "2026-10-22"}, end: {dateTime: "2026-10-22T10:00:00+13:00"}}), null);
+      assert.equal(eventWindow({}, NZ), null);
+      assert.equal(eventWindow({start: {dateTime: "2026-10-22T09:00:00+13:00"}}, NZ), null);
+      assert.equal(eventWindow({start: {date: "2026-10-22"}, end: {dateTime: "2026-10-22T10:00:00+13:00"}}, NZ), null);
     });
   });
 
@@ -132,7 +139,7 @@ describe("calendar.js", () => {
 
     it("includes opaque events that are not the app's", async () => {
       const cal = fakeCalendar({events: [timed("e1")]});
-      assert.deepEqual(await getForeignBusyWindows(cal, "c", "T1", "T2"), [{start: "2026-10-22T09:00:00+13:00", end: "2026-10-22T10:00:00+13:00"}]);
+      assert.deepEqual(await getForeignBusyWindows(cal, "c", "T1", "T2", NZ), [{start: "2026-10-22T09:00:00+13:00", end: "2026-10-22T10:00:00+13:00"}]);
     });
     it("skips cancelled, transparent, marked and excluded events", async () => {
       const cal = fakeCalendar({events: [
@@ -142,16 +149,16 @@ describe("calendar.js", () => {
         timed("excluded"),
         timed("keep"),
       ]});
-      const out = await getForeignBusyWindows(cal, "c", "T1", "T2", new Set(["excluded"]));
+      const out = await getForeignBusyWindows(cal, "c", "T1", "T2", NZ, new Set(["excluded"]));
       assert.equal(out.length, 1);
     });
     it("skips events without usable times and includes all-day events", async () => {
       const cal = fakeCalendar({events: [{id: "none"}, {id: "allday", start: {date: "2026-10-22"}, end: {date: "2026-10-23"}}]});
-      assert.deepEqual(await getForeignBusyWindows(cal, "c", "T1", "T2"), [{start: "2026-10-21T11:00:00.000Z", end: "2026-10-22T11:00:00.000Z"}]);
+      assert.deepEqual(await getForeignBusyWindows(cal, "c", "T1", "T2", NZ), [{start: "2026-10-21T11:00:00.000Z", end: "2026-10-22T11:00:00.000Z"}]);
     });
     it("lists events with single events expanded over the given range", async () => {
       const cal = fakeCalendar();
-      await getForeignBusyWindows(cal, "c", "T1", "T2");
+      await getForeignBusyWindows(cal, "c", "T1", "T2", NZ);
       assert.equal(cal.calls.list[0].singleEvents, true);
       assert.equal(cal.calls.list[0].timeMin, "T1");
       assert.equal(cal.calls.list[0].timeMax, "T2");
@@ -178,20 +185,24 @@ describe("calendar.js", () => {
     const timed = (id, extra) => ({id, start: {dateTime: "2026-10-22T09:00:00+13:00"}, end: {dateTime: "2026-10-22T10:00:00+13:00"}, ...extra});
 
     it("returns the windows of the app's events, transparent ones included", () => {
-      const out = appBusyWindows([timed("e1"), timed("e2", {transparency: "transparent"})]);
+      const out = appBusyWindows([timed("e1"), timed("e2", {transparency: "transparent"})], NZ);
       assert.equal(out.length, 2);
       assert.deepEqual(out[0], {start: "2026-10-22T09:00:00+13:00", end: "2026-10-22T10:00:00+13:00"});
     });
     it("skips cancelled and excluded events and ones without usable times", () => {
       const events = [timed("cancelled", {status: "cancelled"}), timed("replaced"), {id: "none"}, timed("keep")];
-      assert.equal(appBusyWindows(events, new Set(["replaced"])).length, 1);
+      assert.equal(appBusyWindows(events, NZ, new Set(["replaced"])).length, 1);
     });
     it("includes all-day events", () => {
-      const out = appBusyWindows([{id: "d", start: {date: "2026-10-22"}, end: {date: "2026-10-23"}}]);
+      const out = appBusyWindows([{id: "d", start: {date: "2026-10-22"}, end: {date: "2026-10-23"}}], NZ);
       assert.deepEqual(out, [{start: "2026-10-21T11:00:00.000Z", end: "2026-10-22T11:00:00.000Z"}]);
     });
+    it("places all-day events in the given zone", () => {
+      const out = appBusyWindows([{id: "d", start: {date: "2026-10-22"}, end: {date: "2026-10-23"}}], "America/Los_Angeles");
+      assert.deepEqual(out, [{start: "2026-10-22T07:00:00.000Z", end: "2026-10-23T07:00:00.000Z"}]);
+    });
     it("returns an empty list for no events", () => {
-      assert.deepEqual(appBusyWindows([]), []);
+      assert.deepEqual(appBusyWindows([], NZ), []);
     });
   });
 

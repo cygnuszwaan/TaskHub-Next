@@ -1,5 +1,7 @@
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
+const {localParts} = require("./time");
+
 const INTERVALS = [15, 30, 60, 120, 240];
 const FREQUENCIES = ["DAILY", "INTERVAL"];
 // INTERVAL runs happen only inside this local window (the engine schedules nothing outside 8:00-19:00).
@@ -134,15 +136,6 @@ function applySettingsUpdate(current, patch) {
   return {settings: next};
 }
 
-// Local calendar date (YYYY-MM-DD) and minutes since local midnight for an instant in the given zone.
-function localParts(date, timeZone) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
-  }).formatToParts(date);
-  const get = (type) => parts.find((p) => p.type === type).value;
-  return {date: `${get("year")}-${get("month")}-${get("day")}`, minutes: Number(get("hour")) * 60 + Number(get("minute"))};
-}
-
 // Whether the automatic run should fire now. Called on every 15-minute tick with settings from mergeSettings.
 //   Disabled: never.
 //   DAILY: once the local time has reached schedule.time, if the last run was not on today's local date.
@@ -152,11 +145,11 @@ function isRunDue(settings, now = new Date()) {
   const {schedule, timeZone} = settings;
   if (!schedule.enabled) return false;
   const last = settings.lastAutoRunAt ? new Date(settings.lastAutoRunAt) : null;
-  const local = localParts(now, timeZone);
+  const local = localParts(timeZone, now);
   if (schedule.frequency === "DAILY") {
     const [h, m] = schedule.time.split(":").map(Number);
     if (local.minutes < h * 60 + m) return false;
-    return !last || localParts(last, timeZone).date !== local.date;
+    return !last || localParts(timeZone, last).date !== local.date;
   }
   if (local.minutes < WINDOW_START_MINUTES || local.minutes >= WINDOW_END_MINUTES) return false;
   return !last || now - last >= schedule.intervalMinutes * 60 * 1000 - TICK_GRACE_MS;

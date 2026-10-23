@@ -13,8 +13,8 @@ function slot(taskId, startISO, endISO, extra) {
   return {taskId, startISO, endISO, transparency: "opaque", isAllDay: false, ...extra};
 }
 
-function run(items, busy = []) {
-  return validateSchedule({items, tasks: TASKS, busy, now: NOW, horizon: HORIZON});
+function run(items, busy = [], zone = "Pacific/Auckland") {
+  return validateSchedule({items, tasks: TASKS, busy, now: NOW, horizon: HORIZON, timeZone: zone});
 }
 
 describe("schedule.js", () => {
@@ -78,11 +78,23 @@ describe("schedule.js", () => {
       assert.match(run([slot("a", "2026-10-29T06:30:00+13:00", "2026-10-29T07:30:00+13:00")]).errors[0], /horizon/);
     });
     it("rejects a slot spanning two NZ days", () => {
-      assert.match(run([slot("a", "2026-10-22T18:00:00+13:00", "2026-10-23T09:00:00+13:00")]).errors[0], /more than one NZ day/);
+      assert.match(run([slot("a", "2026-10-22T18:00:00+13:00", "2026-10-23T09:00:00+13:00")]).errors[0], /more than one local day/);
     });
     it("rejects slots outside 8:00-19:00", () => {
       assert.match(run([slot("a", "2026-10-22T07:30:00+13:00", "2026-10-22T09:00:00+13:00")]).errors[0], /outside 8:00-19:00/);
       assert.match(run([slot("a", "2026-10-22T18:00:00+13:00", "2026-10-22T19:30:00+13:00")]).errors[0], /outside 8:00-19:00/);
+    });
+    it("judges days and the window in the given zone", () => {
+      // NOW is 21 Oct 18:00 UTC. 17:00-18:00 UTC on the 22nd is 10:00-11:00 PDT on the 22nd (valid in Los Angeles)
+      // but 06:00-07:00 NZDT on the 23rd (outside the window in Auckland).
+      const items = [slot("a", "2026-10-22T17:00:00Z", "2026-10-22T18:00:00Z")];
+      assert.deepEqual(run(items, [], "America/Los_Angeles").errors, []);
+      assert.match(run(items, [], "Pacific/Auckland").errors[0], /outside 8:00-19:00 local time/);
+    });
+    it("rejects a slot spanning two local days in the given zone", () => {
+      // 06:00-08:00 UTC is 23:00 to 01:00 the next day in Los Angeles (PDT)
+      const items = [slot("a", "2026-10-23T06:00:00Z", "2026-10-23T08:00:00Z")];
+      assert.match(run(items, [], "America/Los_Angeles").errors[0], /more than one local day/);
     });
     it("judges the window in NZ time whatever offset the slot is written in", () => {
       // 19:30 UTC on the 21st is 08:30 NZDT on the 22nd: valid. 07:00 UTC is 20:00 NZDT: outside the window.

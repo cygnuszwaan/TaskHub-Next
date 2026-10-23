@@ -2,6 +2,8 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
+
+const NZ = "Pacific/Auckland";
 const {DEFAULT_LIMIT, MAX_LIMIT, SUMMARY_WEEKS, clampLimit, toIso, serializeCompleted, weekStartOf, firstSummaryWeek, summaryWindowStart, summarizeCompleted} = require("../completed");
 
 describe("completed.js", () => {
@@ -77,15 +79,24 @@ describe("completed.js", () => {
 
     it("opens on the Monday SUMMARY_WEEKS - 1 weeks before the current week", () => {
       assert.equal(SUMMARY_WEEKS, 8);
-      assert.equal(firstSummaryWeek(now), "2026-08-31");
-      assert.equal(firstSummaryWeek(now, 1), "2026-10-19");
+      assert.equal(firstSummaryWeek(NZ, now), "2026-08-31");
+      assert.equal(firstSummaryWeek(NZ, now, 1), "2026-10-19");
     });
     it("uses the NZ date, not the UTC date, to find the current week", () => {
       // Monday 26 Oct 00:30 NZDT is still Sunday 25 Oct in UTC
-      assert.equal(firstSummaryWeek(new Date("2026-10-25T11:30:00Z"), 1), "2026-10-26");
+      assert.equal(firstSummaryWeek(NZ, new Date("2026-10-25T11:30:00Z"), 1), "2026-10-26");
     });
     it("starts at NZ midnight of that Monday", () => {
-      assert.equal(summaryWindowStart(now, 1).toISOString(), "2026-10-18T11:00:00.000Z");
+      assert.equal(summaryWindowStart(NZ, now, 1).toISOString(), "2026-10-18T11:00:00.000Z");
+    });
+    it("follows the given zone", () => {
+      // 21:00 UTC on Thursday 22 Oct is still Thursday 22 Oct (14:00 PDT) in Los Angeles: same week, Monday 19 Oct
+      assert.equal(firstSummaryWeek("America/Los_Angeles", now, 1), "2026-10-19");
+      assert.equal(summaryWindowStart("America/Los_Angeles", now, 1).toISOString(), "2026-10-19T07:00:00.000Z");
+      // 00:30 NZDT Monday 26 Oct is Sunday 25 Oct 04:30 in Los Angeles: still the previous week
+      const edge = new Date("2026-10-25T11:30:00Z");
+      assert.equal(firstSummaryWeek(NZ, edge, 1), "2026-10-26");
+      assert.equal(firstSummaryWeek("America/Los_Angeles", edge, 1), "2026-10-19");
     });
   });
 
@@ -94,7 +105,7 @@ describe("completed.js", () => {
     const done = (iso, extra) => ({title: "t", priority: "MEDIUM", estimatedMinutes: 10, tags: [], completedAt: new Date(iso), ...extra});
 
     it("returns zeroed, complete weeks for no rows", () => {
-      const s = summarizeCompleted([], now);
+      const s = summarizeCompleted([], NZ, now);
       assert.equal(s.totalCount, 0);
       assert.equal(s.totalMinutes, 0);
       assert.equal(s.since, "2026-08-31");
@@ -110,15 +121,23 @@ describe("completed.js", () => {
         done("2026-10-20T01:00:00Z", {estimatedMinutes: 15}), // this week
         done("2026-10-14T01:00:00Z", {estimatedMinutes: 45}), // last week
       ];
-      const s = summarizeCompleted(rows, now);
+      const s = summarizeCompleted(rows, NZ, now);
       assert.deepEqual(s.weeks[7], {weekStart: "2026-10-19", count: 2, minutes: 45});
       assert.deepEqual(s.weeks[6], {weekStart: "2026-10-12", count: 1, minutes: 45});
       assert.equal(s.totalCount, 3);
       assert.equal(s.totalMinutes, 90);
     });
+    it("assigns completions to weeks of the given zone", () => {
+      // Sunday 18 Oct 23:30 UTC is Monday 19 Oct 12:30 NZ (this week) but Sunday 18 Oct 16:30 in Los Angeles (last week)
+      const rows = [done("2026-10-18T23:30:00Z")];
+      assert.equal(summarizeCompleted(rows, NZ, now).weeks[7].count, 1);
+      const la = summarizeCompleted(rows, "America/Los_Angeles", new Date("2026-10-23T03:00:00Z"));
+      assert.equal(la.weeks[7].count, 0);
+      assert.equal(la.weeks[6].count, 1);
+    });
     it("assigns a completion to the NZ week, not the UTC week", () => {
       // Sunday 18 Oct 23:30 UTC is Monday 19 Oct 12:30 NZ: this week. Sunday 18 Oct 10:00 UTC is Sunday 23:00 NZ: last week.
-      const s = summarizeCompleted([done("2026-10-18T23:30:00Z"), done("2026-10-18T10:00:00Z")], now);
+      const s = summarizeCompleted([done("2026-10-18T23:30:00Z"), done("2026-10-18T10:00:00Z")], NZ, now);
       assert.equal(s.weeks[7].count, 1);
       assert.equal(s.weeks[6].count, 1);
     });
@@ -130,14 +149,14 @@ describe("completed.js", () => {
         done("2026-10-22T00:00:00Z", {completedAt: "not a date"}),
         null,
       ];
-      assert.equal(summarizeCompleted(rows, now).totalCount, 0);
+      assert.equal(summarizeCompleted(rows, NZ, now).totalCount, 0);
     });
     it("accepts Firestore-style timestamps and ISO strings", () => {
       const rows = [
         done("2026-10-20T01:00:00Z", {completedAt: {toDate: () => new Date("2026-10-20T01:00:00Z")}}),
         done("2026-10-20T01:00:00Z", {completedAt: "2026-10-20T01:00:00.000Z"}),
       ];
-      assert.equal(summarizeCompleted(rows, now).weeks[7].count, 2);
+      assert.equal(summarizeCompleted(rows, NZ, now).weeks[7].count, 2);
     });
     it("totals by priority and skips unknown priorities there but not in the overall total", () => {
       const rows = [
@@ -146,7 +165,7 @@ describe("completed.js", () => {
         done("2026-10-20T01:00:00Z", {priority: "LOW", estimatedMinutes: 5}),
         done("2026-10-20T01:00:00Z", {priority: "URGENT", estimatedMinutes: 7}),
       ];
-      const s = summarizeCompleted(rows, now);
+      const s = summarizeCompleted(rows, NZ, now);
       assert.deepEqual(s.byPriority, [
         {priority: "HIGH", count: 2, minutes: 30},
         {priority: "MEDIUM", count: 0, minutes: 0},
@@ -162,7 +181,7 @@ describe("completed.js", () => {
         done("2026-10-20T01:00:00Z", {tags: ["Shopping", "", 5], estimatedMinutes: 40}),
         done("2026-10-20T01:00:00Z", {tags: undefined}),
       ];
-      const s = summarizeCompleted(rows, now);
+      const s = summarizeCompleted(rows, NZ, now);
       assert.deepEqual(s.byTag, [
         {tag: "Home", count: 2, minutes: 30},
         {tag: "Shopping", count: 1, minutes: 40},
@@ -175,7 +194,7 @@ describe("completed.js", () => {
         done("2026-10-20T01:00:00Z", {tags: ["a"], estimatedMinutes: 10}),
         done("2026-10-20T01:00:00Z", {tags: ["c"], estimatedMinutes: 50}),
       ];
-      assert.deepEqual(summarizeCompleted(rows, now).byTag.map((t) => t.tag), ["c", "a", "b"]);
+      assert.deepEqual(summarizeCompleted(rows, NZ, now).byTag.map((t) => t.tag), ["c", "a", "b"]);
     });
     it("treats missing or invalid estimatedMinutes as 0 and rounds fractions", () => {
       const rows = [
@@ -184,14 +203,14 @@ describe("completed.js", () => {
         done("2026-10-20T01:00:00Z", {estimatedMinutes: "30"}),
         done("2026-10-20T01:00:00Z", {estimatedMinutes: 12.6}),
       ];
-      const s = summarizeCompleted(rows, now);
+      const s = summarizeCompleted(rows, NZ, now);
       assert.equal(s.totalCount, 4);
       assert.equal(s.totalMinutes, 13);
     });
     it("does not mutate its input", () => {
       const rows = [done("2026-10-20T01:00:00Z", {tags: ["x"]})];
       const copy = JSON.stringify(rows);
-      summarizeCompleted(rows, now);
+      summarizeCompleted(rows, NZ, now);
       assert.equal(JSON.stringify(rows), copy);
     });
   });

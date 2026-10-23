@@ -36,7 +36,7 @@ function addRecurrence(dateStr, recurrence, steps) {
 // Due date (YYYY-MM-DD) of the occurrence that follows a completed one. Pure: no I/O.
 //   dueDate:    the completed task's due date; an empty or invalid one counts as `today`
 //   recurrence: {frequency: DAILY|WEEKLY|MONTHLY|YEARLY, interval: whole number >= 1}
-//   today:      the current NZ date, YYYY-MM-DD
+//   today:      the current local date, YYYY-MM-DD
 // The result steps forward from the due date in whole intervals and is always after `today`, so finishing a
 // task early keeps its rhythm (due Monday, done Saturday: the next Monday) while finishing late skips the
 // occurrences already missed rather than creating overdue tasks. Each step is counted from the original date,

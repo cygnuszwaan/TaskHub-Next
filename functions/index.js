@@ -7,12 +7,13 @@ const {defineString} = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const {GoogleGenAI, Type} = require("@google/genai");
 const {google} = require("googleapis");
-const {TIME_ZONE, getNZDate, getNZOffset, formatNZNow, getNZStartOfDay} = require("./time");
+const {localDate, utcOffset, formatLocalNow, startOfLocalDay} = require("./time");
 const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
 const {validateSchedule, matchLockedEvents} = require("./schedule");
 const {applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {annotateDue} = require("./due");
 const {makeTaskStore, makeSettingsStore} = require("./store");
+const {DEFAULTS} = require("./settings");
 const {SUMMARY_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted} = require("./completed");
 const {makeOwnerOnly} = require("./auth");
 const {randomUUID} = require("crypto");
@@ -29,6 +30,9 @@ const {updateTaskList, getTasks: readTaskList} = makeTaskStore(db);
 const {getSettings: readSettings, updateSettings: writeSettings} = makeSettingsStore(db);
 
 const MODEL_NAME = "gemini-3.5-flash-lite";
+
+// The owner's time zone for every date calculation. Fixed at the default until the settings are read at runtime.
+const TIME_ZONE = DEFAULTS.timeZone;
 
 // Target Google Calendar for all scheduling (set in functions/.env)
 const CALENDAR_ID = defineString("USER_CALENDAR_ID");
@@ -183,9 +187,9 @@ async function getWeatherWhangaparaoa() {
 // Ask Gemini for slots for the given tasks. Returns the raw scheduledTasks list (unvalidated).
 async function requestSchedule(tasks, busySlots, now, sevenDaysLater) {
   const weatherInfo = await getWeatherWhangaparaoa();
-  const nowString = formatNZNow(now);
-  const nzOffset = getNZOffset(now);
-  const today = getNZDate(now);
+  const nowString = formatLocalNow(TIME_ZONE, now);
+  const nzOffset = utcOffset(TIME_ZONE, now);
+  const today = localDate(TIME_ZONE, now);
 
   const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
   const prompt = `
@@ -257,15 +261,15 @@ async function runScheduleEngine({taskIds} = {}) {
   // A task is locked while its app-tagged event sits on the personal calendar and hasn't ended.
   // Locks are recomputed every run, so a lock is released once its event has passed.
   const personalAgentEvents = (await findAgentEvents(calendar, personalCalendarId, now.toISOString()))
-      .filter((ev) => ev.status !== "cancelled" && eventWindow(ev));
+      .filter((ev) => ev.status !== "cancelled" && eventWindow(ev, TIME_ZONE));
   const lockedEvents = matchLockedEvents(personalAgentEvents, currentTasks); // task id -> personal-calendar event
-  const lockedWindows = [...lockedEvents.values()].map(eventWindow);
+  const lockedWindows = [...lockedEvents.values()].map((ev) => eventWindow(ev, TIME_ZONE));
   const lockedEventIds = new Set([...lockedEvents.values()].map((ev) => ev.id));
   const toSchedule = inScope.filter((t) => !lockedEvents.has(t.id));
 
   // Old agent-calendar events to replace: stored ids of the tasks being scheduled, plus the marked events from
   // today that belong to them. A full run also takes every other marked event from today (orphans).
-  const agentEvents = await findAgentEvents(calendar, calendarId, getNZStartOfDay().toISOString());
+  const agentEvents = await findAgentEvents(calendar, calendarId, startOfLocalDay(TIME_ZONE).toISOString());
   const oldEventIds = new Set(toSchedule.map((t) => t.googleCalendarEventId).filter(Boolean));
   const replaceable = subset ? eventIdsForTasks(agentEvents, new Set(toSchedule.map((t) => t.id))) : agentEvents.map((ev) => ev.id);
   replaceable.forEach((id) => oldEventIds.add(id));
@@ -273,9 +277,9 @@ async function runScheduleEngine({taskIds} = {}) {
 
   // 2. Agent-calendar busy time excludes the app's own events, which are replaced by this run.
   // Locked windows count as busy even if the personal event is marked free.
-  const agentBusy = await getForeignBusyWindows(calendar, calendarId, now.toISOString(), sevenDaysLater.toISOString(), oldEventIds);
+  const agentBusy = await getForeignBusyWindows(calendar, calendarId, now.toISOString(), sevenDaysLater.toISOString(), TIME_ZONE, oldEventIds);
   // In a subset run the app events that stay put block their time, whatever their transparency.
-  const keptAppBusy = subset ? appBusyWindows(agentEvents, oldEventIds) : [];
+  const keptAppBusy = subset ? appBusyWindows(agentEvents, TIME_ZONE, oldEventIds) : [];
   const busySlots = mergeBusyWindows([...personalBusy, ...lockedWindows, ...agentBusy, ...keptAppBusy]);
 
   // 3. Ask Gemini for slots for the unlocked tasks, then validate before touching the calendar
@@ -286,7 +290,7 @@ async function runScheduleEngine({taskIds} = {}) {
     if (scheduledList.length === 0) {
       throw new Error("Gemini returned no slots; existing events were kept.");
     }
-    const result = validateSchedule({items: scheduledList, tasks: toSchedule, busy: busySlots, now, horizon: sevenDaysLater});
+    const result = validateSchedule({items: scheduledList, tasks: toSchedule, busy: busySlots, now, horizon: sevenDaysLater, timeZone: TIME_ZONE});
     if (result.errors.length > 0) {
       console.warn("Schedule validation failed:", result.errors);
       throw new Error(`Gemini's schedule was rejected and existing events were kept: ${result.errors.slice(0, 5).join("; ")}`);
@@ -430,7 +434,7 @@ exports.addOrUpdateTask = onRequest({
     const visibleTasks = currentTasks.map(({id, title, priority, dueDate, estimatedMinutes, tags, recurrence, order}) => ({id, title, priority, dueDate, estimatedMinutes, tags, recurrence, order}));
 
     const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
-    const today = getNZDate();
+    const today = localDate(TIME_ZONE);
 
     const prompt = `
       You are an expert task queue organizer. Today's date is: ${today}.
@@ -492,7 +496,7 @@ exports.completeTask = onRequest({
 
     // Archive, removal and the next occurrence of a recurring task commit together; calendar cleanup follows once they have
     const result = await updateTaskList((tasks, tx) => {
-      const done = completeInList(tasks, taskId, getNZDate(), randomUUID);
+      const done = completeInList(tasks, taskId, localDate(TIME_ZONE), randomUUID);
       if (!done) return {current: tasks};
       tx.create(db.collection("completed_tasks").doc(), {
         ...done.completedTask,
@@ -529,9 +533,9 @@ exports.getCompletedTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (
     const now = new Date();
     const [listSnap, windowSnap] = await Promise.all([
       archive.orderBy("completedAt", "desc").limit(clampLimit(req.query.limit)).get(),
-      archive.where("completedAt", ">=", summaryWindowStart(now)).orderBy("completedAt", "desc").limit(SUMMARY_MAX_ROWS).get(),
+      archive.where("completedAt", ">=", summaryWindowStart(TIME_ZONE, now)).orderBy("completedAt", "desc").limit(SUMMARY_MAX_ROWS).get(),
     ]);
-    const summary = {...summarizeCompleted(windowSnap.docs.map((d) => d.data()), now), truncated: windowSnap.size >= SUMMARY_MAX_ROWS};
+    const summary = {...summarizeCompleted(windowSnap.docs.map((d) => d.data()), TIME_ZONE, now), truncated: windowSnap.size >= SUMMARY_MAX_ROWS};
     res.status(200).send({success: true, tasks: serializeCompleted(listSnap.docs.map((d) => d.data())), summary});
   } catch (err) {
     console.error(err);

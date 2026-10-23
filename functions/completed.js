@@ -1,10 +1,10 @@
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
-const {getNZDate, getNZDayStart, addDays} = require("./time");
+const {localDate, localDayStart, addDays} = require("./time");
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
-// The summary covers this many NZ weeks (Monday start), the current one included.
+// The summary covers this many local weeks (Monday start), the current one included.
 const SUMMARY_WEEKS = 8;
 // Most archive rows read for one summary.
 const SUMMARY_MAX_ROWS = 1000;
@@ -36,29 +36,29 @@ function weekStartOf(dateStr) {
   return addDays(dateStr, -((dow + 6) % 7));
 }
 
-// Monday (YYYY-MM-DD, NZ) of the oldest week the summary covers.
-function firstSummaryWeek(now = new Date(), weeks = SUMMARY_WEEKS) {
-  return addDays(weekStartOf(getNZDate(now)), -7 * (weeks - 1));
+// Monday (YYYY-MM-DD, local) of the oldest week the summary covers.
+function firstSummaryWeek(timeZone, now = new Date(), weeks = SUMMARY_WEEKS) {
+  return addDays(weekStartOf(localDate(timeZone, now)), -7 * (weeks - 1));
 }
 
-// Instant the summary window opens: 00:00 NZ on the Monday of its oldest week.
-function summaryWindowStart(now = new Date(), weeks = SUMMARY_WEEKS) {
-  return getNZDayStart(firstSummaryWeek(now, weeks));
+// Instant the summary window opens: 00:00 local on the Monday of its oldest week.
+function summaryWindowStart(timeZone, now = new Date(), weeks = SUMMARY_WEEKS) {
+  return localDayStart(timeZone, firstSummaryWeek(timeZone, now, weeks));
 }
 
 function minutesOf(row) {
   return Number.isFinite(row.estimatedMinutes) && row.estimatedMinutes > 0 ? Math.round(row.estimatedMinutes) : 0;
 }
 
-// Totals for completed tasks over the last `weeks` NZ weeks. Pure: no I/O.
+// Totals for completed tasks over the last `weeks` local weeks in the given zone. Pure: no I/O.
 //   rows: archive documents (a Task plus completedAt as a Timestamp, Date or ISO string)
 // Rows with no valid completedAt, or outside the window, are ignored. Returns
 //   {since, totalCount, totalMinutes, weeks: [{weekStart, count, minutes}] oldest first, every week present,
 //    byPriority: [{priority, count, minutes}] HIGH, MEDIUM, LOW,
 //    byTag: [{tag, count, minutes}] most completed first, then most minutes, then name}.
 // Tags group case-insensitively (first spelling seen is shown) and count once per task; tasks without tags are not in byTag.
-function summarizeCompleted(rows, now = new Date(), weeks = SUMMARY_WEEKS) {
-  const since = firstSummaryWeek(now, weeks);
+function summarizeCompleted(rows, timeZone, now = new Date(), weeks = SUMMARY_WEEKS) {
+  const since = firstSummaryWeek(timeZone, now, weeks);
   const buckets = new Map();
   for (let i = 0; i < weeks; i++) buckets.set(addDays(since, 7 * i), {count: 0, minutes: 0});
   const priorities = new Map(PRIORITIES.map((p) => [p, {count: 0, minutes: 0}]));
@@ -69,7 +69,7 @@ function summarizeCompleted(rows, now = new Date(), weeks = SUMMARY_WEEKS) {
   for (const row of rows) {
     const iso = toIso(row && row.completedAt);
     if (!iso) continue;
-    const bucket = buckets.get(weekStartOf(getNZDate(new Date(iso))));
+    const bucket = buckets.get(weekStartOf(localDate(timeZone, new Date(iso))));
     if (!bucket) continue;
     const minutes = minutesOf(row);
     bucket.count++;

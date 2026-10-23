@@ -1,8 +1,8 @@
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
-const {getNZDate, getNZMinutesOfDay, addDays} = require("./time");
+const {localDate, localMinutesOfDay, addDays} = require("./time");
 
-// Scheduling hours in NZ local time, as minutes since midnight.
+// Scheduling hours in the owner's local time, as minutes since midnight.
 const DAY_START_MIN = 8 * 60;
 const DAY_END_MIN = 19 * 60;
 
@@ -19,11 +19,12 @@ function isRealDate(dateStr) {
 //   tasks:   the active task list
 //   busy:    merged busy windows [{start, end}] (ISO strings)
 //   now, horizon: Date objects bounding the schedulable range
+//   timeZone: the owner's IANA time zone, which defines days and the 8:00-19:00 window
 // Returns {slots, errors}. Slots are only meaningful when errors is empty.
-// Timed slots must be parseable, in the future, end by the horizon, sit on one NZ day
+// Timed slots must be parseable, in the future, end by the horizon, sit on one local day
 // inside 8:00-19:00, and not overlap busy windows or each other. All-day slots must fall
-// on an NZ date between today and the horizon's date; they are reminders and skip overlap checks.
-function validateSchedule({items, tasks, busy, now, horizon}) {
+// on a local date between today and the horizon's date; they are reminders and skip overlap checks.
+function validateSchedule({items, tasks, busy, now, horizon, timeZone}) {
   const errors = [];
   const slots = [];
   const taskIds = new Set(tasks.map((t) => t.id));
@@ -31,8 +32,8 @@ function validateSchedule({items, tasks, busy, now, horizon}) {
   const busyMs = busy
       .map((w) => ({startMs: Date.parse(w.start), endMs: Date.parse(w.end)}))
       .filter((w) => !Number.isNaN(w.startMs) && !Number.isNaN(w.endMs));
-  const firstDate = getNZDate(now);
-  const lastDate = getNZDate(horizon);
+  const firstDate = localDate(timeZone, now);
+  const lastDate = localDate(timeZone, horizon);
 
   items.forEach((item, i) => {
     const label = `Slot ${i + 1} (task ${item && item.taskId})`;
@@ -63,9 +64,9 @@ function validateSchedule({items, tasks, busy, now, horizon}) {
 
     const start = new Date(startMs);
     const end = new Date(endMs);
-    if (getNZDate(start) !== getNZDate(end)) return fail("spans more than one NZ day");
-    if (getNZMinutesOfDay(start) < DAY_START_MIN || getNZMinutesOfDay(end) > DAY_END_MIN) {
-      return fail("outside 8:00-19:00 NZ time");
+    if (localDate(timeZone, start) !== localDate(timeZone, end)) return fail("spans more than one local day");
+    if (localMinutesOfDay(timeZone, start) < DAY_START_MIN || localMinutesOfDay(timeZone, end) > DAY_END_MIN) {
+      return fail("outside 8:00-19:00 local time");
     }
     if (busyMs.some((w) => startMs < w.endMs && endMs > w.startMs)) return fail("overlaps a busy window");
 
