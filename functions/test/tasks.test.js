@@ -505,6 +505,40 @@ describe("tasks.js", () => {
   });
 });
 
+describe("manualTaskChange with every field", () => {
+  const {manualTaskChange} = require("../tasks");
+  const full = {title: "Paint the fence", priority: "HIGH", dueDate: "2026-11-01", estimatedMinutes: 90, tags: ["Outdoor"], recurrence: {frequency: "MONTHLY", interval: 3}, projectId: "p1", projectOrder: 2, materials: [{id: "", text: " Paint ", checked: false}, {id: "", text: "Brushes", checked: true}, {id: "", text: "  ", checked: false}]};
+  it("makes a new task with its recurrence, project, order number and materials", () => {
+    const merged = mergeTaskChanges([], [manualTaskChange(full)], makeIdGenerator(), ["p1"], {materials: true});
+    assert.equal(merged.added, 1);
+    const task = merged.tasks[0];
+    assert.deepEqual(task.recurrence, {frequency: "MONTHLY", interval: 3});
+    assert.equal(task.projectId, "p1");
+    assert.equal(task.projectOrder, 2);
+    assert.deepEqual(task.materials.map((m) => [m.text, m.checked]), [["Paint", false], ["Brushes", true]]);
+    assert.equal(new Set(task.materials.map((m) => m.id)).size, 2);
+  });
+  it("ignores an unknown project and its order number, and an unusable recurrence or materials value", () => {
+    const merged = mergeTaskChanges([], [manualTaskChange({...full, projectId: "gone", recurrence: {frequency: "HOURLY"}, materials: "paint"})], makeIdGenerator(), ["p1"], {materials: true});
+    const task = merged.tasks[0];
+    for (const key of ["projectId", "projectOrder", "recurrence", "materials"]) assert.equal(key in task, false, key);
+  });
+  it("leaves out materials that are all blank", () => {
+    const merged = mergeTaskChanges([], [manualTaskChange({...full, materials: [{text: " "}], projectId: undefined, projectOrder: undefined})], makeIdGenerator(), ["p1"], {materials: true});
+    assert.equal("materials" in merged.tasks[0], false);
+    assert.equal("projectOrder" in merged.tasks[0], false);
+  });
+  it("takes materials only when told to: the model's changes and updates never set them", () => {
+    const change = {title: "New", materials: [{id: "m", text: "Sneaky", checked: false}]};
+    assert.equal("materials" in mergeTaskChanges([], [change], makeIdGenerator()).tasks[0], false);
+    assert.equal("materials" in mergeTaskChanges([], [change], makeIdGenerator(), [], {materials: false}).tasks[0], false);
+    const existing = [{id: "t1", title: "Old", priority: "LOW", dueDate: "", estimatedMinutes: 15, tags: [], status: "PENDING", order: 1}];
+    const updated = mergeTaskChanges(existing, [{id: "t1", title: "Old", materials: change.materials}], makeIdGenerator(), [], {materials: true});
+    assert.equal(updated.updated, 1);
+    assert.equal("materials" in updated.tasks[0], false);
+  });
+});
+
 describe("manualTaskChange", () => {
   const {manualTaskChange} = require("../tasks");
   it("passes the entered fields through for a new task", () => {
@@ -515,9 +549,14 @@ describe("manualTaskChange", () => {
   it("needs a title", () => {
     for (const bad of [null, undefined, "x", [], {}, {title: "   "}, {title: 5}]) assert.equal(manualTaskChange(bad), null);
   });
-  it("ignores everything else the client sends (id, status, schedule, project)", () => {
-    const change = manualTaskChange({title: "T", id: "existing", status: "COMPLETED", scheduledStart: "x", projectId: "p", order: 1});
+  it("ignores everything else the client sends (id, status, schedule, rank)", () => {
+    const change = manualTaskChange({title: "T", id: "existing", status: "COMPLETED", scheduledStart: "x", googleCalendarEventId: "e", locked: true, order: 1});
     assert.deepEqual(Object.keys(change).sort(), ["dueDate", "estimatedMinutes", "priority", "tags", "title"]);
+  });
+  it("passes on a recurrence, project, order number and materials when the form sends them", () => {
+    const sent = {recurrence: {frequency: "WEEKLY", interval: 2}, projectId: "p1", projectOrder: 3, materials: [{id: "", text: "Paint", checked: false}]};
+    const change = manualTaskChange({title: "T", ...sent});
+    for (const key of Object.keys(sent)) assert.deepEqual(change[key], sent[key]);
   });
   it("makes a new task at the end of the list through mergeTaskChanges, with defaults for unusable fields", () => {
     const existing = [{id: "t1", title: "Old", priority: "HIGH", dueDate: "", estimatedMinutes: 20, tags: [], status: "PENDING", order: 1}];

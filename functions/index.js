@@ -525,8 +525,8 @@ exports.rescheduleTask = onRequest({
 
 // 3. Endpoint: Add / Ingest Task. The model returns only new or changed tasks; they are merged into the
 // stored list inside a transaction, so everything else on the list is preserved. With a `manual` body ({title,
-// priority?, dueDate?, estimatedMinutes?, tags?}) no model is called: the fields are used as entered (validated like
-// the model's) and the task is added at the end of the list.
+// priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?}) no model is
+// called: the fields are used as entered (validated like the model's) and the task is added at the end of the list.
 exports.addOrUpdateTask = onRequest({
   secrets: ["GEMINI_API_KEY"], cors: ALLOWED_ORIGINS, timeoutSeconds: 120,
 }, ownerOnly(async (req, res) => {
@@ -561,7 +561,7 @@ exports.addOrUpdateTask = onRequest({
     // Merge into the list as it is now, not as it was when the model was asked. The projects are read in the same
     // transaction, so a task only joins a project that still exists at commit time.
     const result = await updateTaskList((tasks, tx, {projects: stored}) => {
-      const merged = mergeTaskChanges(tasks, changes, randomUUID, stored.map((p) => p.id));
+      const merged = mergeTaskChanges(tasks, changes, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined});
       const changed = merged.added + merged.updated > 0;
       return {...merged, tasks: changed ? merged.tasks : null, current: changed ? merged.tasks : tasks};
     }, {withProjects: true});

@@ -67,8 +67,9 @@
     .delete-btn { background: transparent; color: #94a3b8; border: none; padding: 4px 6px; font-size: 16px; cursor: pointer; }
     .delete-btn:hover { color: #ef4444; }
 
-    .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; }
-    .modal-card { background: white; width: 90%; max-width: 480px; padding: 20px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; overscroll-behavior: contain; }
+    .modal-card { background: white; width: 90%; max-width: 480px; max-height: 90vh; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; padding: 20px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    body.modal-open { overflow: hidden; }
     .modal-card h3 { margin-top: 0; margin-bottom: 16px; font-size: 18px; }
     .form-group { margin-bottom: 12px; }
     .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #475569; }
@@ -143,6 +144,38 @@
       <div class="form-group">
         <label for="manualDue">Due Date (optional)</label>
         <input type="date" id="manualDue">
+      </div>
+      <div class="form-group">
+        <label>Repeats</label>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <select id="manualRecurFreq" style="flex: 1;" onchange="updateRecurUnit('manual')">
+            <option value="NONE">Does not repeat</option>
+            <option value="DAILY">Daily</option>
+            <option value="WEEKLY">Weekly</option>
+            <option value="MONTHLY">Monthly</option>
+            <option value="YEARLY">Yearly</option>
+          </select>
+          <span id="manualRecurEvery">every</span>
+          <input type="number" id="manualRecurInterval" min="1" max="365" step="1" value="1" style="width: 70px;">
+          <span id="manualRecurUnit"></span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Project</label>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <select id="manualProject" style="flex: 1;" onchange="updateProjectOrderField('manual')">
+            <option value="">No project</option>
+          </select>
+          <input type="number" id="manualProjectOrder" min="1" max="999" step="1" placeholder="Order" title="Order number: lower numbers are scheduled first, empty means unordered" style="width: 90px;" disabled>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Materials</label>
+        <div id="manualMaterials"></div>
+        <div class="input-row" style="margin-top: 6px;">
+          <input type="text" id="manualNewMaterialText" maxlength="100" placeholder="Add a material, e.g. 2 litres of paint">
+          <button type="button" class="btn-secondary" id="addManualMaterialBtn">Add</button>
+        </div>
       </div>
     </div>
   </div>
@@ -468,6 +501,7 @@
     let selectedTagFilter = null; // null = show all
     let selectedProjectFilter = null; // a project id, null = show all
     let editMaterials = []; // the materials list being edited in the modal: [{id, text, checked}]
+    let manualMaterials = []; // the materials list of the add form's own entry, same shape
     let materialsBusy = false; // true while a check-off from the Materials card is being saved
     let allProjects = [];
     let projectsLoaded = false; // set once getProjects has answered; until then the edit form leaves project fields alone
@@ -611,16 +645,30 @@
 
     // The addOrUpdateTask body for a task entered by hand (no AI): the title and the fields of the manual form. The
     // server validates every field and falls back to its default for an unusable one, so only the shape is made here.
+    // A recurrence is sent only when the task repeats, and then every field of the edit form is present too: recurrence,
+    // project (with its order number) and materials, each left out when empty.
     function manualTaskBody(form) {
-      return {
-        manual: {
-          title: String(form.title || "").trim(),
-          priority: form.priority,
-          dueDate: form.dueDate || "",
-          estimatedMinutes: parseInt(form.estimatedMinutes, 10) || 15,
-          tags: String(form.tags || "").split(",").map(t => t.trim()).filter(Boolean)
-        }
+      const manual = {
+        title: String(form.title || "").trim(),
+        priority: form.priority,
+        dueDate: form.dueDate || "",
+        estimatedMinutes: parseInt(form.estimatedMinutes, 10) || 15,
+        tags: String(form.tags || "").split(",").map(t => t.trim()).filter(Boolean)
       };
+      const recurrence = recurrenceFields(form.recurFreq, form.recurInterval);
+      if (recurrence) manual.recurrence = recurrence;
+      if (form.projectId) Object.assign(manual, projectFields(form.projectId, form.projectOrder));
+      const materials = materialsFields(form.materials || []);
+      if (materials) manual.materials = materials;
+      return { manual };
+    }
+
+    // The recurrence of a Repeats control as a task field: null for "does not repeat" (or an unknown frequency), else
+    // {frequency, interval} with the interval a whole number kept within 1..365 (1 when empty or unusable).
+    const RECUR_FREQUENCIES = ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"];
+    function recurrenceFields(freq, intervalText) {
+      if (!RECUR_FREQUENCIES.includes(freq)) return null;
+      return { frequency: freq, interval: Math.min(Math.max(parseInt(intervalText, 10) || 1, 1), 365) };
     }
 
     // The success line for a full run: how many tasks, how far ahead the run looked, the last day it used, and any
@@ -746,26 +794,32 @@
         openEditModal(taskId);
       });
 
-      const editMaterialsBox = document.getElementById("editMaterials");
-      editMaterialsBox.addEventListener("input", e => {
-        const row = e.target.closest(".material-row");
-        if (row && e.target.matches('input[type="text"]')) editMaterials[Number(row.dataset.index)].text = e.target.value;
-      });
-      editMaterialsBox.addEventListener("change", e => {
-        const row = e.target.closest(".material-row");
-        if (row && e.target.matches('input[type="checkbox"]')) editMaterials[Number(row.dataset.index)].checked = e.target.checked;
-      });
-      editMaterialsBox.addEventListener("click", e => {
-        const btn = e.target.closest('[data-action="remove-material"]');
-        const row = btn && btn.closest(".material-row");
-        if (!row) return;
-        editMaterials.splice(Number(row.dataset.index), 1);
-        renderEditMaterials();
-      });
-      document.getElementById("addMaterialBtn").addEventListener("click", addEditMaterial);
-      document.getElementById("newMaterialText").addEventListener("keydown", e => {
-        if (e.key === "Enter") { e.preventDefault(); addEditMaterial(); }
-      });
+      // The materials lists of the edit modal and of the add form share their behaviour
+      for (const [boxId, getList, render, addBtnId, textId, add] of [
+        ["editMaterials", () => editMaterials, renderEditMaterials, "addMaterialBtn", "newMaterialText", addEditMaterial],
+        ["manualMaterials", () => manualMaterials, renderManualMaterials, "addManualMaterialBtn", "manualNewMaterialText", addManualMaterial]
+      ]) {
+        const box = document.getElementById(boxId);
+        box.addEventListener("input", e => {
+          const row = e.target.closest(".material-row");
+          if (row && e.target.matches('input[type="text"]')) getList()[Number(row.dataset.index)].text = e.target.value;
+        });
+        box.addEventListener("change", e => {
+          const row = e.target.closest(".material-row");
+          if (row && e.target.matches('input[type="checkbox"]')) getList()[Number(row.dataset.index)].checked = e.target.checked;
+        });
+        box.addEventListener("click", e => {
+          const btn = e.target.closest('[data-action="remove-material"]');
+          const row = btn && btn.closest(".material-row");
+          if (!row) return;
+          getList().splice(Number(row.dataset.index), 1);
+          render();
+        });
+        document.getElementById(addBtnId).addEventListener("click", add);
+        document.getElementById(textId).addEventListener("keydown", e => {
+          if (e.key === "Enter") { e.preventDefault(); add(); }
+        });
+      }
 
       document.getElementById("materialsList").addEventListener("click", e => {
         const title = e.target.closest("[data-open-task]");
@@ -777,6 +831,7 @@
         checkMaterial(row.dataset.taskId, row.dataset.materialId, e.target.checked);
       });
 
+      updateRecurUnit("manual"); // hides the interval controls until a frequency is chosen
       initAuth();
     });
 
@@ -805,7 +860,13 @@
           priority: document.getElementById("manualPriority").value,
           estimatedMinutes: document.getElementById("manualMinutes").value,
           tags: document.getElementById("manualTags").value,
-          dueDate: document.getElementById("manualDue").value
+          dueDate: document.getElementById("manualDue").value,
+          recurFreq: document.getElementById("manualRecurFreq").value,
+          recurInterval: document.getElementById("manualRecurInterval").value,
+          // Without the project list the form cannot offer a project, so it sends none
+          projectId: projectsLoaded ? document.getElementById("manualProject").value : "",
+          projectOrder: document.getElementById("manualProjectOrder").value,
+          materials: manualMaterials
         }) : { input };
         const res = await apiFetch(ADD_TASK_URL, {
           method: "POST",
@@ -818,6 +879,7 @@
         if (manual) {
           document.getElementById("manualTags").value = "";
           document.getElementById("manualDue").value = "";
+          resetManualExtras();
         }
         renderFilterBar();
         renderTasks();
@@ -826,6 +888,27 @@
       } finally {
         setLoading(false);
       }
+    }
+
+    // Repeats, project and materials belong to one task, so they are cleared after each manual add
+    function resetManualExtras() {
+      document.getElementById("manualRecurFreq").value = "NONE";
+      document.getElementById("manualRecurInterval").value = 1;
+      updateRecurUnit("manual");
+      document.getElementById("manualProject").value = "";
+      updateProjectOrderField("manual");
+      manualMaterials = [];
+      document.getElementById("manualNewMaterialText").value = "";
+      renderManualMaterials();
+    }
+
+    // The add form's project choices follow the project list; a chosen project that is gone is dropped
+    function renderManualProjects() {
+      const select = document.getElementById("manualProject");
+      const chosen = select.value;
+      select.replaceChildren(new Option("No project", ""), ...allProjects.map(p => new Option(p.name, p.id)));
+      select.value = allProjects.some(p => p.id === chosen) ? chosen : "";
+      updateProjectOrderField("manual");
     }
 
     async function completeTask(taskId) {
@@ -978,8 +1061,8 @@
       `).join("");
     }
 
-    function renderEditMaterials() {
-      document.getElementById("editMaterials").innerHTML = editMaterials.map((m, i) => `
+    function renderMaterialRows(boxId, list) {
+      document.getElementById(boxId).innerHTML = list.map((m, i) => `
         <div class="material-row" data-index="${i}">
           <input type="checkbox" ${m.checked ? "checked" : ""} aria-label="Got it">
           <input type="text" maxlength="100" value="${esc(m.text)}">
@@ -987,15 +1070,20 @@
         </div>`).join("");
     }
 
-    function addEditMaterial() {
-      const input = document.getElementById("newMaterialText");
+    function addMaterialTo(list, inputId) {
+      const input = document.getElementById(inputId);
       const text = input.value.trim();
-      if (!text) return;
-      if (editMaterials.length >= MAX_MATERIALS) return alert(`A task can have at most ${MAX_MATERIALS} materials.`);
-      editMaterials.push({ id: "", text, checked: false });
+      if (!text) return false;
+      if (list.length >= MAX_MATERIALS) { alert(`A task can have at most ${MAX_MATERIALS} materials.`); return false; }
+      list.push({ id: "", text, checked: false });
       input.value = "";
-      renderEditMaterials();
+      return true;
     }
+
+    function renderEditMaterials() { renderMaterialRows("editMaterials", editMaterials); }
+    function renderManualMaterials() { renderMaterialRows("manualMaterials", manualMaterials); }
+    function addEditMaterial() { if (addMaterialTo(editMaterials, "newMaterialText")) renderEditMaterials(); }
+    function addManualMaterial() { if (addMaterialTo(manualMaterials, "manualNewMaterialText")) renderManualMaterials(); }
 
     // The Materials card: every unchecked material of every task, grouped by task, so nothing holding a task back
     // is out of sight. Checking one saves it and removes it from the card.
@@ -1068,6 +1156,7 @@
       renderEditMaterials();
 
       document.getElementById("editModal").style.display = "flex";
+      document.body.classList.add("modal-open"); // the page behind must not scroll with the modal
     }
 
     // "🔁 Weekly" for an interval of 1, "🔁 Every 2 weeks" otherwise; nothing for a task that does not repeat
@@ -1083,18 +1172,19 @@
     const RECUR_UNITS = { DAILY: "day(s)", WEEKLY: "week(s)", MONTHLY: "month(s)", YEARLY: "year(s)" };
 
     // Shows the interval controls only when the task repeats
-    function updateRecurUnit() {
-      const freq = document.getElementById("editRecurFreq").value;
+    // `prefix` picks the control: "edit" (the modal) or "manual" (the add form)
+    function updateRecurUnit(prefix = "edit") {
+      const freq = document.getElementById(`${prefix}RecurFreq`).value;
       const repeats = freq !== "NONE";
-      document.getElementById("editRecurEvery").style.display = repeats ? "" : "none";
-      document.getElementById("editRecurInterval").style.display = repeats ? "" : "none";
-      document.getElementById("editRecurUnit").textContent = repeats ? RECUR_UNITS[freq] : "";
+      document.getElementById(`${prefix}RecurEvery`).style.display = repeats ? "" : "none";
+      document.getElementById(`${prefix}RecurInterval`).style.display = repeats ? "" : "none";
+      document.getElementById(`${prefix}RecurUnit`).textContent = repeats ? RECUR_UNITS[freq] : "";
     }
 
     // The order number applies only inside a project: disabled and emptied without one
-    function updateProjectOrderField() {
-      const input = document.getElementById("editProjectOrder");
-      const inProject = document.getElementById("editProject").value !== "";
+    function updateProjectOrderField(prefix = "edit") {
+      const input = document.getElementById(`${prefix}ProjectOrder`);
+      const inProject = document.getElementById(`${prefix}Project`).value !== "";
       input.disabled = !inProject;
       if (!inProject) input.value = "";
     }
@@ -1105,6 +1195,7 @@
 
     function closeEditModal() {
       document.getElementById("editModal").style.display = "none";
+      document.body.classList.remove("modal-open");
     }
 
     function closeModalOnOverlay(e) {
@@ -1120,9 +1211,7 @@
       const dueDate = document.getElementById("editDueDate").value;
 
       const tags = tagsRaw.split(",").map(s => s.trim()).filter(Boolean);
-      const freq = document.getElementById("editRecurFreq").value;
-      const interval = Math.min(Math.max(parseInt(document.getElementById("editRecurInterval").value) || 1, 1), 365);
-      const recurrence = freq === "NONE" ? null : { frequency: freq, interval };
+      const recurrence = recurrenceFields(document.getElementById("editRecurFreq").value, document.getElementById("editRecurInterval").value);
       const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence, materials: materialsFields(editMaterials) };
       // Without the project list the form cannot show the task's project, so it must not send one
       if (projectsLoaded) {
@@ -1273,6 +1362,7 @@
     // The project chips (they filter the Queue like the tag chips do) and, for the chosen project, its Rename and Delete.
     function renderProjects() {
       if (!projectsLoaded) return;
+      renderManualProjects();
       // A filter on a project that no longer exists (deleted here or elsewhere) is dropped
       if (selectedProjectFilter !== null && !allProjects.some(p => p.id === selectedProjectFilter)) selectedProjectFilter = null;
       const bar = document.getElementById("projectFilterBar");

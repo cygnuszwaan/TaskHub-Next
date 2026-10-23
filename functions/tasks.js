@@ -77,14 +77,21 @@ function modelProjectFields(change, projectIds) {
 }
 
 // The new-task change for a task entered by hand, in the shape mergeTaskChanges takes. Pure: no I/O.
-//   manual: {title, priority?, dueDate?, estimatedMinutes?, tags?} from the entry form
-// Returns null without a usable title. The fields are validated by the same rules as the model's (see cleanFields), so
-// an unusable priority, date, estimate or tag list falls back to the new-task default. There is no id (a manual entry
-// is always a new task), no recurrence or project (those are set in the edit form) and no rank (it goes last).
+//   manual: {title, priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?}
+//           from the entry form
+// Returns null without a usable title. The fields are validated by the same rules as the model's (see cleanFields,
+// modelProjectFields), so an unusable priority, date, estimate, tag list, recurrence or project falls back to the
+// new-task default; a field the form did not send is left out of the change. `materials` is passed on as sent and
+// is only applied when mergeTaskChanges is told to (the model's changes never set it). There is no id (a manual
+// entry is always a new task) and no rank (it goes last).
 function manualTaskChange(manual) {
   if (!manual || typeof manual !== "object" || Array.isArray(manual)) return null;
   if (typeof manual.title !== "string" || !manual.title.trim()) return null;
-  return {title: manual.title, priority: manual.priority, dueDate: manual.dueDate, estimatedMinutes: manual.estimatedMinutes, tags: manual.tags};
+  const change = {title: manual.title, priority: manual.priority, dueDate: manual.dueDate, estimatedMinutes: manual.estimatedMinutes, tags: manual.tags};
+  for (const key of ["recurrence", "projectId", "projectOrder", "materials"]) {
+    if (manual[key] !== undefined) change[key] = manual[key];
+  }
+  return change;
 }
 
 // Place `task` at the 1-based rank `rank` in `list` (clamped), removing any earlier copy.
@@ -103,10 +110,12 @@ function placeAtRank(list, task, rank) {
 //   makeId:   () => new task id
 //   projectIds: ids of the projects that exist (none when omitted). The model's projectId and projectOrder are applied
 //             through applyProjectFields (see modelProjectFields for what counts).
+//   options:  {materials: true} lets a new task take the change's `materials` (validated by normalizeMaterials), which
+//             only a manual entry sets; without it, and for an update, `materials` is never read.
 // Untouched tasks, and every server-owned field of updated tasks, are preserved. A change naming an id that is
 // no longer stored is skipped. Ranks are renumbered 1..n in list order.
 // Returns {tasks, added, updated, skipped}.
-function mergeTaskChanges(existing, changes, makeId, projectIds = []) {
+function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = {}) {
   let list = [...existing].sort((a, b) => (a.order || 0) - (b.order || 0));
   let added = 0;
   let updated = 0;
@@ -143,6 +152,10 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = []) {
       };
       if (fields.recurrence) base.recurrence = fields.recurrence;
       const task = applyProjectFields(base, modelProjectFields(change, projectIds), projectIds);
+      if (options.materials === true) {
+        const materials = normalizeMaterials(change.materials, makeId);
+        if (materials) task.materials = materials;
+      }
       list = placeAtRank(list, task, change.order);
       added++;
     } else {

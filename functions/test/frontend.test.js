@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, scheduleSummary, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS};`)();
+    return {TABS, normalizeTab, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -35,6 +35,30 @@ describe("public/index.html helpers", () => {
         assert.ok(i > settings && i < modal, `${id} sits on the Settings page`);
       }
       assert.match(html.slice(html.indexOf(`id="lunchEnabled"`) - 30, html.indexOf(`id="lunchEnabled"`)), /type="checkbox"/);
+    });
+    it("shows every edit-form field in the manual entry: repeats, project with order number, and materials", () => {
+      const manual = html.indexOf(`id="manualFields"`);
+      const queue = html.indexOf(`id="queueCard"`);
+      const ids = ["manualPriority", "manualMinutes", "manualTags", "manualDue", "manualRecurFreq", "manualRecurInterval", "manualProject", "manualProjectOrder", "manualMaterials", "manualNewMaterialText", "addManualMaterialBtn"];
+      let last = manual;
+      for (const id of ids) {
+        const i = html.indexOf(`id="${id}"`);
+        assert.ok(i > last && i < queue, `${id} sits in the manual fields, in the edit form's order`);
+        last = i;
+      }
+      assert.match(html.slice(html.indexOf(`id="manualProjectOrder"`), html.indexOf(">", html.indexOf(`id="manualProjectOrder"`))), /disabled/);
+      assert.match(html, /id="manualRecurFreq"[^>]*onchange="updateRecurUnit\('manual'\)"/);
+      assert.match(html, /id="manualProject"[^>]*onchange="updateProjectOrderField\('manual'\)"/);
+      assert.match(html, /id="manualRecurFreq"[\s\S]*?<option value="NONE">Does not repeat<\/option>/);
+    });
+    it("stops the page behind the edit modal from scrolling with it", () => {
+      assert.match(html, /\.modal-card\s*\{[^}]*max-height:\s*90vh;[^}]*overflow-y:\s*auto;[^}]*overscroll-behavior:\s*contain/);
+      assert.match(html, /\.modal-overlay\s*\{[^}]*overscroll-behavior:\s*contain/);
+      assert.match(html, /body\.modal-open\s*\{[^}]*overflow:\s*hidden/);
+      const open = html.slice(html.indexOf("function openEditModal"), html.indexOf("// \"🔁"));
+      assert.match(open, /style\.display = "flex";\s*document\.body\.classList\.add\("modal-open"\)/);
+      const close = html.slice(html.indexOf("function closeEditModal"), html.indexOf("function closeModalOnOverlay"));
+      assert.match(close, /classList\.remove\("modal-open"\)/);
     });
     it("has no heading on the add card: \"Add New Task\" is the empty text field's placeholder, and the manual-entry checkbox has no explanation in brackets", () => {
       assert.doesNotMatch(html, /<h3[^>]*>Add New Task<\/h3>/);
@@ -446,6 +470,48 @@ describe("public/index.html helpers", () => {
     it("is accepted by the server-side change builder", () => {
       const {manualTaskChange} = require("../tasks");
       assert.equal(manualTaskChange(load().manualTaskBody(form).manual).title, "Mow lawn");
+    });
+    it("leaves out recurrence, project and materials when the form has none", () => {
+      const manual = load().manualTaskBody({...form, recurFreq: "NONE", recurInterval: "1", projectId: "", projectOrder: "4", materials: [{id: "", text: "  ", checked: false}]}).manual;
+      assert.deepEqual(Object.keys(manual).sort(), ["dueDate", "estimatedMinutes", "priority", "tags", "title"]);
+    });
+    it("adds the repeat, project with its order number and materials the form has", () => {
+      const manual = load().manualTaskBody({...form, recurFreq: "WEEKLY", recurInterval: "2", projectId: "p1", projectOrder: "3", materials: [{id: "", text: " Paint ", checked: false}, {id: "", text: "", checked: false}, {id: "", text: "Brushes", checked: true}]}).manual;
+      assert.deepEqual(manual.recurrence, {frequency: "WEEKLY", interval: 2});
+      assert.equal(manual.projectId, "p1");
+      assert.equal(manual.projectOrder, 3);
+      assert.deepEqual(manual.materials.map((m) => [m.text, m.checked]), [["Paint", false], ["Brushes", true]]);
+    });
+    it("sends a project without an order number as unordered", () => {
+      const manual = load().manualTaskBody({...form, projectId: "p1", projectOrder: ""}).manual;
+      assert.equal(manual.projectId, "p1");
+      assert.equal(manual.projectOrder, null);
+    });
+    it("makes a full new task through the server-side merge", () => {
+      const {manualTaskChange, mergeTaskChanges} = require("../tasks");
+      const body = load().manualTaskBody({...form, recurFreq: "MONTHLY", recurInterval: "1", projectId: "p1", projectOrder: "2", materials: [{id: "", text: "Paint", checked: false}]}).manual;
+      let n = 0;
+      const merged = mergeTaskChanges([], [manualTaskChange(body)], () => `id${++n}`, ["p1"], {materials: true});
+      const task = merged.tasks[0];
+      assert.deepEqual(task.recurrence, {frequency: "MONTHLY", interval: 1});
+      assert.equal(task.projectId, "p1");
+      assert.equal(task.projectOrder, 2);
+      assert.equal(task.materials.length, 1);
+    });
+  });
+  describe("recurrenceFields", () => {
+    it("is null unless the task repeats", () => {
+      const h = load();
+      for (const freq of ["NONE", "", undefined, "HOURLY"]) assert.equal(h.recurrenceFields(freq, "2"), null);
+    });
+    it("keeps the interval a whole number within 1..365, and 1 when unusable", () => {
+      const h = load();
+      assert.deepEqual({...h.recurrenceFields("DAILY", "3")}, {frequency: "DAILY", interval: 3});
+      assert.equal(h.recurrenceFields("DAILY", "0").interval, 1);
+      assert.equal(h.recurrenceFields("DAILY", "").interval, 1);
+      assert.equal(h.recurrenceFields("DAILY", "abc").interval, 1);
+      assert.equal(h.recurrenceFields("YEARLY", "1000").interval, 365);
+      assert.equal(h.recurrenceFields("WEEKLY", "2.7").interval, 2);
     });
   });
   describe("scheduleSummary", () => {
