@@ -5,10 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TaskHub Next - Whangaparāoa</title>
   <link rel="manifest" href="/manifest.webmanifest">
-  <meta name="theme-color" content="#0266c8" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#0266c8" media="(prefers-color-scheme: light)" data-scheme="light">
+  <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" data-scheme="dark">
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <script>
+    // Applies the saved dark-mode choice before the page is drawn; see applyTheme for the rest.
+    try { const t = localStorage.getItem("taskhub-theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) { /* storage unavailable: follow the device */ }
+  </script>
   <style>
     :root {
       color-scheme: light dark;
@@ -24,7 +28,7 @@
       --coach-bg: #eff6ff; --coach-border: #2563eb; --toast-bg: #1f2937; --toast-fg: #fff; --toast-link: #7cc0ff;
     }
     @media (prefers-color-scheme: dark) {
-      :root {
+      :root:not([data-theme="light"]) {
         --bg: #0f172a; --surface: #1e293b; --text: #e2e8f0; --text-strong: #cbd5e1; --text-muted: #a9b6c9; --text-faint: #94a3b8;
         --border-input: #475569; --border-chip: #475569; --divider: #334155; --header-border: #334155; --hover: #26344a;
         --primary-disabled: #2b4a6f; --link: #60a5fa; --error: #f87171;
@@ -35,6 +39,19 @@
         --overdue-bg: #4a1d1d; --overdue-fg: #fca5a5; --snooze-bg: #26295a; --snooze-fg: #a5b4fc;
         --coach-bg: #172a4d; --coach-border: #3b82f6; --toast-bg: #334155; --toast-fg: #f8fafc;
       }
+    }
+    :root[data-theme="light"] { color-scheme: light; }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #0f172a; --surface: #1e293b; --text: #e2e8f0; --text-strong: #cbd5e1; --text-muted: #a9b6c9; --text-faint: #94a3b8;
+      --border-input: #475569; --border-chip: #475569; --divider: #334155; --header-border: #334155; --hover: #26344a;
+      --primary-disabled: #2b4a6f; --link: #60a5fa; --error: #f87171;
+      --chip-bg: #2b3a50; --btn2-bg: #334155;
+      --high-bg: #4a1d1d; --high-fg: #fca5a5; --medium-bg: #4a3a12; --medium-fg: #fcd34d; --low-bg: #163a25; --low-fg: #86efac;
+      --time-bg: #123552; --time-fg: #7dd3fc; --sched-bg: #14382a; --sched-fg: #86efac; --lock-bg: #46380f; --lock-fg: #fcd34d;
+      --held-bg: #47260f; --held-fg: #fdba74; --project-bg: #0f3b38; --project-fg: #5eead4; --repeat-bg: #2f2759; --repeat-fg: #c4b5fd;
+      --overdue-bg: #4a1d1d; --overdue-fg: #fca5a5; --snooze-bg: #26295a; --snooze-fg: #a5b4fc;
+      --coach-bg: #172a4d; --coach-border: #3b82f6; --toast-bg: #334155; --toast-fg: #f8fafc;
     }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 680px; margin: 20px auto; padding: 0 15px; background: var(--bg); color: var(--text); }
     .card { background: var(--surface); padding: 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 16px; }
@@ -329,6 +346,13 @@
       </div>
     </div>
     <div id="scheduleStatus" class="coach-box" style="display:none;"></div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0; margin-bottom:12px;">Appearance</h3>
+    <div class="form-group" style="margin-bottom:0;">
+      <label><input type="checkbox" id="darkMode"> Dark mode</label>
+      <p class="settings-note" style="margin:6px 0 0;">Applies at once and is remembered on this device only. Until you change it, the page follows the device's own setting.</p>
+    </div>
   </div>
   </main>
 
@@ -957,9 +981,55 @@
     function statProjectName(entry) {
       return entry && typeof entry.name === "string" && entry.name ? entry.name : "Deleted project";
     }
+    // Dark mode is a per-device choice kept in localStorage under THEME_KEY: "light" or "dark"; anything else, or nothing
+    // saved, means "auto" (follow the device's own light/dark setting).
+    const THEME_KEY = "taskhub-theme";
+    function normalizeTheme(value) {
+      return value === "light" || value === "dark" ? value : "auto";
+    }
+    // Whether the page is dark under a choice, given whether the device prefers dark: what the toggle shows.
+    function isDarkTheme(choice, deviceDark) {
+      const theme = normalizeTheme(choice);
+      return theme === "auto" ? Boolean(deviceDark) : theme === "dark";
+    }
+    // The choice a tick of the toggle means.
+    function themeFromToggle(checked) {
+      return checked ? "dark" : "light";
+    }
+    // The `media` values for the two theme-color metas (the browser UI colour) under a choice: the matching one always
+    // applies and the other never does; "auto" restores the device queries.
+    function themeMetaMedia(choice) {
+      const theme = normalizeTheme(choice);
+      if (theme === "light") return { light: "all", dark: "not all" };
+      if (theme === "dark") return { light: "not all", dark: "all" };
+      return { light: "(prefers-color-scheme: light)", dark: "(prefers-color-scheme: dark)" };
+    }
     // </pure-helpers>
 
+    // Dark mode: a data-theme attribute on <html> overrides the device setting (see the stylesheet), the theme-color
+    // metas follow it, and the Settings toggle shows the page's actual state.
+    function savedTheme() {
+      try { return normalizeTheme(localStorage.getItem(THEME_KEY)); } catch (e) { return "auto"; }
+    }
+    function applyTheme(choice) {
+      const theme = normalizeTheme(choice);
+      if (theme === "auto") delete document.documentElement.dataset.theme;
+      else document.documentElement.dataset.theme = theme;
+      const media = themeMetaMedia(theme);
+      document.querySelector('meta[name="theme-color"][data-scheme="light"]').setAttribute("media", media.light);
+      document.querySelector('meta[name="theme-color"][data-scheme="dark"]').setAttribute("media", media.dark);
+      document.getElementById("darkMode").checked = isDarkTheme(theme, window.matchMedia("(prefers-color-scheme: dark)").matches);
+    }
+
     window.addEventListener("DOMContentLoaded", () => {
+      applyTheme(savedTheme());
+      // While following the device, the toggle tracks it when it switches
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => applyTheme(savedTheme()));
+      document.getElementById("darkMode").addEventListener("change", e => {
+        const choice = themeFromToggle(e.target.checked);
+        try { localStorage.setItem(THEME_KEY, choice); } catch (err) { /* not remembered, but it still applies now */ }
+        applyTheme(choice);
+      });
       // Live search: the list is redrawn on every keystroke (the box sits outside the list, so typing is not interrupted)
       document.getElementById("taskSearch").addEventListener("input", () => {
         document.getElementById("clearSearchBtn").hidden = document.getElementById("taskSearch").value === "";

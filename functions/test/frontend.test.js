@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, sortTasksForList, streakText, statProjectName};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, sortTasksForList, streakText, statProjectName, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -885,6 +885,42 @@ describe("public/index.html helpers", () => {
       assert.match(html, /streakText\(summary\.streak\)/);
       assert.match(html, /summary\.byProject/);
       assert.match(html, /By project/);
+    });
+  });
+
+  describe("dark mode toggle", () => {
+    it("keeps the choice under one key, the one the early script in the head reads", () => {
+      assert.equal(load().THEME_KEY, "taskhub-theme");
+      assert.ok(html.includes(`localStorage.getItem("${load().THEME_KEY}")`));
+    });
+    it("normalizeTheme: only light and dark are choices, anything else follows the device", () => {
+      const {normalizeTheme} = load();
+      assert.equal(normalizeTheme("light"), "light");
+      assert.equal(normalizeTheme("dark"), "dark");
+      for (const other of [null, undefined, "", "auto", "Dark", "blue", 1]) assert.equal(normalizeTheme(other), "auto", String(other));
+    });
+    it("isDarkTheme: a chosen theme wins, otherwise the device decides", () => {
+      const {isDarkTheme} = load();
+      assert.equal(isDarkTheme("dark", false), true);
+      assert.equal(isDarkTheme("light", true), false);
+      assert.equal(isDarkTheme("auto", true), true);
+      assert.equal(isDarkTheme(null, false), false);
+    });
+    it("themeFromToggle: ticked is dark, unticked is light", () => {
+      const {themeFromToggle} = load();
+      assert.equal(themeFromToggle(true), "dark");
+      assert.equal(themeFromToggle(false), "light");
+    });
+    it("themeMetaMedia: a choice fixes the browser UI colour, auto restores the device queries", () => {
+      const {themeMetaMedia} = load();
+      assert.deepEqual(themeMetaMedia("dark"), {light: "not all", dark: "all"});
+      assert.deepEqual(themeMetaMedia("light"), {light: "all", dark: "not all"});
+      assert.deepEqual(themeMetaMedia("auto"), {light: "(prefers-color-scheme: light)", dark: "(prefers-color-scheme: dark)"});
+    });
+    it("has a Dark mode checkbox on the Settings page, outside the saved settings form", () => {
+      const page = html.slice(html.indexOf("id=\"pageSettings\""), html.indexOf("id=\"undoToast\""));
+      assert.match(page, /<input type="checkbox" id="darkMode"> Dark mode/);
+      assert.equal(/settingsPayload[^;]*darkMode|darkMode[^;]*settingsPayload/.test(html), false);
     });
   });
 });
