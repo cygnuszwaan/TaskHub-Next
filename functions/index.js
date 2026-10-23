@@ -10,7 +10,7 @@ const {google} = require("googleapis");
 const {TIME_ZONE, getNZDate, getNZOffset, formatNZNow, getNZStartOfDay} = require("./time");
 const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
 const {validateSchedule, matchLockedEvents} = require("./schedule");
-const {applyDirectUpdate, mergeTaskChanges, applyScheduleResults} = require("./tasks");
+const {applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {annotateDue} = require("./due");
 const {makeTaskStore} = require("./store");
 const {SUMMARY_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted} = require("./completed");
@@ -488,20 +488,19 @@ exports.completeTask = onRequest({
     const {taskId} = req.body;
     if (!taskId) return res.status(400).send({error: "Missing taskId"});
 
-    // Archive and removal commit together; calendar cleanup follows once they have
+    // Archive, removal and the next occurrence of a recurring task commit together; calendar cleanup follows once they have
     const result = await updateTaskList((tasks, tx) => {
-      const completedTask = tasks.find((t) => t.id === taskId);
-      if (!completedTask) return {current: tasks};
+      const done = completeInList(tasks, taskId, getNZDate(), randomUUID);
+      if (!done) return {current: tasks};
       tx.create(db.collection("completed_tasks").doc(), {
-        ...completedTask,
+        ...done.completedTask,
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
-      const remaining = tasks.filter((t) => t.id !== taskId);
-      return {tasks: remaining, current: remaining, completedTask};
+      return {tasks: done.tasks, current: done.tasks, completedTask: done.completedTask, spawned: done.spawned};
     });
     await removeTaskCalendarEvent(result.completedTask);
 
-    res.status(200).send({success: true, tasks: result.current});
+    res.status(200).send({success: true, tasks: result.current, spawned: result.spawned || null});
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});

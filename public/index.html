@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Task Agent - Whangaparāoa</title>
+  <title>TaskHub Next - Whangaparāoa</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 680px; margin: 20px auto; padding: 0 15px; background: #f4f6f8; color: #222; }
     .card { background: white; padding: 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 16px; }
@@ -40,6 +40,7 @@
     .week-bar { flex: 1; background: #f1f5f9; border-radius: 4px; height: 10px; }
     .week-fill { background: #0369a1; border-radius: 4px; height: 10px; }
     .week-val { width: 90px; flex-shrink: 0; text-align: right; }
+    .repeat-chip { background: #ede9fe; color: #5b21b6; font-weight: 600; }
     .overdue-chip { background: #fee2e2; color: #991b1b; font-weight: 600; }
     .coach-box { background: #eff6ff; border-left: 4px solid #2563eb; padding: 14px; margin-top: 14px; border-radius: 4px; font-size: 14px; line-height: 1.5; }
 
@@ -69,14 +70,14 @@
 <body>
 
   <div id="signInGate" class="card gate" hidden>
-    <h1 style="font-size: 22px; margin-top: 0;">AI Task Agent</h1>
+    <h1 style="font-size: 22px; margin-top: 0;">TaskHub Next</h1>
     <p id="gateMsg" class="gate-msg"></p>
     <button id="signInBtn" onclick="signIn()">Sign in with Google</button>
   </div>
 
   <div id="app" hidden>
   <div class="header-row">
-    <h1 style="font-size: 22px;">AI Task Agent</h1>
+    <h1 style="font-size: 22px;">TaskHub Next</h1>
     <button class="btn-secondary" onclick="signOutUser()">Sign out</button>
   </div>
 
@@ -496,6 +497,7 @@
               ${(t.tags || []).map(tag => `<span class="chip">${esc(tag)}</span>`).join('')}
               ${(() => { const d = daysUntilDue(t); return d !== null && d < 0 ? `<span class="chip overdue-chip" title="Due ${esc(t.dueDate)}">⚠️ Overdue ${esc(-d)}d</span>` : ''; })()}
               ${t.dueDate ? `<span class="chip">Due: ${esc(t.dueDate)}</span>` : ''}
+              ${recurrenceChip(t)}
               ${scheduleChip(t)}
               ${t.locked ? `<span class="chip lock-chip" title="Pinned: its event was moved to your personal calendar, so Plan My Week leaves it alone">🔒 Locked</span>` : ''}
             </div>
@@ -524,6 +526,16 @@
       updateRecurUnit();
 
       document.getElementById("editModal").style.display = "flex";
+    }
+
+    // "🔁 Weekly" for an interval of 1, "🔁 Every 2 weeks" otherwise; nothing for a task that does not repeat
+    const RECUR_LABELS = { DAILY: ["Daily", "day"], WEEKLY: ["Weekly", "week"], MONTHLY: ["Monthly", "month"], YEARLY: ["Yearly", "year"] };
+    function recurrenceChip(t) {
+      const r = t.recurrence;
+      const labels = r && RECUR_LABELS[r.frequency];
+      if (!labels) return "";
+      const text = r.interval > 1 ? `Every ${r.interval} ${labels[1]}s` : labels[0];
+      return `<span class="chip repeat-chip" title="Completing it creates the next one">🔁 ${esc(text)}</span>`;
     }
 
     const RECUR_UNITS = { DAILY: "day(s)", WEEKLY: "week(s)", MONTHLY: "month(s)", YEARLY: "year(s)" };

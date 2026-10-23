@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {MAX_INTERVAL, normalizeRecurrence, applyDirectUpdate, mergeTaskChanges, applyScheduleResults} = require("../tasks");
+const {MAX_INTERVAL, normalizeRecurrence, applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults} = require("../tasks");
 
 function makeIdGenerator() {
   let n = 0;
@@ -18,6 +18,64 @@ function existingTasks() {
 }
 
 describe("tasks.js", () => {
+  describe("completeInList", () => {
+    const today = "2026-10-23";
+    const weekly = {frequency: "WEEKLY", interval: 1};
+
+    it("returns null for an unknown id", () => {
+      assert.equal(completeInList(existingTasks(), "zzz", today, makeIdGenerator()), null);
+    });
+    it("removes a task that does not repeat and spawns nothing", () => {
+      const r = completeInList(existingTasks(), "b", today, makeIdGenerator());
+      assert.deepEqual(r.tasks.map((t) => t.id), ["a", "c"]);
+      assert.equal(r.completedTask.id, "b");
+      assert.equal(r.spawned, null);
+    });
+    it("leaves the other tasks exactly as they were", () => {
+      const tasks = existingTasks();
+      const r = completeInList(tasks, "b", today, makeIdGenerator());
+      assert.deepEqual(r.tasks, [tasks[0], tasks[2]]);
+    });
+    it("creates the next occurrence of a repeating task at the same rank", () => {
+      const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, dueDate: "2026-10-26", tags: ["home"], recurrence: weekly} : t));
+      const r = completeInList(tasks, "b", today, makeIdGenerator());
+      assert.deepEqual(r.spawned, {id: "new1", title: "B", priority: "LOW", dueDate: "2026-11-02", estimatedMinutes: 10, tags: ["home"], status: "PENDING", recurrence: weekly, order: 2});
+      assert.deepEqual(r.tasks.map((t) => t.id).sort(), ["a", "c", "new1"]);
+      assert.equal(r.tasks.find((t) => t.id === "new1"), r.spawned);
+      assert.equal(r.completedTask.id, "b");
+    });
+    it("does not carry over schedule, calendar or lock fields, and does not share the tags array", () => {
+      const tasks = existingTasks().map((t) => (t.id === "a" ? {...t, tags: ["x"], recurrence: weekly} : t));
+      const r = completeInList(tasks, "a", today, makeIdGenerator());
+      for (const key of ["googleCalendarEventId", "scheduledStart", "scheduledEnd", "locked"]) {
+        assert.equal(key in r.spawned, false, key);
+      }
+      r.spawned.tags.push("y");
+      assert.deepEqual(tasks[0].tags, ["x"]);
+    });
+    it("uses today as the base when the task has no due date", () => {
+      const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, recurrence: {frequency: "DAILY", interval: 3}} : t));
+      assert.equal(completeInList(tasks, "b", today, makeIdGenerator()).spawned.dueDate, "2026-10-26");
+    });
+    it("skips missed occurrences when a task is completed late", () => {
+      const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, dueDate: "2026-10-02", recurrence: weekly} : t));
+      assert.equal(completeInList(tasks, "b", today, makeIdGenerator()).spawned.dueDate, "2026-10-30");
+    });
+    it("treats an invalid stored recurrence as not repeating", () => {
+      const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, recurrence: {frequency: "HOURLY", interval: 1}} : t));
+      assert.equal(completeInList(tasks, "b", today, makeIdGenerator()).spawned, null);
+    });
+    it("only asks for a new id when it spawns, and does not modify its input", () => {
+      let calls = 0;
+      const makeId = () => `n${++calls}`;
+      const tasks = existingTasks();
+      const copy = JSON.stringify(tasks);
+      completeInList(tasks, "b", today, makeId);
+      assert.equal(calls, 0);
+      assert.equal(JSON.stringify(tasks), copy);
+    });
+  });
+
   describe("normalizeRecurrence", () => {
     it("accepts each frequency with a whole interval", () => {
       for (const frequency of ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"]) {

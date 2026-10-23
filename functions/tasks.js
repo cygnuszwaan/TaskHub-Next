@@ -1,5 +1,6 @@
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
+const {nextDueDate} = require("./recurrence");
 const PRIORITIES = ["HIGH", "MEDIUM", "LOW"];
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const FREQUENCIES = ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"];
@@ -109,6 +110,36 @@ function mergeTaskChanges(existing, changes, makeId) {
   return {tasks: list.map((t, i) => ({...t, order: i + 1})), added, updated, skipped};
 }
 
+// Remove a completed task from the list and, if it repeats, create its next occurrence. Pure: no I/O.
+//   tasks:  the stored list
+//   taskId: the task being completed
+//   today:  the current NZ date, YYYY-MM-DD
+//   makeId: () => new task id
+// The next occurrence copies title, priority, estimatedMinutes, tags and recurrence, is PENDING, has the next
+// due date (see nextDueDate) and takes the completed task's rank; it has no schedule, calendar event or lock.
+// Other tasks are left exactly as they were. Returns null when no task has that id, otherwise
+// {tasks, completedTask, spawned} with spawned null for a task that does not repeat.
+function completeInList(tasks, taskId, today, makeId) {
+  const index = tasks.findIndex((t) => t.id === taskId);
+  if (index === -1) return null;
+  const completedTask = tasks[index];
+  const recurrence = normalizeRecurrence(completedTask.recurrence);
+  const rest = tasks.filter((t) => t.id !== taskId);
+  if (!recurrence) return {tasks: rest, completedTask, spawned: null};
+  const spawned = {
+    id: makeId(),
+    title: completedTask.title,
+    priority: completedTask.priority,
+    dueDate: nextDueDate(completedTask.dueDate, recurrence, today),
+    estimatedMinutes: completedTask.estimatedMinutes,
+    tags: [...(completedTask.tags || [])],
+    status: "PENDING",
+    recurrence,
+    order: completedTask.order,
+  };
+  return {tasks: [...rest, spawned], completedTask, spawned};
+}
+
 // Record an engine run's results on the freshly read list. Pure: no I/O.
 //   tasks:       the list as stored now (it may have changed while the engine ran)
 //   knownIds:    ids of the tasks the engine read at the start of its run
@@ -144,4 +175,4 @@ function applyScheduleResults({tasks, knownIds, locked, scheduled, createdEvents
   return {tasks: updatedTasks, orphanEventIds};
 }
 
-module.exports = {FREQUENCIES, MAX_INTERVAL, normalizeRecurrence, applyDirectUpdate, mergeTaskChanges, applyScheduleResults};
+module.exports = {FREQUENCIES, MAX_INTERVAL, normalizeRecurrence, applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults};
