@@ -36,6 +36,6 @@ firebase deploy --only functions --project taskhub-next
 firebase deploy --only hosting --project taskhub-next
 ```
 
-`firebase.json` is not tracked in this repo, so it must exist locally before deploying.
+`npm run lint` runs automatically before the functions deploy (`predeploy` in `firebase.json`), so `npm install` in `functions/` must have been run.
 
 Logs: `cd functions && npm run logs`.
