@@ -1,7 +1,9 @@
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
 const {nextDueDate} = require("./recurrence");
+const {randomUUID} = require("crypto");
 const {applyProjectFields, projectFieldsOf} = require("./projects");
+const {normalizeMaterials} = require("./materials");
 const PRIORITIES = ["HIGH", "MEDIUM", "LOW"];
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const FREQUENCIES = ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"];
@@ -25,12 +27,15 @@ function normalizeRecurrence(value) {
 // `task` with `fields` applied for a direct edit. Fields are applied as given, except `recurrence`, which is
 // validated: null or frequency "NONE" removes it, an unusable value leaves the task's recurrence as it was; and
 // `projectId` / `projectOrder`, which go through applyProjectFields against `projectIds` (the ids of the projects
-// that exist; none when omitted, so a task can leave a project but not join one).
-// Pure: the input is not modified.
-function applyDirectUpdate(task, fields, projectIds = []) {
+// that exist; none when omitted, so a task can leave a project but not join one); and `materials`, which is
+// validated by normalizeMaterials (null or an empty list removes it, an unusable value leaves it as it was; new
+// items get ids from `makeId`).
+// Pure apart from `makeId`: the input is not modified.
+function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   const rest = {...fields};
   delete rest.projectId;
   delete rest.projectOrder;
+  delete rest.materials;
   const next = {...task, ...rest};
   if (fields && "recurrence" in fields) {
     const recurrence = normalizeRecurrence(fields.recurrence);
@@ -38,10 +43,16 @@ function applyDirectUpdate(task, fields, projectIds = []) {
     else if (recurrence === null || !task.recurrence) delete next.recurrence;
     else next.recurrence = task.recurrence;
   }
+  if (fields && "materials" in fields) {
+    const materials = normalizeMaterials(fields.materials, makeId);
+    if (materials) next.materials = materials;
+    else if (materials === null) delete next.materials;
+  }
   return applyProjectFields(next, fields, projectIds);
 }
 
-// Fields the model may set. Everything else on a task (id, status, order, calendar and schedule fields, locked) is server-owned.
+// Fields the model may set. Everything else on a task (id, status, order, calendar and schedule fields, locked,
+// materials) is server-owned.
 function cleanFields(change) {
   const out = {};
   if (typeof change.title === "string" && change.title.trim()) out.title = change.title.trim();
@@ -137,7 +148,7 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = []) {
 //   today:  the current local date, YYYY-MM-DD
 //   makeId: () => new task id
 // The next occurrence copies title, priority, estimatedMinutes, tags, recurrence and project membership
-// (projectId, projectOrder), is PENDING, has the next due date (see nextDueDate) and takes the completed task's
+// (projectId, projectOrder), and materials (all unchecked, as the next occurrence needs them again), is PENDING, has the next due date (see nextDueDate) and takes the completed task's
 // rank; it has no schedule, calendar event or lock.
 // Other tasks are left exactly as they were. Returns null when no task has that id, otherwise
 // {tasks, completedTask, spawned} with spawned null for a task that does not repeat.
@@ -160,6 +171,9 @@ function completeInList(tasks, taskId, today, makeId) {
     ...projectFieldsOf(completedTask),
     order: completedTask.order,
   };
+  if (Array.isArray(completedTask.materials) && completedTask.materials.length > 0) {
+    spawned.materials = completedTask.materials.map((m) => ({id: makeId(), text: m.text, checked: false}));
+  }
   return {tasks: [...rest, spawned], completedTask, spawned};
 }
 

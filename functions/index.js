@@ -15,6 +15,7 @@ const {makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
 const {UNAVAILABLE, weatherUrl, describeWeather, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
 const {buildSchedulePrompt, buildTaskPrompt} = require("./prompts");
+const {heldTaskIds} = require("./materials");
 const {SUMMARY_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted} = require("./completed");
 const {makeOwnerOnly} = require("./auth");
 const {randomUUID} = require("crypto");
@@ -297,13 +298,18 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
   const lockedEvents = matchLockedEvents(personalAgentEvents, currentTasks); // task id -> personal-calendar event
   const lockedWindows = [...lockedEvents.values()].map((ev) => eventWindow(ev, timeZone));
   const lockedEventIds = new Set([...lockedEvents.values()].map((ev) => ev.id));
-  const toSchedule = inScope.filter((t) => !lockedEvents.has(t.id));
+  // Tasks waiting on materials (and the later tiers of their projects) are not scheduled: they are left out of
+  // the request, and their old events are replaced like any other, so they end up unscheduled.
+  const replacing = inScope.filter((t) => !lockedEvents.has(t.id));
+  const heldIds = heldTaskIds(currentTasks, new Set(lockedEvents.keys()));
+  const toSchedule = replacing.filter((t) => !heldIds.has(t.id));
+  const heldCount = replacing.length - toSchedule.length;
 
-  // Old agent-calendar events to replace: stored ids of the tasks being scheduled, plus the marked events from
+  // Old agent-calendar events to replace: stored ids of the tasks being replaced, plus the marked events from
   // today that belong to them. A full run also takes every other marked event from today (orphans).
   const agentEvents = await findAgentEvents(calendar, calendarId, startOfLocalDay(timeZone).toISOString());
-  const oldEventIds = new Set(toSchedule.map((t) => t.googleCalendarEventId).filter(Boolean));
-  const replaceable = subset ? eventIdsForTasks(agentEvents, new Set(toSchedule.map((t) => t.id))) : agentEvents.map((ev) => ev.id);
+  const oldEventIds = new Set(replacing.map((t) => t.googleCalendarEventId).filter(Boolean));
+  const replaceable = subset ? eventIdsForTasks(agentEvents, new Set(replacing.map((t) => t.id))) : agentEvents.map((ev) => ev.id);
   replaceable.forEach((id) => oldEventIds.add(id));
   lockedEventIds.forEach((id) => oldEventIds.delete(id));
 
@@ -324,7 +330,7 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
     if (!subset) {
       fingerprint = computeFingerprint({tasks: toSchedule, busySlots, weatherKey: weather.key, settings, now, horizon});
       if (shouldSkipRun({skipIfUnchanged, fingerprint, lastRunFingerprint: settings.lastRunFingerprint, endedSlot: hasEndedSlot(toSchedule, timeZone, now)})) {
-        return {success: true, skipped: true, scheduledCount: 0, lockedCount: lockedEvents.size, message: "Nothing changed since the last run; existing events were kept."};
+        return {success: true, skipped: true, scheduledCount: 0, lockedCount: lockedEvents.size, heldCount, message: "Nothing changed since the last run; existing events were kept."};
       }
     }
     // Project members outside this run (locked, or already scheduled in a subset run) that the order rule respects
@@ -406,6 +412,7 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
     success: true,
     scheduledCount: slots.length,
     lockedCount: lockedEvents.size,
+    heldCount,
     scheduleDays: settings.scheduleDays,
     lastScheduledDate: slots.length ? slots.map((s) => (s.allDay ? s.date : localDate(timeZone, new Date(s.endMs)))).sort().pop() : null,
     unscheduledCount: toSchedule.length - slots.length,
@@ -474,6 +481,10 @@ exports.rescheduleTask = onRequest({
     // A task pinned to the personal calendar is never moved by the app
     if (result.scheduledCount === 0 && result.lockedCount > 0) {
       return res.status(409).send({error: "This task is pinned to your personal calendar, so it was left where it is."});
+    }
+    // A task with unchecked materials (or behind one in its project) is never placed
+    if (result.scheduledCount === 0 && result.heldCount > 0) {
+      return res.status(409).send({error: "This task is waiting on materials (its own, or an earlier step in its project), so it was not scheduled."});
     }
     res.status(200).send({...result, tasks: await readTaskList()});
   } catch (err) {

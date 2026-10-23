@@ -15,11 +15,18 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, scheduleSummary, projectFields, projectLabel, projectTaskCounts, deleteProjectPrompt};`)();
+    return {DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, scheduleSummary, projectFields, projectLabel, projectTaskCounts, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS};`)();
 }
 
 describe("public/index.html helpers", () => {
   describe("layout", () => {
+    it("puts the Materials card right after the Organized Queue and before Projects", () => {
+      const q = html.indexOf(`id="queueDetails"`);
+      const m = html.indexOf(`id="materialsDetails"`);
+      const p = html.indexOf(`id="projectsDetails"`);
+      assert.ok(q > 0 && m > q && p > m);
+      assert.ok(html.indexOf(`id="editMaterials"`) > html.indexOf(`id="editModal"`));
+    });
     const at = (needle, from = 0) => {
       const i = html.indexOf(needle, from);
       assert.ok(i > 0, `${needle} not found`);
@@ -228,6 +235,11 @@ describe("public/index.html helpers", () => {
       assert.match(s, /3 could not be placed and stay unscheduled\./);
       assert.match(s, /Locked tasks left as pinned: 2\./);
     });
+    it("says how many tasks are waiting on materials", () => {
+      assert.match(run({heldCount: 1}), /1 task is waiting on materials and not scheduled\./);
+      assert.match(run({heldCount: 3}), /3 tasks are waiting on materials and not scheduled\./);
+      assert.doesNotMatch(run({heldCount: 0}), /materials/);
+    });
     it("leaves out what the server did not send", () => {
       assert.equal(run(), "Success! Scheduled 12 tasks onto your Google Calendar.");
       assert.equal(run({lastScheduledDate: "garbage"}), "Success! Scheduled 12 tasks onto your Google Calendar.");
@@ -283,6 +295,70 @@ describe("public/index.html helpers", () => {
       assert.equal(d("Garden", 0), "Delete project \"Garden\"?");
       assert.match(d("Garden", 1), /Its 1 task stays on the list but leaves the project\./);
       assert.match(d("Garden", 3), /Its 3 tasks stay on the list but leave the project\./);
+    });
+  });
+  describe("materials helpers", () => {
+    const mat = (id, text, checked = false) => ({id, text, checked});
+    const tasks = [
+      {id: "b", title: "Second", order: 2, materials: [mat("1", "Rope"), mat("2", "Hooks", true)]},
+      {id: "a", title: "First", order: 1, materials: [mat("3", "Paint"), mat("4", "Brush")]},
+      {id: "c", title: "Done", order: 3, materials: [mat("5", "Tape", true)]},
+      {id: "d", title: "None", order: 4},
+    ];
+
+    it("openMaterialsOf: only the unchecked ones, none without a list", () => {
+      const {openMaterialsOf: open} = load();
+      assert.deepEqual(open(tasks[0]).map((m) => m.id), ["1"]);
+      assert.deepEqual(open(tasks[2]), []);
+      assert.deepEqual(open(tasks[3]), []);
+      assert.deepEqual(open(undefined), []);
+    });
+    it("materialsChipText: waiting, ready or nothing", () => {
+      const {materialsChipText: chip} = load();
+      assert.equal(chip(tasks[0]), "Waiting on materials (1 of 2 ready)");
+      assert.equal(chip(tasks[1]), "Waiting on materials (0 of 2 ready)");
+      assert.equal(chip(tasks[2]), "Materials ready");
+      assert.equal(chip(tasks[3]), "");
+      assert.equal(chip({materials: []}), "");
+    });
+    it("openMaterialGroups: tasks with unchecked materials in list order, checked ones left out", () => {
+      const groups = load().openMaterialGroups(tasks);
+      assert.deepEqual(groups.map((g) => g.taskId), ["a", "b"]);
+      assert.deepEqual(groups[0], {taskId: "a", title: "First", materials: [{id: "3", text: "Paint"}, {id: "4", text: "Brush"}]});
+      assert.deepEqual(groups[1].materials, [{id: "1", text: "Rope"}]);
+    });
+    it("openMaterialGroups does not reorder or change its input", () => {
+      const snapshot = JSON.stringify(tasks);
+      load().openMaterialGroups(tasks);
+      assert.equal(JSON.stringify(tasks), snapshot);
+    });
+    it("openMaterialGroups: nothing to get gives an empty list", () => {
+      assert.deepEqual(load().openMaterialGroups([tasks[2], tasks[3]]), []);
+      assert.deepEqual(load().openMaterialGroups([]), []);
+    });
+    it("openMaterialCount: counts unchecked materials across all tasks", () => {
+      assert.equal(load().openMaterialCount(tasks), 3);
+      assert.equal(load().openMaterialCount([]), 0);
+    });
+    it("withMaterialChecked: sets one item and returns the whole list without touching the task", () => {
+      const {withMaterialChecked: set} = load();
+      const next = set(tasks[1], "3", true);
+      assert.deepEqual(next, [mat("3", "Paint", true), mat("4", "Brush")]);
+      assert.equal(tasks[1].materials[0].checked, false);
+      assert.deepEqual(set(tasks[1], "nope", true), tasks[1].materials);
+      assert.deepEqual(set({}, "1", true), []);
+    });
+    it("materialsFields: drops blank rows, trims, and gives null for no materials", () => {
+      const {materialsFields: fields} = load();
+      assert.deepEqual(fields([{id: "1", text: "  Paint ", checked: true}, {id: "", text: "   "}, {id: "", text: "Brush"}]), [
+        {id: "1", text: "Paint", checked: true}, {id: "", text: "Brush", checked: false},
+      ]);
+      assert.equal(fields([]), null);
+      assert.equal(fields([{id: "1", text: " "}]), null);
+    });
+    it("materialsFields: keeps at most the maximum", () => {
+      const {materialsFields: fields, MAX_MATERIALS: max} = load();
+      assert.equal(fields(Array.from({length: max + 5}, (_, i) => ({id: "", text: `m${i}`}))).length, max);
     });
   });
 });

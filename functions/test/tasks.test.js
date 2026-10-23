@@ -467,4 +467,40 @@ describe("tasks.js", () => {
       assert.equal(JSON.stringify(tasks), snapshot);
     });
   });
+
+  describe("materials", () => {
+    const base = () => ({id: "t1", title: "Paint fence", priority: "MEDIUM", dueDate: "", estimatedMinutes: 60, tags: [], status: "PENDING", order: 1});
+    const withMaterials = () => ({...base(), materials: [{id: "m1", text: "Paint", checked: true}, {id: "m2", text: "Brush", checked: false}]});
+    it("applyDirectUpdate sets a validated list with generated ids for new items", () => {
+      const next = applyDirectUpdate(base(), {materials: [{text: " Paint "}, {id: "keep", text: "Brush", checked: true}]}, [], makeIdGenerator());
+      assert.deepEqual(next.materials, [{id: "new1", text: "Paint", checked: false}, {id: "keep", text: "Brush", checked: true}]);
+    });
+    it("applyDirectUpdate removes the list for null or an empty list", () => {
+      for (const value of [null, [], [{text: " "}]]) assert.equal("materials" in applyDirectUpdate(withMaterials(), {materials: value}, [], makeIdGenerator()), false);
+    });
+    it("applyDirectUpdate leaves the list alone for an unusable value or when not sent", () => {
+      assert.deepEqual(applyDirectUpdate(withMaterials(), {materials: "paint"}, [], makeIdGenerator()).materials, withMaterials().materials);
+      assert.deepEqual(applyDirectUpdate(withMaterials(), {title: "New"}, [], makeIdGenerator()).materials, withMaterials().materials);
+    });
+    it("applyDirectUpdate does not modify its input", () => {
+      const task = withMaterials();
+      const snapshot = JSON.stringify(task);
+      applyDirectUpdate(task, {materials: null}, [], makeIdGenerator());
+      assert.equal(JSON.stringify(task), snapshot);
+    });
+    it("mergeTaskChanges never lets the model set or change materials", () => {
+      const merged = mergeTaskChanges([withMaterials()], [{id: "t1", title: "Paint fence", materials: [{id: "x", text: "Hacked", checked: true}]}, {title: "New task", materials: [{text: "Nope"}]}], makeIdGenerator());
+      assert.deepEqual(merged.tasks.find((t) => t.id === "t1").materials, withMaterials().materials);
+      assert.equal("materials" in merged.tasks.find((t) => t.title === "New task"), false);
+    });
+    it("completing a repeating task gives the next occurrence its materials, all unchecked with new ids", () => {
+      const task = {...withMaterials(), recurrence: {frequency: "WEEKLY", interval: 1}, dueDate: "2026-10-20"};
+      const {spawned} = completeInList([task], "t1", "2026-10-22", makeIdGenerator());
+      assert.deepEqual(spawned.materials, [{id: "new2", text: "Paint", checked: false}, {id: "new3", text: "Brush", checked: false}]);
+    });
+    it("completing a repeating task without materials adds no materials key", () => {
+      const task = {...base(), recurrence: {frequency: "WEEKLY", interval: 1}};
+      assert.equal("materials" in completeInList([task], "t1", "2026-10-22", makeIdGenerator()).spawned, false);
+    });
+  });
 });

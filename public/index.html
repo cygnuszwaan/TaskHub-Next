@@ -32,6 +32,13 @@
     .time-chip { font-size: 11px; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
     .sched-chip { background: #dcfce7; color: #166534; font-weight: 600; }
     .lock-chip { background: #fef3c7; color: #92400e; font-weight: 600; }
+    .held-chip { background: #ffedd5; color: #9a3412; font-weight: 600; }
+    .material-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+    .material-row input[type="text"] { flex: 1; min-width: 0; }
+    .material-row input[type="checkbox"] { width: auto; flex: none; }
+    .material-row button { padding: 4px 9px; font-size: 13px; flex: none; }
+    .material-group { padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+    .material-group-title { font-weight: 600; font-size: 14px; cursor: pointer; }
     .summary { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0; }
     .summary-total { font-size: 14px; margin-bottom: 10px; }
     .summary-label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; margin: 10px 0 4px; }
@@ -104,6 +111,14 @@
       <summary style="cursor: pointer; font-weight: 600;">Organized Queue <small style="font-size:11px; font-weight:normal; color:#64748b;">(Tap to edit)</small></summary>
       <div class="tag-filter-bar" id="tagFilterBar" style="margin-top: 12px;"></div>
       <div id="taskList">Loading tasks...</div>
+    </details>
+  </div>
+
+  <div class="card">
+    <details id="materialsDetails">
+      <summary style="cursor: pointer; font-weight: 600;">Materials <small id="materialsCount" style="font-size:11px; font-weight:normal; color:#64748b;"></small></summary>
+      <div id="materialsList" style="margin-top: 12px;"></div>
+      <div id="materialsStatus" class="settings-status"></div>
     </details>
   </div>
 
@@ -244,6 +259,15 @@
         </div>
       </div>
 
+      <div class="form-group">
+        <label>Materials <small style="font-weight:normal; color:#64748b;">(the task is not scheduled until all are checked)</small></label>
+        <div id="editMaterials"></div>
+        <div class="input-row" style="margin-top: 6px;">
+          <input type="text" id="newMaterialText" maxlength="100" placeholder="Add a material, e.g. 2 litres of paint">
+          <button type="button" class="btn-secondary" id="addMaterialBtn">Add</button>
+        </div>
+      </div>
+
       <div style="margin-top: 14px;">
         <button type="button" class="btn-secondary" title="Save these changes, then find a new time for this task" onclick="rescheduleFromModal()">🔄 Reschedule</button>
       </div>
@@ -372,6 +396,8 @@
     let allTasks = [];
     let tasksLoaded = false; // set once the list has been drawn
     let selectedTagFilter = null; // null = show all
+    let editMaterials = []; // the materials list being edited in the modal: [{id, text, checked}]
+    let materialsBusy = false; // true while a check-off from the Materials card is being saved
     let allProjects = [];
     let projectsLoaded = false; // set once getProjects has answered; until then the edit form leaves project fields alone
 
@@ -494,7 +520,53 @@
       const last = DATE_ONLY.test(data.lastScheduledDate || "") ? ` The last task is on ${calendarDayFmt.format(new Date(`${data.lastScheduledDate}T00:00:00Z`))}.` : "";
       const left = data.unscheduledCount ? ` ${data.unscheduledCount} could not be placed and stay unscheduled.` : "";
       const locked = data.lockedCount ? ` Locked tasks left as pinned: ${data.lockedCount}.` : "";
-      return `Success! Scheduled ${data.scheduledCount} tasks onto your Google Calendar.${last}${days}${left}${locked}`;
+      const held = data.heldCount ? ` ${data.heldCount} ${data.heldCount === 1 ? "task is" : "tasks are"} waiting on materials and not scheduled.` : "";
+      return `Success! Scheduled ${data.scheduledCount} tasks onto your Google Calendar.${last}${days}${left}${locked}${held}`;
+    }
+
+    const MAX_MATERIALS = 30;
+
+    // The unchecked materials of a task as [{id, text}] (none when it has no list or everything is checked).
+    function openMaterialsOf(task) {
+      return task && Array.isArray(task.materials) ? task.materials.filter(m => m && m.checked !== true) : [];
+    }
+
+    // The chip text for a task's materials: "" without a list, "Waiting on materials (2 of 5 ready)" while some are
+    // unchecked, "Materials ready" once all are checked.
+    function materialsChipText(task) {
+      const list = task && Array.isArray(task.materials) ? task.materials : [];
+      if (list.length === 0) return "";
+      const open = openMaterialsOf(task).length;
+      return open === 0 ? "Materials ready" : `Waiting on materials (${list.length - open} of ${list.length} ready)`;
+    }
+
+    // What the Materials card lists: [{taskId, title, materials: [{id, text}]}] for every task with an unchecked
+    // material, in list order (by `order`). Checked materials are left out.
+    function openMaterialGroups(tasks) {
+      return [...tasks]
+        .sort((a, b) => (a.order || 0) - (b.order || 0))
+        .map(t => ({ taskId: t.id, title: t.title, materials: openMaterialsOf(t).map(m => ({ id: m.id, text: m.text })) }))
+        .filter(g => g.materials.length > 0);
+    }
+
+    // How many unchecked materials there are across all tasks.
+    function openMaterialCount(tasks) {
+      return tasks.reduce((n, t) => n + openMaterialsOf(t).length, 0);
+    }
+
+    // The task's full materials list with one item's checked state set (the whole list is what gets saved).
+    function withMaterialChecked(task, materialId, checked) {
+      return (Array.isArray(task.materials) ? task.materials : []).map(m => (m.id === materialId ? { ...m, checked } : m));
+    }
+
+    // The edit form's materials as the updateTaskDirect field: blank rows are dropped and an empty list is null
+    // (no materials). The server stays the validator.
+    function materialsFields(list) {
+      const items = list
+        .map(m => ({ id: m.id, text: String(m.text ?? "").trim(), checked: m.checked === true }))
+        .filter(m => m.text !== "")
+        .slice(0, MAX_MATERIALS);
+      return items.length > 0 ? items : null;
     }
 
     const MAX_PROJECT_ORDER = 999;
@@ -549,6 +621,37 @@
           return;
         }
         openEditModal(taskId);
+      });
+
+      const editMaterialsBox = document.getElementById("editMaterials");
+      editMaterialsBox.addEventListener("input", e => {
+        const row = e.target.closest(".material-row");
+        if (row && e.target.matches('input[type="text"]')) editMaterials[Number(row.dataset.index)].text = e.target.value;
+      });
+      editMaterialsBox.addEventListener("change", e => {
+        const row = e.target.closest(".material-row");
+        if (row && e.target.matches('input[type="checkbox"]')) editMaterials[Number(row.dataset.index)].checked = e.target.checked;
+      });
+      editMaterialsBox.addEventListener("click", e => {
+        const btn = e.target.closest('[data-action="remove-material"]');
+        const row = btn && btn.closest(".material-row");
+        if (!row) return;
+        editMaterials.splice(Number(row.dataset.index), 1);
+        renderEditMaterials();
+      });
+      document.getElementById("addMaterialBtn").addEventListener("click", addEditMaterial);
+      document.getElementById("newMaterialText").addEventListener("keydown", e => {
+        if (e.key === "Enter") { e.preventDefault(); addEditMaterial(); }
+      });
+
+      document.getElementById("materialsList").addEventListener("click", e => {
+        const title = e.target.closest("[data-open-task]");
+        if (title) return openEditModal(title.dataset.openTask);
+      });
+      document.getElementById("materialsList").addEventListener("change", e => {
+        const row = e.target.closest(".material-row");
+        if (!row || !e.target.matches('input[type="checkbox"]')) return;
+        checkMaterial(row.dataset.taskId, row.dataset.materialId, e.target.checked);
       });
 
       initAuth();
@@ -672,6 +775,14 @@
       return label ? `<span class="chip project-chip" title="Project and order number">📁 ${esc(label)}</span>` : "";
     }
 
+    function materialsChip(t) {
+      const text = materialsChipText(t);
+      if (!text) return "";
+      return openMaterialsOf(t).length > 0 ?
+        `<span class="chip held-chip" title="Not scheduled until every material is checked off">🧰 ${esc(text)}</span>` :
+        `<span class="chip">🧰 ${esc(text)}</span>`;
+    }
+
     function scheduleChip(t) {
       const when = formatSchedule(t.scheduledStart, t.scheduledEnd);
       if (when) return `<span class="chip sched-chip" title="Scheduled on your calendar">📅 ${esc(when)}</span>`;
@@ -682,6 +793,7 @@
     function renderTasks() {
       tasksLoaded = true;
       renderProjects();
+      renderMaterialsCard();
       const listContainer = document.getElementById("taskList");
       let filtered = allTasks;
 
@@ -716,6 +828,7 @@
               ${t.dueDate ? `<span class="chip">Due: ${esc(t.dueDate)}</span>` : ''}
               ${recurrenceChip(t)}
               ${scheduleChip(t)}
+              ${materialsChip(t)}
               ${t.locked ? `<span class="chip lock-chip" title="Pinned: its event was moved to your personal calendar, so Update now leaves it alone">🔒 Locked</span>` : ''}
             </div>
           </div>
@@ -725,6 +838,68 @@
           </div>
         </div>
       `).join("");
+    }
+
+    function renderEditMaterials() {
+      document.getElementById("editMaterials").innerHTML = editMaterials.map((m, i) => `
+        <div class="material-row" data-index="${i}">
+          <input type="checkbox" ${m.checked ? "checked" : ""} aria-label="Got it">
+          <input type="text" maxlength="100" value="${esc(m.text)}">
+          <button type="button" class="btn-secondary" data-action="remove-material" title="Remove">✕</button>
+        </div>`).join("");
+    }
+
+    function addEditMaterial() {
+      const input = document.getElementById("newMaterialText");
+      const text = input.value.trim();
+      if (!text) return;
+      if (editMaterials.length >= MAX_MATERIALS) return alert(`A task can have at most ${MAX_MATERIALS} materials.`);
+      editMaterials.push({ id: "", text, checked: false });
+      input.value = "";
+      renderEditMaterials();
+    }
+
+    // The Materials card: every unchecked material of every task, grouped by task, so nothing holding a task back
+    // is out of sight. Checking one saves it and removes it from the card.
+    function renderMaterialsCard() {
+      const groups = openMaterialGroups(allTasks);
+      const count = openMaterialCount(allTasks);
+      document.getElementById("materialsCount").textContent = count === 0 ? "" : `(${count} to get)`;
+      document.getElementById("materialsList").innerHTML = groups.length === 0 ?
+        "<p style='color:#666; margin:0;'>Nothing to get.</p>" :
+        groups.map(g => `
+          <div class="material-group">
+            <div class="material-group-title" data-open-task="${esc(g.taskId)}" title="Open this task">${esc(g.title)}</div>
+            ${g.materials.map(m => `
+              <label class="material-row" data-task-id="${esc(g.taskId)}" data-material-id="${esc(m.id)}">
+                <input type="checkbox"> <span>${esc(m.text)}</span>
+              </label>`).join("")}
+          </div>`).join("");
+    }
+
+    async function checkMaterial(taskId, materialId, checked) {
+      const task = allTasks.find(t => t.id === taskId);
+      const status = document.getElementById("materialsStatus");
+      if (!task || materialsBusy) return renderMaterialsCard(); // redraw so the box matches the stored state
+      materialsBusy = true;
+      status.textContent = "Saving...";
+      try {
+        const res = await apiFetch(DIRECT_UPDATE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ taskId, action: "UPDATE", updatedFields: { materials: withMaterialChecked(task, materialId, checked) } })
+        });
+        const data = await res.json();
+        allTasks = data.tasks || allTasks;
+        status.textContent = "";
+        renderFilterBar();
+        renderTasks();
+      } catch (err) {
+        status.textContent = "Could not save: " + err.message;
+        renderMaterialsCard();
+      } finally {
+        materialsBusy = false;
+      }
     }
 
     function openEditModal(taskId) {
@@ -749,6 +924,10 @@
       projectSelect.value = task.projectId || "";
       document.getElementById("editProjectOrder").value = Number.isInteger(task.projectOrder) ? task.projectOrder : "";
       updateProjectOrderField();
+
+      editMaterials = (Array.isArray(task.materials) ? task.materials : []).map(m => ({ id: m.id, text: m.text, checked: m.checked === true }));
+      document.getElementById("newMaterialText").value = "";
+      renderEditMaterials();
 
       document.getElementById("editModal").style.display = "flex";
     }
@@ -806,7 +985,7 @@
       const freq = document.getElementById("editRecurFreq").value;
       const interval = Math.min(Math.max(parseInt(document.getElementById("editRecurInterval").value) || 1, 1), 365);
       const recurrence = freq === "NONE" ? null : { frequency: freq, interval };
-      const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence };
+      const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence, materials: materialsFields(editMaterials) };
       // Without the project list the form cannot show the task's project, so it must not send one
       if (projectsLoaded) {
         Object.assign(updatedFields, projectFields(document.getElementById("editProject").value, document.getElementById("editProjectOrder").value));
