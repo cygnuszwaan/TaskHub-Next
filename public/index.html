@@ -5,103 +5,134 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TaskHub Next - Whangaparāoa</title>
   <link rel="manifest" href="/manifest.webmanifest">
-  <meta name="theme-color" content="#0266c8">
+  <meta name="theme-color" content="#0266c8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 680px; margin: 20px auto; padding: 0 15px; background: #f4f6f8; color: #222; }
-    .card { background: white; padding: 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 16px; }
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f6f8; --surface: #fff; --text: #222; --text-strong: #334155; --text-muted: #475569; --text-faint: #64748b;
+      --border-input: #ccc; --border-chip: #cbd5e1; --divider: #f0f0f0; --header-border: #dbe1e8; --hover: #f8fafc;
+      --primary: #0266c8; --primary-disabled: #b0c4de; --link: #0266c8;
+      --success: #16a34a; --danger: #ef4444; --error: #b91c1c;
+      --chip-bg: #f1f5f9; --btn2-bg: #e2e8f0;
+      --high-bg: #ffe6e6; --high-fg: #cc0000; --medium-bg: #fff3cd; --medium-fg: #856404; --low-bg: #e6f4ea; --low-fg: #137333;
+      --time-bg: #e0f2fe; --time-fg: #0369a1; --sched-bg: #dcfce7; --sched-fg: #166534; --lock-bg: #fef3c7; --lock-fg: #92400e;
+      --held-bg: #ffedd5; --held-fg: #9a3412; --project-bg: #ccfbf1; --project-fg: #115e59; --repeat-bg: #ede9fe; --repeat-fg: #5b21b6;
+      --overdue-bg: #fee2e2; --overdue-fg: #991b1b; --snooze-bg: #e0e7ff; --snooze-fg: #3730a3;
+      --coach-bg: #eff6ff; --coach-border: #2563eb; --toast-bg: #1f2937; --toast-fg: #fff; --toast-link: #7cc0ff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f172a; --surface: #1e293b; --text: #e2e8f0; --text-strong: #cbd5e1; --text-muted: #a9b6c9; --text-faint: #94a3b8;
+        --border-input: #475569; --border-chip: #475569; --divider: #334155; --header-border: #334155; --hover: #26344a;
+        --primary-disabled: #2b4a6f; --link: #60a5fa; --error: #f87171;
+        --chip-bg: #2b3a50; --btn2-bg: #334155;
+        --high-bg: #4a1d1d; --high-fg: #fca5a5; --medium-bg: #4a3a12; --medium-fg: #fcd34d; --low-bg: #163a25; --low-fg: #86efac;
+        --time-bg: #123552; --time-fg: #7dd3fc; --sched-bg: #14382a; --sched-fg: #86efac; --lock-bg: #46380f; --lock-fg: #fcd34d;
+        --held-bg: #47260f; --held-fg: #fdba74; --project-bg: #0f3b38; --project-fg: #5eead4; --repeat-bg: #2f2759; --repeat-fg: #c4b5fd;
+        --overdue-bg: #4a1d1d; --overdue-fg: #fca5a5; --snooze-bg: #26295a; --snooze-fg: #a5b4fc;
+        --coach-bg: #172a4d; --coach-border: #3b82f6; --toast-bg: #334155; --toast-fg: #f8fafc;
+      }
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 680px; margin: 20px auto; padding: 0 15px; background: var(--bg); color: var(--text); }
+    .card { background: var(--surface); padding: 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 16px; }
     .input-row { display: flex; gap: 8px; }
-    input[type="text"], input[type="search"], input[type="number"], input[type="date"], input[type="time"], select { padding: 10px 12px; font-size: 15px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+    input[type="text"], input[type="search"], input[type="number"], input[type="date"], input[type="time"], select { padding: 10px 12px; font-size: 15px; border: 1px solid var(--border-input); border-radius: 6px; box-sizing: border-box; }
     input[type="text"] { flex: 1; min-width: 0; }
-    button { padding: 10px 14px; font-size: 14px; background: #0266c8; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; white-space: nowrap; }
-    button:disabled { background: #b0c4de; }
+    button { padding: 10px 14px; font-size: 14px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; white-space: nowrap; }
+    button:disabled { background: var(--primary-disabled); }
 
 
     .action-row { display: flex; gap: 10px; width: 100%; }
     .action-row button { flex: 1; padding: 12px 10px; text-align: center; font-size: 14px; }
 
     .tag-filter-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 15px; }
-    .filter-chip { font-size: 12px; padding: 4px 10px; border-radius: 16px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; user-select: none; }
-    .filter-chip.active { background: #0266c8; color: white; border-color: #0266c8; }
+    .filter-chip { font-size: 12px; padding: 4px 10px; border-radius: 16px; border: 1px solid var(--border-chip); background: var(--surface); color: var(--text); cursor: pointer; user-select: none; }
+    .filter-chip.active { background: var(--primary); color: white; border-color: var(--primary); }
     .search-row { display: flex; gap: 6px; align-items: center; }
     .search-row button[hidden] { display: none; }
     .search-box { flex: 1; min-width: 0; }
     .search-box::-webkit-search-cancel-button { -webkit-appearance: none; } /* the Clear button replaces it, as phones show none */
     .filter-section { margin-top: 12px; }
-    .filter-section > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: #475569; }
-    .filter-section > summary small { font-weight: normal; color: #0266c8; }
+    .filter-section > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-muted); }
+    .filter-section > summary small { font-weight: normal; color: var(--link); }
     .filter-section > .tag-filter-bar { margin: 8px 0 0; }
     .project-actions { margin-top: 8px; }
     .project-actions .project-row { border-bottom: 0; padding: 4px 0; }
     .project-add { margin-top: 8px; }
 
-    .task-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px; border-bottom: 1px solid #f0f0f0; border-radius: 6px; cursor: pointer; transition: background 0.15s ease; }
-    .task-item:hover { background: #f8fafc; }
+    .task-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px; border-bottom: 1px solid var(--divider); border-radius: 6px; cursor: pointer; transition: background 0.15s ease; }
+    .task-item:hover { background: var(--hover); }
     .task-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
     .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: bold; text-transform: uppercase; }
-    .HIGH { background: #ffe6e6; color: #cc0000; }
-    .MEDIUM { background: #fff3cd; color: #856404; }
-    .LOW { background: #e6f4ea; color: #137333; }
-    .chip { font-size: 11px; background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 10px; }
-    .time-chip { font-size: 11px; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
-    .sched-chip { background: #dcfce7; color: #166534; font-weight: 600; }
-    .lock-chip { background: #fef3c7; color: #92400e; font-weight: 600; }
-    .held-chip { background: #ffedd5; color: #9a3412; font-weight: 600; }
+    .HIGH { background: var(--high-bg); color: var(--high-fg); }
+    .MEDIUM { background: var(--medium-bg); color: var(--medium-fg); }
+    .LOW { background: var(--low-bg); color: var(--low-fg); }
+    .chip { font-size: 11px; background: var(--chip-bg); color: var(--text-muted); padding: 2px 8px; border-radius: 10px; }
+    .time-chip { font-size: 11px; background: var(--time-bg); color: var(--time-fg); padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+    .sched-chip { background: var(--sched-bg); color: var(--sched-fg); font-weight: 600; }
+    .lock-chip { background: var(--lock-bg); color: var(--lock-fg); font-weight: 600; }
+    .held-chip { background: var(--held-bg); color: var(--held-fg); font-weight: 600; }
     .material-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
     .material-row input[type="text"] { flex: 1; min-width: 0; }
     .material-row input[type="checkbox"] { width: auto; flex: none; }
     .material-row button { padding: 4px 9px; font-size: 13px; flex: none; }
-    .material-group { padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+    .material-group { padding: 8px 0; border-bottom: 1px solid var(--divider); }
     .material-group-title { font-weight: 600; font-size: 14px; cursor: pointer; }
-    .summary { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0; }
+    .summary { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--divider); }
     .summary-total { font-size: 14px; margin-bottom: 10px; }
-    .summary-label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; margin: 10px 0 4px; }
-    .week-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #475569; margin: 2px 0; }
+    .summary-label { font-size: 11px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; margin: 10px 0 4px; }
+    .week-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); margin: 2px 0; }
     .week-name { width: 70px; flex-shrink: 0; }
-    .week-bar { flex: 1; background: #f1f5f9; border-radius: 4px; height: 10px; }
-    .week-fill { background: #0369a1; border-radius: 4px; height: 10px; }
+    .week-bar { flex: 1; background: var(--chip-bg); border-radius: 4px; height: 10px; }
+    .week-fill { background: var(--time-fg); border-radius: 4px; height: 10px; }
     .week-val { width: 90px; flex-shrink: 0; text-align: right; }
-    .project-chip { background: #ccfbf1; color: #115e59; font-weight: 600; }
-    .project-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+    .project-chip { background: var(--project-bg); color: var(--project-fg); font-weight: 600; }
+    .project-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--divider); }
     .project-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
     .project-row button { padding: 6px 10px; font-size: 13px; }
-    .repeat-chip { background: #ede9fe; color: #5b21b6; font-weight: 600; }
-    .overdue-chip { background: #fee2e2; color: #991b1b; font-weight: 600; }
-    .coach-box { background: #eff6ff; border-left: 4px solid #2563eb; padding: 14px; margin-top: 14px; border-radius: 4px; font-size: 14px; line-height: 1.5; }
+    .repeat-chip { background: var(--repeat-bg); color: var(--repeat-fg); font-weight: 600; }
+    .overdue-chip { background: var(--overdue-bg); color: var(--overdue-fg); font-weight: 600; }
+    .coach-box { background: var(--coach-bg); border-left: 4px solid var(--coach-border); padding: 14px; margin-top: 14px; border-radius: 4px; font-size: 14px; line-height: 1.5; }
 
     .action-btns { display: flex; gap: 4px; }
-    .complete-btn { background: transparent; color: #16a34a; border: none; padding: 4px 6px; font-size: 16px; cursor: pointer; }
+    .complete-btn { background: transparent; color: var(--success); border: none; padding: 4px 6px; font-size: 16px; cursor: pointer; }
 
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; overscroll-behavior: contain; }
-    .modal-card { background: white; width: 90%; max-width: 480px; max-height: 90vh; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; padding: 20px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    .modal-card { background: var(--surface); width: 90%; max-width: 480px; max-height: 90vh; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; padding: 20px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
     body.modal-open { overflow: hidden; }
-    .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 1100; display: flex; align-items: center; gap: 14px; max-width: 90%; background: #1f2937; color: #fff; padding: 10px 14px; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.3); font-size: 14px; }
+    .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 1100; display: flex; align-items: center; gap: 14px; max-width: 90%; background: var(--toast-bg); color: var(--toast-fg); padding: 10px 14px; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.3); font-size: 14px; }
     .toast[hidden] { display: none; }
-    .toast button { background: transparent; color: #7cc0ff; font-weight: 700; padding: 4px 6px; }
+    .toast button { background: transparent; color: var(--toast-link); font-weight: 700; padding: 4px 6px; }
     .modal-card h3 { margin-top: 0; margin-bottom: 16px; font-size: 18px; }
     .form-group { margin-bottom: 12px; }
-    .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #475569; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: var(--text-muted); }
     .form-group input, .form-group select { width: 100%; }
     .modal-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 18px; }
     .form-group input[type="checkbox"] { width: auto; margin-right: 6px; }
-    .settings-current { font-size: 14px; color: #334155; }
+    .settings-current { font-size: 14px; color: var(--text-strong); }
     .place-results { margin-top: 6px; }
-    .place-option { display: block; width: 100%; text-align: left; background: #f1f5f9; color: #334155; font-weight: 500; white-space: normal; margin-top: 4px; }
-    .settings-note { font-size: 12px; color: #64748b; margin: 4px 0 0; }
-    .settings-status { font-size: 13px; margin-top: 10px; min-height: 18px; color: #334155; }
-    .btn-secondary { background: #e2e8f0; color: #334155; }
-    .btn-success { background: #16a34a; color: white; }
-    .btn-danger { background: #ef4444; color: white; }
+    .place-option { display: block; width: 100%; text-align: left; background: var(--chip-bg); color: var(--text-strong); font-weight: 500; white-space: normal; margin-top: 4px; }
+    .settings-note { font-size: 12px; color: var(--text-faint); margin: 4px 0 0; }
+    .settings-status { font-size: 13px; margin-top: 10px; min-height: 18px; color: var(--text-strong); }
+    .btn-secondary { background: var(--btn2-bg); color: var(--text-strong); }
+    .btn-success { background: var(--success); color: white; }
+    .btn-danger { background: var(--danger); color: white; }
 
     [hidden] { display: none !important; }
     .gate { max-width: 360px; margin: 80px auto; text-align: center; }
-    .gate-msg { color: #b91c1c; font-size: 14px; min-height: 20px; margin: 10px 0; }
-    .app-header { position: sticky; top: 0; z-index: 100; background: #f4f6f8; padding-top: 8px; margin-bottom: 16px; border-bottom: 1px solid #dbe1e8; }
+    .gate-msg { color: var(--error); font-size: 14px; min-height: 20px; margin: 10px 0; }
+    .app-header { position: sticky; top: 0; z-index: 100; background: var(--bg); padding-top: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--header-border); }
     .tab-bar { display: flex; gap: 4px; }
-    .tab-btn { flex: 1 1 auto; font-size: 13px; background: transparent; color: #475569; border-radius: 6px 6px 0 0; border-bottom: 3px solid transparent; padding: 10px 6px; }
-    .tab-btn small { font-weight: normal; color: #64748b; }
-    .tab-btn.active { color: #0266c8; border-bottom-color: #0266c8; background: #fff; }
+    .tab-btn { flex: 1 1 auto; font-size: 13px; background: transparent; color: var(--text-muted); border-radius: 6px 6px 0 0; border-bottom: 3px solid transparent; padding: 10px 6px; }
+    .tab-btn small { font-weight: normal; color: var(--text-faint); }
+    .tab-btn.active { color: var(--link); border-bottom-color: var(--link); background: var(--surface); }
+    input, select { background: var(--surface); color: var(--text); }
+    .snooze-chip { background: var(--snooze-bg); color: var(--snooze-fg); font-weight: 600; }
+    .snooze-choices { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .snooze-choices button { flex: 1 1 auto; }
   </style>
 </head>
 <body>
@@ -292,7 +323,7 @@
         <p class="settings-note" id="settingsLastRun"></p>
         <div class="action-row" style="margin-top: 14px;">
           <button type="button" id="saveSettingsBtn">Save settings</button>
-          <button type="button" id="schedBtn" style="background: #16a34a;" title="Read your calendar and reschedule every task now" onclick="scheduleWeek()">📅 Update now</button>
+          <button type="button" id="schedBtn" class="btn-success" title="Read your calendar and reschedule every task now" onclick="scheduleWeek()">📅 Update now</button>
         </div>
         <div id="settingsStatus" class="settings-status"></div>
       </div>
@@ -371,7 +402,7 @@
       </div>
 
       <div class="form-group">
-        <label>Materials <small style="font-weight:normal; color:#64748b;">(the task is not scheduled until all are checked)</small></label>
+        <label>Materials <small style="font-weight:normal; color:var(--text-faint);">(the task is not scheduled until all are checked)</small></label>
         <div id="editMaterials"></div>
         <div class="input-row" style="margin-top: 6px;">
           <input type="text" id="newMaterialText" maxlength="100" placeholder="Add a material, e.g. 2 litres of paint">
@@ -392,6 +423,30 @@
           <button class="btn-secondary" onclick="closeEditModal()">Cancel</button>
           <button onclick="saveTaskEdits()">Save</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="snoozeModal" class="modal-overlay" onclick="closeSnoozeOnOverlay(event)">
+    <div class="modal-card">
+      <h3>Snooze</h3>
+      <p id="snoozeTaskTitle" class="settings-current"></p>
+      <input type="hidden" id="snoozeTaskId">
+      <div class="snooze-choices">
+        <button type="button" class="btn-secondary" data-snooze="tomorrow">Until tomorrow</button>
+        <button type="button" class="btn-secondary" data-snooze="monday">Until next Monday</button>
+      </div>
+      <div class="form-group">
+        <label for="snoozeDate">Or pick a day</label>
+        <div style="display: flex; gap: 6px;">
+          <input type="date" id="snoozeDate" style="flex: 1;">
+          <button type="button" id="snoozeSetBtn">Snooze</button>
+        </div>
+      </div>
+      <p class="settings-note">The task is not scheduled before that day. Its due date does not change.</p>
+      <div class="modal-actions">
+        <button type="button" id="unsnoozeBtn" class="btn-secondary" hidden>Unsnooze</button>
+        <button type="button" class="btn-secondary" onclick="closeSnoozeModal()">Cancel</button>
       </div>
     </div>
   </div>
@@ -836,6 +891,59 @@
     function needsRedirectSignIn(code) {
       return REDIRECT_SIGN_IN_CODES.includes(code);
     }
+
+    // Snooze: a task with `snoozedUntil` (a local date) is not scheduled before that day; its due date is untouched.
+    // The date a snooze choice stands for, from `today` (YYYY-MM-DD): "tomorrow", or "monday", the next Monday after
+    // today (a week ahead when today is a Monday). Null for anything else.
+    function addDaysTo(date, days) {
+      const d = new Date(`${date}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + days);
+      return d.toISOString().slice(0, 10);
+    }
+    function snoozeDateFor(choice, today) {
+      if (!DATE_ONLY.test(today || "")) return null;
+      if (choice === "tomorrow") return addDaysTo(today, 1);
+      if (choice === "monday") {
+        const weekday = new Date(`${today}T00:00:00Z`).getUTCDay(); // 0 is Sunday
+        return addDaysTo(today, (8 - weekday) % 7 || 7);
+      }
+      return null;
+    }
+    // The day typed into the date field, or null when it is empty, not a date or not after today.
+    function snoozeDateFromInput(value, today) {
+      return DATE_ONLY.test(value || "") && DATE_ONLY.test(today || "") && value > today ? value : null;
+    }
+    // Today's local date in the configured zone.
+    function todayKey(now = new Date()) {
+      return fmt.key.format(now);
+    }
+    function isSnoozedTask(t, today = todayKey()) {
+      return DATE_ONLY.test(t.snoozedUntil || "") && t.snoozedUntil > today;
+    }
+    // "Snoozed until Sun 25 Oct" while the task is snoozed, else "".
+    function snoozeChipText(t, today = todayKey()) {
+      if (!isSnoozedTask(t, today)) return "";
+      const date = new Date(`${t.snoozedUntil}T00:00:00Z`);
+      return isNaN(date) ? "" : `Snoozed until ${calendarDayFmt.format(date)}`;
+    }
+    // Whether a snooze (or unsnooze) should be followed by finding the task a new time at once: only a task that has a
+    // calendar event, is not pinned to the personal calendar and is not waiting on materials.
+    function snoozeNeedsReschedule(t) {
+      return Boolean(t.googleCalendarEventId || t.scheduledStart) && !t.locked && openMaterialsOf(t).length === 0;
+    }
+    // The list order: snoozed tasks last; within each group overdue tasks first (most overdue first), then by rank.
+    function sortTasksForList(tasks, now = new Date()) {
+      const today = todayKey(now);
+      return [...tasks].sort((a, b) => {
+        const sa = isSnoozedTask(a, today), sb = isSnoozedTask(b, today);
+        if (sa !== sb) return sa ? 1 : -1;
+        const da = daysUntilDue(a, now), db = daysUntilDue(b, now);
+        const oa = da !== null && da < 0, ob = db !== null && db < 0;
+        if (oa !== ob) return oa ? -1 : 1;
+        if (oa && da !== db) return da - db;
+        return a.order - b.order;
+      });
+    }
     // </pure-helpers>
 
     window.addEventListener("DOMContentLoaded", () => {
@@ -870,6 +978,7 @@
         const btn = e.target.closest("[data-action]");
         if (btn && item.contains(btn)) {
           if (btn.dataset.action === "complete") completeTask(taskId);
+          else if (btn.dataset.action === "snooze") openSnoozeModal(taskId);
           return;
         }
         openEditModal(taskId);
@@ -1114,6 +1223,11 @@
         `<span class="chip">🧰 ${esc(text)}</span>`;
     }
 
+    function snoozeChip(t) {
+      const text = snoozeChipText(t);
+      return text ? `<span class="chip snooze-chip" title="Not scheduled before this day; the due date is unchanged">😴 ${esc(text)}</span>` : "";
+    }
+
     function scheduleChip(t) {
       const when = formatSchedule(t.scheduledStart, t.scheduledEnd);
       if (when) return `<span class="chip sched-chip" title="Scheduled on your calendar">📅 ${esc(when)}</span>`;
@@ -1130,19 +1244,13 @@
 
       if (filtered.length === 0) {
         listContainer.innerHTML = allTasks.length === 0 ?
-          "<p style='color:#666;'>No active tasks in queue.</p>" :
-          "<p style='color:#666;'>No tasks match the search and filters.</p>";
+          "<p style='color:var(--text-faint);'>No active tasks in queue.</p>" :
+          "<p style='color:var(--text-faint);'>No tasks match the search and filters.</p>";
         return;
       }
 
-      // Overdue tasks first (most overdue first), then everything else by rank
-      filtered = [...filtered].sort((a, b) => {
-        const da = daysUntilDue(a), db = daysUntilDue(b);
-        const oa = da !== null && da < 0, ob = db !== null && db < 0;
-        if (oa !== ob) return oa ? -1 : 1;
-        if (oa && da !== db) return da - db;
-        return a.order - b.order;
-      });
+      // Snoozed tasks last; otherwise overdue tasks first (most overdue first), then everything else by rank
+      filtered = sortTasksForList(filtered);
 
       listContainer.innerHTML = filtered.map(t => `
         <div class="task-item" data-id="${esc(t.id)}">
@@ -1158,10 +1266,12 @@
               ${recurrenceChip(t)}
               ${scheduleChip(t)}
               ${materialsChip(t)}
+              ${snoozeChip(t)}
               ${t.locked ? `<span class="chip lock-chip" title="Pinned: its event was moved to your personal calendar, so Update now leaves it alone">🔒 Locked</span>` : ''}
             </div>
           </div>
           <div class="action-btns">
+            <button class="complete-btn" title="Snooze: keep it off the schedule until a later day" data-action="snooze">💤</button>
             <button class="complete-btn" title="Complete & Archive Task" data-action="complete">✅</button>
           </div>
         </div>
@@ -1199,7 +1309,7 @@
       const count = openMaterialCount(allTasks);
       document.getElementById("materialsCount").textContent = count === 0 ? "" : `(${count})`;
       document.getElementById("materialsList").innerHTML = groups.length === 0 ?
-        "<p style='color:#666; margin:0;'>Nothing to get.</p>" :
+        "<p style='color:var(--text-faint); margin:0;'>Nothing to get.</p>" :
         groups.map(g => `
           <div class="material-group">
             <div class="material-group-title" data-open-task="${esc(g.taskId)}" title="Open this task">${esc(g.title)}</div>
@@ -1309,6 +1419,53 @@
       if (e.target.id === "editModal") closeEditModal();
     }
 
+    // The snooze dialog: three ways to pick the day (tomorrow, next Monday, a date), plus Unsnooze while snoozed
+    function openSnoozeModal(taskId) {
+      const task = allTasks.find(t => t.id === taskId);
+      if (!task) return;
+      const today = todayKey();
+      document.getElementById("snoozeTaskId").value = task.id;
+      const until = snoozeChipText(task, today);
+      document.getElementById("snoozeTaskTitle").textContent = until ? `${task.title} · ${until}` : task.title;
+      const dateInput = document.getElementById("snoozeDate");
+      dateInput.min = addDaysTo(today, 1);
+      dateInput.value = isSnoozedTask(task, today) ? task.snoozedUntil : "";
+      document.getElementById("unsnoozeBtn").hidden = !isSnoozedTask(task, today);
+      document.getElementById("snoozeModal").style.display = "flex";
+      document.body.classList.add("modal-open");
+    }
+
+    function closeSnoozeModal() {
+      document.getElementById("snoozeModal").style.display = "none";
+      document.body.classList.remove("modal-open");
+    }
+
+    function closeSnoozeOnOverlay(e) {
+      if (e.target.id === "snoozeModal") closeSnoozeModal();
+    }
+
+    // Saves the snooze date (null clears it), then, for a task that has a calendar event, finds it a new time at once
+    // so the event moves now rather than at the next run
+    async function snoozeTask(taskId, date) {
+      closeSnoozeModal();
+      try {
+        const res = await apiFetch(DIRECT_UPDATE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ taskId, action: "UPDATE", updatedFields: { snoozedUntil: date } })
+        });
+        const data = await res.json();
+        allTasks = data.tasks || [];
+        renderFilterBar();
+        renderTasks();
+      } catch (err) {
+        alert("Failed to snooze: " + err.message);
+        return;
+      }
+      const task = allTasks.find(t => t.id === taskId);
+      if (task && snoozeNeedsReschedule(task)) await rescheduleTask(taskId);
+    }
+
     async function saveTaskEdits() {
       const taskId = document.getElementById("editTaskId").value;
       const title = document.getElementById("editTitle").value;
@@ -1409,7 +1566,7 @@
     function renderSummary(summary) {
       if (!summary) return "";
       if (!summary.totalCount) {
-        return `<div class="summary"><div class="summary-total" style="color:#666;">No completions in the last ${esc((summary.weeks || []).length)} weeks.</div></div>`;
+        return `<div class="summary"><div class="summary-total" style="color:var(--text-faint);">No completions in the last ${esc((summary.weeks || []).length)} weeks.</div></div>`;
       }
       const weeks = summary.weeks || [];
       const maxCount = Math.max(1, ...weeks.map(w => w.count));
@@ -1440,7 +1597,7 @@
         const data = await res.json();
         const tasks = data.tasks || [];
         if (tasks.length === 0) {
-          list.innerHTML = "<p style='color:#666; margin:0;'>No completed tasks yet.</p>";
+          list.innerHTML = "<p style='color:var(--text-faint); margin:0;'>No completed tasks yet.</p>";
           return;
         }
         list.innerHTML = renderSummary(data.summary) + tasks.map(t => {
@@ -1481,7 +1638,7 @@
       const chosen = allProjects.find(p => p.id === selectedProjectFilter) || null;
       document.getElementById("projectsActive").textContent = chosen ? `· ${chosen.name}` : "";
       if (allProjects.length === 0) {
-        bar.innerHTML = "<span style='color:#666; font-size:13px;'>No projects yet.</span>";
+        bar.innerHTML = "<span style='color:var(--text-faint); font-size:13px;'>No projects yet.</span>";
         actions.innerHTML = "";
         return;
       }
@@ -1727,6 +1884,18 @@
       renderLocation();
     });
     document.getElementById("saveSettingsBtn").addEventListener("click", saveSettings);
+    document.querySelector(".snooze-choices").addEventListener("click", e => {
+      const btn = e.target.closest("[data-snooze]");
+      if (!btn) return;
+      const date = snoozeDateFor(btn.dataset.snooze, todayKey());
+      if (date) snoozeTask(document.getElementById("snoozeTaskId").value, date);
+    });
+    document.getElementById("snoozeSetBtn").addEventListener("click", () => {
+      const date = snoozeDateFromInput(document.getElementById("snoozeDate").value, todayKey());
+      if (!date) return alert("Pick a day after today.");
+      snoozeTask(document.getElementById("snoozeTaskId").value, date);
+    });
+    document.getElementById("unsnoozeBtn").addEventListener("click", () => snoozeTask(document.getElementById("snoozeTaskId").value, null));
 
     function setLoading(isLoading) {
       document.getElementById("addBtn").disabled = isLoading;

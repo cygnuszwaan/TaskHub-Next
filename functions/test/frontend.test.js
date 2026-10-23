@@ -15,10 +15,88 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, sortTasksForList};`)();
 }
 
 describe("public/index.html helpers", () => {
+  describe("snooze", () => {
+    // 22 Oct 2026 is a Thursday: the 24th is a Saturday, the 25th a Sunday, the 26th a Monday.
+    it("steps dates across month and year ends", () => {
+      const {addDaysTo} = load();
+      assert.equal(addDaysTo("2026-10-31", 1), "2026-11-01");
+      assert.equal(addDaysTo("2026-12-31", 1), "2027-01-01");
+      assert.equal(addDaysTo("2028-02-28", 1), "2028-02-29");
+    });
+    it("snoozes to tomorrow", () => {
+      const {snoozeDateFor} = load();
+      assert.equal(snoozeDateFor("tomorrow", "2026-10-22"), "2026-10-23");
+      assert.equal(snoozeDateFor("tomorrow", "2026-12-31"), "2027-01-01");
+    });
+    it("snoozes to the next Monday after today, a week ahead when today is a Monday", () => {
+      const {snoozeDateFor} = load();
+      for (const [today, monday] of [["2026-10-22", "2026-10-26"], ["2026-10-24", "2026-10-26"], ["2026-10-25", "2026-10-26"], ["2026-10-26", "2026-11-02"], ["2026-10-27", "2026-11-02"], ["2026-12-30", "2027-01-04"]]) {
+        assert.equal(snoozeDateFor("monday", today), monday, today);
+      }
+    });
+    it("gives no date for an unknown choice or an unusable today", () => {
+      const {snoozeDateFor} = load();
+      assert.equal(snoozeDateFor("later", "2026-10-22"), null);
+      assert.equal(snoozeDateFor("tomorrow", ""), null);
+      assert.equal(snoozeDateFor("monday", undefined), null);
+    });
+    it("takes a typed day only when it is a date after today", () => {
+      const {snoozeDateFromInput} = load();
+      assert.equal(snoozeDateFromInput("2026-10-23", "2026-10-22"), "2026-10-23");
+      for (const value of ["2026-10-22", "2026-10-01", "", "soon", undefined]) assert.equal(snoozeDateFromInput(value, "2026-10-22"), null, String(value));
+    });
+    it("is snoozed only while the date is after today", () => {
+      const {isSnoozedTask} = load();
+      assert.equal(isSnoozedTask({snoozedUntil: "2026-10-23"}, "2026-10-22"), true);
+      assert.equal(isSnoozedTask({snoozedUntil: "2026-10-22"}, "2026-10-22"), false);
+      assert.equal(isSnoozedTask({snoozedUntil: "2026-10-21"}, "2026-10-22"), false);
+      assert.equal(isSnoozedTask({}, "2026-10-22"), false);
+      assert.equal(isSnoozedTask({snoozedUntil: "soon"}, "2026-10-22"), false);
+    });
+    it("words the chip with the day, and has none once the snooze is over", () => {
+      const {snoozeChipText} = load();
+      assert.match(snoozeChipText({snoozedUntil: "2026-10-25"}, "2026-10-22"), /^Snoozed until Sun,? 25 Oct$/);
+      assert.equal(snoozeChipText({snoozedUntil: "2026-10-22"}, "2026-10-22"), "");
+      assert.equal(snoozeChipText({}, "2026-10-22"), "");
+    });
+    it("finds a new time at once only for a scheduled task that is neither pinned nor waiting on materials", () => {
+      const {snoozeNeedsReschedule} = load();
+      const scheduled = {googleCalendarEventId: "ev1", scheduledStart: "2026-10-23T09:00:00+13:00", scheduledEnd: "2026-10-23T09:30:00+13:00"};
+      assert.equal(snoozeNeedsReschedule(scheduled), true);
+      assert.equal(snoozeNeedsReschedule({googleCalendarEventId: "ev1"}), true);
+      assert.equal(snoozeNeedsReschedule({title: "not on the calendar"}), false);
+      assert.equal(snoozeNeedsReschedule({...scheduled, locked: true}), false);
+      assert.equal(snoozeNeedsReschedule({...scheduled, materials: [{id: "m", text: "Paint", checked: false}]}), false);
+      assert.equal(snoozeNeedsReschedule({...scheduled, materials: [{id: "m", text: "Paint", checked: true}]}), true);
+    });
+    it("sorts snoozed tasks last, and keeps overdue first and then rank within each group", () => {
+      const {sortTasksForList} = load();
+      const now = new Date("2026-10-22T09:00:00+13:00");
+      const tasks = [
+        {id: "snoozed", order: 1, snoozedUntil: "2026-10-25"},
+        {id: "plain", order: 2},
+        {id: "overdue", order: 3, dueDate: "2026-10-20"},
+        {id: "snoozed-overdue", order: 4, dueDate: "2026-10-19", snoozedUntil: "2026-10-23"},
+        {id: "over-snooze", order: 5, snoozedUntil: "2026-10-21"},
+      ];
+      assert.deepEqual(sortTasksForList(tasks, now).map((t) => t.id), ["overdue", "plain", "over-snooze", "snoozed-overdue", "snoozed"]);
+      assert.deepEqual(tasks.map((t) => t.id), ["snoozed", "plain", "overdue", "snoozed-overdue", "over-snooze"], "the input is not reordered");
+    });
+    it("puts a Snooze button next to Complete on the task card, and a dialog outside the edit modal", () => {
+      const list = html.slice(html.indexOf("function renderTasks"), html.indexOf("function renderTasks") + 6000);
+      assert.match(list, /data-action="snooze"/);
+      assert.ok(list.indexOf("data-action=\"snooze\"") < list.indexOf("data-action=\"complete\""));
+      assert.match(list, /snoozeChip\(t\)/);
+      const dialog = html.indexOf("id=\"snoozeModal\"");
+      assert.ok(dialog > html.indexOf("id=\"editModal\""));
+      for (const id of ["snoozeDate", "snoozeSetBtn", "unsnoozeBtn"]) assert.ok(html.indexOf(`id="${id}"`) > dialog, id);
+      assert.match(html.slice(html.indexOf("id=\"unsnoozeBtn\""), html.indexOf(">", html.indexOf("id=\"unsnoozeBtn\""))), /hidden/);
+    });
+  });
   describe("needsRedirectSignIn", () => {
     it("is true for the errors that mean a popup cannot be used here", () => {
       const {needsRedirectSignIn} = load();

@@ -46,7 +46,8 @@ describe("web app manifest", () => {
 describe("public/index.html", () => {
   it("links the manifest, the theme colour and the icons", () => {
     assert.match(html, /<link rel="manifest" href="\/manifest\.webmanifest">/);
-    assert.match(html, new RegExp(`<meta name="theme-color" content="${manifest.theme_color}">`));
+    assert.match(html, new RegExp(`<meta name="theme-color" content="${manifest.theme_color}" media="\\(prefers-color-scheme: light\\)">`));
+    assert.match(html, /<meta name="theme-color" content="#[0-9a-f]{6}" media="\(prefers-color-scheme: dark\)">/i);
     assert.match(html, /<link rel="apple-touch-icon" href="\/icons\/apple-touch-icon\.png">/);
   });
   it("registers the service worker only where it is supported", () => {

@@ -7,6 +7,7 @@ const {localDate, localInstant, localDayStart, formatLocalISO, addDays} = requir
 const {DAY_START_MIN, DAY_END_MIN, tierOf} = require("./schedule");
 const {isWeatherSensitive} = require("./weather");
 const {daysUntilDue} = require("./due");
+const {snoozeDate} = require("./snooze");
 
 // Timed slots start on multiples of this many minutes (when a gap opens at an odd minute, the slot waits for the next one).
 const SNAP_MINUTES = 5;
@@ -100,7 +101,7 @@ function reasonFor(task, today) {
 // Tasks are taken most urgent first (see sortByUrgency) and each goes in the earliest gap that fits, so a short task can
 // fill a gap a longer, more urgent one did not fit. Within a project, a task starts only after every lower-numbered
 // member has ended (and ends before any fixed higher-numbered member starts); a task whose lower-numbered member has no
-// slot is left out. A task longer than the working day becomes an all-day reminder on the earliest day allowed.
+// slot is left out. A task with a snooze date (`snoozedUntil`) goes on that local date or later. A task longer than the working day becomes an all-day reminder on the earliest day allowed.
 // Returns {items, unplaced}: `items` in the shape of Gemini's scheduledTasks, `unplaced` [{taskId, reason}] for every
 // task that got no slot.
 function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = [], gapMinutes = 0, dayStartMin = DAY_START_MIN, dayEndMin = DAY_END_MIN}) {
@@ -164,14 +165,16 @@ function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = 
     }
 
     const sensitive = isWeatherSensitive(task);
-    const allowed = days.filter((d) => !(sensitive && weather && (d.date > weather.lastDate || (weather.rainyDates || []).includes(d.date))));
+    const notBefore = snoozeDate(task); // a snoozed task skips the days before its snooze date
+    const snoozeNote = notBefore ? ` (snoozed until ${notBefore})` : "";
+    const allowed = days.filter((d) => !(notBefore && d.date < notBefore) && !(sensitive && weather && (d.date > weather.lastDate || (weather.rainyDates || []).includes(d.date))));
     const minutes = durationMinutes(task);
     const base = {taskId: task.id, title: task.title, reasoning: reasonFor(task, today)};
 
     if (minutes > dayMinutes) {
       const day = allowed.find((d) => localDayStart(timeZone, d.date).getTime() >= minStartMs && localDayStart(timeZone, addDays(d.date, 1)).getTime() <= maxEndMs);
       if (!day) {
-        unplaced.push({taskId: task.id, reason: sensitive ? "no dry day left inside the forecast window" : "no day left before the horizon or its project order allows"});
+        unplaced.push({taskId: task.id, reason: (sensitive ? "no dry day left inside the forecast window" : "no day left before the horizon or its project order allows") + snoozeNote});
         continue;
       }
       const startMs = localDayStart(timeZone, day.date).getTime();
@@ -188,7 +191,7 @@ function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = 
       if (startMs !== null) break;
     }
     if (startMs === null) {
-      unplaced.push({taskId: task.id, reason: sensitive ? `no gap of ${minutes} minutes left on a dry day inside the forecast window` : `no gap of ${minutes} minutes left before the horizon or its project order allows`});
+      unplaced.push({taskId: task.id, reason: (sensitive ? `no gap of ${minutes} minutes left on a dry day inside the forecast window` : `no gap of ${minutes} minutes left before the horizon or its project order allows`) + snoozeNote});
       continue;
     }
     const endMs = startMs + durMs;

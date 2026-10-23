@@ -2,6 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {localDate, localMinutesOfDay, addDays, localDayStart} = require("./time");
 const {isWeatherSensitive} = require("./weather");
+const {snoozeDate} = require("./snooze");
 
 // Default scheduling hours in the owner's local time, as minutes since midnight (the settings' day window overrides
 // them; see settings.js `dayWindowMinutes`).
@@ -33,6 +34,7 @@ function makeContext({tasks, busy, now, horizon, timeZone, weather, dayStartMin 
     dayEndMin,
     taskIds: new Set(tasks.map((t) => t.id)),
     sensitiveIds: new Set(tasks.filter(isWeatherSensitive).map((t) => t.id)),
+    snoozed: new Map(tasks.map((t) => [t.id, snoozeDate(t)]).filter(([, date]) => date)), // task id -> snooze date
     weather: weather || null,
     busyMs: busy
         .map((w) => ({startMs: Date.parse(w.start), endMs: Date.parse(w.end)}))
@@ -55,8 +57,14 @@ function weatherError(date, weather) {
   return null;
 }
 
-// Check one slot on its own (shape, time window, busy overlap, weather). Returns {slot} or {error}.
-function checkItem(item, {taskIds, sensitiveIds, weather, busyMs, now, horizon, timeZone, firstDate, lastDate, dayStartMin, dayEndMin}) {
+// Snooze rule for a slot on a local date: a snoozed task may not go before its snooze date. Returns an error string or null.
+function snoozeError(taskId, date, snoozed) {
+  const until = snoozed.get(taskId);
+  return until && date < until ? `snoozed until ${until}, but placed on ${date}` : null;
+}
+
+// Check one slot on its own (shape, time window, busy overlap, weather, snooze). Returns {slot} or {error}.
+function checkItem(item, {taskIds, sensitiveIds, snoozed, weather, busyMs, now, horizon, timeZone, firstDate, lastDate, dayStartMin, dayEndMin}) {
   if (!item || typeof item !== "object") return {error: "not an object"};
   if (!taskIds.has(item.taskId)) return {error: "unknown task id"};
 
@@ -66,6 +74,8 @@ function checkItem(item, {taskIds, sensitiveIds, weather, busyMs, now, horizon, 
     if (date < firstDate || date > lastDate) return {error: `all-day date ${date} outside ${firstDate}..${lastDate}`};
     const dayWeather = sensitiveIds.has(item.taskId) ? weatherError(date, weather) : null;
     if (dayWeather) return {error: dayWeather};
+    const daySnooze = snoozeError(item.taskId, date, snoozed);
+    if (daySnooze) return {error: daySnooze};
     return {slot: {taskId: item.taskId, item, allDay: true, date, endDate: addDays(date, 1)}};
   }
 
@@ -88,6 +98,8 @@ function checkItem(item, {taskIds, sensitiveIds, weather, busyMs, now, horizon, 
   if (busyMs.some((w) => startMs < w.endMs && endMs > w.startMs)) return {error: "overlaps a busy window"};
   const timedWeather = sensitiveIds.has(item.taskId) ? weatherError(localDate(timeZone, start), weather) : null;
   if (timedWeather) return {error: timedWeather};
+  const timedSnooze = snoozeError(item.taskId, localDate(timeZone, start), snoozed);
+  if (timedSnooze) return {error: timedSnooze};
 
   return {slot: {taskId: item.taskId, item, allDay: false, startMs, endMs}};
 }
@@ -105,6 +117,7 @@ function checkItem(item, {taskIds, sensitiveIds, weather, busyMs, now, horizon, 
 //   fixed:    slots of tasks outside this run ([{taskId, start, end}], ISO instants); see checkProjectOrder
 //   gapMinutes: free minutes required between two timed slots of this run (default 0)
 // Returns {slots, errors}. Slots are only meaningful when errors is empty.
+// A snoozed task (`snoozedUntil`) may not be placed on a local date before its snooze date.
 // Timed slots must be parseable, in the future, end by the horizon, sit on one local day
 // inside the daily window, and not overlap busy windows or each other. All-day slots must fall
 // on a local date between today and the horizon's date; they are reminders and skip overlap checks.

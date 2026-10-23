@@ -4,6 +4,7 @@ const {localDate, utcOffset, formatLocalNow, addDays} = require("./time");
 const {annotateDue} = require("./due");
 const {WEATHER_DAYS} = require("./weather");
 const {dayWindowMinutes} = require("./settings");
+const {isSnoozed} = require("./snooze");
 
 // Minutes since midnight as a 12-hour clock text, e.g. 540 -> "9:00 AM", 1020 -> "5:00 PM".
 function clock12(minutes) {
@@ -13,6 +14,12 @@ function clock12(minutes) {
 
 
 // Place names are typed by the owner; keep one to a single line before it goes into a prompt.
+// The task without its `snoozedUntil` key.
+function omitSnooze(task) {
+  const {snoozedUntil, ...rest} = task; // eslint-disable-line no-unused-vars
+  return rest;
+}
+
 function oneLine(text) {
   return String(text).replace(/\s+/g, " ").trim();
 }
@@ -49,7 +56,10 @@ function buildSchedulePrompt({tasks, busySlots, now, weather, settings, projects
     `Tasks tagged Outdoor or Garden depend on the weather, which is only known for ${today} to ${lastWeatherDay}. Schedule them only on those days, and never on a day the daily forecast above marks "rainy": true. Never schedule them from ${firstDryDay} onwards: leave them out of the schedule. Other tasks ignore the weather.`;
 
   const projectName = new Map(projects.map((p) => [p.id, oneLine(p.name)]));
-  const annotated = annotateDue(tasks, today).map((t) => (projectName.has(t.projectId) ? {...t, project: projectName.get(t.projectId)} : t));
+  // A snooze date that has passed restricts nothing, so the model is not shown it
+  const annotated = annotateDue(tasks, today)
+      .map((t) => (isSnoozed(t, today) ? t : omitSnooze(t)))
+      .map((t) => (projectName.has(t.projectId) ? {...t, project: projectName.get(t.projectId)} : t));
   const taskById = new Map(allTasks.map((t) => [t.id, t]));
   const fixedMembers = fixed
       .map((f) => ({f, task: taskById.get(f.taskId)}))
@@ -87,10 +97,11 @@ function buildSchedulePrompt({tasks, busySlots, now, weather, settings, projects
     1. Schedule uncompleted tasks across the next ${settings.scheduleDays} days in open gaps between ${dayFrom} and ${dayTo} local time in ${zone}. Each timed slot must start after the current time, fit entirely within one day's ${dayFrom}-${dayTo} window, and must not overlap a busy window or another slot.
     2. Schedule each task at most once. Place overdue tasks first, in the earliest open gaps, then tasks with the nearest due dates. Where possible, place a task with a dueDate on or before that date; a task that cannot fit before its due date goes in the earliest gap left. Tasks without a dueDate fill the remaining gaps by priority.
     3. Project order, which overrides due dates and priority: tasks with the same "project" and a "projectOrder" must run in order. Every task with a lower projectOrder must end before any task of that project with a higher projectOrder starts (a task scheduled all-day occupies its whole date, so it must be on a later date). Tasks sharing a projectOrder may go in any order, and a task without a projectOrder is unconstrained. The placed project members listed above count too. If a task cannot be scheduled, leave out every task of that project with a higher projectOrder as well.
-    4. Set transparency: "opaque" for focus tasks (blocks busy); "transparent" for quick chores/reminders.
-    5. ${weatherRule}
-    6. Write every startISO/endISO in local time in ${zone} using the UTC offset that applies on that date (currently ${offset}; it changes if the date falls after a daylight saving change).
-    7. ${gapRule}Return the non-conflicting schedule matching the JSON schema. Always return as many tasks as fit; return an empty list only if nothing fits at all.
+    4. A task with a "snoozedUntil" date must not be scheduled on any local date before it (an all-day slot counts as its own date); place it on that date or later, where there is room. If it cannot be scheduled, leave out every task of its project with a higher projectOrder as well.
+    5. Set transparency: "opaque" for focus tasks (blocks busy); "transparent" for quick chores/reminders.
+    6. ${weatherRule}
+    7. Write every startISO/endISO in local time in ${zone} using the UTC offset that applies on that date (currently ${offset}; it changes if the date falls after a daylight saving change).
+    8. ${gapRule}Return the non-conflicting schedule matching the JSON schema. Always return as many tasks as fit; return an empty list only if nothing fits at all.
     ${retry}
   `;
 }

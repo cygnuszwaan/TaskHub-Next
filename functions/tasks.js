@@ -4,6 +4,7 @@ const {nextDueDate} = require("./recurrence");
 const {randomUUID} = require("crypto");
 const {applyProjectFields, projectFieldsOf} = require("./projects");
 const {normalizeMaterials} = require("./materials");
+const {normalizeSnooze} = require("./snooze");
 const PRIORITIES = ["HIGH", "MEDIUM", "LOW"];
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const FREQUENCIES = ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"];
@@ -29,13 +30,15 @@ function normalizeRecurrence(value) {
 // `projectId` / `projectOrder`, which go through applyProjectFields against `projectIds` (the ids of the projects
 // that exist; none when omitted, so a task can leave a project but not join one); and `materials`, which is
 // validated by normalizeMaterials (null or an empty list removes it, an unusable value leaves it as it was; new
-// items get ids from `makeId`).
+// items get ids from `makeId`); and `snoozedUntil`, validated by normalizeSnooze (null or an empty string removes it, an
+// unusable value leaves it as it was).
 // Pure apart from `makeId`: the input is not modified.
 function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   const rest = {...fields};
   delete rest.projectId;
   delete rest.projectOrder;
   delete rest.materials;
+  delete rest.snoozedUntil;
   const next = {...task, ...rest};
   if (fields && "recurrence" in fields) {
     const recurrence = normalizeRecurrence(fields.recurrence);
@@ -48,11 +51,16 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
     if (materials) next.materials = materials;
     else if (materials === null) delete next.materials;
   }
+  if (fields && "snoozedUntil" in fields) {
+    const snoozedUntil = normalizeSnooze(fields.snoozedUntil);
+    if (typeof snoozedUntil === "string") next.snoozedUntil = snoozedUntil;
+    else if (snoozedUntil === null) delete next.snoozedUntil;
+  }
   return applyProjectFields(next, fields, projectIds);
 }
 
 // Fields the model may set. Everything else on a task (id, status, order, calendar and schedule fields, locked,
-// materials) is server-owned.
+// materials, snoozedUntil) is server-owned.
 function cleanFields(change) {
   const out = {};
   if (typeof change.title === "string" && change.title.trim()) out.title = change.title.trim();
@@ -172,7 +180,7 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
 //   today:  the current local date, YYYY-MM-DD
 //   makeId: () => new task id
 // The next occurrence copies title, priority, estimatedMinutes, tags, recurrence and project membership
-// (projectId, projectOrder), and materials (all unchecked, as the next occurrence needs them again), is PENDING, has the next due date (see nextDueDate) and takes the completed task's
+// (projectId, projectOrder), and materials (all unchecked, as the next occurrence needs them again), is PENDING and not snoozed, has the next due date (see nextDueDate) and takes the completed task's
 // rank; it has no schedule, calendar event or lock.
 // Other tasks are left exactly as they were. Returns null when no task has that id, otherwise
 // {tasks, completedTask, spawned} with spawned null for a task that does not repeat.
