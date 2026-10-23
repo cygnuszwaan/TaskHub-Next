@@ -454,7 +454,7 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
 // 1. Scheduled Function: dispatcher for the automatic schedule update
 // Ticks every 15 minutes (the Cloud Scheduler cron is fixed at deploy; 15 minutes is the finest interval offered).
 // Each tick asks the runtime settings whether a run is due (daily at a set local time, or every N minutes in the
-// 8:00-19:00 local window) and claims it atomically, so a duplicate tick cannot start a second run. The claim
+// 8:00-20:00 local window) and claims it atomically, so a duplicate tick cannot start a second run. The claim
 // records the attempt even if the run then fails, which keeps a failing run from retrying on every tick.
 exports.autoScheduleDaily = onSchedule({
   schedule: "*/15 * * * *",

@@ -183,11 +183,12 @@ describe("settings.js", () => {
     });
     describe("INTERVAL", () => {
       const every = (n, extra = {}) => sched({frequency: "INTERVAL", intervalMinutes: n}, extra);
-      it("only runs inside the 8:00-19:00 local window", () => {
+      it("only runs inside the 8:00-20:00 local window", () => {
         assert.equal(isRunDue(every(15), nz("07:59")), false);
         assert.equal(isRunDue(every(15), nz("08:00")), true);
-        assert.equal(isRunDue(every(15), nz("18:59")), true);
-        assert.equal(isRunDue(every(15), nz("19:00")), false);
+        assert.equal(isRunDue(every(15), nz("19:00")), true);
+        assert.equal(isRunDue(every(15), nz("19:59")), true);
+        assert.equal(isRunDue(every(15), nz("20:00")), false);
         assert.equal(isRunDue(every(15), nz("23:00")), false);
       });
       it("is due when it has never run", () => {
@@ -353,7 +354,7 @@ describe("settings.js: daily window", () => {
     assert.match(applySettingsUpdate(current, {day: "9-5"}).error, /day must be an object/);
     assert.match(applySettingsUpdate(current, {gapMinutes: 10, day: {end: "09:00"}}).error, /day\.end/);
   });
-  it("leaves the automatic run's own 8:00-19:00 window alone", () => {
+  it("leaves the automatic run's own 8:00-20:00 window alone", () => {
     const s = base({day: {start: "10:00", end: "15:00"}, schedule: {...DEFAULTS.schedule, frequency: "INTERVAL", intervalMinutes: 15}});
     assert.equal(isRunDue(s, new Date("2026-10-22T08:15:00+13:00")), true);
   });

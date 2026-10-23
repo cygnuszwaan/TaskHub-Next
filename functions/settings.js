@@ -6,7 +6,7 @@ const INTERVALS = [15, 30, 60, 120, 240];
 const FREQUENCIES = ["DAILY", "INTERVAL"];
 // INTERVAL runs happen only inside this local window, whatever the daily scheduling window is.
 const WINDOW_START_MINUTES = 8 * 60;
-const WINDOW_END_MINUTES = 19 * 60;
+const WINDOW_END_MINUTES = 20 * 60;
 // The dispatcher ticks every 15 minutes and a tick can fire a little early or late, so an interval counts as
 // elapsed when it is within this grace of the target.
 const TICK_GRACE_MS = 60 * 1000;
@@ -232,7 +232,7 @@ function dayWindowMinutes(settings) {
 // Whether the automatic run should fire now. Called on every 15-minute tick with settings from mergeSettings.
 //   Disabled: never.
 //   DAILY: once the local time has reached schedule.time, if the last run was not on today's local date.
-//   INTERVAL: within the 8:00-19:00 local window, once intervalMinutes have passed since the last run
+//   INTERVAL: within the 8:00-20:00 local window, once intervalMinutes have passed since the last run
 //             (a run is also due if there has never been one).
 function isRunDue(settings, now = new Date()) {
   const {schedule, timeZone} = settings;

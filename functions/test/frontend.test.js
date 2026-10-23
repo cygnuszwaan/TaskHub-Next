@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, scheduleSummary, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS};`)();
+    return {TABS, normalizeTab, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, scheduleSummary, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -59,10 +59,13 @@ describe("public/index.html helpers", () => {
       }
       throw new Error("unclosed <details>");
     };
-    it("has a pinned header with the Tasks, Materials and Settings tabs, in that order", () => {
+    it("has a pinned header with the Tasks, Materials and Settings tabs, in that order, and nothing else", () => {
       assert.match(html, /\.app-header\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0/);
       const header = html.slice(at("<header"), at("</header>"));
-      assert.ok(header.includes("Sign out") && header.includes(`id="tabBar"`));
+      assert.ok(header.includes(`id="tabBar"`));
+      assert.doesNotMatch(header, /Sign out|<h1/);
+      assert.doesNotMatch(html.slice(at(`id="app"`), at(`id="editModal"`)), /signOutUser\(\)/);
+      assert.ok(at("<header") - at(`id="app"`) < 40, "the header is the first thing in the app");
       const tabs = [...header.matchAll(/data-tab="(\w+)"/g)].map((m) => m[1]);
       assert.deepEqual(tabs, ["tasks", "materials", "settings"]);
       assert.ok(header.indexOf(`id="materialsCount"`) > header.indexOf(`data-tab="materials"`));
@@ -92,6 +95,31 @@ describe("public/index.html helpers", () => {
       assert.doesNotMatch(html.slice(page, end), /<details/);
       assert.doesNotMatch(html, /id="materialsDetails"/);
       assert.ok(html.indexOf(`id="editMaterials"`) > html.indexOf(`id="editModal"`));
+    });
+    it("shows days to schedule and the gap side by side with short labels", () => {
+      const days = at(`id="scheduleDays"`);
+      const gap = at(`id="gapMinutes"`);
+      const row = html.lastIndexOf(`<div class="form-group" style="display: flex;`, days);
+      assert.ok(row > 0 && row < days && gap < at(`id="dayStart"`));
+      assert.ok(html.lastIndexOf(`<div class="form-group"`, gap) === row, "one row holds both fields");
+      const label = (id) => html.slice(at(`<label for="${id}">`), at("</label>", at(`<label for="${id}">`))).replace(/<[^>]+>/g, "");
+      assert.equal(label("scheduleDays"), "Days to schedule");
+      assert.equal(label("gapMinutes"), "Gap between tasks");
+    });
+    it("labels the day and lunch fields without explanations in brackets", () => {
+      const label = (id) => html.slice(at(`<label for="${id}">`), at("</label>", at(`<label for="${id}">`))).replace(/<[^>]+>/g, "");
+      assert.equal(label("dayStart"), "Day starts");
+      assert.equal(label("dayEnd"), "Day ends");
+      assert.equal(label("lunchTime"), "Lunch starts");
+      assert.equal(label("lunchMinutes"), "Length");
+    });
+    it("has one Repeat every select, starting with a daily option, and no Frequency selector or time field", () => {
+      assert.doesNotMatch(html, /schedFrequency|schedTime|schedIntervalGroup|>Frequency</);
+      const select = html.slice(at(`<select id="schedInterval">`), at("</select>", at(`<select id="schedInterval">`)));
+      const values = [...select.matchAll(/<option value="(\w+)">([^<]*)</g)];
+      assert.deepEqual(values.map((m) => m[1]), ["DAILY", "15", "30", "60", "120", "240"]);
+      assert.equal(values[0][2], "Daily at 8pm");
+      assert.equal(html.slice(at(`<label for="schedInterval">`), at("</label>", at(`<label for="schedInterval">`))).replace(/<[^>]+>/g, ""), "Repeat every");
     });
     it("makes Settings a page with Save settings, Update now and the schedule result line", () => {
       const page = at(`id="pageSettings"`);
@@ -143,6 +171,33 @@ describe("public/index.html helpers", () => {
       assert.ok(q < at(`id="tagFilterBar"`, q) && at(`id="tagFilterBar"`, q) < at(`id="taskList"`, q));
       assert.ok(at(`id="taskList"`, q) < close);
       assert.ok(close < at(`id="completedDetails"`));
+    });
+  });
+
+  describe("schedule choice", () => {
+    it("reads the select value from the stored schedule", () => {
+      const h = load();
+      assert.equal(h.scheduleChoice({frequency: "DAILY", time: "20:00", intervalMinutes: 30}), "DAILY");
+      assert.equal(h.scheduleChoice({frequency: "INTERVAL", time: "20:00", intervalMinutes: 30}), "30");
+      assert.equal(h.scheduleChoice(undefined), "DAILY");
+    });
+    it("builds the schedule fields from the select value, keeping the stored interval for a daily choice", () => {
+      const h = load();
+      assert.deepEqual({...h.scheduleFromChoice("DAILY", 120)}, {frequency: "DAILY", time: "20:00", intervalMinutes: 120});
+      assert.deepEqual({...h.scheduleFromChoice("DAILY", undefined)}, {frequency: "DAILY", time: "20:00", intervalMinutes: 60});
+      assert.deepEqual({...h.scheduleFromChoice("15", 120)}, {frequency: "INTERVAL", time: "20:00", intervalMinutes: 15});
+    });
+    it("gives every select option a schedule the server accepts, and the daily one 20:00", () => {
+      const h = load();
+      const {mergeSettings, applySettingsUpdate, DEFAULTS} = require("../settings");
+      const form = {location: DEFAULTS.location, timeZone: DEFAULTS.timeZone, scheduleDays: 7, gapMinutes: 0, dayStart: "09:00", dayEnd: "17:00", lunchEnabled: false, lunchTime: "12:00", lunchMinutes: 30, enabled: true};
+      for (const choice of ["DAILY", "15", "30", "60", "120", "240"]) {
+        const r = applySettingsUpdate(mergeSettings(undefined), h.settingsPayload({...form, ...h.scheduleFromChoice(choice, 60)}));
+        assert.equal(r.error, undefined, choice);
+        assert.equal(r.settings.schedule.frequency, choice === "DAILY" ? "DAILY" : "INTERVAL");
+        assert.equal(r.settings.schedule.time, h.DAILY_TIME);
+      }
+      assert.equal(h.DAILY_TIME, "20:00");
     });
   });
 

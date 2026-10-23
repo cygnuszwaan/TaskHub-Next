@@ -87,9 +87,7 @@
     [hidden] { display: none !important; }
     .gate { max-width: 360px; margin: 80px auto; text-align: center; }
     .gate-msg { color: #b91c1c; font-size: 14px; min-height: 20px; margin: 10px 0; }
-    .app-header { position: sticky; top: 0; z-index: 100; background: #f4f6f8; padding: 12px 0 0; margin-bottom: 16px; border-bottom: 1px solid #dbe1e8; }
-    .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-    .header-row h1 { margin: 0; }
+    .app-header { position: sticky; top: 0; z-index: 100; background: #f4f6f8; padding-top: 8px; margin-bottom: 16px; border-bottom: 1px solid #dbe1e8; }
     .tab-bar { display: flex; gap: 4px; }
     .tab-btn { flex: 1; background: transparent; color: #475569; border-radius: 6px 6px 0 0; border-bottom: 3px solid transparent; padding: 10px 8px; }
     .tab-btn small { font-weight: normal; color: #64748b; }
@@ -106,10 +104,6 @@
 
   <div id="app" hidden>
   <header class="app-header">
-    <div class="header-row">
-      <h1 style="font-size: 22px;">TaskHub Next</h1>
-      <button class="btn-secondary" onclick="signOutUser()">Sign out</button>
-    </div>
     <nav class="tab-bar" id="tabBar">
       <button type="button" class="tab-btn active" data-tab="tasks">Tasks</button>
       <button type="button" class="tab-btn" data-tab="materials">Materials <small id="materialsCount"></small></button>
@@ -204,21 +198,23 @@
           </div>
           <div id="placeResults" class="place-results"></div>
         </div>
-        <div class="form-group">
-          <label for="scheduleDays">Days to schedule ahead (1 to 28)</label>
-          <input type="number" id="scheduleDays" min="1" max="28" step="1" inputmode="numeric">
-        </div>
-        <div class="form-group">
-          <label for="gapMinutes">Gap between tasks (minutes, 0 to 60)</label>
-          <input type="number" id="gapMinutes" min="0" max="60" step="5" inputmode="numeric">
+        <div class="form-group" style="display: flex; gap: 10px;">
+          <div style="flex: 1;">
+            <label for="scheduleDays">Days to schedule</label>
+            <input type="number" id="scheduleDays" min="1" max="28" step="1" inputmode="numeric">
+          </div>
+          <div style="flex: 1;">
+            <label for="gapMinutes">Gap between tasks</label>
+            <input type="number" id="gapMinutes" min="0" max="60" step="5" inputmode="numeric">
+          </div>
         </div>
         <div class="form-group" style="display: flex; gap: 10px;">
           <div style="flex: 1;">
-            <label for="dayStart">Day starts (local)</label>
+            <label for="dayStart">Day starts</label>
             <input type="time" id="dayStart">
           </div>
           <div style="flex: 1;">
-            <label for="dayEnd">Day ends (local)</label>
+            <label for="dayEnd">Day ends</label>
             <input type="time" id="dayEnd">
           </div>
         </div>
@@ -227,11 +223,11 @@
         </div>
         <div class="form-group" id="lunchFields" style="display: flex; gap: 10px;">
           <div style="flex: 1;">
-            <label for="lunchTime">Lunch starts (local)</label>
+            <label for="lunchTime">Lunch starts</label>
             <input type="time" id="lunchTime">
           </div>
           <div style="flex: 1;">
-            <label for="lunchMinutes">Length (minutes, 5 to 180)</label>
+            <label for="lunchMinutes">Length</label>
             <input type="number" id="lunchMinutes" min="5" max="180" step="5" inputmode="numeric">
           </div>
         </div>
@@ -239,19 +235,9 @@
           <label><input type="checkbox" id="schedEnabled"> Run the schedule automatically</label>
         </div>
         <div class="form-group">
-          <label for="schedFrequency">Frequency</label>
-          <select id="schedFrequency">
-            <option value="DAILY">Once a day</option>
-            <option value="INTERVAL">Repeatedly during the day (8:00 AM to 7:00 PM)</option>
-          </select>
-        </div>
-        <div class="form-group" id="schedTimeGroup">
-          <label for="schedTime">Time of day (local)</label>
-          <input type="time" id="schedTime">
-        </div>
-        <div class="form-group" id="schedIntervalGroup">
           <label for="schedInterval">Repeat every</label>
           <select id="schedInterval">
+            <option value="DAILY">Daily at 8pm</option>
             <option value="15">15 minutes</option>
             <option value="30">30 minutes</option>
             <option value="60">1 hour</option>
@@ -496,6 +482,23 @@
     }
 
     // <pure-helpers>
+    // The "Repeat every" select combines the schedule's frequency and interval: "DAILY" runs once a day at 20:00,
+    // a number is the interval in minutes. The server keeps its separate fields.
+    const DAILY_TIME = "20:00";
+    const DEFAULT_INTERVAL_MINUTES = 60;
+    function scheduleChoice(schedule) {
+      return schedule && schedule.frequency === "INTERVAL" ? String(schedule.intervalMinutes) : "DAILY";
+    }
+    // The schedule fields for a choice. The interval the choice does not use is kept as stored, so switching back restores it.
+    function scheduleFromChoice(choice, storedInterval) {
+      const daily = choice === "DAILY";
+      return {
+        frequency: daily ? "DAILY" : "INTERVAL",
+        time: DAILY_TIME,
+        intervalMinutes: daily ? (Number(storedInterval) || DEFAULT_INTERVAL_MINUTES) : Number(choice)
+      };
+    }
+
     const TABS = ["tasks", "materials", "settings"];
     // The tab to show for a requested name; anything unknown falls back to the first tab.
     function normalizeTab(name) {
@@ -588,7 +591,7 @@
       return Array.isArray(data && data.results) ? data.results.map(placeFromGeocode).filter(Boolean) : [];
     }
 
-    // The updateSettings body for the settings form. Both schedule fields are sent whatever the frequency, so the
+    // The updateSettings body for the settings form. Every schedule field is sent whatever the frequency, so the
     // server's checks apply to each; the server stays the validator.
     function settingsPayload(form) {
       return {
@@ -1388,12 +1391,6 @@
       box.textContent = `📍 ${place.name} · ${place.timeZone}${pendingLocation ? " (not saved yet)" : ""}`;
     }
 
-    function updateScheduleFields() {
-      const interval = document.getElementById("schedFrequency").value === "INTERVAL";
-      document.getElementById("schedTimeGroup").hidden = interval;
-      document.getElementById("schedIntervalGroup").hidden = !interval;
-    }
-
     function updateLunchFields() {
       const on = document.getElementById("lunchEnabled").checked;
       document.getElementById("lunchTime").disabled = !on;
@@ -1437,10 +1434,7 @@
       document.getElementById("lunchMinutes").value = typeof lunch.minutes === "number" ? String(lunch.minutes) : "";
       updateLunchFields();
       document.getElementById("schedEnabled").checked = !!s.schedule.enabled;
-      document.getElementById("schedFrequency").value = s.schedule.frequency;
-      document.getElementById("schedTime").value = s.schedule.time;
-      document.getElementById("schedInterval").value = String(s.schedule.intervalMinutes);
-      updateScheduleFields();
+      document.getElementById("schedInterval").value = scheduleChoice(s.schedule);
       const last = s.lastAutoRunAt ? new Date(s.lastAutoRunAt) : null;
       document.getElementById("settingsLastRun").textContent = last && !isNaN(last)
         ? `Last automatic run: ${formatInstant(last)} (${appTimeZone}).`
@@ -1500,9 +1494,7 @@
             lunchTime: document.getElementById("lunchTime").value,
             lunchMinutes: document.getElementById("lunchMinutes").value,
             enabled: document.getElementById("schedEnabled").checked,
-            frequency: document.getElementById("schedFrequency").value,
-            time: document.getElementById("schedTime").value,
-            intervalMinutes: document.getElementById("schedInterval").value
+            ...scheduleFromChoice(document.getElementById("schedInterval").value, currentSettings && currentSettings.schedule.intervalMinutes)
           }) })
         });
         const saved = (await res.json()).settings;
@@ -1526,7 +1518,6 @@
       const btn = e.target.closest("[data-tab]");
       if (btn) showTab(btn.dataset.tab);
     });
-    document.getElementById("schedFrequency").addEventListener("change", updateScheduleFields);
     document.getElementById("lunchEnabled").addEventListener("change", updateLunchFields);
     document.getElementById("manualToggle").addEventListener("change", e => {
       document.getElementById("manualFields").hidden = !e.target.checked;
