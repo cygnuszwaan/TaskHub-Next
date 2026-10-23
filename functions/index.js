@@ -12,6 +12,7 @@ const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eve
 const {repairSchedule, buildFixedSlots, matchLockedEvents} = require("./schedule");
 const {planSchedule} = require("./planner");
 const {lunchWindows, padWindows} = require("./breaks");
+const {setTimerInList, pauseTimer} = require("./timer");
 const {applyDirectUpdate, completeInList, removalRecord, isUndoable, undoInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
 const {UNAVAILABLE, weatherUrl, parseForecast, forecastKey, weatherWindow} = require("./weather");
@@ -551,7 +552,7 @@ exports.updateTaskDirect = onRequest({
         const removedTask = tasks.find((t) => t.id === taskId);
         if (!removedTask) return {current: tasks};
         const remaining = tasks.filter((t) => t.id !== taskId);
-        tx.set(LAST_REMOVED_REF, removalRecord("DELETE", removedTask, null, null, Date.now())); // kept for undoRemove
+        tx.set(LAST_REMOVED_REF, removalRecord("DELETE", pauseTimer(removedTask, Date.now()), null, null, Date.now())); // kept for undoRemove
         return {tasks: remaining, current: remaining, removedTask};
       }
       if (action === "UPDATE" && tasks.some((t) => t.id === taskId)) {
@@ -563,6 +564,28 @@ exports.updateTaskDirect = onRequest({
     // Calendar cleanup follows the commit; a locked task's personal-calendar event is never touched
     await removeTaskCalendarEvent(result.removedTask);
 
+    res.status(200).send({success: true, tasks: result.current});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 7a. Endpoint: Start or pause a task's timer
+// Body {taskId, action: "START"|"PAUSE"}. The server's clock is used. Starting also pauses any other running timer (one
+// runs at a time). Starting a running timer or pausing a paused one changes nothing. 400 for an unusable action, 404
+// for an unknown task. Responds {success, tasks}.
+exports.toggleTimer = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const {taskId, action} = req.body || {};
+    const verb = typeof action === "string" ? action.trim().toUpperCase() : "";
+    if (verb !== "START" && verb !== "PAUSE") return res.status(400).send({error: "action must be START or PAUSE"});
+    const result = await updateTaskList((tasks) => {
+      const done = setTimerInList(tasks, taskId, verb, Date.now());
+      if (!done) return {current: tasks, unknown: true};
+      return {tasks: done.tasks, current: done.tasks};
+    });
+    if (result.unknown) return res.status(404).send({error: "Task not found"});
     res.status(200).send({success: true, tasks: result.current});
   } catch (err) {
     console.error(err);

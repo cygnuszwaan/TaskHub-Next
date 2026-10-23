@@ -6,6 +6,7 @@ const {applyProjectFields, projectFieldsOf} = require("./projects");
 const {normalizeMaterials} = require("./materials");
 const {normalizeSnooze} = require("./snooze");
 const {normalizeComments} = require("./comments");
+const {settleTimer} = require("./timer");
 const PRIORITIES = ["HIGH", "MEDIUM", "LOW"];
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const FREQUENCIES = ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"];
@@ -33,7 +34,7 @@ function normalizeRecurrence(value) {
 // validated by normalizeMaterials (null or an empty list removes it, an unusable value leaves it as it was; new
 // items get ids from `makeId`); and `snoozedUntil`, validated by normalizeSnooze (null or an empty string removes it, an
 // unusable value leaves it as it was); and `comments`, validated by normalizeComments (null or empty text removes it, a
-// non-string leaves it as it was). `addedAt` is never changed by an edit.
+// non-string leaves it as it was). `addedAt`, `trackedSeconds` and `timerStartedAt` are never changed by an edit.
 // Pure apart from `makeId`: the input is not modified.
 function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   const rest = {...fields};
@@ -43,6 +44,8 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   delete rest.snoozedUntil;
   delete rest.comments;
   delete rest.addedAt;
+  delete rest.trackedSeconds;
+  delete rest.timerStartedAt;
   const next = {...task, ...rest};
   if (fields && "recurrence" in fields) {
     const recurrence = normalizeRecurrence(fields.recurrence);
@@ -69,7 +72,7 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
 }
 
 // Fields the model may set. Everything else on a task (id, status, order, calendar and schedule fields, locked,
-// materials, snoozedUntil, comments, addedAt) is server-owned.
+// materials, snoozedUntil, comments, addedAt, trackedSeconds, timerStartedAt) is server-owned.
 function cleanFields(change) {
   const out = {};
   if (typeof change.title === "string" && change.title.trim()) out.title = change.title.trim();
@@ -194,7 +197,9 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
 //   taskId: the task being completed
 //   today:  the current local date, YYYY-MM-DD
 //   makeId: () => new task id
-//   now:    ISO text; the next occurrence's `addedAt` (left off when omitted)
+//   now:    ISO text; the next occurrence's `addedAt` (left off when omitted), and the instant a running timer on the
+//           completed task stops at. The completed task always carries `trackedSeconds` (0 if never timed) and no
+//           `timerStartedAt`; the next occurrence starts with no tracked time.
 // The next occurrence copies title, priority, estimatedMinutes, tags, recurrence and project membership
 // (projectId, projectOrder), materials (all unchecked, as the next occurrence needs them again) and comments, is PENDING and not snoozed, has the next due date (see nextDueDate) and takes the completed task's
 // rank; it has no schedule, calendar event or lock.
@@ -203,7 +208,7 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
 function completeInList(tasks, taskId, today, makeId, now) {
   const index = tasks.findIndex((t) => t.id === taskId);
   if (index === -1) return null;
-  const completedTask = tasks[index];
+  const completedTask = settleTimer(tasks[index], Date.parse(now));
   const recurrence = normalizeRecurrence(completedTask.recurrence);
   const rest = tasks.filter((t) => t.id !== taskId);
   if (!recurrence) return {tasks: rest, completedTask, spawned: null};
@@ -258,6 +263,7 @@ function undoInList(tasks, record) {
   if (!task || typeof task.id !== "string" || tasks.some((t) => t.id === task.id)) return null;
   const rest = record.spawnedId ? tasks.filter((t) => t.id !== record.spawnedId) : tasks;
   const restored = {...task};
+  delete restored.timerStartedAt; // a restored task never comes back with its timer running
   if (!restored.locked) {
     delete restored.googleCalendarEventId;
     delete restored.scheduledStart;

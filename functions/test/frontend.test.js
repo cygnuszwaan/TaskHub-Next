@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, sortTasksForList, SORT_OPTIONS, normalizeSortKey, sortTasks, streakText, statProjectName, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, sortTasksForList, SORT_OPTIONS, normalizeSortKey, sortTasks, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -1033,6 +1033,51 @@ describe("public/index.html helpers", () => {
     });
     it("labels the edit modal's comments box just Comments", () => {
       assert.ok(html.includes("<label for=\"editComments\">Comments</label>"));
+    });
+  });
+
+  describe("time tracking", () => {
+    const T0 = Date.parse("2026-10-24T09:00:00.000Z");
+
+    it("knows whether a timer is running", () => {
+      const {isTimerRunning} = load();
+      assert.equal(isTimerRunning({}), false);
+      assert.equal(isTimerRunning({trackedSeconds: 30}), false);
+      assert.equal(isTimerRunning({timerStartedAt: "2026-10-24T09:00:00.000Z"}), true);
+    });
+    it("adds the running stretch to the saved seconds and never goes negative", () => {
+      const {elapsedSecondsOf} = load();
+      assert.equal(elapsedSecondsOf({trackedSeconds: 60, timerStartedAt: new Date(T0).toISOString()}, T0 + 15000), 75);
+      assert.equal(elapsedSecondsOf({trackedSeconds: 60}, T0), 60);
+      assert.equal(elapsedSecondsOf({timerStartedAt: new Date(T0).toISOString()}, T0 - 9000), 0);
+      assert.equal(elapsedSecondsOf({}, T0), 0);
+    });
+    it("formats the elapsed time as m:ss, or h:mm:ss from an hour", () => {
+      const {formatElapsed} = load();
+      assert.equal(formatElapsed(0), "0:00");
+      assert.equal(formatElapsed(65), "1:05");
+      assert.equal(formatElapsed(3599), "59:59");
+      assert.equal(formatElapsed(3725), "1:02:05");
+      assert.equal(formatElapsed(-4), "0:00");
+      assert.equal(formatElapsed("x"), "0:00");
+    });
+    it("words a tracked duration", () => {
+      const {durationText} = load();
+      assert.deepEqual([0, 45, 60, 89, 3600, 3900, 7200].map(durationText), ["0s", "45s", "1m", "1m", "1h", "1h 5m", "2h"]);
+    });
+    it("shows a completed task's tracked time, or its estimate marked as one when it predates tracking", () => {
+      const {completedTimeText} = load();
+      assert.equal(completedTimeText({trackedSeconds: 1500, estimatedMinutes: 60}), "25m");
+      assert.equal(completedTimeText({trackedSeconds: 0, estimatedMinutes: 60}), "0s");
+      assert.equal(completedTimeText({estimatedMinutes: 30}), "30m est.");
+      assert.equal(completedTimeText({}), "15m est.");
+    });
+    it("has a timer icon on the task card and a timer button beside Snooze in the edit modal, and no Reschedule button", () => {
+      assert.ok(html.includes("data-action=\"timer\""));
+      const modal = html.slice(html.indexOf("modal-extra-actions\">"), html.indexOf("modal-actions\">"));
+      assert.ok(modal.includes("id=\"editTimerBtn\"") && modal.includes("id=\"editElapsed\"") && modal.includes("snoozeFromModal"));
+      assert.equal(html.includes("rescheduleFromModal"), false);
+      assert.equal(html.includes("Reschedule</button>"), false);
     });
   });
 });

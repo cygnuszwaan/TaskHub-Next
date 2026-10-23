@@ -37,6 +37,19 @@ describe("tasks.js", () => {
       assert.equal(stamped.spawned.addedAt, "2026-10-23T08:00:00.000Z");
       assert.equal("addedAt" in completeInList(tasks, "b", today, makeIdGenerator()).spawned, false);
     });
+    it("archives the task with its tracked time, stopping a running timer at the given time", () => {
+      const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, trackedSeconds: 60, timerStartedAt: "2026-10-23T08:00:00.000Z"} : t));
+      const r = completeInList(tasks, "b", today, makeIdGenerator(), "2026-10-23T08:02:00.000Z");
+      assert.equal(r.completedTask.trackedSeconds, 180);
+      assert.equal("timerStartedAt" in r.completedTask, false);
+      assert.equal(completeInList(existingTasks(), "c", today, makeIdGenerator(), "2026-10-23T08:02:00.000Z").completedTask.trackedSeconds, 0);
+    });
+    it("gives the next occurrence no tracked time and no running timer", () => {
+      const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, recurrence: weekly, trackedSeconds: 600, timerStartedAt: "2026-10-23T08:00:00.000Z"} : t));
+      const spawned = completeInList(tasks, "b", today, makeIdGenerator(), "2026-10-23T08:02:00.000Z").spawned;
+      assert.equal("trackedSeconds" in spawned, false);
+      assert.equal("timerStartedAt" in spawned, false);
+    });
     it("leaves the other tasks exactly as they were", () => {
       const tasks = existingTasks();
       const r = completeInList(tasks, "b", today, makeIdGenerator());
@@ -141,6 +154,13 @@ describe("tasks.js", () => {
       const task = {...base, addedAt: "2026-01-01T00:00:00.000Z"};
       assert.equal(applyDirectUpdate(task, {addedAt: "2030-01-01T00:00:00.000Z", title: "A2"}).addedAt, "2026-01-01T00:00:00.000Z");
       assert.equal("addedAt" in applyDirectUpdate(base, {addedAt: "2030-01-01T00:00:00.000Z"}), false);
+    });
+    it("never changes the time tracking fields through an edit", () => {
+      const task = {...base, trackedSeconds: 50, timerStartedAt: "2026-10-23T08:00:00.000Z"};
+      const out = applyDirectUpdate(task, {trackedSeconds: 9999, timerStartedAt: "", title: "A2"});
+      assert.equal(out.trackedSeconds, 50);
+      assert.equal(out.timerStartedAt, "2026-10-23T08:00:00.000Z");
+      assert.equal("trackedSeconds" in applyDirectUpdate(base, {trackedSeconds: 5}), false);
     });
     it("sets a validated recurrence", () => {
       assert.deepEqual(applyDirectUpdate(base, {recurrence: {frequency: "monthly", interval: 2.2, junk: 1}}).recurrence, {frequency: "MONTHLY", interval: 2});
@@ -690,6 +710,16 @@ describe("undoing a delete or completion", () => {
       undoInList(list, rec);
       assert.deepEqual(list, [other]);
       assert.equal(rec.task.googleCalendarEventId, "ev1");
+    });
+  });
+
+  describe("undoInList: timers", () => {
+    const {undoInList} = require("../tasks");
+    it("never restores a task with its timer running", () => {
+      const record = {task: {id: "x", title: "X", trackedSeconds: 40, timerStartedAt: "2026-10-23T08:00:00.000Z"}, spawnedId: null};
+      const out = undoInList([], record);
+      assert.equal(out.restored.trackedSeconds, 40);
+      assert.equal("timerStartedAt" in out.restored, false);
     });
   });
 });

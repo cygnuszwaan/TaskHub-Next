@@ -115,6 +115,26 @@ describe("completed.js", () => {
       assert.deepEqual(s.byPriority.map((p) => p.priority), ["HIGH", "MEDIUM", "LOW"]);
       assert.deepEqual(s.byTag, []);
     });
+    it("counts tracked time instead of the estimate when a row has it, and the estimate for rows from before tracking", () => {
+      const s = summarizeCompleted([
+        done("2026-10-20T01:00:00Z", {estimatedMinutes: 60, trackedSeconds: 1500, priority: "HIGH", tags: ["Home"]}), // 25 min tracked
+        done("2026-10-20T02:00:00Z", {estimatedMinutes: 30, priority: "HIGH", tags: ["Home"]}), // no tracking field: 30 min estimate
+        done("2026-10-20T03:00:00Z", {estimatedMinutes: 45, trackedSeconds: 0}), // never timed: 0
+      ], NZ, now);
+      assert.equal(s.totalMinutes, 55);
+      assert.equal(s.weeks[7].minutes, 55);
+      assert.equal(s.byPriority[0].minutes, 55);
+      assert.deepEqual(s.byTag, [{tag: "Home", count: 2, minutes: 55}]);
+    });
+    it("sums tracked seconds exactly before rounding to whole minutes", () => {
+      const s = summarizeCompleted([
+        done("2026-10-20T01:00:00Z", {trackedSeconds: 40}),
+        done("2026-10-20T02:00:00Z", {trackedSeconds: 40}),
+        done("2026-10-20T03:00:00Z", {trackedSeconds: 40}),
+      ], NZ, now);
+      assert.equal(s.totalMinutes, 2);
+      assert.equal(s.weeks[7].minutes, 2);
+    });
     it("counts completions and minutes per NZ week", () => {
       const rows = [
         done("2026-10-22T21:00:00Z", {estimatedMinutes: 30}), // this week

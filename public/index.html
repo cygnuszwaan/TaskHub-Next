@@ -155,7 +155,9 @@
     .snooze-choices { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
     .snooze-choices button { flex: 1 1 auto; }
     .task-comments { margin-top: 6px; font-size: 13px; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-    .modal-extra-actions { display: flex; gap: 8px; margin-top: 14px; }
+    .modal-extra-actions { display: flex; gap: 8px; margin-top: 14px; align-items: center; }
+    .timer-group { display: flex; gap: 8px; align-items: center; }
+    .elapsed-time { font-size: 15px; font-variant-numeric: tabular-nums; color: var(--text-muted); min-width: 3.5em; }
   </style>
 </head>
 <body>
@@ -461,7 +463,10 @@
       </div>
 
       <div class="modal-extra-actions">
-        <button type="button" class="btn-secondary" title="Save these changes, then find a new time for this task" onclick="rescheduleFromModal()">🔄 Reschedule</button>
+        <div class="timer-group">
+          <button type="button" class="btn-secondary" id="editTimerBtn" onclick="toggleTimerFromModal()"></button>
+          <span class="elapsed-time" id="editElapsed" title="Time tracked on this task"></span>
+        </div>
         <button type="button" class="btn-secondary" title="Save these changes, then keep this task off the schedule until a later day" onclick="snoozeFromModal()">💤 Snooze</button>
       </div>
 
@@ -517,6 +522,7 @@
     const UNDO_URL = endpoint("undoRemove");
     const SCHEDULE_URL = endpoint("generateWeeklySchedule");
     const RESCHEDULE_URL = endpoint("rescheduleTask");
+    const TIMER_URL = endpoint("toggleTimer");
     const COMPLETED_URL = endpoint("getCompletedTasks");
     const GET_SETTINGS_URL = endpoint("getSettings");
     const UPDATE_SETTINGS_URL = endpoint("updateSettings");
@@ -1069,6 +1075,39 @@
         return a.order - b.order;
       });
     }
+    // Time tracking: a task keeps the seconds accrued (`trackedSeconds`) and, while its timer runs, when it started
+    // (`timerStartedAt`). The server owns both; the page only shows them.
+    function isTimerRunning(task) {
+      return !isNaN(Date.parse(task && task.timerStartedAt));
+    }
+    // Seconds tracked on a task at `nowMs`, the running stretch included (never negative, even if this device's clock
+    // is behind the server's).
+    function elapsedSecondsOf(task, nowMs = Date.now()) {
+      const saved = task && Number.isFinite(task.trackedSeconds) && task.trackedSeconds > 0 ? Math.round(task.trackedSeconds) : 0;
+      const start = Date.parse(task && task.timerStartedAt);
+      return saved + (isNaN(start) || !(nowMs > start) ? 0 : Math.round((nowMs - start) / 1000));
+    }
+    // "7:05" under an hour, "1:02:09" from an hour on.
+    function formatElapsed(seconds) {
+      const total = Math.max(0, Math.floor(Number(seconds) || 0));
+      const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+      const two = n => String(n).padStart(2, "0");
+      return h > 0 ? `${h}:${two(m)}:${two(s)}` : `${m}:${two(s)}`;
+    }
+    // A tracked duration in words: "45s" under a minute, then "7m", "1h 5m", "2h".
+    function durationText(seconds) {
+      const total = Math.max(0, Math.round(Number(seconds) || 0));
+      if (total < 60) return `${total}s`;
+      const m = Math.round(total / 60);
+      if (m < 60) return `${m}m`;
+      return m % 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${Math.floor(m / 60)}h`;
+    }
+    // The time chip text of a completed task: the time tracked on it, or its estimate (marked "est.") for a task
+    // completed before time tracking began, which has no tracked time.
+    function completedTimeText(task) {
+      if (task && Number.isFinite(task.trackedSeconds)) return durationText(task.trackedSeconds);
+      return `${(task && task.estimatedMinutes) || 15}m est.`;
+    }
     // The Stats line for the streak: "Current streak: 3 days · Longest: 9 days". A number that may be larger than shown
     // (its run reaches the first day of the summary window) gets a "+". "" when there is no streak data or no
     // completion at all.
@@ -1192,6 +1231,7 @@
         if (btn && item.contains(btn)) {
           if (btn.dataset.action === "complete") { if (confirmComplete(taskId)) completeTask(taskId); }
           else if (btn.dataset.action === "snooze") openSnoozeModal(taskId);
+          else if (btn.dataset.action === "timer") toggleTimer(taskId);
           return;
         }
         openEditModal(taskId);
@@ -1494,6 +1534,7 @@
             ${t.comments ? `<div class="task-comments">${esc(t.comments)}</div>` : ''}
           </div>
           <div class="action-btns">
+            <button class="complete-btn" title="${isTimerRunning(t) ? 'Pause the timer' : 'Start the timer'}" aria-label="${isTimerRunning(t) ? 'Pause the timer' : 'Start the timer'}" data-action="timer">${isTimerRunning(t) ? '⏸️' : '▶️'}</button>
             <button class="complete-btn" title="Snooze: keep it off the schedule until a later day" data-action="snooze">💤</button>
             <button class="complete-btn" title="Complete & Archive Task" data-action="complete">✅</button>
           </div>
@@ -1596,6 +1637,7 @@
       renderEditMaterials();
       document.getElementById("editComments").value = typeof task.comments === "string" ? task.comments : "";
 
+      showEditTimer();
       document.getElementById("editModal").style.display = "flex";
       document.body.classList.add("modal-open"); // the page behind must not scroll with the modal
     }
@@ -1634,7 +1676,57 @@
       document.getElementById("editDueDate").value = "";
     }
 
+    // The timer button and elapsed time in the edit modal, from the task as it is on the list now. While the timer
+    // runs the time ticks every second, until the modal closes.
+    let elapsedTicker = null;
+    function stopElapsedTicker() {
+      if (elapsedTicker !== null) clearInterval(elapsedTicker);
+      elapsedTicker = null;
+    }
+    function showEditTimer() {
+      stopElapsedTicker();
+      const task = allTasks.find(t => t.id === document.getElementById("editTaskId").value);
+      const btn = document.getElementById("editTimerBtn");
+      if (!task) return;
+      const running = isTimerRunning(task);
+      btn.textContent = running ? "⏸️ Pause" : "▶️ Start";
+      btn.title = running ? "Pause the timer" : "Start the timer";
+      const show = () => { document.getElementById("editElapsed").textContent = formatElapsed(elapsedSecondsOf(task)); };
+      show();
+      if (running) elapsedTicker = setInterval(show, 1000);
+    }
+
+    // Starts or pauses a task's timer on the server (which keeps the time) and redraws from its answer. Starting one
+    // pauses any other that was running. Ignored while a request is in flight.
+    let timerBusy = false;
+    async function toggleTimer(taskId) {
+      const task = allTasks.find(t => t.id === taskId);
+      if (!task || timerBusy) return;
+      timerBusy = true;
+      try {
+        const res = await apiFetch(TIMER_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ taskId, action: isTimerRunning(task) ? "PAUSE" : "START" })
+        });
+        const data = await res.json();
+        allTasks = data.tasks || allTasks;
+        renderTasks();
+        if (document.getElementById("editModal").style.display === "flex") showEditTimer();
+      } catch (err) {
+        alert("Failed to change the timer: " + err.message);
+      } finally {
+        timerBusy = false;
+      }
+    }
+
+    // The edit modal's button acts on the task open in it; the other edits in the form are left as they are
+    function toggleTimerFromModal() {
+      return toggleTimer(document.getElementById("editTaskId").value);
+    }
+
     function closeEditModal() {
+      stopElapsedTicker();
       document.getElementById("editModal").style.display = "none";
       document.body.classList.remove("modal-open");
     }
@@ -1724,13 +1816,6 @@
       }
     }
 
-    // Saves the edits first so the new time reflects them, then moves just this task
-    async function rescheduleFromModal() {
-      const taskId = document.getElementById("editTaskId").value;
-      if (!(await saveTaskEdits())) return;
-      await rescheduleTask(taskId);
-    }
-
     // Saves the edits first, then opens the snooze dialog for this task
     async function snoozeFromModal() {
       const taskId = document.getElementById("editTaskId").value;
@@ -1815,7 +1900,7 @@
       const streak = streakText(summary.streak);
       return `
         <div class="summary">
-          <div class="summary-total"><strong>${esc(summary.totalCount)}</strong> completed · <strong>${esc(fmtMinutes(summary.totalMinutes))}</strong> estimated, last ${esc(weeks.length)} weeks${summary.truncated ? " (newest entries only)" : ""}</div>
+          <div class="summary-total"><strong>${esc(summary.totalCount)}</strong> completed · <strong>${esc(fmtMinutes(summary.totalMinutes))}</strong> tracked, last ${esc(weeks.length)} weeks${summary.truncated ? " (newest entries only)" : ""}</div>
           ${streak ? `<div class="summary-total">🔥 ${esc(streak)}</div>` : ""}
           <div class="summary-label">Per week (week starting Monday)</div>
           ${weekRows}
@@ -1845,7 +1930,7 @@
                 <strong>${esc(t.title)}</strong>
                 <div class="task-meta">
                   <span class="badge ${PRIORITIES.includes(t.priority) ? t.priority : ''}">${esc(t.priority)}</span>
-                  <span class="time-chip">⏱️ ${esc(t.estimatedMinutes || 15)}m</span>
+                  <span class="time-chip" title="${Number.isFinite(t.trackedSeconds) ? 'Time tracked' : 'Estimate: completed before time tracking began'}">⏱️ ${esc(completedTimeText(t))}</span>
                   ${(t.tags || []).map(tag => `<span class="chip">${esc(tag)}</span>`).join('')}
                   ${when ? `<span class="chip">✅ ${esc(when)}</span>` : ''}
                 </div>

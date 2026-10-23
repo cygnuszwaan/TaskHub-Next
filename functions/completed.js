@@ -46,8 +46,17 @@ function summaryWindowStart(timeZone, now = new Date(), weeks = SUMMARY_WEEKS) {
   return localDayStart(timeZone, firstSummaryWeek(timeZone, now, weeks));
 }
 
+// The minutes a completed task counts for: the time tracked on it when the row has `trackedSeconds` (every row
+// archived since time tracking began does, 0 for a task never timed), else its estimate (a row from before that has
+// nothing else). Tracked time is fractional here and only rounded when the totals are returned.
 function minutesOf(row) {
+  if (Number.isFinite(row.trackedSeconds)) return Math.max(row.trackedSeconds, 0) / 60;
   return Number.isFinite(row.estimatedMinutes) && row.estimatedMinutes > 0 ? Math.round(row.estimatedMinutes) : 0;
+}
+
+// The summary's entries with their `minutes` rounded to whole minutes.
+function rounded(entries) {
+  return entries.map((e) => ({...e, minutes: Math.round(e.minutes)}));
 }
 
 // Streaks of local days with at least one completion, within the summary window. Pure: no I/O.
@@ -76,6 +85,7 @@ function computeStreaks(days, since, today) {
   return {current: live ? live.length : 0, longest, currentLimited: Boolean(live) && live.start === since, longestLimited};
 }
 
+// Minutes are time tracked (see minutesOf), summed exactly and rounded to whole minutes in the result.
 // Totals for completed tasks over the last `weeks` local weeks in the given zone. Pure: no I/O.
 //   rows:     archive documents (a Task plus completedAt as a Timestamp, Date or ISO string)
 //   projects: the current projects [{id, name}], to name the project of each row
@@ -142,11 +152,11 @@ function summarizeCompleted(rows, timeZone, now = new Date(), weeks = SUMMARY_WE
   return {
     since,
     totalCount,
-    totalMinutes,
-    weeks: [...buckets].map(([weekStart, v]) => ({weekStart, ...v})),
-    byPriority: [...priorities].map(([priority, v]) => ({priority, ...v})),
-    byTag: [...tags.values()].sort((a, b) => b.count - a.count || b.minutes - a.minutes || a.tag.localeCompare(b.tag)),
-    byProject: [...byProject.values()].sort((a, b) => b.count - a.count || b.minutes - a.minutes || (a.name === null) - (b.name === null) || String(a.name).localeCompare(String(b.name))),
+    totalMinutes: Math.round(totalMinutes),
+    weeks: rounded([...buckets].map(([weekStart, v]) => ({weekStart, ...v}))),
+    byPriority: rounded([...priorities].map(([priority, v]) => ({priority, ...v}))),
+    byTag: rounded([...tags.values()].sort((a, b) => b.count - a.count || b.minutes - a.minutes || a.tag.localeCompare(b.tag))),
+    byProject: rounded([...byProject.values()].sort((a, b) => b.count - a.count || b.minutes - a.minutes || (a.name === null) - (b.name === null) || String(a.name).localeCompare(String(b.name)))),
     streak: computeStreaks(days, since, today),
   };
 }
