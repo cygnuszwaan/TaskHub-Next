@@ -227,4 +227,65 @@ describe("makeSettingsStore", () => {
     assert.match((await makeSettingsStore(db).updateSettings(undefined)).error, /object/);
     assert.equal(db.state.writes, 0);
   });
+
+  describe("claimAutoRun", () => {
+    // 2026-10-22 is NZDT (+13:00): the defaults run daily at 20:00 Pacific/Auckland.
+    const nz = (hhmm, date = "2026-10-22") => new Date(`${date}T${hhmm}:00+13:00`);
+
+    it("writes nothing and returns due: false when no run is due", async () => {
+      const db = fakeDocDb({timeZone: "Pacific/Auckland"});
+      const r = await makeSettingsStore(db).claimAutoRun(nz("19:45"));
+      assert.equal(r.due, false);
+      assert.equal(db.state.writes, 0);
+    });
+    it("works with no settings document yet: the defaults apply and the claim creates it", async () => {
+      const db = fakeDocDb();
+      const store = makeSettingsStore(db);
+      assert.equal((await store.claimAutoRun(nz("12:00"))).due, false);
+      assert.equal(db.state.writes, 0);
+      const r = await store.claimAutoRun(nz("20:00"));
+      assert.equal(r.due, true);
+      assert.equal(db.state.writes, 1);
+      assert.equal(db.state.value.lastAutoRunAt, nz("20:00").toISOString());
+      assert.equal(db.state.value.schedule.time, "20:00");
+    });
+    it("records lastAutoRunAt and keeps the rest of the settings", async () => {
+      const db = fakeDocDb({timeZone: "Australia/Sydney", schedule: {frequency: "INTERVAL", intervalMinutes: 30}, lastRunFingerprint: "abc"});
+      const r = await makeSettingsStore(db).claimAutoRun(new Date("2026-10-22T00:00:00Z")); // 11:00 Sydney
+      assert.equal(r.due, true);
+      assert.deepEqual(db.state.value, r.settings);
+      assert.equal(db.state.value.lastAutoRunAt, "2026-10-22T00:00:00.000Z");
+      assert.equal(db.state.value.timeZone, "Australia/Sydney");
+      assert.equal(db.state.value.schedule.intervalMinutes, 30);
+      assert.equal(db.state.value.lastRunFingerprint, "abc");
+    });
+    it("hands a slot to only one of two successive ticks", async () => {
+      const db = fakeDocDb();
+      const store = makeSettingsStore(db);
+      assert.equal((await store.claimAutoRun(nz("20:00"))).due, true);
+      assert.equal((await store.claimAutoRun(nz("20:00"))).due, false);
+      assert.equal((await store.claimAutoRun(nz("20:15"))).due, false);
+      assert.equal(db.state.writes, 1);
+      assert.equal((await store.claimAutoRun(nz("20:00", "2026-10-23"))).due, true);
+      assert.equal(db.state.writes, 2);
+    });
+    it("does not touch updateSettings' view of the run state", async () => {
+      const db = fakeDocDb();
+      const store = makeSettingsStore(db);
+      await store.claimAutoRun(nz("20:00"));
+      const r = await store.updateSettings({schedule: {time: "06:00"}});
+      assert.equal(r.settings.lastAutoRunAt, nz("20:00").toISOString());
+    });
+    it("follows a settings change made between ticks", async () => {
+      const db = fakeDocDb();
+      const store = makeSettingsStore(db);
+      assert.equal((await store.claimAutoRun(nz("10:00"))).due, false);
+      await store.updateSettings({schedule: {frequency: "INTERVAL", intervalMinutes: 60}});
+      assert.equal((await store.claimAutoRun(nz("10:15"))).due, true);
+      assert.equal((await store.claimAutoRun(nz("10:30"))).due, false);
+      assert.equal((await store.claimAutoRun(nz("11:15"))).due, true);
+      await store.updateSettings({schedule: {enabled: false}});
+      assert.equal((await store.claimAutoRun(nz("12:30"))).due, false);
+    });
+  });
 });

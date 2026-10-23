@@ -12,7 +12,6 @@ const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eve
 const {validateSchedule, matchLockedEvents} = require("./schedule");
 const {applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {makeTaskStore, makeSettingsStore} = require("./store");
-const {DEFAULTS} = require("./settings");
 const {UNAVAILABLE, weatherUrl, describeWeather} = require("./weather");
 const {buildSchedulePrompt} = require("./prompts");
 const {SUMMARY_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted} = require("./completed");
@@ -28,12 +27,10 @@ const db = admin.firestore();
 // of the whole list (see store.js); readTaskList() is a plain read.
 const {updateTaskList, getTasks: readTaskList} = makeTaskStore(db);
 // Runtime settings (location, time zone, auto-run schedule) in `settings/app`; see settings.js.
-const {getSettings: readSettings, updateSettings: writeSettings} = makeSettingsStore(db);
+const {getSettings: readSettings, updateSettings: writeSettings, claimAutoRun} = makeSettingsStore(db);
 
 const MODEL_NAME = "gemini-3.5-flash-lite";
 
-// Zone of the fixed Cloud Scheduler cron below. Everything else uses the time zone in the runtime settings.
-const CRON_TIME_ZONE = DEFAULTS.timeZone;
 
 // Target Google Calendar for all scheduling (set in functions/.env)
 const CALENDAR_ID = defineString("USER_CALENDAR_ID");
@@ -331,21 +328,26 @@ async function runScheduleEngine({taskIds} = {}) {
   };
 }
 
-// 1. Scheduled Function: Runs Every Evening at 8:00 PM NZ time
+// 1. Scheduled Function: dispatcher for the automatic schedule update
+// Ticks every 15 minutes (the Cloud Scheduler cron is fixed at deploy; 15 minutes is the finest interval offered).
+// Each tick asks the runtime settings whether a run is due (daily at a set local time, or every N minutes in the
+// 8:00-19:00 local window) and claims it atomically, so a duplicate tick cannot start a second run. The claim
+// records the attempt even if the run then fails, which keeps a failing run from retrying on every tick.
 exports.autoScheduleDaily = onSchedule({
-  schedule: "0 20 * * *",
-  timeZone: CRON_TIME_ZONE,
+  schedule: "*/15 * * * *",
   secrets: [
     "GEMINI_API_KEY",
     {name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"},
   ],
 }, async (event) => {
-  console.log("Starting daily 8:00 PM automated schedule update...");
   try {
+    const {due} = await claimAutoRun();
+    if (!due) return;
+    console.log("Starting automated schedule update...");
     const result = await runScheduleEngine();
-    console.log("Daily schedule completed:", JSON.stringify(result));
+    console.log("Automated schedule completed:", JSON.stringify(result));
   } catch (err) {
-    console.error("Daily schedule failed:", err);
+    console.error("Automated schedule failed:", err);
   }
 });
 

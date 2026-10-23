@@ -155,4 +155,12 @@ function isRunDue(settings, now = new Date()) {
   return !last || now - last >= schedule.intervalMinutes * 60 * 1000 - TICK_GRACE_MS;
 }
 
-module.exports = {INTERVALS, FREQUENCIES, TICK_GRACE_MS, DEFAULTS, mergeSettings, applySettingsUpdate, isRunDue};
+// Decide whether this tick starts a run and, if so, mark the run as started. Returns {due, settings}: when due,
+// `settings` is the input with `lastAutoRunAt` set to `now`; otherwise it is the input unchanged. The mark counts
+// the attempt, not its success, so a failing run is not retried on every tick (it waits for the next due time).
+function claimRun(settings, now = new Date()) {
+  if (!isRunDue(settings, now)) return {due: false, settings};
+  return {due: true, settings: {...settings, lastAutoRunAt: now.toISOString()}};
+}
+
+module.exports = {INTERVALS, FREQUENCIES, TICK_GRACE_MS, DEFAULTS, mergeSettings, applySettingsUpdate, isRunDue, claimRun};

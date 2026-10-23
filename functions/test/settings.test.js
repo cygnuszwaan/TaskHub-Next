@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {DEFAULTS, INTERVALS, mergeSettings, applySettingsUpdate, isRunDue} = require("../settings");
+const {DEFAULTS, INTERVALS, mergeSettings, applySettingsUpdate, isRunDue, claimRun} = require("../settings");
 
 const base = (extra = {}) => ({...mergeSettings(undefined), ...extra});
 const sched = (schedule, extra = {}) => base({schedule: {...DEFAULTS.schedule, ...schedule}, ...extra});
@@ -189,6 +189,47 @@ describe("settings.js", () => {
         assert.equal(isRunDue(s, new Date("2026-10-21T20:59:00Z")), false);
         assert.equal(isRunDue(s, new Date("2026-10-21T21:00:00Z")), true);
       });
+    });
+  });
+
+  describe("claimRun", () => {
+    const nz = (hhmm, date = "2026-10-22") => new Date(`${date}T${hhmm}:00+13:00`);
+
+    it("is not due before the time and leaves the settings as they are", () => {
+      const s = base();
+      const r = claimRun(s, nz("19:45"));
+      assert.equal(r.due, false);
+      assert.equal(r.settings, s);
+    });
+    it("is not due when disabled", () => {
+      assert.equal(claimRun(sched({enabled: false}), nz("21:00")).due, false);
+    });
+    it("marks the run with the current instant when due, without modifying the input", () => {
+      const s = base();
+      const copy = structuredClone(s);
+      const r = claimRun(s, nz("20:05"));
+      assert.equal(r.due, true);
+      assert.equal(r.settings.lastAutoRunAt, nz("20:05").toISOString());
+      assert.deepEqual(s, copy);
+      assert.deepEqual({...r.settings, lastAutoRunAt: null}, s);
+    });
+    it("claims a DAILY slot only once: the next tick sees the mark", () => {
+      const first = claimRun(base(), nz("20:00"));
+      assert.equal(first.due, true);
+      assert.equal(claimRun(first.settings, nz("20:15")).due, false);
+      assert.equal(claimRun(first.settings, nz("20:00", "2026-10-23")).due, true);
+    });
+    it("spaces INTERVAL claims by the interval", () => {
+      const every30 = sched({frequency: "INTERVAL", intervalMinutes: 30});
+      const first = claimRun(every30, nz("09:00"));
+      assert.equal(first.due, true);
+      assert.equal(claimRun(first.settings, nz("09:15")).due, false);
+      assert.equal(claimRun(first.settings, nz("09:30")).due, true);
+    });
+    it("waits for the next due time after a run, whether or not it succeeded", () => {
+      // The mark is made when the run starts; nothing here depends on the outcome.
+      const claimed = claimRun(base(), nz("20:00")).settings;
+      for (const t of ["20:15", "20:30", "21:00", "23:45"]) assert.equal(claimRun(claimed, nz(t)).due, false, t);
     });
   });
 });

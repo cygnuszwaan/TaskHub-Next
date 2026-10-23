@@ -1,7 +1,7 @@
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
 const {isDeepStrictEqual} = require("node:util");
-const {mergeSettings, applySettingsUpdate} = require("./settings");
+const {mergeSettings, applySettingsUpdate, claimRun} = require("./settings");
 
 const COLLECTION = "tasks";
 const SETTINGS_DOC = "settings/app";
@@ -79,6 +79,9 @@ function makeTaskStore(db) {
 //   getSettings()          -> full settings (defaults fill anything missing; see settings.js)
 //   updateSettings(patch)  -> {settings} after a transactional merge of the editable fields in `patch`, or {error}
 //                             when a field is invalid (nothing is written then). Run state is preserved.
+//   claimAutoRun(now)      -> {due, settings}: in one transaction, checks whether the automatic run is due (see
+//                             `isRunDue`) and, if so, records `lastAutoRunAt`. Of several concurrent callers (a
+//                             duplicate scheduler delivery, say) at most one gets `due: true` for a given slot.
 function makeSettingsStore(db) {
   const ref = db.doc(SETTINGS_DOC);
 
@@ -96,7 +99,16 @@ function makeSettingsStore(db) {
     });
   }
 
-  return {getSettings, updateSettings};
+  async function claimAutoRun(now = new Date()) {
+    return db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const result = claimRun(mergeSettings(snap.exists ? snap.data() : undefined), now);
+      if (result.due) tx.set(ref, result.settings);
+      return result;
+    });
+  }
+
+  return {getSettings, updateSettings, claimAutoRun};
 }
 
 module.exports = {COLLECTION, SETTINGS_DOC, checkTaskIds, sortTasks, diffTasks, planMigration, makeTaskStore, makeSettingsStore};
