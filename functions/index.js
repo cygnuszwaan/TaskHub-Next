@@ -11,7 +11,7 @@ const {localDate, startOfLocalDay} = require("./time");
 const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
 const {validateSchedule, matchLockedEvents} = require("./schedule");
 const {applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults} = require("./tasks");
-const {makeTaskStore, makeSettingsStore} = require("./store");
+const {makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
 const {UNAVAILABLE, weatherUrl, describeWeather, weatherKey} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
 const {buildSchedulePrompt} = require("./prompts");
@@ -27,6 +27,8 @@ const db = admin.firestore();
 // Active tasks: one document per task in `tasks/{id}`. updateTaskList(mutate) is a transactional read-modify-write
 // of the whole list (see store.js); readTaskList() is a plain read.
 const {updateTaskList, getTasks: readTaskList} = makeTaskStore(db);
+// Projects that tasks can belong to, in `projects/{id}`; see projects.js and store.js.
+const {getProjects: readProjects, createProject, renameProject, deleteProject} = makeProjectStore(db);
 // Runtime settings (location, time zone, auto-run schedule) in `settings/app`; see settings.js.
 const {getSettings: readSettings, updateSettings: writeSettings, claimAutoRun, setRunFingerprint} = makeSettingsStore(db);
 
@@ -549,7 +551,8 @@ exports.updateTaskDirect = onRequest({
   try {
     const {taskId, action, updatedFields} = req.body;
 
-    const result = await updateTaskList((tasks) => {
+    // The project list is read in the same transaction, so a task can only join a project that exists at commit time
+    const result = await updateTaskList((tasks, tx, {projects}) => {
       if (action === "DELETE") {
         const removedTask = tasks.find((t) => t.id === taskId);
         if (!removedTask) return {current: tasks};
@@ -557,11 +560,11 @@ exports.updateTaskDirect = onRequest({
         return {tasks: remaining, current: remaining, removedTask};
       }
       if (action === "UPDATE" && tasks.some((t) => t.id === taskId)) {
-        const next = tasks.map((t) => (t.id === taskId ? applyDirectUpdate(t, updatedFields) : t));
+        const next = tasks.map((t) => (t.id === taskId ? applyDirectUpdate(t, updatedFields, projects.map((p) => p.id)) : t));
         return {tasks: next, current: next};
       }
       return {current: tasks};
-    });
+    }, {withProjects: true});
     // Calendar cleanup follows the commit; a locked task's personal-calendar event is never touched
     await removeTaskCalendarEvent(result.removedTask);
 
@@ -591,6 +594,37 @@ exports.updateSettings = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req
     const result = await writeSettings(req.body && req.body.settings);
     if (result.error) return res.status(400).send({error: result.error});
     res.status(200).send({success: true, settings: result.settings});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 10. Endpoint: Read Projects
+exports.getProjects = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    res.status(200).send({success: true, projects: await readProjects()});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 11. Endpoint: Create / Rename / Delete a Project
+// Body: {action: "CREATE", name} | {action: "UPDATE", projectId, name} (rename) | {action: "DELETE", projectId}.
+// 400 with the reason for an unusable or taken name or an unknown action, 404 for an unknown projectId. DELETE also
+// takes its member tasks out of the project (the tasks stay) and returns the updated `tasks`. No calendar changes.
+exports.updateProject = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const {action, projectId, name} = req.body || {};
+    let result;
+    if (action === "CREATE") result = await createProject(name, randomUUID);
+    else if (action === "UPDATE") result = await renameProject(projectId, name);
+    else if (action === "DELETE") result = await deleteProject(projectId);
+    else return res.status(400).send({error: "action must be CREATE, UPDATE or DELETE"});
+    if (result.notFound) return res.status(404).send({error: "Project not found"});
+    if (result.error) return res.status(400).send({error: result.error});
+    res.status(200).send({success: true, ...result});
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});

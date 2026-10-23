@@ -74,6 +74,24 @@ describe("tasks.js", () => {
       assert.equal(calls, 0);
       assert.equal(JSON.stringify(tasks), copy);
     });
+    it("gives the next occurrence the same project and order number", () => {
+      const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, recurrence: weekly, projectId: "p1", projectOrder: 2} : t));
+      const r = completeInList(tasks, "b", today, makeIdGenerator());
+      assert.equal(r.spawned.projectId, "p1");
+      assert.equal(r.spawned.projectOrder, 2);
+    });
+    it("gives the next occurrence a project without an order number when the task had none", () => {
+      const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, recurrence: weekly, projectId: "p1"} : t));
+      const r = completeInList(tasks, "b", today, makeIdGenerator());
+      assert.equal(r.spawned.projectId, "p1");
+      assert.equal("projectOrder" in r.spawned, false);
+    });
+    it("leaves project keys off the next occurrence of a task outside any project", () => {
+      const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, recurrence: weekly} : t));
+      const r = completeInList(tasks, "b", today, makeIdGenerator());
+      assert.equal("projectId" in r.spawned, false);
+      assert.equal("projectOrder" in r.spawned, false);
+    });
   });
 
   describe("normalizeRecurrence", () => {
@@ -132,6 +150,22 @@ describe("tasks.js", () => {
       applyDirectUpdate(task, {recurrence: null, title: "x"});
       assert.deepEqual(task, {...base, recurrence: weekly});
     });
+    it("joins a project that exists and sets its order number", () => {
+      assert.deepEqual(applyDirectUpdate(base, {projectId: "p1", projectOrder: 2}, ["p1"]), {...base, projectId: "p1", projectOrder: 2});
+    });
+    it("cannot join an unknown project, or any project when no ids are given", () => {
+      assert.deepEqual(applyDirectUpdate(base, {projectId: "p9"}, ["p1"]), base);
+      assert.deepEqual(applyDirectUpdate(base, {projectId: "p1"}), base);
+    });
+    it("leaves a project, taking the order number with it, even when no ids are given", () => {
+      assert.deepEqual(applyDirectUpdate({...base, projectId: "p1", projectOrder: 2}, {projectId: null}), base);
+    });
+    it("applies other fields alongside project fields", () => {
+      assert.deepEqual(applyDirectUpdate(base, {title: "A2", projectId: "p1"}, ["p1"]), {...base, title: "A2", projectId: "p1"});
+    });
+    it("never copies unvalidated project keys straight from the fields", () => {
+      assert.deepEqual(applyDirectUpdate(base, {projectId: "p9", projectOrder: 3}, ["p1"]), base);
+    });
   });
 
   describe("mergeTaskChanges: recurrence", () => {
@@ -166,6 +200,20 @@ describe("tasks.js", () => {
   });
 
   describe("mergeTaskChanges: updates", () => {
+    it("never changes project membership or order, whatever the model sends", () => {
+      const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, projectId: "p1", projectOrder: 2} : t));
+      const r = mergeTaskChanges(tasks, [{id: "b", title: "B2", projectId: "p9", projectOrder: 7, priority: "LOW", estimatedMinutes: 10, tags: []}], makeIdGenerator());
+      const b = r.tasks.find((t) => t.id === "b");
+      assert.equal(b.title, "B2");
+      assert.equal(b.projectId, "p1");
+      assert.equal(b.projectOrder, 2);
+    });
+    it("does not put a new task into a project, whatever the model sends", () => {
+      const r = mergeTaskChanges(existingTasks(), [{title: "N", projectId: "p1", projectOrder: 1, priority: "LOW", estimatedMinutes: 10, tags: []}], makeIdGenerator());
+      const n = r.tasks.find((t) => t.title === "N");
+      assert.equal("projectId" in n, false);
+      assert.equal("projectOrder" in n, false);
+    });
     it("updates model-owned fields and preserves server-owned ones", () => {
       const r = mergeTaskChanges(existingTasks(), [{id: "a", title: "A2", priority: "MEDIUM", estimatedMinutes: 45, tags: ["x"], dueDate: "2026-11-01"}], makeIdGenerator());
       const a = r.tasks[0];
@@ -288,6 +336,14 @@ describe("tasks.js", () => {
 
   describe("applyScheduleResults", () => {
     const none = new Map();
+
+    it("keeps project membership and order on the tasks it rewrites", () => {
+      const tasks = [{...existingTasks()[1], projectId: "p1", projectOrder: 3}];
+      const scheduled = new Map([["b", {eventId: "eb", start: "1", end: "2"}]]);
+      const out = applyScheduleResults({tasks, knownIds: new Set(["b"]), locked: none, scheduled, createdEvents: []});
+      assert.equal(out.tasks[0].projectId, "p1");
+      assert.equal(out.tasks[0].projectOrder, 3);
+    });
 
     it("records the schedule on known tasks and clears stale fields", () => {
       const tasks = existingTasks();

@@ -2,14 +2,14 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeSettingsStore} = require("../store");
+const {checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeSettingsStore} = require("../store");
 
 const task = (id, order, extra = {}) => ({id, title: `Task ${id}`, priority: "MEDIUM", dueDate: "", estimatedMinutes: 15, tags: [], status: "PENDING", order, ...extra});
 
 // Minimal in-memory stand-in for the parts of Firestore the store uses. Writes apply only when the transaction
 // function resolves, as in a real transaction; `log` records them in order.
-function fakeDb(initial = {}) {
-  const data = {tasks: new Map(Object.entries(initial).map(([k, v]) => [k, structuredClone(v)])), other: new Map()};
+function fakeDb(initial = {}, projects = {}) {
+  const data = {tasks: new Map(Object.entries(initial).map(([k, v]) => [k, structuredClone(v)])), other: new Map(), projects: new Map(Object.entries(projects).map(([k, v]) => [k, structuredClone(v)]))};
   const log = [];
   const collection = (name) => ({
     name,
@@ -295,5 +295,102 @@ describe("makeSettingsStore", () => {
       await store.updateSettings({schedule: {enabled: false}});
       assert.equal((await store.claimAutoRun(nz("12:30"))).due, false);
     });
+  });
+});
+
+describe("makeTaskStore: withProjects", () => {
+  const projects = {p2: {name: "beta"}, p1: {name: "Alpha"}};
+
+  it("passes the projects, sorted by name with their ids, as the third argument", async () => {
+    const db = fakeDb({a: task("a", 1)}, projects);
+    let seen;
+    await makeTaskStore(db).updateTaskList((tasks, tx, extra) => {
+      seen = extra.projects;
+      return {};
+    }, {withProjects: true});
+    assert.deepEqual(seen, [{id: "p1", name: "Alpha"}, {id: "p2", name: "beta"}]);
+  });
+  it("passes no projects unless asked", async () => {
+    const db = fakeDb({a: task("a", 1)}, projects);
+    let seen = "unset";
+    await makeTaskStore(db).updateTaskList((tasks, tx, extra) => {
+      seen = extra.projects;
+      return {};
+    });
+    assert.equal(seen, undefined);
+  });
+  it("passes an empty list when there are no projects", async () => {
+    const db = fakeDb({a: task("a", 1)});
+    let seen;
+    await makeTaskStore(db).updateTaskList((tasks, tx, extra) => {
+      seen = extra.projects;
+      return {};
+    }, {withProjects: true});
+    assert.deepEqual(seen, []);
+  });
+});
+
+describe("makeProjectStore", () => {
+  const seeded = () => fakeDb({a: task("a", 1, {projectId: "p1", projectOrder: 1}), b: task("b", 2, {projectId: "p2"}), c: task("c", 3)}, {p1: {id: "p1", name: "Alpha"}, p2: {id: "p2", name: "Beta"}});
+
+  it("getProjects returns the projects sorted by name with their ids", async () => {
+    const db = fakeDb({}, {z: {name: "Zed"}, a: {name: "alpha"}});
+    assert.deepEqual(await makeProjectStore(db).getProjects(), [{id: "a", name: "alpha"}, {id: "z", name: "Zed"}]);
+  });
+  it("getProjects returns an empty list when there are none", async () => {
+    assert.deepEqual(await makeProjectStore(fakeDb()).getProjects(), []);
+  });
+
+  it("createProject stores {id, name} under the generated id", async () => {
+    const db = fakeDb();
+    const r = await makeProjectStore(db).createProject("  Kitchen reno ", () => "new1");
+    assert.deepEqual(r.project, {id: "new1", name: "Kitchen reno"});
+    assert.deepEqual(db.data.projects.get("new1"), {id: "new1", name: "Kitchen reno"});
+    assert.deepEqual(db.log, ["set projects/new1"]);
+  });
+  it("createProject writes nothing for a taken or unusable name", async () => {
+    const db = seeded();
+    const store = makeProjectStore(db);
+    assert.match((await store.createProject("alpha", () => "x")).error, /already exists/);
+    assert.match((await store.createProject("  ", () => "x")).error, /non-empty/);
+    assert.deepEqual(db.log, []);
+  });
+
+  it("renameProject updates the stored name", async () => {
+    const db = seeded();
+    const r = await makeProjectStore(db).renameProject("p1", "Gamma");
+    assert.deepEqual(r.project, {id: "p1", name: "Gamma"});
+    assert.deepEqual(db.data.projects.get("p1"), {id: "p1", name: "Gamma"});
+    assert.deepEqual(db.log, ["set projects/p1"]);
+  });
+  it("renameProject reports an unknown id or a taken name without writing", async () => {
+    const db = seeded();
+    const store = makeProjectStore(db);
+    assert.deepEqual(await store.renameProject("zzz", "Gamma"), {notFound: true});
+    assert.match((await store.renameProject("p1", "beta")).error, /already exists/);
+    assert.deepEqual(db.log, []);
+  });
+
+  it("deleteProject removes the project and takes its members out of it, in one transaction", async () => {
+    const db = seeded();
+    const r = await makeProjectStore(db).deleteProject("p1");
+    assert.deepEqual(r.projects, [{id: "p2", name: "Beta"}]);
+    assert.deepEqual(r.tasks.map((t) => [t.id, t.projectId, t.projectOrder]), [["a", undefined, undefined], ["b", "p2", undefined], ["c", undefined, undefined]]);
+    assert.deepEqual(db.log.sort(), ["delete projects/p1", "set tasks/a"]);
+    assert.equal(db.data.projects.has("p1"), false);
+    assert.equal("projectId" in db.data.tasks.get("a"), false);
+    assert.equal("projectOrder" in db.data.tasks.get("a"), false);
+    assert.equal(db.data.tasks.get("a").title, "Task a");
+    assert.equal(db.data.tasks.get("b").projectId, "p2");
+  });
+  it("deleteProject of an empty project writes only the project delete", async () => {
+    const db = fakeDb({a: task("a", 1)}, {p1: {id: "p1", name: "Alpha"}});
+    await makeProjectStore(db).deleteProject("p1");
+    assert.deepEqual(db.log, ["delete projects/p1"]);
+  });
+  it("deleteProject reports an unknown id and writes nothing", async () => {
+    const db = seeded();
+    assert.deepEqual(await makeProjectStore(db).deleteProject("zzz"), {notFound: true});
+    assert.deepEqual(db.log, []);
   });
 });
