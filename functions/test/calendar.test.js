@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it, beforeEach, afterEach, mock} = require("node:test");
 const assert = require("node:assert/strict");
-const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("../calendar");
+const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("../calendar");
 
 // Minimal stand-in for the googleapis calendar client
 function fakeCalendar({events = [], freebusy, deleteError} = {}) {
@@ -155,6 +155,43 @@ describe("calendar.js", () => {
       assert.equal(cal.calls.list[0].singleEvents, true);
       assert.equal(cal.calls.list[0].timeMin, "T1");
       assert.equal(cal.calls.list[0].timeMax, "T2");
+    });
+  });
+
+  describe("eventIdsForTasks", () => {
+    const tagged = (id, taskId) => ({id, extendedProperties: {private: {taskId}}});
+
+    it("returns the ids of events tagged with one of the tasks", () => {
+      const events = [tagged("e1", "a"), tagged("e2", "b"), tagged("e3", "a"), tagged("e4", "c")];
+      assert.deepEqual(eventIdsForTasks(events, new Set(["a", "c"])), ["e1", "e3", "e4"]);
+    });
+    it("ignores events with no tag, no extended properties or no id", () => {
+      const events = [{id: "plain"}, {id: "noprivate", extendedProperties: {}}, {extendedProperties: {private: {taskId: "a"}}}];
+      assert.deepEqual(eventIdsForTasks(events, new Set(["a"])), []);
+    });
+    it("returns nothing for no tasks", () => {
+      assert.deepEqual(eventIdsForTasks([tagged("e1", "a")], new Set()), []);
+    });
+  });
+
+  describe("appBusyWindows", () => {
+    const timed = (id, extra) => ({id, start: {dateTime: "2026-10-22T09:00:00+13:00"}, end: {dateTime: "2026-10-22T10:00:00+13:00"}, ...extra});
+
+    it("returns the windows of the app's events, transparent ones included", () => {
+      const out = appBusyWindows([timed("e1"), timed("e2", {transparency: "transparent"})]);
+      assert.equal(out.length, 2);
+      assert.deepEqual(out[0], {start: "2026-10-22T09:00:00+13:00", end: "2026-10-22T10:00:00+13:00"});
+    });
+    it("skips cancelled and excluded events and ones without usable times", () => {
+      const events = [timed("cancelled", {status: "cancelled"}), timed("replaced"), {id: "none"}, timed("keep")];
+      assert.equal(appBusyWindows(events, new Set(["replaced"])).length, 1);
+    });
+    it("includes all-day events", () => {
+      const out = appBusyWindows([{id: "d", start: {date: "2026-10-22"}, end: {date: "2026-10-23"}}]);
+      assert.deepEqual(out, [{start: "2026-10-21T11:00:00.000Z", end: "2026-10-22T11:00:00.000Z"}]);
+    });
+    it("returns an empty list for no events", () => {
+      assert.deepEqual(appBusyWindows([]), []);
     });
   });
 

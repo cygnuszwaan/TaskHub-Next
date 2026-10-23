@@ -8,7 +8,7 @@ const admin = require("firebase-admin");
 const {GoogleGenAI, Type} = require("@google/genai");
 const {google} = require("googleapis");
 const {TIME_ZONE, getNZDate, getNZOffset, formatNZNow, getNZStartOfDay} = require("./time");
-const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, findAgentEventIds, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
+const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
 const {validateSchedule, matchLockedEvents} = require("./schedule");
 const {mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {annotateDue} = require("./due");
@@ -211,11 +211,19 @@ async function requestSchedule(tasks, busySlots, now, sevenDaysLater) {
 // Core Scheduling Engine Logic. Nothing on the calendar is touched until Gemini's
 // slots have been validated; a failure before that point leaves existing events as they are.
 // The personal calendar is only ever read.
-async function runScheduleEngine() {
+// With `taskIds`, only those tasks are offered to Gemini and have their events replaced; every other app
+// event stays and counts as busy, and the other tasks' schedule fields are left alone.
+async function runScheduleEngine({taskIds} = {}) {
+  const subset = Array.isArray(taskIds) ? new Set(taskIds) : null;
   const currentTasks = await readTaskList();
+  // Tasks this run is responsible for; the rest are neither rescheduled nor have their schedule fields rewritten
+  const inScope = subset ? currentTasks.filter((t) => subset.has(t.id)) : currentTasks;
 
   if (currentTasks.length === 0) {
     return {success: true, scheduledCount: 0, message: "No active tasks."};
+  }
+  if (inScope.length === 0) {
+    return {success: true, scheduledCount: 0, message: "None of the requested tasks exist."};
   }
 
   const calendar = await getCalendarClient();
@@ -241,17 +249,22 @@ async function runScheduleEngine() {
   const lockedEvents = matchLockedEvents(personalAgentEvents, currentTasks); // task id -> personal-calendar event
   const lockedWindows = [...lockedEvents.values()].map(eventWindow);
   const lockedEventIds = new Set([...lockedEvents.values()].map((ev) => ev.id));
-  const toSchedule = currentTasks.filter((t) => !lockedEvents.has(t.id));
+  const toSchedule = inScope.filter((t) => !lockedEvents.has(t.id));
 
-  // Old agent-calendar events to replace: stored ids of unlocked tasks plus every marked event from today (orphans)
+  // Old agent-calendar events to replace: stored ids of the tasks being scheduled, plus the marked events from
+  // today that belong to them. A full run also takes every other marked event from today (orphans).
+  const agentEvents = await findAgentEvents(calendar, calendarId, getNZStartOfDay().toISOString());
   const oldEventIds = new Set(toSchedule.map((t) => t.googleCalendarEventId).filter(Boolean));
-  (await findAgentEventIds(calendar, calendarId, getNZStartOfDay().toISOString())).forEach((id) => oldEventIds.add(id));
+  const replaceable = subset ? eventIdsForTasks(agentEvents, new Set(toSchedule.map((t) => t.id))) : agentEvents.map((ev) => ev.id);
+  replaceable.forEach((id) => oldEventIds.add(id));
   lockedEventIds.forEach((id) => oldEventIds.delete(id));
 
   // 2. Agent-calendar busy time excludes the app's own events, which are replaced by this run.
   // Locked windows count as busy even if the personal event is marked free.
   const agentBusy = await getForeignBusyWindows(calendar, calendarId, now.toISOString(), sevenDaysLater.toISOString(), oldEventIds);
-  const busySlots = mergeBusyWindows([...personalBusy, ...lockedWindows, ...agentBusy]);
+  // In a subset run the app events that stay put block their time, whatever their transparency.
+  const keptAppBusy = subset ? appBusyWindows(agentEvents, oldEventIds) : [];
+  const busySlots = mergeBusyWindows([...personalBusy, ...lockedWindows, ...agentBusy, ...keptAppBusy]);
 
   // 3. Ask Gemini for slots for the unlocked tasks, then validate before touching the calendar
   let scheduledList = [];
@@ -311,7 +324,7 @@ async function runScheduleEngine() {
   }]));
   const {orphanEventIds} = await updateTaskList((tasks) => applyScheduleResults({
     tasks,
-    knownIds: new Set(currentTasks.map((t) => t.id)),
+    knownIds: new Set(inScope.map((t) => t.id)),
     locked: lockedEvents,
     scheduled,
     createdEvents: created.map((c) => ({taskId: c.slot.taskId, eventId: c.eventId})),

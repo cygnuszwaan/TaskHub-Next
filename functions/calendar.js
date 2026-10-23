@@ -73,12 +73,25 @@ async function findAgentEvents(calendar, calendarId, timeMin) {
 }
 
 // Ids of the app-created events described above.
-async function findAgentEventIds(calendar, calendarId, timeMin) {
-  return (await findAgentEvents(calendar, calendarId, timeMin)).map((ev) => ev.id);
-}
 
 // The {start, end} window of an event as ISO strings (all-day events span NZ midnight to
 // NZ midnight; their end date is exclusive), or null if the event has no usable times.
+// Ids of the app's events (as returned by findAgentEvents) tagged with one of the given task ids.
+function eventIdsForTasks(events, taskIds) {
+  return events
+      .filter((ev) => ev.id && taskIds.has(ev.extendedProperties && ev.extendedProperties.private && ev.extendedProperties.private.taskId))
+      .map((ev) => ev.id);
+}
+
+// Busy windows of the app's own events, except the ones being replaced (`excludeIds`). Unlike
+// getForeignBusyWindows, transparency is ignored: a task left in place blocks its time.
+function appBusyWindows(events, excludeIds = new Set()) {
+  return events
+      .filter((ev) => ev.status !== "cancelled" && !excludeIds.has(ev.id))
+      .map(eventWindow)
+      .filter(Boolean);
+}
+
 function eventWindow(ev) {
   if (ev.start && ev.start.dateTime && ev.end && ev.end.dateTime) {
     return {start: ev.start.dateTime, end: ev.end.dateTime};
@@ -142,4 +155,4 @@ function mergeBusyWindows(windows) {
   return merged.map(({start, end}) => ({start, end}));
 }
 
-module.exports = {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, findAgentEventIds, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows};
+module.exports = {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows};
