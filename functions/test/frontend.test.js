@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload};`)();
+    return {DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, projectFields, projectLabel, projectTaskCounts, deleteProjectPrompt};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -25,9 +25,10 @@ describe("public/index.html helpers", () => {
       assert.ok(i > 0, `${needle} not found`);
       return i;
     };
-    it("puts the Settings card first, with Save settings and Update now side by side", () => {
+    it("puts the Settings card last, with Save settings and Update now side by side", () => {
       const settings = at(`id="settingsDetails"`);
-      assert.ok(settings < at(`id="taskInput"`) && settings < at(`id="queueDetails"`) && settings < at(`id="completedDetails"`));
+      assert.ok(settings > at(`id="taskInput"`) && settings > at(`id="queueDetails"`) && settings > at(`id="projectsDetails"`) && settings > at(`id="completedDetails"`));
+      assert.ok(settings < at(`id="editModal"`));
       const save = at(`id="saveSettingsBtn"`);
       const row = html.slice(html.lastIndexOf(`<div class="action-row"`, save), at(`id="settingsStatus"`));
       assert.match(row, /id="saveSettingsBtn"/);
@@ -37,7 +38,18 @@ describe("public/index.html helpers", () => {
     it("keeps the schedule status outside the collapsible Settings details so it stays visible", () => {
       const closeSettings = at("</details>", at(`id="saveSettingsBtn"`));
       assert.ok(at(`id="scheduleStatus"`) > closeSettings);
-      assert.ok(at(`id="scheduleStatus"`) < at(`id="taskInput"`));
+      assert.ok(at(`id="scheduleStatus"`) < at(`id="editModal"`));
+    });
+    it("puts a collapsible Projects card between Organized Queue and Recently Completed", () => {
+      const p = at(`<details id="projectsDetails">`);
+      const close = at("</details>", p);
+      assert.ok(at(`id="queueDetails"`) < p && close < at(`id="completedDetails"`));
+      for (const id of ["newProjectName", "addProjectBtn", "projectList", "projectsStatus"]) assert.ok(at(`id="${id}"`, p) < close, id);
+    });
+    it("adds a Project select and an Order number field, disabled until a project is chosen, to the edit modal", () => {
+      const modal = at(`id="editModal"`);
+      assert.ok(at(`id="editProject"`, modal) < at(`id="editProjectOrder"`, modal));
+      assert.match(html.slice(at(`id="editProjectOrder"`, modal), at(">", at(`id="editProjectOrder"`, modal))), /disabled/);
     });
     it("no longer offers Plan My Week anywhere on the page", () => {
       assert.doesNotMatch(html, /Plan My Week/);
@@ -192,6 +204,58 @@ describe("public/index.html helpers", () => {
       const {mergeSettings, applySettingsUpdate} = require("../settings");
       const r = applySettingsUpdate(mergeSettings(undefined), h.settingsPayload({...form, time: ""}));
       assert.match(r.error, /schedule.time/);
+    });
+  });
+  describe("project helpers", () => {
+    const projects = [{id: "p1", name: "Kitchen reno"}, {id: "p2", name: "Garden"}];
+
+    it("projectFields: no project means neither field", () => {
+      const {projectFields: f} = load();
+      assert.deepEqual(f("", "3"), {projectId: null, projectOrder: null});
+      assert.deepEqual(f(null, 5), {projectId: null, projectOrder: null});
+    });
+    it("projectFields: an empty or unusable order means unordered", () => {
+      const {projectFields: f} = load();
+      for (const text of ["", "  ", "abc", undefined, null, "NaN"]) assert.deepEqual(f("p1", text), {projectId: "p1", projectOrder: null}, String(text));
+    });
+    it("projectFields: rounds and clamps the order to 1..999", () => {
+      const {projectFields: f} = load();
+      assert.equal(f("p1", "2").projectOrder, 2);
+      assert.equal(f("p1", 2.6).projectOrder, 3);
+      assert.equal(f("p1", "0").projectOrder, 1);
+      assert.equal(f("p1", "-4").projectOrder, 1);
+      assert.equal(f("p1", "5000").projectOrder, 999);
+    });
+    it("projectFields: is accepted by the server-side validation", () => {
+      const {applyProjectFields} = require("../projects");
+      const {projectFields: f} = load();
+      const task = {id: "t", projectId: "p1", projectOrder: 4};
+      assert.deepEqual(applyProjectFields(task, f("p2", "2"), ["p1", "p2"]), {id: "t", projectId: "p2", projectOrder: 2});
+      assert.deepEqual(applyProjectFields(task, f("p1", ""), ["p1", "p2"]), {id: "t", projectId: "p1"});
+      assert.deepEqual(applyProjectFields(task, f("", "2"), ["p1", "p2"]), {id: "t"});
+    });
+    it("projectLabel: the project name with the order number", () => {
+      const {projectLabel: l} = load();
+      assert.equal(l({projectId: "p1", projectOrder: 2}, projects), "Kitchen reno · 2");
+      assert.equal(l({projectId: "p2"}, projects), "Garden");
+    });
+    it("projectLabel: empty outside a project or for an unknown one", () => {
+      const {projectLabel: l} = load();
+      assert.equal(l({}, projects), "");
+      assert.equal(l({projectId: "gone", projectOrder: 1}, projects), "");
+      assert.equal(l({projectId: "p1"}, []), "");
+      assert.equal(l(null, projects), "");
+    });
+    it("projectTaskCounts: counts members per project and skips tasks outside one", () => {
+      const {projectTaskCounts: c} = load();
+      assert.deepEqual(c([{projectId: "p1"}, {projectId: "p1"}, {projectId: "p2"}, {}, {projectId: ""}]), {p1: 2, p2: 1});
+      assert.deepEqual(c([]), {});
+    });
+    it("deleteProjectPrompt: says what happens to the member tasks", () => {
+      const {deleteProjectPrompt: d} = load();
+      assert.equal(d("Garden", 0), "Delete project \"Garden\"?");
+      assert.match(d("Garden", 1), /Its 1 task stays on the list but leaves the project\./);
+      assert.match(d("Garden", 3), /Its 3 tasks stay on the list but leave the project\./);
     });
   });
 });

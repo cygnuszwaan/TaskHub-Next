@@ -40,6 +40,10 @@
     .week-bar { flex: 1; background: #f1f5f9; border-radius: 4px; height: 10px; }
     .week-fill { background: #0369a1; border-radius: 4px; height: 10px; }
     .week-val { width: 90px; flex-shrink: 0; text-align: right; }
+    .project-chip { background: #ccfbf1; color: #115e59; font-weight: 600; }
+    .project-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+    .project-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+    .project-row button { padding: 6px 10px; font-size: 13px; }
     .repeat-chip { background: #ede9fe; color: #5b21b6; font-weight: 600; }
     .overdue-chip { background: #fee2e2; color: #991b1b; font-weight: 600; }
     .coach-box { background: #eff6ff; border-left: 4px solid #2563eb; padding: 14px; margin-top: 14px; border-radius: 4px; font-size: 14px; line-height: 1.5; }
@@ -88,6 +92,43 @@
   </div>
 
   <div class="card">
+    <h3 style="margin-top:0; margin-bottom:12px;">Add / Modify Task</h3>
+    <div class="input-row">
+      <input type="text" id="taskInput" placeholder="e.g. MOW LAWN 45M OUTDOOR">
+      <button onclick="submitTask()" id="addBtn">Add</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <details id="queueDetails" open>
+      <summary style="cursor: pointer; font-weight: 600;">Organized Queue <small style="font-size:11px; font-weight:normal; color:#64748b;">(Tap to edit)</small></summary>
+      <div class="tag-filter-bar" id="tagFilterBar" style="margin-top: 12px;"></div>
+      <div id="taskList">Loading tasks...</div>
+    </details>
+  </div>
+
+  <div class="card">
+    <details id="projectsDetails">
+      <summary style="cursor: pointer; font-weight: 600;">Projects</summary>
+      <div style="margin-top: 12px;">
+        <div class="input-row">
+          <input type="text" id="newProjectName" maxlength="100" placeholder="New project name, e.g. Kitchen reno">
+          <button type="button" id="addProjectBtn">Add</button>
+        </div>
+        <div id="projectList"></div>
+        <div id="projectsStatus" class="settings-status"></div>
+      </div>
+    </details>
+  </div>
+
+  <div class="card">
+    <details id="completedDetails">
+      <summary style="cursor: pointer; font-weight: 600;">Recently Completed</summary>
+      <div id="completedList" style="margin-top: 12px;"></div>
+    </details>
+  </div>
+
+  <div class="card">
     <details id="settingsDetails">
       <summary style="cursor: pointer; font-weight: 600;">Settings</summary>
       <div style="margin-top: 12px;">
@@ -133,30 +174,6 @@
       </div>
     </details>
     <div id="scheduleStatus" class="coach-box" style="display:none;"></div>
-  </div>
-
-
-  <div class="card">
-    <h3 style="margin-top:0; margin-bottom:12px;">Add / Modify Task</h3>
-    <div class="input-row">
-      <input type="text" id="taskInput" placeholder="e.g. MOW LAWN 45M OUTDOOR">
-      <button onclick="submitTask()" id="addBtn">Add</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <details id="queueDetails" open>
-      <summary style="cursor: pointer; font-weight: 600;">Organized Queue <small style="font-size:11px; font-weight:normal; color:#64748b;">(Tap to edit)</small></summary>
-      <div class="tag-filter-bar" id="tagFilterBar" style="margin-top: 12px;"></div>
-      <div id="taskList">Loading tasks...</div>
-    </details>
-  </div>
-
-  <div class="card">
-    <details id="completedDetails">
-      <summary style="cursor: pointer; font-weight: 600;">Recently Completed</summary>
-      <div id="completedList" style="margin-top: 12px;"></div>
-    </details>
   </div>
 
   <div id="editModal" class="modal-overlay" onclick="closeModalOnOverlay(event)">
@@ -213,6 +230,16 @@
         </div>
       </div>
 
+      <div class="form-group">
+        <label>Project</label>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <select id="editProject" style="flex: 1;" onchange="updateProjectOrderField()">
+            <option value="">No project</option>
+          </select>
+          <input type="number" id="editProjectOrder" min="1" max="999" step="1" placeholder="Order" title="Order number: lower numbers are scheduled first, empty means unordered" style="width: 90px;" disabled>
+        </div>
+      </div>
+
       <div style="margin-top: 14px;">
         <button type="button" class="btn-secondary" title="Save these changes, then find a new time for this task" onclick="rescheduleFromModal()">🔄 Reschedule</button>
       </div>
@@ -247,6 +274,8 @@
     const COMPLETED_URL = endpoint("getCompletedTasks");
     const GET_SETTINGS_URL = endpoint("getSettings");
     const UPDATE_SETTINGS_URL = endpoint("updateSettings");
+    const GET_PROJECTS_URL = endpoint("getProjects");
+    const UPDATE_PROJECT_URL = endpoint("updateProject");
 
     // Firebase Auth. The SDK loads from the CDN and the web config from Hosting's reserved URL, so there is no build step or key in this file.
     let authLib = null;
@@ -281,6 +310,7 @@
           if (user) {
             showApp();
             fetchTasks();
+            loadProjects();
             loadSettings();
           } else {
             showGate("");
@@ -338,6 +368,8 @@
     let allTasks = [];
     let tasksLoaded = false; // set once the list has been drawn
     let selectedTagFilter = null; // null = show all
+    let allProjects = [];
+    let projectsLoaded = false; // set once getProjects has answered; until then the edit form leaves project fields alone
 
     const PRIORITIES = ["HIGH", "MEDIUM", "LOW"];
 
@@ -447,6 +479,39 @@
           intervalMinutes: Number(form.intervalMinutes)
         }
       };
+    }
+
+    const MAX_PROJECT_ORDER = 999;
+
+    // The project fields of the edit form as updateTaskDirect fields. No project means neither; an empty or
+    // unusable order means unordered (null); a number is rounded and kept within 1..999. The server stays the validator.
+    function projectFields(projectId, orderText) {
+      if (!projectId) return { projectId: null, projectOrder: null };
+      const text = String(orderText ?? "").trim();
+      const n = text === "" ? NaN : Number(text);
+      return { projectId, projectOrder: Number.isFinite(n) ? Math.min(Math.max(Math.round(n), 1), MAX_PROJECT_ORDER) : null };
+    }
+
+    // "Kitchen reno · 2" for a task in a known project ("Kitchen reno" when it has no order number), else "".
+    function projectLabel(task, projects) {
+      const project = task && task.projectId ? projects.find(p => p.id === task.projectId) : null;
+      if (!project) return "";
+      return Number.isInteger(task.projectOrder) ? `${project.name} · ${task.projectOrder}` : project.name;
+    }
+
+    // Members per project: {projectId: count}, for tasks that belong to one.
+    function projectTaskCounts(tasks) {
+      const counts = {};
+      for (const t of tasks) {
+        if (t.projectId) counts[t.projectId] = (counts[t.projectId] || 0) + 1;
+      }
+      return counts;
+    }
+
+    // The confirmation text for deleting a project with `count` member tasks.
+    function deleteProjectPrompt(name, count) {
+      if (!count) return `Delete project "${name}"?`;
+      return `Delete project "${name}"? ${count === 1 ? "Its 1 task stays" : `Its ${count} tasks stay`} on the list but ${count === 1 ? "leaves" : "leave"} the project.`;
     }
     // </pure-helpers>
 
@@ -579,6 +644,11 @@
       renderTasks();
     }
 
+    function projectChip(t) {
+      const label = projectLabel(t, allProjects);
+      return label ? `<span class="chip project-chip" title="Project and order number">📁 ${esc(label)}</span>` : "";
+    }
+
     function scheduleChip(t) {
       const when = formatSchedule(t.scheduledStart, t.scheduledEnd);
       if (when) return `<span class="chip sched-chip" title="Scheduled on your calendar">📅 ${esc(when)}</span>`;
@@ -588,6 +658,7 @@
 
     function renderTasks() {
       tasksLoaded = true;
+      renderProjects();
       const listContainer = document.getElementById("taskList");
       let filtered = allTasks;
 
@@ -617,6 +688,7 @@
               <span class="badge ${PRIORITIES.includes(t.priority) ? t.priority : ''}">${esc(t.priority)}</span>
               <span class="time-chip">⏱️ ${esc(t.estimatedMinutes || 15)}m</span>
               ${(t.tags || []).map(tag => `<span class="chip">${esc(tag)}</span>`).join('')}
+              ${projectChip(t)}
               ${(() => { const d = daysUntilDue(t); return d !== null && d < 0 ? `<span class="chip overdue-chip" title="Due ${esc(t.dueDate)}">⚠️ Overdue ${esc(-d)}d</span>` : ''; })()}
               ${t.dueDate ? `<span class="chip">Due: ${esc(t.dueDate)}</span>` : ''}
               ${recurrenceChip(t)}
@@ -647,6 +719,14 @@
       document.getElementById("editRecurInterval").value = recurrence && recurrence.interval > 0 ? recurrence.interval : 1;
       updateRecurUnit();
 
+      const projectSelect = document.getElementById("editProject");
+      projectSelect.replaceChildren(new Option("No project", ""), ...allProjects.map(p => new Option(p.name, p.id)));
+      // A project this page does not know: keep it selectable so saving the task unchanged leaves it alone
+      if (task.projectId && !allProjects.some(p => p.id === task.projectId)) projectSelect.add(new Option("Unknown project", task.projectId));
+      projectSelect.value = task.projectId || "";
+      document.getElementById("editProjectOrder").value = Number.isInteger(task.projectOrder) ? task.projectOrder : "";
+      updateProjectOrderField();
+
       document.getElementById("editModal").style.display = "flex";
     }
 
@@ -669,6 +749,14 @@
       document.getElementById("editRecurEvery").style.display = repeats ? "" : "none";
       document.getElementById("editRecurInterval").style.display = repeats ? "" : "none";
       document.getElementById("editRecurUnit").textContent = repeats ? RECUR_UNITS[freq] : "";
+    }
+
+    // The order number applies only inside a project: disabled and emptied without one
+    function updateProjectOrderField() {
+      const input = document.getElementById("editProjectOrder");
+      const inProject = document.getElementById("editProject").value !== "";
+      input.disabled = !inProject;
+      if (!inProject) input.value = "";
     }
 
     function clearEditDueDate() {
@@ -696,6 +784,10 @@
       const interval = Math.min(Math.max(parseInt(document.getElementById("editRecurInterval").value) || 1, 1), 365);
       const recurrence = freq === "NONE" ? null : { frequency: freq, interval };
       const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence };
+      // Without the project list the form cannot show the task's project, so it must not send one
+      if (projectsLoaded) {
+        Object.assign(updatedFields, projectFields(document.getElementById("editProject").value, document.getElementById("editProjectOrder").value));
+      }
 
       closeEditModal();
       try {
@@ -740,6 +832,7 @@
         statusDiv.innerText = `Rescheduled "${task ? task.title : "task"}".`;
       } catch (err) {
         statusDiv.innerText = "Error rescheduling: " + err.message;
+        alert("Error rescheduling: " + err.message); // the status line is at the bottom of the page, out of sight from the list
       }
     }
 
@@ -834,6 +927,99 @@
     // Loaded each time the section is opened, so it is never stale
     document.getElementById("completedDetails").addEventListener("toggle", e => {
       if (e.target.open) fetchCompleted();
+    });
+
+    // Projects: create, rename and delete through updateProject. The server returns the full project list each time,
+    // and for a delete the task list too (its members leave the project).
+    function setProjectsStatus(text) {
+      document.getElementById("projectsStatus").textContent = text;
+    }
+
+    function renderProjects() {
+      const list = document.getElementById("projectList");
+      if (!projectsLoaded) return;
+      if (allProjects.length === 0) {
+        list.innerHTML = "<p style='color:#666; margin:10px 0 0;'>No projects yet.</p>";
+        return;
+      }
+      const counts = projectTaskCounts(allTasks);
+      list.innerHTML = allProjects.map(p => `
+        <div class="project-row" data-id="${esc(p.id)}">
+          <span class="project-name">${esc(p.name)} <small style="color:#64748b;">${esc(counts[p.id] || 0)} ${counts[p.id] === 1 ? "task" : "tasks"}</small></span>
+          <button type="button" class="btn-secondary" data-action="rename">Rename</button>
+          <button type="button" class="btn-danger" data-action="delete">Delete</button>
+        </div>`).join("");
+    }
+
+    async function loadProjects() {
+      try {
+        const res = await apiFetch(GET_PROJECTS_URL);
+        allProjects = (await res.json()).projects || [];
+        projectsLoaded = true;
+        setProjectsStatus("");
+        if (tasksLoaded) renderTasks(); else renderProjects(); // chips and counts need both lists
+      } catch (err) {
+        setProjectsStatus("Could not load projects: " + err.message);
+      }
+    }
+
+    // Sends one updateProject request and shows the result; returns true when it was saved.
+    async function saveProject(body, doneText) {
+      setProjectsStatus("Saving...");
+      try {
+        const res = await apiFetch(UPDATE_PROJECT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        allProjects = data.projects || allProjects;
+        projectsLoaded = true;
+        if (data.tasks) {
+          allTasks = data.tasks;
+          renderFilterBar();
+        }
+        renderTasks();
+        setProjectsStatus(doneText);
+        return true;
+      } catch (err) {
+        setProjectsStatus("Not saved: " + err.message);
+        return false;
+      }
+    }
+
+    async function addProject() {
+      const input = document.getElementById("newProjectName");
+      const name = input.value.trim();
+      if (!name) return;
+      if (await saveProject({ action: "CREATE", name }, `Added "${name}".`)) input.value = "";
+    }
+
+    async function renameProject(projectId) {
+      const project = allProjects.find(p => p.id === projectId);
+      if (!project) return;
+      const name = prompt("Rename project", project.name);
+      if (name === null || !name.trim() || name.trim() === project.name) return;
+      await saveProject({ action: "UPDATE", projectId, name }, "Renamed.");
+    }
+
+    async function deleteProject(projectId) {
+      const project = allProjects.find(p => p.id === projectId);
+      if (!project) return;
+      if (!confirm(deleteProjectPrompt(project.name, projectTaskCounts(allTasks)[projectId] || 0))) return;
+      await saveProject({ action: "DELETE", projectId }, `Deleted "${project.name}".`);
+    }
+
+    document.getElementById("addProjectBtn").addEventListener("click", addProject);
+    document.getElementById("newProjectName").addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); addProject(); }
+    });
+    document.getElementById("projectList").addEventListener("click", e => {
+      const btn = e.target.closest("[data-action]");
+      const row = btn && btn.closest(".project-row");
+      if (!row) return;
+      if (btn.dataset.action === "rename") renameProject(row.dataset.id);
+      else if (btn.dataset.action === "delete") deleteProject(row.dataset.id);
     });
 
     // Settings: location (with place search), time zone and the automatic schedule.
