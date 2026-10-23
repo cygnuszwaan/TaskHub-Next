@@ -12,7 +12,7 @@ const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eve
 const {validateSchedule, matchLockedEvents} = require("./schedule");
 const {applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {annotateDue} = require("./due");
-const {makeTaskStore} = require("./store");
+const {makeTaskStore, makeSettingsStore} = require("./store");
 const {SUMMARY_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted} = require("./completed");
 const {makeOwnerOnly} = require("./auth");
 const {randomUUID} = require("crypto");
@@ -25,6 +25,8 @@ const db = admin.firestore();
 // Active tasks: one document per task in `tasks/{id}`. updateTaskList(mutate) is a transactional read-modify-write
 // of the whole list (see store.js); readTaskList() is a plain read.
 const {updateTaskList, getTasks: readTaskList} = makeTaskStore(db);
+// Runtime settings (location, time zone, auto-run schedule) in `settings/app`; see settings.js.
+const {getSettings: readSettings, updateSettings: writeSettings} = makeSettingsStore(db);
 
 const MODEL_NAME = "gemini-3.5-flash-lite";
 
@@ -562,6 +564,31 @@ exports.updateTaskDirect = onRequest({
     await removeTaskCalendarEvent(result.removedTask);
 
     res.status(200).send({success: true, tasks: result.current});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 8. Endpoint: Read Settings
+// Location, time zone, auto-run schedule and the run state; defaults fill anything not yet saved.
+exports.getSettings = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    res.status(200).send({success: true, settings: await readSettings()});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 9. Endpoint: Update Settings
+// Body: {settings: {location?, timeZone?, schedule?}}, any subset of the editable fields. 400 with the reason
+// when a field is invalid (nothing is saved); run state cannot be set.
+exports.updateSettings = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const result = await writeSettings(req.body && req.body.settings);
+    if (result.error) return res.status(400).send({error: result.error});
+    res.status(200).send({success: true, settings: result.settings});
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});

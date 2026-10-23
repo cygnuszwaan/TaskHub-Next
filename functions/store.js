@@ -1,8 +1,10 @@
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
 const {isDeepStrictEqual} = require("node:util");
+const {mergeSettings, applySettingsUpdate} = require("./settings");
 
 const COLLECTION = "tasks";
+const SETTINGS_DOC = "settings/app";
 
 // Doc ids are task ids: non-empty strings, no "/" and not "." or ".." (Firestore rules), and unique within a list.
 function checkTaskIds(tasks) {
@@ -73,4 +75,28 @@ function makeTaskStore(db) {
   return {updateTaskList, getTasks};
 }
 
-module.exports = {COLLECTION, checkTaskIds, sortTasks, diffTasks, planMigration, makeTaskStore};
+// Runtime settings in the single document `settings/app`. `db` is a Firestore instance.
+//   getSettings()          -> full settings (defaults fill anything missing; see settings.js)
+//   updateSettings(patch)  -> {settings} after a transactional merge of the editable fields in `patch`, or {error}
+//                             when a field is invalid (nothing is written then). Run state is preserved.
+function makeSettingsStore(db) {
+  const ref = db.doc(SETTINGS_DOC);
+
+  async function getSettings() {
+    const snap = await ref.get();
+    return mergeSettings(snap.exists ? snap.data() : undefined);
+  }
+
+  async function updateSettings(patch) {
+    return db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const result = applySettingsUpdate(mergeSettings(snap.exists ? snap.data() : undefined), patch);
+      if (result.settings) tx.set(ref, result.settings);
+      return result;
+    });
+  }
+
+  return {getSettings, updateSettings};
+}
+
+module.exports = {COLLECTION, SETTINGS_DOC, checkTaskIds, sortTasks, diffTasks, planMigration, makeTaskStore, makeSettingsStore};

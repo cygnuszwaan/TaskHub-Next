@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {checkTaskIds, sortTasks, diffTasks, planMigration, makeTaskStore} = require("../store");
+const {checkTaskIds, sortTasks, diffTasks, planMigration, makeTaskStore, makeSettingsStore} = require("../store");
 
 const task = (id, order, extra = {}) => ({id, title: `Task ${id}`, priority: "MEDIUM", dueDate: "", estimatedMinutes: 15, tags: [], status: "PENDING", order, ...extra});
 
@@ -158,5 +158,73 @@ describe("store.js", () => {
       assert.deepEqual(db.log, []);
       assert.equal(db.data.tasks.size, 1);
     });
+  });
+});
+
+// Stand-in for a one-document store: db.doc("settings/app") plus transactions, writing only when the transaction
+// function resolves.
+function fakeDocDb(initial) {
+  const state = {value: initial === undefined ? undefined : structuredClone(initial), writes: 0, path: null};
+  const ref = {
+    get: async () => ({exists: state.value !== undefined, data: () => structuredClone(state.value)}),
+  };
+  return {
+    state,
+    doc: (path) => {
+      state.path = path;
+      return ref;
+    },
+    async runTransaction(fn) {
+      const pending = [];
+      const result = await fn({get: (r) => r.get(), set: (r, v) => pending.push(v)});
+      for (const v of pending) {
+        state.value = structuredClone(v);
+        state.writes++;
+      }
+      return result;
+    },
+  };
+}
+
+describe("makeSettingsStore", () => {
+  it("uses the document settings/app", async () => {
+    const db = fakeDocDb();
+    makeSettingsStore(db);
+    assert.equal(db.state.path, "settings/app");
+  });
+  it("getSettings returns the defaults when nothing is stored", async () => {
+    const s = await makeSettingsStore(fakeDocDb()).getSettings();
+    assert.equal(s.timeZone, "Pacific/Auckland");
+    assert.deepEqual(s.schedule, {enabled: true, frequency: "DAILY", time: "20:00", intervalMinutes: 60});
+  });
+  it("getSettings fills missing fields of a partial document", async () => {
+    const s = await makeSettingsStore(fakeDocDb({timeZone: "Australia/Sydney"})).getSettings();
+    assert.equal(s.timeZone, "Australia/Sydney");
+    assert.equal(s.schedule.time, "20:00");
+  });
+  it("updateSettings saves the merged settings and returns them", async () => {
+    const db = fakeDocDb();
+    const r = await makeSettingsStore(db).updateSettings({schedule: {frequency: "INTERVAL", intervalMinutes: 30}});
+    assert.equal(r.settings.schedule.frequency, "INTERVAL");
+    assert.equal(db.state.writes, 1);
+    assert.deepEqual(db.state.value, r.settings);
+    assert.equal((await makeSettingsStore(db).getSettings()).schedule.intervalMinutes, 30);
+  });
+  it("updateSettings keeps earlier settings and the run state", async () => {
+    const db = fakeDocDb({timeZone: "Australia/Sydney", lastAutoRunAt: "2026-10-22T07:00:00.000Z", lastRunFingerprint: "abc"});
+    const r = await makeSettingsStore(db).updateSettings({schedule: {time: "06:00"}});
+    assert.equal(r.settings.timeZone, "Australia/Sydney");
+    assert.equal(r.settings.schedule.time, "06:00");
+    assert.equal(db.state.value.lastAutoRunAt, "2026-10-22T07:00:00.000Z");
+    assert.equal(db.state.value.lastRunFingerprint, "abc");
+  });
+  it("updateSettings writes nothing and returns the error for an invalid update", async () => {
+    const db = fakeDocDb({timeZone: "Australia/Sydney"});
+    const r = await makeSettingsStore(db).updateSettings({timeZone: "Nowhere/Land"});
+    assert.match(r.error, /timeZone/);
+    assert.equal(db.state.writes, 0);
+    assert.deepEqual(db.state.value, {timeZone: "Australia/Sydney"});
+    assert.match((await makeSettingsStore(db).updateSettings(undefined)).error, /object/);
+    assert.equal(db.state.writes, 0);
   });
 });
