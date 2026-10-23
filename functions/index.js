@@ -331,6 +331,7 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
     const lockedByTask = new Map([...lockedEvents].map(([id, ev]) => [id, eventWindow(ev, timeZone)]));
     const fixed = buildFixedSlots({tasks: currentTasks, inScopeIds: subset ? new Set(inScope.map((t) => t.id)) : null, lockedWindows: lockedByTask, timeZone});
     const projects = await readProjects();
+    console.log(`Scheduling ${toSchedule.length} tasks over ${settings.scheduleDays} days (${busySlots.length} busy windows, to ${horizon.toISOString()})`);
     const validation = {busy: busySlots, now, horizon, timeZone, allTasks: currentTasks, fixed};
     const result = await requestValidSchedule(toSchedule, busySlots, now, settings, weather.text, {projects, fixed, allTasks: currentTasks, forecast: weather.forecast}, validation);
     scheduledList = result.items;
@@ -403,6 +404,8 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
     success: true,
     scheduledCount: slots.length,
     lockedCount: lockedEvents.size,
+    scheduleDays: settings.scheduleDays,
+    lastScheduledDate: slots.length ? slots.map((s) => (s.allDay ? s.date : localDate(timeZone, new Date(s.endMs)))).sort().pop() : null,
     unscheduledCount: toSchedule.length - slots.length,
     dropped: unscheduled,
     schedule: scheduledList,

@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, projectFields, projectLabel, projectTaskCounts, deleteProjectPrompt};`)();
+    return {DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, scheduleSummary, projectFields, projectLabel, projectTaskCounts, deleteProjectPrompt};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -213,6 +213,24 @@ describe("public/index.html helpers", () => {
       const {mergeSettings, applySettingsUpdate} = require("../settings");
       const r = applySettingsUpdate(mergeSettings(undefined), h.settingsPayload({...form, time: ""}));
       assert.match(r.error, /schedule.time/);
+    });
+  });
+  describe("scheduleSummary", () => {
+    const run = (extra = {}) => load().scheduleSummary({scheduledCount: 12, ...extra});
+    it("reports the count, the last day used and the window", () => {
+      assert.equal(run({scheduleDays: 28, lastScheduledDate: "2026-10-27"}), "Success! Scheduled 12 tasks onto your Google Calendar. The last task is on Tue, 27 Oct. The window was 28 days ahead.");
+    });
+    it("says one day, not one days", () => {
+      assert.match(run({scheduleDays: 1}), /The window was 1 day ahead\./);
+    });
+    it("adds the unplaced and pinned counts", () => {
+      const s = run({unscheduledCount: 3, lockedCount: 2});
+      assert.match(s, /3 could not be placed and stay unscheduled\./);
+      assert.match(s, /Locked tasks left as pinned: 2\./);
+    });
+    it("leaves out what the server did not send", () => {
+      assert.equal(run(), "Success! Scheduled 12 tasks onto your Google Calendar.");
+      assert.equal(run({lastScheduledDate: "garbage"}), "Success! Scheduled 12 tasks onto your Google Calendar.");
     });
   });
   describe("project helpers", () => {

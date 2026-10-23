@@ -486,6 +486,17 @@
       };
     }
 
+    // The success line for a full run: how many tasks, how far ahead the run looked, the last day it used, and any
+    // tasks left unplaced or pinned. A task is only placed as early as it fits, so the last day can be well before
+    // the end of the window; saying both makes that visible.
+    function scheduleSummary(data) {
+      const days = data.scheduleDays ? ` The window was ${data.scheduleDays} day${data.scheduleDays === 1 ? "" : "s"} ahead.` : "";
+      const last = DATE_ONLY.test(data.lastScheduledDate || "") ? ` The last task is on ${calendarDayFmt.format(new Date(`${data.lastScheduledDate}T00:00:00Z`))}.` : "";
+      const left = data.unscheduledCount ? ` ${data.unscheduledCount} could not be placed and stay unscheduled.` : "";
+      const locked = data.lockedCount ? ` Locked tasks left as pinned: ${data.lockedCount}.` : "";
+      return `Success! Scheduled ${data.scheduledCount} tasks onto your Google Calendar.${last}${days}${left}${locked}`;
+    }
+
     const MAX_PROJECT_ORDER = 999;
 
     // The project fields of the edit form as updateTaskDirect fields. No project means neither; an empty or
@@ -607,9 +618,17 @@
       const btn = document.getElementById("schedBtn");
       btn.disabled = true;
       statusDiv.style.display = "block";
-      statusDiv.innerText = "Reading calendar, checking weather, and scheduling tasks...";
-
       try {
+        // Runs use the saved settings, so a changed "days ahead" that was never saved would be ignored: save it first.
+        const daysField = document.getElementById("scheduleDays");
+        if (currentSettings && daysField.value !== String(currentSettings.scheduleDays)) {
+          statusDiv.innerText = "Saving settings...";
+          if (!(await saveSettings())) {
+            statusDiv.innerText = "Not scheduled: " + document.getElementById("settingsStatus").textContent;
+            return;
+          }
+        }
+        statusDiv.innerText = "Reading calendar, checking weather, and scheduling tasks...";
         const res = await apiFetch(SCHEDULE_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -617,9 +636,7 @@
         });
         const data = await res.json();
         if (data.success) {
-          const locked = data.lockedCount ? ` Locked tasks left as pinned: ${data.lockedCount}.` : "";
-          const left = data.unscheduledCount ? ` ${data.unscheduledCount} could not be placed this week and stay unscheduled.` : "";
-          statusDiv.innerText = `Success! Scheduled ${data.scheduledCount} tasks onto your Google Calendar.${left}${locked}`;
+          statusDiv.innerText = scheduleSummary(data);
           fetchTasks();
         } else {
           statusDiv.innerText = data.error || data.message || "Failed to generate schedule.";
@@ -1064,7 +1081,7 @@
       setTimeZone(s.timeZone);
       document.title = `TaskHub Next - ${s.location.name}`;
       renderLocation();
-      document.getElementById("scheduleDays").value = String(s.scheduleDays);
+      document.getElementById("scheduleDays").value = typeof s.scheduleDays === "number" ? String(s.scheduleDays) : "";
       document.getElementById("schedEnabled").checked = !!s.schedule.enabled;
       document.getElementById("schedFrequency").value = s.schedule.frequency;
       document.getElementById("schedTime").value = s.schedule.time;
@@ -1109,7 +1126,7 @@
     }
 
     async function saveSettings() {
-      if (!currentSettings) { setSettingsStatus("Settings are not loaded yet."); return; }
+      if (!currentSettings) { setSettingsStatus("Settings are not loaded yet."); return false; }
       const place = chosenPlace();
       const btn = document.getElementById("saveSettingsBtn");
       btn.disabled = true;
@@ -1128,10 +1145,18 @@
             intervalMinutes: document.getElementById("schedInterval").value
           }) })
         });
-        applySettings((await res.json()).settings);
+        const saved = (await res.json()).settings;
+        applySettings(saved);
+        if (typeof saved.scheduleDays !== "number") {
+          // An older deployed backend drops fields it does not know, so the days setting would silently stay at 7
+          setSettingsStatus("Saved, but the server ignored the days setting. Deploy the latest functions.");
+          return false;
+        }
         setSettingsStatus("Saved.");
+        return true;
       } catch (err) {
         setSettingsStatus("Not saved: " + err.message);
+        return false;
       } finally {
         btn.disabled = false;
       }
