@@ -9,7 +9,7 @@ const {GoogleGenAI, Type} = require("@google/genai");
 const {google} = require("googleapis");
 const {localDate, startOfLocalDay} = require("./time");
 const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
-const {validateSchedule, matchLockedEvents} = require("./schedule");
+const {validateSchedule, buildFixedSlots, matchLockedEvents} = require("./schedule");
 const {applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
 const {UNAVAILABLE, weatherUrl, describeWeather, weatherKey} = require("./weather");
@@ -180,9 +180,9 @@ async function getWeather(location) {
 
 // Ask Gemini for slots for the given tasks. Returns the raw scheduledTasks list (unvalidated).
 // `weather` is the one-line description; `settings` supplies the location name and the time zone for the prompt.
-async function requestSchedule(tasks, busySlots, now, settings, weather) {
+async function requestSchedule(tasks, busySlots, now, settings, weather, {projects, fixed, allTasks}) {
   const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
-  const prompt = buildSchedulePrompt({tasks, busySlots, now, weather, settings});
+  const prompt = buildSchedulePrompt({tasks, busySlots, now, weather, settings, projects, fixed, allTasks});
 
   const response = await ai.models.generateContent({
     model: MODEL_NAME,
@@ -269,11 +269,15 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
         return {success: true, skipped: true, scheduledCount: 0, lockedCount: lockedEvents.size, message: "Nothing changed since the last run; existing events were kept."};
       }
     }
-    scheduledList = await requestSchedule(toSchedule, busySlots, now, settings, weather.text);
+    // Project members outside this run (locked, or already scheduled in a subset run) that the order rule respects
+    const lockedByTask = new Map([...lockedEvents].map(([id, ev]) => [id, eventWindow(ev, timeZone)]));
+    const fixed = buildFixedSlots({tasks: currentTasks, inScopeIds: subset ? new Set(inScope.map((t) => t.id)) : null, lockedWindows: lockedByTask, timeZone});
+    const projects = await readProjects();
+    scheduledList = await requestSchedule(toSchedule, busySlots, now, settings, weather.text, {projects, fixed, allTasks: currentTasks});
     if (scheduledList.length === 0) {
       throw new Error("Gemini returned no slots; existing events were kept.");
     }
-    const result = validateSchedule({items: scheduledList, tasks: toSchedule, busy: busySlots, now, horizon: sevenDaysLater, timeZone});
+    const result = validateSchedule({items: scheduledList, tasks: toSchedule, busy: busySlots, now, horizon: sevenDaysLater, timeZone, allTasks: currentTasks, fixed});
     if (result.errors.length > 0) {
       console.warn("Schedule validation failed:", result.errors);
       throw new Error(`Gemini's schedule was rejected and existing events were kept: ${result.errors.slice(0, 5).join("; ")}`);

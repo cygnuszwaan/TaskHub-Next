@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {validateSchedule, matchLockedEvents, DAY_START_MIN, DAY_END_MIN} = require("../schedule");
+const {validateSchedule, checkProjectOrder, buildFixedSlots, matchLockedEvents, DAY_START_MIN, DAY_END_MIN} = require("../schedule");
 
 // "now" is 07:00 NZDT on Thursday 22 Oct 2026; the horizon is seven days later.
 const NOW = new Date("2026-10-21T18:00:00Z");
@@ -238,6 +238,105 @@ describe("schedule.js", () => {
     it("returns an empty map when nothing matches", () => {
       assert.equal(matchLockedEvents([ev("e1", {summary: "Lunch"})], [{id: "t1", title: "Dentist"}]).size, 0);
       assert.equal(matchLockedEvents([], [{id: "t1", title: "Dentist"}]).size, 0);
+    });
+  });
+  describe("project order", () => {
+    const ZONE = "Pacific/Auckland";
+    const member = (id, projectOrder, extra = {}) => ({id, projectId: "p1", ...(projectOrder === undefined ? {} : {projectOrder}), ...extra});
+    const tasks = [member("a", 1), member("b", 2), member("c", 2), member("d", 3), {id: "x"}, member("u"), {id: "o", projectId: "p2", projectOrder: 1}];
+    const check = (items, fixed = [], list = tasks) => {
+      const {slots, errors} = validateSchedule({items, tasks: list.filter((t) => !fixed.some((f) => f.taskId === t.id)), busy: [], now: NOW, horizon: HORIZON, timeZone: ZONE, allTasks: list, fixed});
+      assert.deepEqual(errors.filter((e) => !e.startsWith("Project order")), []);
+      return checkProjectOrder({slots, tasks: list, fixed, timeZone: ZONE});
+    };
+    const at = (id, start, end) => slot(id, `2026-10-22T${start}:00+13:00`, `2026-10-22T${end}:00+13:00`);
+    const day = (id, date) => ({taskId: id, startISO: date, endISO: date, transparency: "transparent", isAllDay: true});
+
+    it("accepts tiers in order, including back to back", () => {
+      assert.deepEqual(check([at("a", "09:00", "10:00"), at("b", "10:00", "11:00"), at("c", "11:00", "12:00"), at("d", "12:00", "13:00")]), []);
+    });
+    it("rejects a higher tier that starts before a lower tier ends", () => {
+      const errors = check([at("a", "10:00", "11:00"), at("b", "09:00", "09:30")]);
+      assert.equal(errors.length, 1);
+      assert.match(errors[0], /Project order: task b \(order 2\) and task a \(order 1\)/);
+    });
+    it("rejects a higher tier scheduled earlier on an earlier day", () => {
+      assert.equal(check([at("a", "09:00", "10:00"), slot("b", "2026-10-21T22:00:00Z", "2026-10-21T22:30:00Z")]).length, 0); // 11:00 NZDT
+      assert.equal(check([slot("a", "2026-10-23T09:00:00+13:00", "2026-10-23T10:00:00+13:00"), at("b", "09:00", "10:00")]).length, 1);
+    });
+    it("checks every lower tier, not only the one below", () => {
+      assert.equal(check([at("a", "11:00", "12:00"), at("b", "09:00", "10:00"), at("d", "10:00", "10:30")], [], [member("a", 1), member("b", 2), member("d", 3)]).length, 2);
+    });
+    it("lets tasks of one tier go in any order or overlap-free arrangement", () => {
+      assert.deepEqual(check([at("a", "09:00", "10:00"), at("c", "10:00", "11:00"), at("b", "11:00", "12:00")]), []);
+    });
+    it("leaves unordered members, tasks outside projects and other projects unconstrained", () => {
+      assert.deepEqual(check([at("u", "08:00", "09:00"), at("x", "09:00", "10:00"), at("o", "10:00", "11:00"), at("a", "11:00", "12:00")]), []);
+    });
+    it("leaves a task unscheduled when a lower-tier member has no slot", () => {
+      const errors = check([at("b", "09:00", "10:00")]);
+      assert.equal(errors.length, 1);
+      assert.match(errors[0], /the earlier one has no slot/);
+      assert.deepEqual(check([at("a", "09:00", "10:00")]), []); // the lower tier alone is fine
+      assert.deepEqual(check([]), []);
+    });
+    it("compares an all-day slot by its whole date", () => {
+      assert.deepEqual(check([day("a", "2026-10-22"), at("b", "09:00", "10:00")]).length, 1); // same date: still occupied
+      assert.deepEqual(check([day("a", "2026-10-22"), slot("b", "2026-10-23T09:00:00+13:00", "2026-10-23T10:00:00+13:00")]), []);
+      assert.equal(check([at("a", "09:00", "10:00"), day("b", "2026-10-22")]).length, 1); // an all-day task covers from midnight
+      assert.deepEqual(check([at("a", "09:00", "10:00"), day("b", "2026-10-23")]), []);
+      assert.deepEqual(check([day("a", "2026-10-22"), day("b", "2026-10-23")]), []);
+      assert.equal(check([day("a", "2026-10-23"), day("b", "2026-10-23")]).length, 1);
+    });
+    it("treats a fixed lower-tier task as a fixed slot the run must follow", () => {
+      const fixed = [{taskId: "a", start: "2026-10-22T10:00:00+13:00", end: "2026-10-22T11:00:00+13:00"}];
+      assert.deepEqual(check([at("b", "11:00", "12:00")], fixed), []);
+      assert.equal(check([at("b", "10:30", "11:30")], fixed).length, 1);
+    });
+    it("treats a fixed higher-tier task as a deadline for the run's lower tier", () => {
+      const fixed = [{taskId: "b", start: "2026-10-22T14:00:00+13:00", end: "2026-10-22T15:00:00+13:00"}];
+      assert.deepEqual(check([at("a", "09:00", "10:00")], fixed), []);
+      assert.equal(check([at("a", "13:30", "14:30")], fixed).length, 1);
+    });
+    it("does not require a slot for a fixed higher tier, nor check two fixed tasks", () => {
+      const fixed = [{taskId: "b", start: "2026-10-22T14:00:00+13:00", end: "2026-10-22T15:00:00+13:00"}];
+      assert.deepEqual(check([], fixed), []);
+      const both = [{taskId: "a", start: "2026-10-22T14:00:00+13:00", end: "2026-10-22T15:00:00+13:00"}, ...fixed.map((f) => ({...f, start: "2026-10-22T09:00:00+13:00", end: "2026-10-22T10:00:00+13:00"}))];
+      assert.deepEqual(check([], both), []);
+    });
+    it("fails validateSchedule, so the run aborts", () => {
+      const {errors} = validateSchedule({items: [at("a", "10:00", "11:00"), at("b", "09:00", "09:30")], tasks: [member("a", 1), member("b", 2)], busy: [], now: NOW, horizon: HORIZON, timeZone: ZONE});
+      assert.equal(errors.length, 1);
+    });
+    it("ignores project fields when no task has an order number", () => {
+      const plain = [{id: "a"}, {id: "b", projectId: "p1"}];
+      assert.deepEqual(validateSchedule({items: [at("b", "09:00", "10:00")], tasks: plain, busy: [], now: NOW, horizon: HORIZON, timeZone: ZONE}).errors, []);
+    });
+  });
+
+  describe("buildFixedSlots", () => {
+    const ZONE = "Pacific/Auckland";
+    const member = (id, projectOrder, extra = {}) => ({id, projectId: "p1", projectOrder, ...extra});
+    const locked = new Map([["l", {start: "2026-10-22T10:00:00+13:00", end: "2026-10-22T11:00:00+13:00"}], ["n", {start: "2026-10-22T10:00:00+13:00", end: "2026-10-22T11:00:00+13:00"}]]);
+    const tasks = [member("l", 1), member("m", 2, {scheduledStart: "2026-10-22T13:00:00+13:00", scheduledEnd: "2026-10-22T14:00:00+13:00"}), member("d", 3, {scheduledStart: "2026-10-23", scheduledEnd: "2026-10-24"}), member("s", 4), {id: "n"}, {id: "z", scheduledStart: "2026-10-22T13:00:00+13:00", scheduledEnd: "2026-10-22T14:00:00+13:00"}];
+
+    it("returns only locked tasks in a full run", () => {
+      assert.deepEqual(buildFixedSlots({tasks, inScopeIds: null, lockedWindows: locked, timeZone: ZONE}), [{taskId: "l", start: "2026-10-22T10:00:00+13:00", end: "2026-10-22T11:00:00+13:00"}]);
+    });
+    it("adds the scheduled tasks outside a subset run, as instants", () => {
+      const out = buildFixedSlots({tasks, inScopeIds: new Set(["s"]), lockedWindows: locked, timeZone: ZONE});
+      assert.deepEqual(out.map((f) => f.taskId), ["l", "m", "d"]);
+      assert.equal(out[1].start, "2026-10-22T00:00:00.000Z"); // 13:00 NZDT
+      assert.equal(out[2].start, "2026-10-22T11:00:00.000Z"); // 23 Oct 00:00 NZDT
+      assert.equal(out[2].end, "2026-10-23T11:00:00.000Z"); // exclusive end date
+    });
+    it("leaves out tasks in scope, unscheduled tasks and tasks without an order number", () => {
+      const out = buildFixedSlots({tasks, inScopeIds: new Set(["m", "d"]), lockedWindows: new Map(), timeZone: ZONE});
+      assert.deepEqual(out, []);
+    });
+    it("skips unusable stored times", () => {
+      const bad = [member("m", 2, {scheduledStart: "soon", scheduledEnd: "2026-10-22T14:00:00+13:00"})];
+      assert.deepEqual(buildFixedSlots({tasks: bad, inScopeIds: new Set(), lockedWindows: new Map(), timeZone: ZONE}), []);
     });
   });
 });

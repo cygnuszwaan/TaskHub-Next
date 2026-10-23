@@ -65,5 +65,37 @@ describe("prompts.js", () => {
       build(AUCKLAND);
       assert.deepEqual(TASKS, copy);
     });
+    describe("project order", () => {
+      const PROJECTS = [{id: "p1", name: "Kitchen\n reno"}];
+      const members = [
+        {id: "m1", title: "Demolition", priority: "HIGH", dueDate: "", estimatedMinutes: 60, tags: [], order: 1, projectId: "p1", projectOrder: 1},
+        {id: "m2", title: "Tiling", priority: "LOW", dueDate: "2026-10-20", estimatedMinutes: 60, tags: [], order: 2, projectId: "p1", projectOrder: 2},
+        {id: "m3", title: "No project", priority: "LOW", dueDate: "", estimatedMinutes: 15, tags: [], order: 3},
+      ];
+
+      it("states the order rule and that it overrides due dates", () => {
+        assert.match(build(AUCKLAND), /Project order, which overrides due dates and priority/);
+        assert.match(build(AUCKLAND), /lower projectOrder must end before any task of that project with a higher projectOrder starts/);
+      });
+      it("adds the project name to member tasks only, keeping projectId and projectOrder", () => {
+        const prompt = build(AUCKLAND, {tasks: members, projects: PROJECTS});
+        assert.equal((prompt.match(/"project": "Kitchen reno"/g) || []).length, 2);
+        assert.match(prompt, /"projectOrder": 2/);
+        assert.match(prompt, /"projectId": "p1"/);
+      });
+      it("leaves out a project name for an unknown project", () => {
+        assert.doesNotMatch(build(AUCKLAND, {tasks: members, projects: []}), /"project":/);
+      });
+      it("lists the members placed outside the run with project, order number and window", () => {
+        const fixed = [{taskId: "f1", start: "2026-10-22T14:00:00+13:00", end: "2026-10-22T15:00:00+13:00"}, {taskId: "f2", start: "2026-10-22T16:00:00+13:00", end: "2026-10-22T17:00:00+13:00"}];
+        const allTasks = [...members, {id: "f1", projectId: "p1", projectOrder: 3}, {id: "f2"}];
+        const prompt = build(AUCKLAND, {tasks: members, projects: PROJECTS, fixed, allTasks});
+        assert.match(prompt, /"project": "Kitchen reno",\s+"projectOrder": 3,\s+"start": "2026-10-22T14:00:00\+13:00"/);
+        assert.ok(!prompt.includes("2026-10-22T16:00:00+13:00"));
+      });
+      it("renders an empty list of placed members when there are none", () => {
+        assert.match(build(AUCKLAND), /already placed outside this run[^\n]*\n\s*\[\]/);
+      });
+    });
   });
 });

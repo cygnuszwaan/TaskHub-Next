@@ -29,10 +29,16 @@ describe("fingerprint.js", () => {
     });
     it("changes with any scheduling-relevant task field", () => {
       const base = fp();
-      const changes = [{title: "Other"}, {priority: "HIGH"}, {dueDate: "2026-10-25"}, {estimatedMinutes: 45}, {tags: ["Outdoor"]}, {recurrence: {frequency: "WEEKLY", interval: 1}}, {order: 5}];
+      const changes = [{title: "Other"}, {priority: "HIGH"}, {dueDate: "2026-10-25"}, {estimatedMinutes: 45}, {tags: ["Outdoor"]}, {recurrence: {frequency: "WEEKLY", interval: 1}}, {order: 5}, {projectId: "p1"}, {projectId: "p1", projectOrder: 2}];
       for (const change of changes) {
         assert.notEqual(fp({tasks: [task("a", change), task("b", {order: 2})]}), base, JSON.stringify(change));
       }
+    });
+    it("changes with the project order number and the project, and ignores an absent one", () => {
+      const withProject = (extra) => fp({tasks: [task("a", {projectId: "p1", projectOrder: 1, ...extra})]});
+      assert.notEqual(withProject(), withProject({projectOrder: 2}));
+      assert.notEqual(withProject(), withProject({projectId: "p2"}));
+      assert.equal(fp({tasks: [task("a", {projectId: "", projectOrder: undefined})]}), fp({tasks: [task("a")]}));
     });
     it("changes when a task is added or removed", () => {
       assert.notEqual(fp({tasks: [task("a")]}), fp());
