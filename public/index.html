@@ -112,6 +112,12 @@
     .pager button { min-width: 36px; padding: 6px 10px; }
     .pager .pager-gap { color: var(--text-faint); }
     .completed-comments { font-size: 12px; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 4px; }
+    .photo-note { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+    .photo-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+    .photo-thumb { padding: 0; border: none; background: var(--chip-bg); border-radius: 6px; line-height: 0; overflow: hidden; cursor: pointer; }
+    .photo-thumb img { display: block; width: 72px; height: 72px; object-fit: cover; }
+    .photo-modal-card { max-width: 720px; }
+    #photoFull { display: block; max-width: 100%; max-height: 70vh; margin: 0 auto; border-radius: 6px; }
     .job-row { margin: 4px 0; font-size: 13px; }
     .job-title { font-weight: 600; overflow-wrap: anywhere; }
     .job-stats { color: var(--text-muted); font-size: 12px; }
@@ -529,6 +535,17 @@
     </div>
   </div>
 
+  <input type="file" id="photoInput" accept="image/*" hidden>
+  <div id="photoModal" class="modal-overlay" onclick="closePhotoOnOverlay(event)">
+    <div class="modal-card photo-modal-card">
+      <img id="photoFull" alt="Photo of the completed task">
+      <div class="modal-actions">
+        <button type="button" class="btn-danger" onclick="deleteViewedPhoto()">Delete</button>
+        <button type="button" class="btn-secondary" onclick="closePhotoViewer()">Close</button>
+      </div>
+    </div>
+  </div>
+
   <div id="completedEditModal" class="modal-overlay" onclick="closeCompletedEditOnOverlay(event)">
     <div class="modal-card">
       <h3>Edit Completed Task</h3>
@@ -649,6 +666,9 @@
     const UPDATE_PROJECT_URL = endpoint("updateProject");
     const EXPORT_URL = endpoint("exportData");
     const JOB_SHEET_URL = endpoint("getJobSheet");
+    const GET_PHOTOS_URL = endpoint("getCompletedPhotos");
+    const ADD_PHOTO_URL = endpoint("addCompletedPhoto");
+    const DELETE_PHOTO_URL = endpoint("deleteCompletedPhoto");
 
     // Firebase Auth. The SDK loads from the CDN and the web config from Hosting's reserved URL, so there is no build step or key in this file.
     let authLib = null;
@@ -1513,6 +1533,39 @@
     function addTaskExtras({ startNow }) {
       return startNow ? { startNow: true } : {};
     }
+
+    // Photos on completed tasks. The server takes a JPEG of at most PHOTO_MAX_BYTES, three to a task; the page shrinks a
+    // picture on a canvas to PHOTO_MAX_SIDE pixels on its longest side at PHOTO_QUALITY, and tries smaller and plainer
+    // versions only when that still does not fit.
+    const MAX_PHOTOS = 3;
+    const PHOTO_MAX_SIDE = 1280;
+    const PHOTO_QUALITY = 0.7;
+    const PHOTO_MAX_BYTES = 300 * 1024;
+    const PHOTO_FALLBACKS = [[PHOTO_MAX_SIDE, 0.55], [PHOTO_MAX_SIDE, 0.4], [960, 0.55], [800, 0.45], [640, 0.4]];
+    // The size a picture is drawn at: its own while the longest side is within `maxSide`, else scaled down to it, whole
+    // pixels, never smaller than 1. null for a width or height that is not a positive number.
+    function photoTargetSize(width, height, maxSide = PHOTO_MAX_SIDE) {
+      const w = Number(width);
+      const h = Number(height);
+      if (!(w >= 1) || !(h >= 1)) return null;
+      const scale = Math.min(1, maxSide / Math.max(w, h));
+      return { width: Math.max(1, Math.round(w * scale)), height: Math.max(1, Math.round(h * scale)) };
+    }
+    // The sizes and JPEG qualities to try for a picture, in order: the usual one first, then plainer and smaller ones.
+    function photoAttempts(width, height) {
+      if (!photoTargetSize(width, height)) return [];
+      return [[PHOTO_MAX_SIDE, PHOTO_QUALITY], ...PHOTO_FALLBACKS].map(([side, quality]) => ({ ...photoTargetSize(width, height, side), quality }));
+    }
+    // The header of a task's photos: "No photos yet", "1 of 3 photos".
+    function photoCountText(count) {
+      const n = Number.isInteger(count) && count > 0 ? count : 0;
+      return n === 0 ? "No photos yet" : `${n} of ${MAX_PHOTOS} photos`;
+    }
+    // The base64 part of a data URL (what the server takes as `image`); "" for anything that is not one.
+    function base64FromDataUrl(url) {
+      const match = /^data:[^,]*;base64,(.*)$/s.exec(String(url || ""));
+      return match ? match[1] : "";
+    }
     // </pure-helpers>
 
     // Dark mode: a data-theme attribute on <html> overrides the device setting (see the stylesheet), the theme-color
@@ -1564,6 +1617,18 @@
         box.focus();
         completedPageNo = 1;
         renderCompletedRows();
+      });
+      document.getElementById("completedRows").addEventListener("click", e => {
+        const el = e.target.closest("[data-photo-toggle], [data-photo-add], [data-photo-view]");
+        if (!el) return;
+        if (el.dataset.photoToggle) togglePhotos(el.dataset.photoToggle);
+        else if (el.dataset.photoAdd) chooseNewPhoto(el.dataset.photoAdd);
+        else if (el.dataset.photoView) openPhotoViewer(el.dataset.photoView, el.dataset.photoId);
+      });
+      document.getElementById("photoInput").addEventListener("change", e => {
+        const file = e.target.files && e.target.files[0];
+        if (file && photoTargetId) addPhoto(photoTargetId, file);
+        e.target.value = "";
       });
       document.getElementById("completedBrowser").addEventListener("click", e => {
         const link = e.target.closest("button[data-page]");
@@ -2486,6 +2551,154 @@
       }
     }
 
+    // Photos of completed tasks. A row's 📷 button opens its photo panel: the thumbnails are fetched then, through
+    // apiFetch (never with the list), and kept in `photoPanels` by archive id so redrawing the list keeps them open.
+    // A panel is {status: "loading" | "ready" | "error", photos: [{id, data, bytes, addedAt}], message, busy}.
+    const photoPanels = new Map();
+    let photoTargetId = "";
+    let photoViewing = null; // {archiveId, id} of the photo shown full size
+    function photoPanelHtml(archiveId) {
+      const panel = photoPanels.get(archiveId);
+      if (!panel) return "";
+      if (panel.status === "loading") return '<div class="photo-note">Loading photos…</div>';
+      if (panel.status === "error") return `<div class="photo-note">Could not load photos: ${esc(panel.message)}</div>`;
+      const thumbs = panel.photos.map(p => `<button type="button" class="photo-thumb" title="View photo" data-photo-view="${esc(archiveId)}" data-photo-id="${esc(p.id)}"><img alt="Photo" src="data:image/jpeg;base64,${esc(p.data)}"></button>`).join("");
+      const add = panel.photos.length < MAX_PHOTOS && !panel.busy ? `<button type="button" class="btn-secondary" data-photo-add="${esc(archiveId)}">＋ Add photo</button>` : "";
+      return `<div class="photo-note">${esc(panel.busy || photoCountText(panel.photos.length))}</div>${thumbs || add ? `<div class="photo-strip">${thumbs}${add}</div>` : ""}`;
+    }
+    function renderPhotoPanel(archiveId) {
+      const el = [...document.querySelectorAll("[data-photo-panel]")].find(e => e.dataset.photoPanel === archiveId);
+      if (el) el.innerHTML = photoPanelHtml(archiveId);
+    }
+    async function loadPhotos(archiveId, panel) {
+      try {
+        const res = await apiFetch(GET_PHOTOS_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ archiveId }) });
+        const data = await res.json();
+        panel.photos = Array.isArray(data.photos) ? data.photos : [];
+        panel.status = "ready";
+      } catch (err) {
+        panel.status = "error";
+        panel.message = err.message;
+      }
+      if (photoPanels.get(archiveId) === panel) renderPhotoPanel(archiveId);
+    }
+    function togglePhotos(archiveId) {
+      if (photoPanels.has(archiveId)) {
+        photoPanels.delete(archiveId);
+        renderPhotoPanel(archiveId);
+        return;
+      }
+      const panel = { status: "loading", photos: [], message: "", busy: "" };
+      photoPanels.set(archiveId, panel);
+      renderPhotoPanel(archiveId);
+      loadPhotos(archiveId, panel);
+    }
+    // Pick a picture (the browser offers the camera and the gallery), then shrink and upload it.
+    function chooseNewPhoto(archiveId) {
+      photoTargetId = archiveId;
+      const input = document.getElementById("photoInput");
+      input.value = "";
+      input.click();
+    }
+    // The picture as a JPEG blob within PHOTO_MAX_BYTES. The browser applies the picture's EXIF orientation when it
+    // decodes it (createImageBitmap's "from-image", and an <img> by default), so the canvas gets it upright.
+    async function shrinkPhoto(file) {
+      let source;
+      if (window.createImageBitmap) {
+        try { source = await createImageBitmap(file, { imageOrientation: "from-image" }); } catch (e) { source = null; }
+      }
+      if (!source) {
+        const url = URL.createObjectURL(file);
+        try {
+          source = new Image();
+          source.src = url;
+          await source.decode();
+        } catch (e) {
+          throw new Error("That file is not a picture this browser can read");
+        } finally {
+          URL.revokeObjectURL(url);
+        }
+      }
+      try {
+        const attempts = photoAttempts(source.naturalWidth || source.width, source.naturalHeight || source.height);
+        if (attempts.length === 0) throw new Error("That file is not a usable picture");
+        const canvas = document.createElement("canvas");
+        for (const a of attempts) {
+          canvas.width = a.width;
+          canvas.height = a.height;
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = "white"; // JPEG has no transparency
+          ctx.fillRect(0, 0, a.width, a.height);
+          ctx.drawImage(source, 0, 0, a.width, a.height);
+          const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", a.quality));
+          if (blob && blob.size <= PHOTO_MAX_BYTES) return blob;
+        }
+        throw new Error("That picture is too detailed to shrink to 300 KB");
+      } finally {
+        if (typeof source.close === "function") source.close();
+      }
+    }
+    function blobToDataUrl(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Could not read the picture"));
+        reader.readAsDataURL(blob);
+      });
+    }
+    async function addPhoto(archiveId, file) {
+      const panel = photoPanels.get(archiveId);
+      if (!panel || panel.busy || panel.status !== "ready") return;
+      try {
+        panel.busy = "Shrinking photo…";
+        renderPhotoPanel(archiveId);
+        const image = base64FromDataUrl(await blobToDataUrl(await shrinkPhoto(file)));
+        panel.busy = "Uploading photo…";
+        renderPhotoPanel(archiveId);
+        await apiFetch(ADD_PHOTO_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ archiveId, image }) });
+        panel.busy = "";
+        await loadPhotos(archiveId, panel);
+      } catch (err) {
+        alert("Photo failed: " + err.message);
+      } finally {
+        panel.busy = "";
+        if (photoPanels.get(archiveId) === panel) renderPhotoPanel(archiveId);
+      }
+    }
+    function openPhotoViewer(archiveId, id) {
+      const panel = photoPanels.get(archiveId);
+      const photo = panel && panel.photos.find(p => p.id === id);
+      if (!photo) return;
+      photoViewing = { archiveId, id };
+      document.getElementById("photoFull").src = `data:image/jpeg;base64,${photo.data}`;
+      document.getElementById("photoModal").style.display = "flex";
+      document.body.classList.add("modal-open");
+    }
+    function closePhotoViewer() {
+      photoViewing = null;
+      document.getElementById("photoModal").style.display = "none";
+      document.getElementById("photoFull").removeAttribute("src");
+      document.body.classList.remove("modal-open");
+    }
+    function closePhotoOnOverlay(e) {
+      if (e.target.id === "photoModal") closePhotoViewer();
+    }
+    async function deleteViewedPhoto() {
+      if (!photoViewing) return;
+      const { archiveId, id } = photoViewing;
+      if (!confirm("Delete this photo?\n\nIt is removed for good and cannot be undone.")) return;
+      try {
+        await apiFetch(DELETE_PHOTO_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+      } catch (err) {
+        alert("Failed to delete: " + err.message);
+        return;
+      }
+      const panel = photoPanels.get(archiveId);
+      if (panel) panel.photos = panel.photos.filter(p => p.id !== id);
+      closePhotoViewer();
+      renderPhotoPanel(archiveId);
+    }
+
     // The completed tasks fetched (newest first, up to COMPLETED_FETCH_LIMIT), searched and paged in the browser. The search
     // text lives in its box and the page here; both survive a reload of the list after an edit.
     const COMPLETED_FETCH_LIMIT = 1000;
@@ -2506,8 +2719,9 @@
               ${when ? `<span class="chip">✅ ${esc(when)}</span>` : ''}
             </div>
             ${t.comments ? `<div class="completed-comments">${esc(t.comments)}</div>` : ''}
+            ${t.archiveId ? `<div data-photo-panel="${esc(t.archiveId)}">${photoPanelHtml(t.archiveId)}</div>` : ''}
           </div>
-          ${t.archiveId ? `<div style="display:flex; gap:6px; align-items:flex-start;"><button type="button" class="btn-secondary" title="Download a job sheet (PDF) for this task" onclick="downloadTaskSheet('${esc(t.archiveId)}', this)">📄</button><button type="button" class="btn-secondary" title="Correct or delete this entry" onclick="openCompletedEditor('${esc(t.archiveId)}')">Edit</button></div>` : ''}
+          ${t.archiveId ? `<div style="display:flex; gap:6px; align-items:flex-start; flex-wrap:wrap; justify-content:flex-end;"><button type="button" class="btn-secondary" title="Photos of this task" data-photo-toggle="${esc(t.archiveId)}">📷</button><button type="button" class="btn-secondary" title="Download a job sheet (PDF) for this task" onclick="downloadTaskSheet('${esc(t.archiveId)}', this)">📄</button><button type="button" class="btn-secondary" title="Correct or delete this entry" onclick="openCompletedEditor('${esc(t.archiveId)}')">Edit</button></div>` : ''}
         </div>`;
     }
     // Draw the search box's page of the completed tasks, its count line and both pagers.
@@ -2537,6 +2751,7 @@
         if (tasks.length === 0) {
           completedAll = [];
           completedRows = new Map();
+          photoPanels.clear();
           browser.hidden = true;
           list.innerHTML = "<p style='color:var(--text-faint); margin:0;'>No completed tasks yet.</p>";
           return;
@@ -2544,6 +2759,7 @@
         completedAll = tasks;
         completedListLimited = data.listTruncated === true;
         completedRows = new Map(tasks.filter(t => t.archiveId).map(t => [t.archiveId, t]));
+        for (const id of [...photoPanels.keys()]) if (!completedRows.has(id)) photoPanels.delete(id);
         list.innerHTML = renderSummary(data.summary) + renderProjectHours(data.projectHours, data.projectHoursTruncated);
         browser.hidden = false;
         renderCompletedRows();

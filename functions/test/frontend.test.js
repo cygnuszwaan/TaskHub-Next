@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, historyOf, historyForTitle};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -1433,6 +1433,66 @@ describe("public/index.html helpers", () => {
       const {addTaskExtras} = load();
       assert.deepEqual(addTaskExtras({startNow: false}), {});
       assert.deepEqual(addTaskExtras({startNow: true}), {startNow: true});
+    });
+  });
+  describe("photos", () => {
+    it("keeps the server's limits", () => {
+      const {MAX_PHOTOS, PHOTO_MAX_BYTES, PHOTO_MAX_SIDE, PHOTO_QUALITY} = load();
+      assert.equal(MAX_PHOTOS, 3);
+      assert.equal(PHOTO_MAX_BYTES, 300 * 1024);
+      assert.equal(PHOTO_MAX_SIDE, 1280);
+      assert.equal(PHOTO_QUALITY, 0.7);
+    });
+    it("scales a picture to 1280 px on its longest side and never enlarges it", () => {
+      const {photoTargetSize} = load();
+      assert.deepEqual(photoTargetSize(4000, 3000), {width: 1280, height: 960});
+      assert.deepEqual(photoTargetSize(3000, 4000), {width: 960, height: 1280});
+      assert.deepEqual(photoTargetSize(1280, 720), {width: 1280, height: 720});
+      assert.deepEqual(photoTargetSize(640, 480), {width: 640, height: 480});
+      assert.deepEqual(photoTargetSize(4000, 3000, 800), {width: 800, height: 600});
+    });
+    it("rounds to whole pixels and keeps a thin picture at least one pixel", () => {
+      const {photoTargetSize} = load();
+      assert.deepEqual(photoTargetSize(4001, 3001), {width: 1280, height: 960});
+      assert.deepEqual(photoTargetSize(100000, 10), {width: 1280, height: 1});
+    });
+    it("has no size for a width or height that is not a positive number", () => {
+      const {photoTargetSize, photoAttempts} = load();
+      for (const [w, h] of [[0, 100], [100, 0], [-5, 5], [NaN, 5], [undefined, 5], ["a", 5]]) {
+        assert.equal(photoTargetSize(w, h), null, `${w}x${h}`);
+        assert.deepEqual(photoAttempts(w, h), []);
+      }
+    });
+    it("tries the usual size and quality first, then plainer and smaller ones", () => {
+      const {photoAttempts} = load();
+      const attempts = photoAttempts(4000, 3000);
+      assert.deepEqual(attempts[0], {width: 1280, height: 960, quality: 0.7});
+      assert.ok(attempts.length > 3);
+      for (let i = 1; i < attempts.length; i++) {
+        assert.ok(attempts[i].width <= attempts[i - 1].width);
+        assert.ok(attempts[i].quality <= attempts[i - 1].quality || attempts[i].width < attempts[i - 1].width);
+      }
+      assert.ok(attempts.at(-1).width < 1280);
+    });
+    it("says how many photos a task has", () => {
+      const {photoCountText} = load();
+      assert.equal(photoCountText(0), "No photos yet");
+      assert.equal(photoCountText(1), "1 of 3 photos");
+      assert.equal(photoCountText(3), "3 of 3 photos");
+      assert.equal(photoCountText(undefined), "No photos yet");
+      assert.equal(photoCountText(-1), "No photos yet");
+    });
+    it("takes the base64 part of a data URL", () => {
+      const {base64FromDataUrl} = load();
+      assert.equal(base64FromDataUrl("data:image/jpeg;base64,/9j/4AAQ=="), "/9j/4AAQ==");
+      assert.equal(base64FromDataUrl("data:image/jpeg;base64,"), "");
+      assert.equal(base64FromDataUrl("hello"), "");
+      assert.equal(base64FromDataUrl(null), "");
+    });
+    it("wires the page: file input, viewer and the three endpoints", () => {
+      for (const needle of ["id=\"photoInput\"", "accept=\"image/*\"", "id=\"photoModal\"", "endpoint(\"getCompletedPhotos\")", "endpoint(\"addCompletedPhoto\")", "endpoint(\"deleteCompletedPhoto\")", "data-photo-toggle"]) {
+        assert.ok(html.includes(needle), needle);
+      }
     });
   });
 });
