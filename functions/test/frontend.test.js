@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, historyOf, historyForTitle};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, historyOf, historyForTitle};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -862,6 +862,50 @@ describe("public/index.html helpers", () => {
   });
 
   describe("Stats summary", () => {
+    it("fmtMinutes and decimalHours: words and decimal hours", () => {
+      const {fmtMinutes, decimalHours} = load();
+      assert.equal(fmtMinutes(0), "0m");
+      assert.equal(fmtMinutes(45), "45m");
+      assert.equal(fmtMinutes(65), "1h 5m");
+      assert.equal(fmtMinutes(120), "2h");
+      assert.equal(decimalHours(0), "0.00");
+      assert.equal(decimalHours(200), "3.33");
+      assert.equal(decimalHours(90), "1.50");
+      assert.equal(decimalHours("x"), "0.00");
+    });
+    it("hoursText: words and decimal hours, with the estimated part when there is one", () => {
+      const {hoursText} = load();
+      assert.equal(hoursText(200, 0), "3h 20m (3.33 h)");
+      assert.equal(hoursText(200), "3h 20m (3.33 h)");
+      assert.equal(hoursText(200, 30), "3h 20m (3.33 h) · 30m est.");
+      assert.equal(hoursText(0, 0), "0m (0.00 h)");
+    });
+    it("projectWeekText: the hours and task count of a week, singular for one task", () => {
+      const {projectWeekText} = load();
+      assert.equal(projectWeekText({count: 4, minutes: 200, estimatedMinutes: 0}), "3h 20m (3.33 h) · 4 tasks");
+      assert.equal(projectWeekText({count: 1, minutes: 30, estimatedMinutes: 30}), "30m (0.50 h) · 30m est. · 1 task");
+    });
+    it("weekRangeText: the Monday-to-Sunday span of a week, across a month or year end", () => {
+      const {weekRangeText} = load();
+      assert.equal(weekRangeText("2026-10-19"), "19 Oct – 25 Oct");
+      assert.equal(weekRangeText("2026-10-26"), "26 Oct – 1 Nov");
+      assert.equal(weekRangeText("2026-12-28"), "28 Dec – 3 Jan");
+      assert.equal(weekRangeText("nonsense"), "nonsense");
+    });
+    it("pickStatsProject: keeps the current choice while it exists, else the project with the newest week", () => {
+      const {pickStatsProject} = load();
+      const entries = [
+        {projectId: "a", weeks: [{weekStart: "2026-10-05"}]},
+        {projectId: "b", weeks: [{weekStart: "2026-10-19"}, {weekStart: "2026-10-12"}]},
+        {projectId: "c", weeks: [{weekStart: "2026-10-12"}]},
+      ];
+      assert.equal(pickStatsProject(entries, "c"), "c");
+      assert.equal(pickStatsProject(entries, "gone"), "b");
+      assert.equal(pickStatsProject(entries, null), "b");
+      assert.equal(pickStatsProject([entries[0], entries[2]], null), "c");
+      assert.equal(pickStatsProject([], "a"), null);
+      assert.equal(pickStatsProject(undefined, null), null);
+    });
     it("jobStatsText: words the window count, total, average and estimate", () => {
       const {jobStatsText} = load();
       assert.equal(jobStatsText({count: 6, completedCount: 24, averageMinutes: 45, estimatedMinutes: 40}, 8), "6 in 8 wks · 24 total · avg 45m · est. 40m");

@@ -104,6 +104,9 @@
     .material-group-title { font-weight: 600; font-size: 14px; cursor: pointer; }
     .summary { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--divider); }
     .summary-total { font-size: 14px; margin-bottom: 10px; }
+    .hours-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 3px 0; border-bottom: 1px solid var(--divider); }
+    .hours-row span:last-child { color: var(--text-muted); text-align: right; }
+    .hours-weeks { max-height: 260px; overflow-y: auto; }
     .job-row { margin: 4px 0; font-size: 13px; }
     .job-title { font-weight: 600; overflow-wrap: anywhere; }
     .job-stats { color: var(--text-muted); font-size: 12px; }
@@ -1143,6 +1146,44 @@
       if (Number.isFinite(job.estimatedMinutes) && job.estimatedMinutes > 0) parts.push(`est. ${durationText(job.estimatedMinutes * 60)}`);
       return parts.join(" · ");
     }
+    // Minutes in words: "45m", "1h 5m", "2h".
+    function fmtMinutes(total) {
+      const m = Math.round(Number(total) || 0);
+      if (m < 60) return `${m}m`;
+      return m % 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${Math.floor(m / 60)}h`;
+    }
+    // Minutes as decimal hours to two places, for a timesheet: 200 -> "3.33".
+    function decimalHours(minutes) {
+      return (Math.round((Number(minutes) || 0) / 60 * 100) / 100).toFixed(2);
+    }
+    // The hours of a project (or one of its weeks) for the Stats page: "3h 20m (3.33 h)", then " · 30m est." for the part that
+    // comes from estimates rather than tracked time (tasks whose timer was never started).
+    function hoursText(minutes, estimatedMinutes) {
+      const est = Number(estimatedMinutes) > 0 ? ` · ${fmtMinutes(estimatedMinutes)} est.` : "";
+      return `${fmtMinutes(minutes)} (${decimalHours(minutes)} h)${est}`;
+    }
+    // A project week's line: "3h 20m (3.33 h) · 4 tasks".
+    function projectWeekText(week) {
+      const n = Number(week && week.count) || 0;
+      return `${hoursText(week && week.minutes, week && week.estimatedMinutes)} · ${n} ${n === 1 ? "task" : "tasks"}`;
+    }
+    // The Monday-to-Sunday span of the week starting on the given YYYY-MM-DD Monday: "19 Oct – 25 Oct".
+    function weekRangeText(weekStart) {
+      if (!DATE_ONLY.test(weekStart)) return String(weekStart);
+      const start = new Date(weekStart + "T00:00:00Z");
+      return `${weekNameFmt.format(start)} – ${weekNameFmt.format(new Date(start.getTime() + 6 * 86400000))}`;
+    }
+    // The project the Stats hours section shows: the current choice while it still exists, else the project with the most
+    // recent week of work (entries have `weeks` newest first), else null.
+    function pickStatsProject(entries, currentId) {
+      if (!Array.isArray(entries) || entries.length === 0) return null;
+      if (currentId && entries.some((e) => e.projectId === currentId)) return currentId;
+      let best = entries[0];
+      for (const e of entries) {
+        if (e.weeks && e.weeks[0] && !(best.weeks && best.weeks[0] && best.weeks[0].weekStart >= e.weeks[0].weekStart)) best = e;
+      }
+      return best.projectId;
+    }
     // Dark mode is a per-device choice kept in localStorage under THEME_KEY: "light" or "dark"; anything else, or nothing
     // saved, means "auto" (follow the device's own light/dark setting).
     const THEME_KEY = "taskhub-theme";
@@ -2045,12 +2086,6 @@
       }
     }
 
-    function fmtMinutes(total) {
-      const m = Math.round(Number(total) || 0);
-      if (m < 60) return `${m}m`;
-      return m % 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${Math.floor(m / 60)}h`;
-    }
-
     // Completion totals from getCompletedTasks: the streak, per week, by priority, by tag and by project
     function renderSummary(summary) {
       if (!summary) return "";
@@ -2086,6 +2121,36 @@
         </div>`;
     }
 
+    // The Stats section for the hours of one project: its total, then every week (Monday to Sunday) it has work in, newest first.
+    let projectHoursEntries = [];
+    let statsProjectId = null;
+    function projectHoursBody(entry) {
+      const rows = entry.weeks.map(w => `<div class="hours-row"><span>${esc(weekRangeText(w.weekStart))}</span><span>${esc(projectWeekText(w))}</span></div>`).join("");
+      const n = entry.count;
+      return `<div class="summary-total"><strong>Total</strong> ${esc(hoursText(entry.minutes, entry.estimatedMinutes))} · ${esc(n)} ${n === 1 ? "task" : "tasks"}</div>
+        <div class="summary-label">Per week (Monday to Sunday)</div><div class="hours-weeks">${rows}</div>`;
+    }
+    function renderProjectHours(entries, truncated) {
+      projectHoursEntries = Array.isArray(entries) ? entries : [];
+      statsProjectId = pickStatsProject(projectHoursEntries, statsProjectId);
+      if (!statsProjectId) return "";
+      const options = projectHoursEntries.map(e => `<option value="${esc(e.projectId)}"${e.projectId === statsProjectId ? " selected" : ""}>📁 ${esc(e.name || "Untitled project")}</option>`).join("");
+      const entry = projectHoursEntries.find(e => e.projectId === statsProjectId);
+      return `
+        <div class="summary">
+          <div class="summary-label" style="margin-top:0;">Project hours</div>
+          <select id="statsProject" aria-label="Project" style="width:100%; margin:4px 0;" onchange="selectStatsProject(this.value)">${options}</select>
+          <div id="projectHoursBody">${projectHoursBody(entry)}</div>
+          ${truncated ? `<div class="summary-total" style="color:var(--text-faint);">A project with a very large number of completed tasks shows only its newest ones.</div>` : ""}
+        </div>`;
+    }
+    function selectStatsProject(id) {
+      const entry = projectHoursEntries.find(e => e.projectId === id);
+      if (!entry) return;
+      statsProjectId = id;
+      document.getElementById("projectHoursBody").innerHTML = projectHoursBody(entry);
+    }
+
     async function fetchCompleted() {
       const list = document.getElementById("completedList");
       list.textContent = "Loading...";
@@ -2097,7 +2162,7 @@
           list.innerHTML = "<p style='color:var(--text-faint); margin:0;'>No completed tasks yet.</p>";
           return;
         }
-        list.innerHTML = renderSummary(data.summary) + tasks.map(t => {
+        list.innerHTML = renderSummary(data.summary) + renderProjectHours(data.projectHours, data.projectHoursTruncated) + tasks.map(t => {
           const done = t.completedAt ? new Date(t.completedAt) : null;
           const when = done && !isNaN(done) ? formatInstant(done) : "";
           return `

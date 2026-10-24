@@ -20,7 +20,7 @@ const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint
 const {buildTaskPrompt, buildTagPrompt} = require("./prompts");
 const {MAX_TEMPLATES, buildTemplates} = require("./templates");
 const {heldTaskIds} = require("./materials");
-const {SUMMARY_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted} = require("./completed");
+const {SUMMARY_MAX_ROWS, PROJECT_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted, summarizeProjectHours} = require("./completed");
 const {EXPORT_MAX_ROWS, buildExport} = require("./export");
 const {makeOwnerOnly} = require("./auth");
 const {dayWindowMinutes} = require("./settings");
@@ -550,7 +550,9 @@ exports.getTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res)
 // 6. Endpoint: Read Completed Tasks
 // Recently completed tasks from the archive, newest first (optional ?limit=, default 50, at most 200), plus a
 // summary of the last 8 local weeks of completions. The summary is computed from its own query, so it does not
-// depend on the limit; `truncated` is true if the window held more rows than were read.
+// depend on the limit; `truncated` is true if the window held more rows than were read. `projectHours` is the hours of each
+// current project per Monday-to-Sunday week over all time (see summarizeProjectHours), from one query per project of at most
+// PROJECT_MAX_ROWS rows; `projectHoursTruncated` is true if any project had more.
 exports.getCompletedTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
     const archive = db.collection("completed_tasks");
@@ -562,7 +564,16 @@ exports.getCompletedTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (
       readProjects(),
     ]);
     const summary = {...summarizeCompleted(windowSnap.docs.map((d) => d.data()), timeZone, now, undefined, projects), truncated: windowSnap.size >= SUMMARY_MAX_ROWS};
-    res.status(200).send({success: true, tasks: serializeCompleted(listSnap.docs.map((d) => d.data())), summary});
+    const projectSnaps = await Promise.all(projects.map((p) => archive.where("projectId", "==", p.id)
+        .select("projectId", "completedAt", "trackedSeconds", "estimatedMinutes").limit(PROJECT_MAX_ROWS).get()));
+    const projectHours = summarizeProjectHours(projectSnaps.flatMap((snap) => snap.docs.map((d) => d.data())), projects, timeZone);
+    res.status(200).send({
+      success: true,
+      tasks: serializeCompleted(listSnap.docs.map((d) => d.data())),
+      summary,
+      projectHours,
+      projectHoursTruncated: projectSnaps.some((snap) => snap.size >= PROJECT_MAX_ROWS),
+    });
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});

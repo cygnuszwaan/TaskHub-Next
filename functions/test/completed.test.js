@@ -4,7 +4,7 @@ const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
 
 const NZ = "Pacific/Auckland";
-const {DEFAULT_LIMIT, MAX_LIMIT, SUMMARY_WEEKS, clampLimit, toIso, serializeCompleted, weekStartOf, firstSummaryWeek, summaryWindowStart, computeStreaks, summarizeCompleted} = require("../completed");
+const {DEFAULT_LIMIT, MAX_LIMIT, SUMMARY_WEEKS, clampLimit, toIso, serializeCompleted, weekStartOf, firstSummaryWeek, summaryWindowStart, computeStreaks, summarizeCompleted, summarizeProjectHours} = require("../completed");
 
 describe("completed.js", () => {
   describe("clampLimit", () => {
@@ -421,6 +421,84 @@ describe("completed.js", () => {
       const copy = JSON.parse(JSON.stringify(rows));
       summarizeCompleted(rows, NZ, now);
       assert.deepEqual(JSON.parse(JSON.stringify(rows)), copy);
+    });
+  });
+
+  describe("summarizeProjectHours", () => {
+    const projects = [{id: "p1", name: "Website"}, {id: "p2", name: "apps"}];
+    const row = (projectId, iso, extra) => ({title: "T", projectId, completedAt: new Date(iso), trackedSeconds: 3600, estimatedMinutes: 15, ...extra});
+
+    it("is empty for no rows, no projects or garbage input", () => {
+      assert.deepEqual(summarizeProjectHours([], projects, NZ), []);
+      assert.deepEqual(summarizeProjectHours([row("p1", "2026-10-20T01:00:00Z")], [], NZ), []);
+      assert.deepEqual(summarizeProjectHours(undefined, undefined, NZ), []);
+      assert.deepEqual(summarizeProjectHours([null, 5, {}], projects, NZ), []);
+    });
+    it("sums each project's hours per Monday-to-Sunday week, newest week first, and in total", () => {
+      const rows = [
+        row("p1", "2026-10-20T01:00:00Z", {trackedSeconds: 3600}), // Tue 20 Oct NZ
+        row("p1", "2026-10-22T01:00:00Z", {trackedSeconds: 1800}), // Thu 22 Oct NZ, same week
+        row("p1", "2026-10-13T01:00:00Z", {trackedSeconds: 7200}), // the week before
+        row("p2", "2026-10-20T01:00:00Z", {trackedSeconds: 600}),
+      ];
+      assert.deepEqual(summarizeProjectHours(rows, projects, NZ), [
+        {projectId: "p2", name: "apps", count: 1, minutes: 10, estimatedMinutes: 0, weeks: [{weekStart: "2026-10-19", count: 1, minutes: 10, estimatedMinutes: 0}]},
+        {projectId: "p1", name: "Website", count: 3, minutes: 210, estimatedMinutes: 0, weeks: [
+          {weekStart: "2026-10-19", count: 2, minutes: 90, estimatedMinutes: 0},
+          {weekStart: "2026-10-12", count: 1, minutes: 120, estimatedMinutes: 0},
+        ]},
+      ]);
+    });
+    it("puts Sunday night and Monday morning, in the owner's time zone, in different weeks", () => {
+      const rows = [
+        row("p1", "2026-10-25T10:30:00Z"), // Sun 25 Oct 23:30 NZ
+        row("p1", "2026-10-25T11:30:00Z"), // Mon 26 Oct 00:30 NZ
+      ];
+      const [entry] = summarizeProjectHours(rows, projects, NZ);
+      assert.deepEqual(entry.weeks.map((w) => [w.weekStart, w.count]), [["2026-10-26", 1], ["2026-10-19", 1]]);
+    });
+    it("counts an estimate for a task that was never timed and reports that part separately", () => {
+      const rows = [
+        row("p1", "2026-10-20T01:00:00Z", {trackedSeconds: 3600}),
+        row("p1", "2026-10-21T01:00:00Z", {trackedSeconds: 0, estimatedMinutes: 30}),
+        row("p1", "2026-10-22T01:00:00Z", {trackedSeconds: undefined, estimatedMinutes: 15}),
+      ];
+      const [entry] = summarizeProjectHours(rows, projects, NZ);
+      assert.equal(entry.minutes, 105);
+      assert.equal(entry.estimatedMinutes, 45);
+      assert.deepEqual(entry.weeks, [{weekStart: "2026-10-19", count: 3, minutes: 105, estimatedMinutes: 45}]);
+    });
+    it("makes the totals the sums of the rounded weeks, so a timesheet adds up", () => {
+      const rows = [
+        row("p1", "2026-10-20T01:00:00Z", {trackedSeconds: 90}), // 1.5 min
+        row("p1", "2026-10-13T01:00:00Z", {trackedSeconds: 90}),
+      ];
+      const [entry] = summarizeProjectHours(rows, projects, NZ);
+      assert.deepEqual(entry.weeks.map((w) => w.minutes), [2, 2]);
+      assert.equal(entry.minutes, 4);
+    });
+    it("ignores rows without a valid date, with no project or with a project that no longer exists", () => {
+      const rows = [
+        row("p1", "2026-10-20T01:00:00Z"),
+        {...row("p1", "2026-10-20T01:00:00Z"), completedAt: undefined},
+        {...row("p1", "2026-10-20T01:00:00Z"), completedAt: "not a date"},
+        {...row("p1", "2026-10-20T01:00:00Z"), projectId: undefined},
+        row("deleted", "2026-10-20T01:00:00Z"),
+      ];
+      const entries = summarizeProjectHours(rows, projects, NZ);
+      assert.equal(entries.length, 1);
+      assert.equal(entries[0].count, 1);
+    });
+    it("lists only projects with a completion, by name ignoring case, and does not mutate its input", () => {
+      const rows = [row("p1", "2026-10-20T01:00:00Z"), row("p2", "2026-10-20T01:00:00Z")];
+      const copy = JSON.parse(JSON.stringify(rows));
+      assert.deepEqual(summarizeProjectHours(rows, [...projects, {id: "p3", name: "Empty"}], NZ).map((e) => e.name), ["apps", "Website"]);
+      assert.deepEqual(JSON.parse(JSON.stringify(rows)), copy);
+    });
+    it("reads a Firestore-style Timestamp", () => {
+      const stamp = {toDate: () => new Date("2026-10-20T01:00:00Z")};
+      const [entry] = summarizeProjectHours([{projectId: "p1", completedAt: stamp, trackedSeconds: 600}], projects, NZ);
+      assert.equal(entry.weeks[0].weekStart, "2026-10-19");
     });
   });
 });

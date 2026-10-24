@@ -10,6 +10,8 @@ const MAX_LIMIT = 200;
 const SUMMARY_WEEKS = 8;
 // Most archive rows read for one summary.
 const SUMMARY_MAX_ROWS = 1000;
+// Most archive rows read for the hours of one project.
+const PROJECT_MAX_ROWS = 5000;
 const PRIORITIES = ["HIGH", "MEDIUM", "LOW"];
 
 // How many completed tasks to return: a whole number from 1 to MAX_LIMIT, DEFAULT_LIMIT when missing or invalid.
@@ -88,6 +90,54 @@ function computeStreaks(days, since, today) {
 }
 
 // Minutes are time tracked (see minutesOf), summed exactly and rounded to whole minutes in the result.
+// Hours per project per local week (Monday to Sunday), over every archive row of the current projects, not just the summary
+// window. Pure: no I/O.
+//   rows:     archive documents (a Task plus completedAt); rows with no valid completedAt, or whose projectId is not a
+//             current project (none, or a deleted project), are ignored
+//   projects: the current projects [{id, name}]
+// Returns [{projectId, name, count, minutes, estimatedMinutes, weeks: [{weekStart, count, minutes, estimatedMinutes}]}], one
+// entry per project with at least one completion, by name (ignoring case) then id; `weeks` newest first and holds only weeks
+// with a completion. `minutes` is as everywhere else (the time tracked, else the estimate: see minutesOf);
+// `estimatedMinutes` is the part of it that comes from estimates, tasks whose timer was never started. Each week's figures
+// are rounded to whole minutes and a project's totals are the sums of its rounded weeks, so a timesheet always adds up.
+function summarizeProjectHours(rows, projects, timeZone) {
+  const names = new Map();
+  for (const p of Array.isArray(projects) ? projects : []) {
+    if (p && typeof p.id === "string" && p.id) names.set(p.id, typeof p.name === "string" ? p.name : "");
+  }
+  const byProject = new Map(); // project id -> Map(weekStart -> {count, minutes, estimated})
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (!row || typeof row.projectId !== "string" || !names.has(row.projectId)) continue;
+    const iso = toIso(row.completedAt);
+    if (!iso) continue;
+    const weekStart = weekStartOf(localDate(timeZone, new Date(iso)));
+    const weeks = byProject.get(row.projectId) || new Map();
+    const week = weeks.get(weekStart) || {count: 0, minutes: 0, estimated: 0};
+    const minutes = minutesOf(row);
+    const tracked = Number.isFinite(row.trackedSeconds) && row.trackedSeconds > 0;
+    week.count++;
+    week.minutes += minutes;
+    if (!tracked) week.estimated += minutes;
+    weeks.set(weekStart, week);
+    byProject.set(row.projectId, weeks);
+  }
+  const entries = [];
+  for (const [projectId, weeks] of byProject) {
+    const list = [...weeks].sort((a, b) => (a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0))
+        .map(([weekStart, w]) => ({weekStart, count: w.count, minutes: Math.round(w.minutes), estimatedMinutes: Math.round(w.estimated)}));
+    entries.push({
+      projectId,
+      name: names.get(projectId),
+      count: list.reduce((n, w) => n + w.count, 0),
+      minutes: list.reduce((n, w) => n + w.minutes, 0),
+      estimatedMinutes: list.reduce((n, w) => n + w.estimatedMinutes, 0),
+      weeks: list,
+    });
+  }
+  entries.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || (a.projectId < b.projectId ? -1 : 1));
+  return entries;
+}
+
 // Totals for completed tasks over the last `weeks` local weeks in the given zone. Pure: no I/O.
 //   rows:     archive documents (a Task plus completedAt as a Timestamp, Date or ISO string)
 //   projects: the current projects [{id, name}], to name the project of each row
@@ -196,4 +246,4 @@ function summarizeCompleted(rows, timeZone, now = new Date(), weeks = SUMMARY_WE
   };
 }
 
-module.exports = {DEFAULT_LIMIT, MAX_LIMIT, SUMMARY_WEEKS, SUMMARY_MAX_ROWS, clampLimit, toIso, serializeCompleted, weekStartOf, firstSummaryWeek, summaryWindowStart, computeStreaks, summarizeCompleted};
+module.exports = {DEFAULT_LIMIT, MAX_LIMIT, SUMMARY_WEEKS, SUMMARY_MAX_ROWS, PROJECT_MAX_ROWS, clampLimit, toIso, serializeCompleted, weekStartOf, firstSummaryWeek, summaryWindowStart, computeStreaks, summarizeCompleted, summarizeProjectHours};
