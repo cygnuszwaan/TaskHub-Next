@@ -27,7 +27,7 @@
       --overdue-bg: #fee2e2; --overdue-fg: #991b1b; --snooze-bg: #e0e7ff; --snooze-fg: #3730a3;
       --timer-run-bg: #a8eec0; --timer-pause-bg: #fcdc7c;
       --coach-bg: #eff6ff; --coach-border: #2563eb;
-      --swipe-del: #dc2626; --swipe-snooze: #4f46e5;
+      --swipe-del: #dc2626; --swipe-snooze: #4f46e5; --swipe-complete: #16a34a; --swipe-abort: #d97706;
     }
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme="light"]) {
@@ -41,7 +41,7 @@
         --overdue-bg: #4a1d1d; --overdue-fg: #fca5a5; --snooze-bg: #26295a; --snooze-fg: #a5b4fc;
         --timer-run-bg: #14382a; --timer-pause-bg: #46380f;
         --coach-bg: #172a4d; --coach-border: #3b82f6;
-        --swipe-del: #991b1b; --swipe-snooze: #3730a3;
+        --swipe-del: #991b1b; --swipe-snooze: #3730a3; --swipe-complete: #166534; --swipe-abort: #92400e;
       }
     }
     :root[data-theme="light"] { color-scheme: light; }
@@ -57,7 +57,7 @@
       --overdue-bg: #4a1d1d; --overdue-fg: #fca5a5; --snooze-bg: #26295a; --snooze-fg: #a5b4fc;
       --timer-run-bg: #14382a; --timer-pause-bg: #46380f;
       --coach-bg: #172a4d; --coach-border: #3b82f6;
-      --swipe-del: #991b1b; --swipe-snooze: #3730a3;
+      --swipe-del: #991b1b; --swipe-snooze: #3730a3; --swipe-complete: #166534; --swipe-abort: #92400e;
     }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 680px; margin: 0 auto 20px; padding: 0 15px; background: var(--bg); color: var(--text); }
     .card { background: var(--surface); padding: 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 16px; }
@@ -204,7 +204,9 @@
     .swipe-row.swipe-armed .swipe-bg { opacity: 1; }
     .swipe-del { background: var(--swipe-del); justify-content: flex-end; }
     .swipe-snooze { background: var(--swipe-snooze); justify-content: flex-start; }
-    .swipe-row.swipe-left .swipe-del, .swipe-row.swipe-right .swipe-snooze { display: flex; }
+    .swipe-complete { background: var(--swipe-complete); justify-content: flex-start; }
+    .swipe-abort { background: var(--swipe-abort); justify-content: flex-end; }
+    .swipe-row.swipe-left .swipe-del, .swipe-row.swipe-left .swipe-abort, .swipe-row.swipe-right .swipe-snooze, .swipe-row.swipe-right .swipe-complete { display: flex; }
     .proposal-steps .proposal-note { margin-top: 2px; font-size: 12px; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .proposal-steps li { margin-bottom: 6px; }
     .proposal-steps { margin: 0 0 14px; padding-left: 22px; font-size: 14px; line-height: 1.5; }
@@ -1669,18 +1671,12 @@
       const match = /^data:[^,]*;base64,(.*)$/s.exec(String(url || ""));
       return match ? match[1] : "";
     }
-    // Task card gestures: a long press starts or pauses the timer, a double tap completes, a single tap opens the editor
-    // (held back for DOUBLE_TAP_MS so a second tap can still turn it into a double tap).
+    // Task card gestures: a long press starts or pauses the timer and a tap opens the editor; swipes are below.
     const LONG_PRESS_MS = 500;
-    const DOUBLE_TAP_MS = 300;
     const PRESS_MOVE_PX = 10;
     // True when a finger has drifted far enough from where it went down that it is a scroll, not a press.
     function pressMoved(dx, dy) {
       return Math.hypot(Number(dx) || 0, Number(dy) || 0) > PRESS_MOVE_PX;
-    }
-    // True when a tap on `taskId` at time `now` (ms) follows `previous` ({taskId, at}) on the same card closely enough.
-    function isDoubleTap(previous, taskId, now) {
-      return !!previous && previous.taskId === taskId && now - previous.at >= 0 && now - previous.at <= DOUBLE_TAP_MS;
     }
     // The chip on a task that has had its timer started: ▶️ while it runs, ⏸️ while it does not; "" before the first start.
     function timerChipIcon(task) {
@@ -1697,7 +1693,8 @@
       const elapsed = now - flash.at;
       return elapsed >= 0 && elapsed < FLASH_MS ? elapsed : null;
     }
-    // Swipes on a queued task card: left deletes (after a confirmation), right snoozes (opens the snooze dialog). A drag
+    // Swipes on a task card. A queued card: left deletes (after a confirmation), right snoozes (opens the snooze dialog).
+    // The Active task: left aborts it (after a confirmation), right completes it (after the usual confirmation). A drag
     // counts as a swipe once it is clearly more sideways than up or down, and acts when released far enough across.
     const SWIPE_START_PX = 12;
     const SWIPE_COMMIT_PX = 90;
@@ -1705,9 +1702,11 @@
       const x = Math.abs(Number(dx) || 0);
       return x > SWIPE_START_PX && x > Math.abs(Number(dy) || 0) * 1.5;
     }
-    // "DELETE" for a long enough drag to the left, "SNOOZE" to the right, null for anything else.
-    function swipeAction(dx, dy) {
+    // For a long enough drag: on a queued card "DELETE" to the left and "SNOOZE" to the right; on the Active task
+    // (`isActive`) "ABORT" to the left and "COMPLETE" to the right. null for anything else.
+    function swipeAction(dx, dy, isActive = false) {
       if (!isHorizontalDrag(dx, dy) || Math.abs(dx) < SWIPE_COMMIT_PX) return null;
+      if (isActive) return dx < 0 ? "ABORT" : "COMPLETE";
       return dx < 0 ? "DELETE" : "SNOOZE";
     }
     // How far the card follows the finger: the drag, held to `max` pixels either way.
@@ -1719,6 +1718,10 @@
     // The confirmation text for deleting a task by swipe.
     function deletePrompt(task) {
       return `Delete ${task && task.title ? `\"${task.title}\"` : "this task"}?`;
+    }
+    // The confirmation text for aborting the Active task by swipe.
+    function abortPrompt(task) {
+      return `Abort ${task && task.title ? `\"${task.title}\"` : "this task"}? Its timer stops, its tracked time and start time are erased and it returns to the queue.`;
     }
     // Optimistic removal: the list without the tasks whose removal is still waiting on the server, and a task put back at
     // its old place when that removal fails (never twice).
@@ -1845,18 +1848,15 @@
       });
 
       // Rows in the list and the active task box above the search box behave the same. Gestures: long press starts or
-      // pauses the timer, double tap completes (after the usual confirmation), single tap opens the editor. The active
-      // task answers anywhere inside its bordered box; every card also swipes (left deletes after a confirmation,
-      // right opens the snooze dialog).
+      // pauses the timer, a tap opens the editor. The active task answers anywhere inside its bordered box; every card
+      // also swipes: a queued card left deletes (after a confirmation) and right opens the snooze dialog, the Active task
+      // left aborts (after a confirmation) and right completes (after the usual confirmation).
       let pressTimer = null;
       let pressStart = null;
       let pressFired = false; // a long press happened: the click that ends it must do nothing
       let swipe = null; // the drag in progress on a queued card: {item, row, id, x, y, dx, dy, dragging, pointerId}
       let swiped = false; // a swipe happened: the click that ends it must do nothing
-      let lastTap = null;
-      let tapTimer = null;
       const cancelPress = () => { if (pressTimer !== null) clearTimeout(pressTimer); pressTimer = null; pressStart = null; };
-      const cancelTap = () => { if (tapTimer !== null) clearTimeout(tapTimer); tapTimer = null; lastTap = null; };
       // The card a pointer event is about; anywhere in the active task box counts as that box's card
       const cardOf = e => {
         const item = e.target.closest(".task-item");
@@ -1868,7 +1868,7 @@
         s.item.style.transform = `translateX(${offset}px)`;
         s.row.classList.toggle("swipe-left", offset < 0);
         s.row.classList.toggle("swipe-right", offset > 0);
-        s.row.classList.toggle("swipe-armed", swipeAction(s.dx, s.dy) !== null);
+        s.row.classList.toggle("swipe-armed", swipeAction(s.dx, s.dy, s.active) !== null);
       };
       const resetSwipe = s => {
         s.row.classList.remove("swiping", "swipe-left", "swipe-right", "swipe-armed");
@@ -1883,13 +1883,12 @@
         pressStart = { x: e.clientX, y: e.clientY };
         const taskId = item.dataset.id;
         const row = item.closest(".swipe-row");
-        swipe = row ? { item, row, id: taskId, x: e.clientX, y: e.clientY, dx: 0, dy: 0, dragging: false, pointerId: e.pointerId } : null;
+        swipe = row ? { item, row, id: taskId, active: !!item.closest("#activeTaskBox"), x: e.clientX, y: e.clientY, dx: 0, dy: 0, dragging: false, pointerId: e.pointerId } : null;
         pressTimer = setTimeout(() => {
           pressTimer = null;
           pressStart = null;
           pressFired = true;
           swipe = null;
-          cancelTap();
           if (navigator.vibrate) navigator.vibrate(30);
           cardFlash = { taskId, at: Date.now() };
           applyFlash();
@@ -1904,7 +1903,6 @@
           if (!s.dragging && isHorizontalDrag(dx, dy)) {
             s.dragging = true;
             cancelPress();
-            cancelTap();
             try { s.item.setPointerCapture(s.pointerId); } catch (err) { /* the drag still works without it */ }
             s.row.classList.add("swiping");
           }
@@ -1923,13 +1921,17 @@
         swipe = null;
         if (!s || !s.dragging) return;
         swiped = true;
-        const action = e.type === "pointerup" ? swipeAction(s.dx, s.dy) : null;
+        const action = e.type === "pointerup" ? swipeAction(s.dx, s.dy, s.active) : null;
+        // the card stays pulled aside, over its colour, while a question is asked
+        const task = allTasks.find(t => t.id === s.id);
         if (action === "DELETE") {
-          // the card stays pulled aside, over the red, while the question is asked
-          const task = allTasks.find(t => t.id === s.id);
           if (confirm(deletePrompt(task))) deleteTask(s.id);
         } else if (action === "SNOOZE") {
           openSnoozeModal(s.id);
+        } else if (action === "ABORT") {
+          if (confirm(abortPrompt(task))) abortTask(s.id);
+        } else if (action === "COMPLETE") {
+          if (confirmComplete(s.id)) completeTask(s.id);
         }
         resetSwipe(s);
       };
@@ -1938,20 +1940,7 @@
         if (!item) return;
         if (swiped) { swiped = false; return; }
         if (pressFired) { pressFired = false; return; }
-        const taskId = item.dataset.id;
-        const now = Date.now();
-        if (isDoubleTap(lastTap, taskId, now)) {
-          cancelTap();
-          if (confirmComplete(taskId)) completeTask(taskId);
-          return;
-        }
-        cancelTap();
-        lastTap = { taskId, at: now };
-        tapTimer = setTimeout(() => {
-          tapTimer = null;
-          lastTap = null;
-          openEditModal(taskId);
-        }, DOUBLE_TAP_MS);
+        openEditModal(item.dataset.id);
       };
       for (const id of ["taskList", "activeTaskBox"]) {
         const box = document.getElementById(id);
@@ -2413,9 +2402,12 @@
         </div>`;
     }
 
-    // A queued task's row: the card inside a wrapper that shows the action under it while it is dragged sideways
+    // A task's row: the card inside a wrapper that shows the action under it while it is dragged sideways (Snooze and
+    // Delete for a queued task, Complete and Abort for the Active task)
     function swipeRowHtml(t, isActive = false) {
-      return `<div class="swipe-row"><div class="swipe-bg swipe-snooze" aria-hidden="true">😴 Snooze</div><div class="swipe-bg swipe-del" aria-hidden="true">🗑️ Delete</div>${taskItemHtml(t, isActive)}</div>`;
+      const right = isActive ? `<div class="swipe-bg swipe-complete" aria-hidden="true">✅ Complete</div>` : `<div class="swipe-bg swipe-snooze" aria-hidden="true">😴 Snooze</div>`;
+      const left = isActive ? `<div class="swipe-bg swipe-abort" aria-hidden="true">↩️ Abort</div>` : `<div class="swipe-bg swipe-del" aria-hidden="true">🗑️ Delete</div>`;
+      return `<div class="swipe-row">${right}${left}${taskItemHtml(t, isActive)}</div>`;
     }
 
     // The active task's tracked time ticks every second while its timer runs
@@ -2639,18 +2631,26 @@
       if (running) elapsedTicker = setInterval(show, 1000);
     }
 
-    // Starts or pauses a task's timer on the server (which keeps the time) and redraws from its answer. Starting one
-    // pauses any other that was running. Ignored while a request is in flight.
+    // Sends START, PAUSE or ABORT for a task's timer to the server (which does the timing) and redraws from its answer.
+    // Starting one pauses any other that was running. Ignored while a request is in flight.
     let timerBusy = false;
-    async function toggleTimer(taskId) {
+    function toggleTimer(taskId) {
       const task = allTasks.find(t => t.id === taskId);
-      if (!task || timerBusy) return;
+      if (!task) return;
+      return sendTimerAction(taskId, isTimerRunning(task) ? "PAUSE" : "START");
+    }
+    // Abort (the Active task's left swipe): the timer stops, its tracked time and first-started time are erased and the task is a plain queued one again.
+    function abortTask(taskId) {
+      return sendTimerAction(taskId, "ABORT");
+    }
+    async function sendTimerAction(taskId, action) {
+      if (!allTasks.some(t => t.id === taskId) || timerBusy) return;
       timerBusy = true;
       try {
         const res = await apiFetch(TIMER_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ taskId, action: isTimerRunning(task) ? "PAUSE" : "START" })
+          body: JSON.stringify({ taskId, action })
         });
         const data = await res.json();
         setTasks(data.tasks || allTasks);

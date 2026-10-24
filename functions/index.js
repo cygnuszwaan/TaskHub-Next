@@ -883,15 +883,16 @@ exports.removeDuplicateTasks = onRequest({
   }
 }));
 
-// 7a. Endpoint: Start or pause a task's timer
-// Body {taskId, action: "START"|"PAUSE"}. The server's clock is used. Starting also pauses any other running timer (one
-// runs at a time). Starting a running timer or pausing a paused one changes nothing. 400 for an unusable action, 404
+// 7a. Endpoint: Start, pause or abort a task's timer
+// Body {taskId, action: "START"|"PAUSE"|"ABORT"}. The server's clock is used. Starting also pauses any other running timer
+// (one runs at a time). Starting a running timer or pausing a paused one changes nothing. ABORT stops the task's timer
+// and erases its tracked time, first-started time and active mark, returning it to the plain queue as if never timed. 400 for an unusable action, 404
 // for an unknown task. Responds {success, tasks}.
 exports.toggleTimer = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
     const {taskId, action} = req.body || {};
     const verb = typeof action === "string" ? action.trim().toUpperCase() : "";
-    if (verb !== "START" && verb !== "PAUSE") return res.status(400).send({error: "action must be START or PAUSE"});
+    if (verb !== "START" && verb !== "PAUSE" && verb !== "ABORT") return res.status(400).send({error: "action must be START, PAUSE or ABORT"});
     const result = await updateTaskList((tasks) => {
       const done = setTimerInList(tasks, taskId, verb, Date.now());
       if (!done) return {current: tasks, unknown: true};

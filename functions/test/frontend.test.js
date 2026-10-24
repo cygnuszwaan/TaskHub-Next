@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, DOUBLE_TAP_MS, PRESS_MOVE_PX, pressMoved, isDoubleTap, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -28,14 +28,11 @@ describe("public/index.html helpers", () => {
       assert.equal(pressMoved(8, 8), true);
       assert.equal(pressMoved(undefined, undefined), false);
     });
-    it("recognises a second tap on the same card within the window", () => {
-      const {isDoubleTap, DOUBLE_TAP_MS} = load();
-      const first = {taskId: "a", at: 1000};
-      assert.equal(isDoubleTap(first, "a", 1000 + DOUBLE_TAP_MS), true);
-      assert.equal(isDoubleTap(first, "a", 1000 + DOUBLE_TAP_MS + 1), false);
-      assert.equal(isDoubleTap(first, "b", 1100), false);
-      assert.equal(isDoubleTap(null, "a", 1100), false);
-      assert.equal(isDoubleTap(first, "a", 900), false);
+    it("has no double-tap gesture: a tap opens the editor at once and nothing completes by tapping", () => {
+      assert.doesNotMatch(html, /isDoubleTap|DOUBLE_TAP_MS|lastTap|tapTimer|cancelTap/);
+      const click = html.slice(html.indexOf("const onTaskRowClick"), html.indexOf("for (const id of [\"taskList\""));
+      assert.match(click, /openEditModal\(item\.dataset\.id\);/);
+      assert.doesNotMatch(click, /completeTask|setTimeout/);
     });
     it("shows a timer chip only once the timer has been started: play while running, pause otherwise", () => {
       const {timerChipIcon} = load();
@@ -61,6 +58,36 @@ describe("public/index.html helpers", () => {
       assert.equal(swipeAction(SWIPE_COMMIT_PX, 5), "SNOOZE");
       assert.equal(swipeAction(-(SWIPE_COMMIT_PX - 1), 0), null);
       assert.equal(swipeAction(SWIPE_COMMIT_PX, SWIPE_COMMIT_PX), null);
+    });
+    it("gives the Active task abort on a left swipe and complete on a right swipe, with the same thresholds", () => {
+      const {swipeAction, SWIPE_COMMIT_PX} = load();
+      assert.equal(swipeAction(-SWIPE_COMMIT_PX, 0, true), "ABORT");
+      assert.equal(swipeAction(SWIPE_COMMIT_PX, 5, true), "COMPLETE");
+      assert.equal(swipeAction(-(SWIPE_COMMIT_PX - 1), 0, true), null);
+      assert.equal(swipeAction(SWIPE_COMMIT_PX, SWIPE_COMMIT_PX, true), null);
+      assert.equal(swipeAction(-SWIPE_COMMIT_PX, 0, false), "DELETE");
+    });
+    it("asks before aborting, naming the task and what abort does", () => {
+      const {abortPrompt} = load();
+      assert.equal(abortPrompt({title: "Mow lawn"}), "Abort \"Mow lawn\"? Its timer stops, its tracked time and start time are erased and it returns to the queue.");
+      assert.match(abortPrompt(null), /^Abort this task\?/);
+    });
+    it("wires the swipes by card: queued left delete and right snooze, Active left abort and right complete", () => {
+      const up = html.slice(html.indexOf("const onTaskRowUp"), html.indexOf("const onTaskRowClick"));
+      assert.match(up, /swipeAction\(s\.dx, s\.dy, s\.active\)/);
+      assert.match(up, /action === "ABORT"[\s\S]*confirm\(abortPrompt\(task\)\)[\s\S]*abortTask\(s\.id\)/);
+      assert.match(up, /action === "COMPLETE"[\s\S]*confirmComplete\(s\.id\)[\s\S]*completeTask\(s\.id\)/);
+      assert.match(up, /action === "DELETE"[\s\S]*deleteTask\(s\.id\)/);
+      assert.match(up, /action === "SNOOZE"[\s\S]*openSnoozeModal\(s\.id\)/);
+      assert.match(html, /active: !!item\.closest\("#activeTaskBox"\)/);
+    });
+    it("shows Complete and Abort under the Active task and Snooze and Delete under a queued card", () => {
+      const row = html.slice(html.indexOf("function swipeRowHtml"), html.indexOf("// The active task's tracked time ticks"));
+      assert.match(row, /isActive \? `[^`]*swipe-complete[^`]*Complete[^`]*` : `[^`]*swipe-snooze[^`]*Snooze/);
+      assert.match(row, /isActive \? `[^`]*swipe-abort[^`]*Abort[^`]*` : `[^`]*swipe-del[^`]*Delete/);
+      assert.equal((html.match(/--swipe-complete: #166534; --swipe-abort: #92400e;/g) || []).length, 2, "dark values in both dark blocks");
+      assert.match(html, /\.swipe-row\.swipe-right \.swipe-complete/);
+      assert.match(html, /\.swipe-row\.swipe-left \.swipe-abort/);
     });
     it("holds the card's follow distance to a limit either way", () => {
       const {swipeOffset} = load();
@@ -108,6 +135,11 @@ describe("public/index.html helpers", () => {
       assert.match(html, /toggle\("timer-paused", !!active && !isTimerRunning\(active\)\)/);
       assert.equal((html.match(/--timer-run-bg: #14382a; --timer-pause-bg: #46380f;/g) || []).length, 2, "dark values in both dark blocks");
     });
+    it("sends ABORT through the same guarded timer call as START and PAUSE", () => {
+      assert.match(html, /function abortTask\(taskId\) \{\s*return sendTimerAction\(taskId, "ABORT"\);/);
+      assert.match(html, /body: JSON\.stringify\(\{ taskId, action \}\)/);
+      assert.match(html, /isTimerRunning\(task\) \? "PAUSE" : "START"/);
+    });
     it("takes removals off the list before the server answers and keeps later lists from bringing them back", () => {
       const remove = html.slice(html.indexOf("function removeTask("), html.indexOf("async function completeTask("));
       assert.ok(remove.indexOf("withoutTasks(allTasks, pendingRemovals)") < remove.indexOf("await apiFetch"));
@@ -123,10 +155,6 @@ describe("public/index.html helpers", () => {
       assert.equal(flashElapsed(flash, "a", 1000 + FLASH_MS), null);
       assert.equal(flashElapsed(flash, "b", 1100), null);
       assert.equal(flashElapsed(null, "a", 1100), null);
-    });
-    it("holds a long press longer than a double-tap window", () => {
-      const {LONG_PRESS_MS, DOUBLE_TAP_MS} = load();
-      assert.ok(LONG_PRESS_MS > DOUBLE_TAP_MS);
     });
   });
   describe("snooze", () => {

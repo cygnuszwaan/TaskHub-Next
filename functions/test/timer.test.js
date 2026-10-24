@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {clearActive, isRunning, elapsedSeconds, pauseTimer, startTimer, setTimerInList, settleTimer} = require("../timer");
+const {clearActive, isRunning, elapsedSeconds, pauseTimer, abortTimer, startTimer, setTimerInList, settleTimer} = require("../timer");
 
 const T0 = Date.parse("2026-10-24T09:00:00.000Z");
 
@@ -110,6 +110,42 @@ describe("timer.js", () => {
       const tasks = list();
       setTimerInList(tasks, "a", "START", T0);
       assert.deepEqual(tasks, list());
+    });
+  });
+
+  describe("abortTimer and ABORT", () => {
+    const running = () => ({id: "a", order: 1, trackedSeconds: 20, active: true, firstStartedAt: new Date(T0).toISOString(), timerStartedAt: new Date(T0).toISOString()});
+
+    it("stops the timer and erases the tracked time, the first-started time and the active mark", () => {
+      assert.deepEqual(abortTimer(running()), {id: "a", order: 1});
+    });
+    it("does the same to a paused task, and leaves a never-started task as it is", () => {
+      const {timerStartedAt, ...paused} = running(); // eslint-disable-line no-unused-vars
+      assert.deepEqual(abortTimer(paused), {id: "a", order: 1});
+      assert.deepEqual(abortTimer({id: "b", order: 2}), {id: "b", order: 2});
+    });
+    it("does not modify the task passed in", () => {
+      const task = running();
+      abortTimer(task);
+      assert.deepEqual(task, running());
+    });
+    it("leaves a task that elapsedSeconds counts as 0 and that has no timer chip", () => {
+      assert.equal(elapsedSeconds(abortTimer(running()), T0 + 90000), 0);
+      assert.equal(isRunning(abortTimer(running())), false);
+    });
+    it("lets the next start begin from zero with a fresh first-started time", () => {
+      const again = startTimer(abortTimer(running()), T0 + 7200000);
+      assert.equal(again.firstStartedAt, "2026-10-24T11:00:00.000Z");
+      assert.equal(elapsedSeconds(again, T0 + 7200000 + 30000), 30);
+    });
+    it("aborts just the named task on the list, accepts the action in any case, and touches no other task", () => {
+      const list = [running(), {id: "b", order: 2, trackedSeconds: 5, active: true, firstStartedAt: new Date(T0).toISOString()}, {id: "c", order: 3}];
+      const r = setTimerInList(list, "a", "abort", T0 + 40000);
+      assert.deepEqual(r.task, {id: "a", order: 1});
+      assert.deepEqual(r.tasks.find((t) => t.id === "b"), list[1]);
+      assert.deepEqual(r.tasks.find((t) => t.id === "c"), {id: "c", order: 3});
+      assert.equal(setTimerInList(list, "zzz", "ABORT", T0), null);
+      assert.deepEqual(list[0], running(), "the input list is not modified");
     });
   });
 

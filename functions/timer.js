@@ -49,6 +49,17 @@ function clearActive(task) {
   return next;
 }
 
+// The task with its timer stopped and its start undone: `timerStartedAt`, `firstStartedAt`, `trackedSeconds` (every second
+// accrued, as if the timer had never run) and the `active` mark are all removed, so it is an ordinary never-timed queued
+// task again. A task that was never started is returned as it is. Pure.
+function abortTimer(task) {
+  const next = {...clearActive(task)};
+  delete next.timerStartedAt;
+  delete next.firstStartedAt;
+  delete next.trackedSeconds;
+  return next;
+}
+
 // The task with its timer running from `nowMs` and marked `active` (and `firstStartedAt` set when it has none); one
 // already running is returned as it is.
 function startTimer(task, nowMs) {
@@ -59,18 +70,19 @@ function startTimer(task, nowMs) {
   return next;
 }
 
-// Start or pause one task's timer on the list. Starting also pauses every other running timer, so at most one runs
+// Start, pause or abort one task's timer on the list. Starting also pauses every other running timer, so at most one runs
 // at a time, and takes the `active` mark from every other task (a start of a running timer changes nothing, and a
 // pause keeps the mark). Pure: the input is not modified; tasks not touched are returned as they were.
-//   action: "START" or "PAUSE" (case-insensitive); anything else, or an unknown task id, returns null
+//   action: "START", "PAUSE" or "ABORT" (case-insensitive; ABORT wipes that task's timing, see abortTimer, and touches
+//           no other task); anything else, or an unknown task id, returns null
 // Returns {tasks, task} (the changed task).
 function setTimerInList(tasks, taskId, action, nowMs) {
   const verb = typeof action === "string" ? action.trim().toUpperCase() : "";
-  if ((verb !== "START" && verb !== "PAUSE") || !tasks.some((t) => t.id === taskId)) return null;
+  if ((verb !== "START" && verb !== "PAUSE" && verb !== "ABORT") || !tasks.some((t) => t.id === taskId)) return null;
   let changed = null;
   const next = tasks.map((t) => {
     if (t.id === taskId) {
-      changed = verb === "START" ? startTimer(t, nowMs) : pauseTimer(t, nowMs);
+      changed = verb === "START" ? startTimer(t, nowMs) : verb === "ABORT" ? abortTimer(t) : pauseTimer(t, nowMs);
       return changed;
     }
     return verb === "START" ? clearActive(pauseTimer(t, nowMs)) : t;
@@ -85,4 +97,4 @@ function settleTimer(task, nowMs) {
   return {...clearActive(paused), trackedSeconds: savedSeconds(paused)};
 }
 
-module.exports = {clearActive, isRunning, elapsedSeconds, pauseTimer, startTimer, setTimerInList, settleTimer};
+module.exports = {clearActive, isRunning, elapsedSeconds, pauseTimer, abortTimer, startTimer, setTimerInList, settleTimer};
