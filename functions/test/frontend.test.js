@@ -163,6 +163,23 @@ describe("public/index.html helpers", () => {
       }
       throw new Error("unclosed <details>");
     };
+    it("keeps the header the same height at the top of the page and scrolled: nothing above it scrolls away", () => {
+      const rule = (selector) => {
+        const m = html.match(new RegExp(`(?:^|\\n)\\s*${selector}\\s*\\{([^}]*)\\}`));
+        assert.ok(m, `${selector} rule`);
+        return m[1];
+      };
+      // The page has no top margin or padding, so the sticky header sits at the same place scrolled or not
+      const body = rule("body");
+      assert.match(body, /margin:\s*0 auto 20px/);
+      assert.match(body, /padding:\s*0 15px/);
+      assert.doesNotMatch(body, /margin-top|padding-top/);
+      // Its own top padding is part of the pinned header, so it stays when the page scrolls
+      const header = rule("\\.app-header");
+      assert.match(header, /padding-top:\s*8px/);
+      assert.doesNotMatch(header, /margin-top/);
+      assert.doesNotMatch(html, /\bhtml\s*\{[^}]*(margin|padding)/);
+    });
     it("has a pinned header with the Tasks, Materials and Settings tabs, in that order, and nothing else", () => {
       assert.match(html, /\.app-header\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0/);
       const header = html.slice(at("<header"), at("</header>"));

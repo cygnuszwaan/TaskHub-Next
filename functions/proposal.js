@@ -1,13 +1,15 @@
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
-const {normalizeProjectName} = require("./projects");
-const {cleanTags} = require("./tasks");
+const {normalizeProjectName, addProject} = require("./projects");
+const {cleanTags, mergeTaskChanges} = require("./tasks");
 
 // A suggested project has at least this many steps and at most this many.
 const MIN_STEPS = 3;
 const MAX_STEPS = 12;
 const PRIORITIES = ["HIGH", "MEDIUM", "LOW"];
 const DEFAULT_ESTIMATE = 15;
+// The most changes a declined suggestion may hand back to be merged (the model's own list is far shorter).
+const MAX_APPLY_CHANGES = 100;
 
 const squash = (text) => String(text).replace(/\s+/g, " ").trim().toLowerCase();
 
@@ -61,4 +63,45 @@ function normalizeProposal(raw, {input = "", projects = [], changes = []} = {}) 
   return {name: named.name, steps};
 }
 
-module.exports = {MIN_STEPS, MAX_STEPS, namesProject, normalizeStep, normalizeProposal};
+// The new-task changes for a project's steps, in the shape mergeTaskChanges takes. Pure: no I/O.
+// Step n (1-based) goes into the project with order number n, so each step is its own tier and the scheduling engine
+// places them one after another. No id and no rank, so every step is a new task added at the end of the list in order.
+function proposalChanges(proposal, projectId) {
+  return proposal.steps.map((step, i) => ({
+    title: step.title,
+    priority: step.priority,
+    estimatedMinutes: step.estimatedMinutes,
+    tags: step.tags,
+    projectId,
+    projectOrder: i + 1,
+  }));
+}
+
+// Accept a suggested project: the project and its steps added to the stored list. Pure: no I/O.
+//   tasks, projects: the stored list and the stored projects [{id, name}], as read in the committing transaction
+//   raw:             the suggestion the owner accepted, {name, steps}; it is checked again (normalizeProposal, with no input
+//                    text) against the projects stored now, so a name taken since it was offered is refused
+//   makeId, now:     () => new id, and the ISO text for the new tasks' `addedAt`
+// Returns {tasks, project, projects, added} (`projects` sorted by name, the new one included), or {error} with the reason
+// nothing was added.
+function acceptProposalInList(tasks, projects, raw, makeId, now) {
+  const stored = Array.isArray(projects) ? projects : [];
+  const proposal = normalizeProposal(raw, {projects: stored});
+  if (!proposal) return {error: `The project suggestion cannot be used: it needs a name no project has, and ${MIN_STEPS} to ${MAX_STEPS} steps with titles`};
+  const created = addProject(stored, proposal.name, makeId);
+  if (created.error) return {error: created.error};
+  const merged = mergeTaskChanges(tasks, proposalChanges(proposal, created.project.id), makeId, [created.project.id], {now});
+  return {tasks: merged.tasks, project: created.project, projects: created.projects, added: merged.added};
+}
+
+// The changes of a declined suggestion (`{apply: {changes}}`), which go through mergeTaskChanges like the model's own
+// output. Pure: no I/O. Returns the list of change objects, or null when `raw` is not an object with a `changes` array of
+// at most MAX_APPLY_CHANGES objects.
+function applyChanges(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  if (!Array.isArray(raw.changes) || raw.changes.length > MAX_APPLY_CHANGES) return null;
+  if (!raw.changes.every((c) => c && typeof c === "object" && !Array.isArray(c))) return null;
+  return raw.changes;
+}
+
+module.exports = {MIN_STEPS, MAX_STEPS, MAX_APPLY_CHANGES, namesProject, normalizeStep, normalizeProposal, proposalChanges, acceptProposalInList, applyChanges};

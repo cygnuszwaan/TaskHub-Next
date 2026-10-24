@@ -14,11 +14,11 @@ const {planSchedule} = require("./planner");
 const {lunchWindows, padWindows} = require("./breaks");
 const {setTimerInList, pauseTimer} = require("./timer");
 const {needsTagFill, cleanTags, newTaskIds, applyDirectUpdate, completeInList, removalRecord, isUndoable, undoInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
-const {makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
+const {PROJECTS_COLLECTION, makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
 const {UNAVAILABLE, weatherUrl, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
 const {buildTaskPrompt, buildTagPrompt} = require("./prompts");
-const {normalizeProposal} = require("./proposal");
+const {normalizeProposal, acceptProposalInList, applyChanges} = require("./proposal");
 const {MAX_TEMPLATES, buildTemplates} = require("./templates");
 const {heldTaskIds} = require("./materials");
 const {SUMMARY_MAX_ROWS, PROJECT_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted, summarizeProjectHours} = require("./completed");
@@ -463,14 +463,37 @@ exports.rescheduleTask = onRequest({
 // the task untagged). `startNow: true` starts the timer of
 // the first task the request adds, which also makes it the active task. A free-text body with `allowProposal: true` lets the
 // model suggest a project (see proposal.js): when it does, nothing is committed and the response is
-// {success, needsChoice: true, proposal: {name, steps}, singleChanges} (the model's ordinary changes).
+// {success, needsChoice: true, proposal: {name, steps}, singleChanges} (the model's ordinary changes). The owner's choice
+// comes back without the model: `acceptProposal: {name, steps}` creates the project and its steps (each with `projectId`
+// and `projectOrder` 1..n) in one transaction, re-validated against the projects stored then, and responds with `project`
+// and `projects` as well; `apply: {changes}` merges the declined suggestion's `singleChanges` like any model output.
 exports.addOrUpdateTask = onRequest({
   secrets: ["GEMINI_API_KEY"], cors: ALLOWED_ORIGINS, timeoutSeconds: 120,
 }, ownerOnly(async (req, res) => {
   try {
     const body = req.body || {};
+    // The owner accepted a suggested project: it is checked again and committed with its steps, no model call
+    if (body.acceptProposal !== undefined) {
+      const accepted = await updateTaskList((tasks, tx, {projects: stored}) => {
+        const done = acceptProposalInList(tasks, stored, body.acceptProposal, randomUUID, new Date().toISOString());
+        if (done.error) return {error: done.error, current: tasks};
+        let list = done.tasks;
+        if (body.startNow === true) {
+          const [firstNew] = newTaskIds(tasks, list);
+          if (firstNew) list = setTimerInList(list, firstNew, "START", Date.now()).tasks;
+        }
+        tx.set(db.collection(PROJECTS_COLLECTION).doc(done.project.id), done.project);
+        return {tasks: list, current: list, project: done.project, projects: done.projects, added: done.added};
+      }, {withProjects: true});
+      if (accepted.error) return res.status(400).send({error: accepted.error});
+      return res.status(200).send({success: true, tasks: accepted.current, added: accepted.added, updated: 0, skipped: 0, project: accepted.project, projects: accepted.projects});
+    }
     let changes;
-    if (body.manual !== undefined) {
+    if (body.apply !== undefined) {
+      // The owner declined a suggested project: its single-task changes are merged as the model's output would be
+      changes = applyChanges(body.apply);
+      if (!changes) return res.status(400).send({error: "apply needs a changes list of at most 100 task changes"});
+    } else if (body.manual !== undefined) {
       const change = manualTaskChange(body.manual);
       if (!change) return res.status(400).send({error: "A manual entry needs a title"});
       changes = [change];

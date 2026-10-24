@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {MIN_STEPS, MAX_STEPS, namesProject, normalizeStep, normalizeProposal} = require("../proposal");
+const {MIN_STEPS, MAX_STEPS, MAX_APPLY_CHANGES, namesProject, normalizeStep, normalizeProposal, proposalChanges, acceptProposalInList, applyChanges} = require("../proposal");
 
 const step = (n, extra = {}) => ({title: `Step ${n}`, priority: "MEDIUM", estimatedMinutes: 30, tags: ["Indoor"], ...extra});
 const steps = (n) => Array.from({length: n}, (_, i) => step(i + 1));
@@ -93,6 +93,99 @@ describe("proposal.js", () => {
       const copy = JSON.parse(JSON.stringify(input));
       normalizeProposal(input, opts);
       assert.deepEqual(input, copy);
+    });
+  });
+
+  describe("proposalChanges", () => {
+    it("makes one new-task change per step, in order, each its own tier of the project", () => {
+      const changes = proposalChanges({name: "Bathroom renovation", steps: steps(3)}, "proj");
+      assert.equal(changes.length, 3);
+      assert.deepEqual(changes.map((c) => c.title), ["Step 1", "Step 2", "Step 3"]);
+      assert.deepEqual(changes.map((c) => c.projectOrder), [1, 2, 3]);
+      assert.ok(changes.every((c) => c.projectId === "proj" && c.id === undefined && c.order === undefined));
+      assert.deepEqual(changes[0], {title: "Step 1", priority: "MEDIUM", estimatedMinutes: 30, tags: ["Indoor"], projectId: "proj", projectOrder: 1});
+    });
+  });
+
+  describe("acceptProposalInList", () => {
+    const makeId = (() => {
+      let n = 0;
+      return () => `id${++n}`;
+    })();
+    const existing = [
+      {id: "t1", title: "Bins", priority: "LOW", dueDate: "", estimatedMinutes: 10, tags: [], status: "PENDING", order: 1},
+      {id: "t2", title: "Mow", priority: "LOW", dueDate: "", estimatedMinutes: 20, tags: [], status: "PENDING", order: 2},
+    ];
+    const NOW = "2026-10-24T10:00:00.000Z";
+
+    it("adds the project and its steps at the end of the list, with project fields and addedAt", () => {
+      const r = acceptProposalInList(existing, projects, raw(), makeId, NOW);
+      assert.equal(r.error, undefined);
+      assert.equal(r.added, 4);
+      assert.equal(r.tasks.length, 6);
+      assert.deepEqual(r.tasks.slice(0, 2), existing);
+      assert.deepEqual(r.tasks.map((t) => t.order), [1, 2, 3, 4, 5, 6]);
+      const added = r.tasks.slice(2);
+      assert.deepEqual(added.map((t) => t.title), ["Step 1", "Step 2", "Step 3", "Step 4"]);
+      assert.deepEqual(added.map((t) => t.projectOrder), [1, 2, 3, 4]);
+      assert.ok(added.every((t) => t.projectId === r.project.id && t.status === "PENDING" && t.addedAt === NOW && t.dueDate === ""));
+      assert.equal(added[0].estimatedMinutes, 30);
+      assert.deepEqual(added[0].tags, ["Indoor"]);
+      assert.equal(new Set(r.tasks.map((t) => t.id)).size, 6);
+    });
+    it("returns the new project and the project list sorted by name with it included", () => {
+      const r = acceptProposalInList(existing, projects, raw(), makeId, NOW);
+      assert.equal(r.project.name, "Bathroom renovation");
+      assert.ok(r.project.id);
+      assert.deepEqual(r.projects.map((p) => p.name), ["Bathroom renovation", "Deck", "Kitchen reno"]);
+    });
+    it("checks the suggestion again: a name taken since it was offered, too few steps or junk add nothing", () => {
+      for (const bad of [raw({name: "kitchen RENO"}), raw({steps: steps(MIN_STEPS - 1)}), raw({steps: steps(MAX_STEPS + 1)}), raw({name: ""}), null, undefined, "x", []]) {
+        const r = acceptProposalInList(existing, projects, bad, makeId, NOW);
+        assert.equal(typeof r.error, "string");
+        assert.equal(r.tasks, undefined);
+        assert.equal(r.project, undefined);
+      }
+    });
+    it("works with no projects stored and an empty list", () => {
+      const r = acceptProposalInList([], [], raw(), makeId, NOW);
+      assert.equal(r.tasks.length, 4);
+      assert.deepEqual(r.projects.map((p) => p.name), ["Bathroom renovation"]);
+      assert.equal(acceptProposalInList([], undefined, raw(), makeId, NOW).tasks.length, 4);
+    });
+    it("takes the model's cleaned fields only, ignoring anything else a step carries", () => {
+      const r = acceptProposalInList([], projects, raw({steps: [step(1, {id: "evil", order: 1, status: "COMPLETED", comments: "x", materials: [{text: "m"}], snoozedUntil: "2030-01-01"}), step(2), step(3)]}), makeId, NOW);
+      const first = r.tasks[0];
+      assert.equal(first.status, "PENDING");
+      assert.notEqual(first.id, "evil");
+      for (const key of ["comments", "materials", "snoozedUntil"]) assert.equal(key in first, false);
+    });
+    it("does not modify what it is given", () => {
+      const tasks = JSON.parse(JSON.stringify(existing));
+      const stored = JSON.parse(JSON.stringify(projects));
+      const input = raw();
+      const copy = JSON.parse(JSON.stringify(input));
+      acceptProposalInList(tasks, stored, input, makeId, NOW);
+      assert.deepEqual(tasks, existing);
+      assert.deepEqual(stored, projects);
+      assert.deepEqual(input, copy);
+    });
+  });
+
+  describe("applyChanges", () => {
+    it("returns the changes list of a well-formed body", () => {
+      const changes = [{title: "Renovate the bathroom", order: 1}, {id: "t1", priority: "HIGH"}];
+      assert.equal(applyChanges({changes}), changes);
+      assert.deepEqual(applyChanges({changes: []}), []);
+    });
+    it("is null for anything else", () => {
+      for (const bad of [undefined, null, "x", 5, [], {}, {changes: "no"}, {changes: {}}, {changes: [null]}, {changes: [5]}, {changes: [[]]}, {changes: [{title: "a"}, "b"]}]) {
+        assert.equal(applyChanges(bad), null);
+      }
+    });
+    it("allows at most MAX_APPLY_CHANGES changes", () => {
+      assert.equal(applyChanges({changes: Array.from({length: MAX_APPLY_CHANGES}, () => ({title: "a"}))}).length, MAX_APPLY_CHANGES);
+      assert.equal(applyChanges({changes: Array.from({length: MAX_APPLY_CHANGES + 1}, () => ({title: "a"}))}), null);
     });
   });
 });
