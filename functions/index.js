@@ -599,7 +599,7 @@ exports.getCompletedTemplates = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(asy
 
 // 6c. Endpoint: Correct or remove a completed task
 // updateCompletedTask: body {id, updatedFields}, `id` the `archiveId` getCompletedTasks gives each entry. The editable fields
-// are priority, estimatedMinutes, trackedSeconds, tags, comments, projectId and the completion time (completedDate and completedTime
+// are priority, estimatedMinutes, trackedSeconds, tags, materials (a plain list of texts), comments, projectId and the completion time (completedDate and completedTime
 // together, in the owner's zone); see applyCompletedEdit. Responds {success, task} with the entry as it now is; 400 with the
 // reason for an unusable value, 404 for an unknown id. deleteCompletedTask: body {id}, removes the entry for good.
 // Both change the archive row only, which Stats and Project hours are computed from: the job history already carried by

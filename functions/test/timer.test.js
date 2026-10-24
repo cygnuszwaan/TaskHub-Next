@@ -53,6 +53,30 @@ describe("timer.js", () => {
     });
   });
 
+  describe("firstStartedAt", () => {
+    it("is set by the first start and kept by every later start and pause", () => {
+      const first = startTimer({id: "a"}, T0);
+      assert.equal(first.firstStartedAt, "2026-10-24T09:00:00.000Z");
+      const paused = pauseTimer(first, T0 + 60000);
+      assert.equal(paused.firstStartedAt, first.firstStartedAt);
+      const again = startTimer(paused, T0 + 3600000);
+      assert.equal(again.timerStartedAt, "2026-10-24T10:00:00.000Z");
+      assert.equal(again.firstStartedAt, "2026-10-24T09:00:00.000Z");
+    });
+    it("is replaced only when the stored value is not a date, and is not set by an unusable clock", () => {
+      assert.equal(startTimer({id: "a", firstStartedAt: "junk"}, T0).firstStartedAt, "2026-10-24T09:00:00.000Z");
+      assert.equal("firstStartedAt" in startTimer({id: "a"}, NaN), false);
+    });
+    it("is not set by a start on another task, and goes to the archive with the task", () => {
+      const tasks = setTimerInList([{id: "a"}, {id: "b"}], "a", "START", T0).tasks;
+      const after = setTimerInList(tasks, "b", "START", T0 + 1000).tasks;
+      assert.equal(after[0].firstStartedAt, "2026-10-24T09:00:00.000Z");
+      assert.equal(after[1].firstStartedAt, "2026-10-24T09:00:01.000Z");
+      assert.equal(settleTimer(after[0], T0 + 5000).firstStartedAt, "2026-10-24T09:00:00.000Z");
+      assert.equal("firstStartedAt" in settleTimer({id: "c"}, T0), false);
+    });
+  });
+
   describe("setTimerInList", () => {
     const list = () => [
       {id: "a", order: 1, trackedSeconds: 30},

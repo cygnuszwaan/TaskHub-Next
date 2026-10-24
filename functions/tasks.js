@@ -35,7 +35,7 @@ function normalizeRecurrence(value) {
 // validated by normalizeMaterials (null or an empty list removes it, an unusable value leaves it as it was; new
 // items get ids from `makeId`); and `snoozedUntil`, validated by normalizeSnooze (null or an empty string removes it, an
 // unusable value leaves it as it was); and `comments`, validated by normalizeComments (null or empty text removes it, a
-// non-string leaves it as it was). `addedAt`, `trackedSeconds`, `timerStartedAt` and `active` are never changed by an edit.
+// non-string leaves it as it was). `addedAt`, `trackedSeconds`, `firstStartedAt`, `timerStartedAt` and `active` are never changed by an edit.
 // Pure apart from `makeId`: the input is not modified.
 function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   const rest = {...fields};
@@ -49,6 +49,7 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   delete rest.addedAt;
   delete rest.trackedSeconds;
   delete rest.timerStartedAt;
+  delete rest.firstStartedAt;
   delete rest.active;
   const next = {...task, ...rest};
   if (fields && "recurrence" in fields) {

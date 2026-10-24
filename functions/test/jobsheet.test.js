@@ -65,7 +65,7 @@ describe("jobsheet.js", () => {
   });
 
   describe("buildJobSheet", () => {
-    it("builds a task sheet with its times, comments, tags and materials, no totals", () => {
+    it("builds a task sheet with its times, comments and materials, no totals, priority or tags", () => {
       const s = sheet({type: "TASK"}, [row({comments: "Washer replaced", materials: [{id: "m", text: "Tap", checked: true}, {id: "n", text: "PTFE tape", checked: false}]})]);
       assert.equal(s.kind, "TASK");
       assert.equal(s.heading, "Fit tap");
@@ -75,9 +75,16 @@ describe("jobsheet.js", () => {
       assert.equal(s.empty, false);
       assert.equal(s.sections.length, 1);
       assert.equal(s.sections[0].heading, "");
-      assert.deepEqual(s.sections[0].entries[0], {title: "Fit tap", completed: "Tue, 20 Oct, 12:00 pm", timeText: "25m", estimated: false, priority: "HIGH", tags: ["Indoor"], materials: ["Tap", "PTFE tape"], comments: "Washer replaced"});
+      assert.deepEqual(s.sections[0].entries[0], {title: "Fit tap", started: "", completed: "Tue, 20 Oct, 12:00 pm", timeText: "25m", estimated: false, materials: ["Tap", "PTFE tape"], comments: "Washer replaced"});
       assert.match(s.generatedText, /24 October 2026/);
       assert.equal(s.timeZone, NZ);
+    });
+    it("gives the time the timer was first started on the owner's clock, and nothing for a bad value", () => {
+      const entry = (extra) => sheet({type: "TASK"}, [row(extra)]).sections[0].entries[0];
+      assert.equal(entry({firstStartedAt: "2026-10-19T20:05:00.000Z"}).started, "Tue, 20 Oct, 9:05 am");
+      assert.equal(entry({firstStartedAt: "junk"}).started, "");
+      assert.equal("priority" in entry({}), false);
+      assert.equal("tags" in entry({}), false);
     });
     it("leaves the project line off a task outside any project, and is empty with no row", () => {
       assert.equal(sheet({type: "TASK"}, [row({projectId: undefined})], null).projectName, null);

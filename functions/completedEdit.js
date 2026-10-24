@@ -2,7 +2,9 @@
 /* eslint-disable require-jsdoc */
 const {cleanTags} = require("./tasks");
 const {localInstant} = require("./time");
+const {randomUUID} = require("crypto");
 const {normalizeComments} = require("./comments");
+const {normalizeMaterials} = require("./materials");
 
 const PRIORITIES = ["HIGH", "MEDIUM", "LOW"];
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -26,7 +28,9 @@ function isArchiveId(id) {
 //            priority (HIGH, MEDIUM or LOW), estimatedMinutes (a whole number from 1 to MAX_ESTIMATE_MINUTES),
 //            trackedSeconds (0 to MAX_TRACKED_SECONDS, whole seconds; 0 makes the estimate count), tags (a list, cleaned
 //            as the model's tags are, at most MAX_TAGS), comments (text, trimmed and cut to 2000 characters; null or empty
-//            text removes them), projectId (a current project, or null or "" for none; the id the row
+//            text removes them), materials (a list of texts, a plain record of what was used: each trimmed and cut to 100
+//            characters, blanks dropped, at most 30; null or an empty list removes them; stored as a task's materials are,
+//            every item checked), projectId (a current project, or null or "" for none; the id the row
 //            already has counts as unchanged even when that project is gone), and the completion time as the two
 //            keys completedDate (YYYY-MM-DD) and completedTime (HH:MM) together, the zone's wall clock
 //   options: {projectIds: ids of the current projects, timeZone, now: Date}
@@ -34,7 +38,7 @@ function isArchiveId(id) {
 // {set, remove}: `set` the fields to write (completedAt as a Date) and `remove` the fields to delete. The history the row
 // carries (completedCount, recentSeconds) is a snapshot of the job at that completion and is never changed here.
 function applyCompletedEdit(row, fields, options) {
-  const {projectIds = [], timeZone, now = new Date()} = options || {};
+  const {projectIds = [], timeZone, now = new Date(), makeId = randomUUID} = options || {};
   if (!fields || typeof fields !== "object" || Array.isArray(fields)) return {error: "Nothing to change"};
   const set = {};
   const remove = [];
@@ -64,6 +68,17 @@ function applyCompletedEdit(row, fields, options) {
       if (row && row.comments !== undefined) remove.push("comments");
     } else {
       set.comments = comments;
+    }
+  }
+  if ("materials" in fields) {
+    const given = fields.materials;
+    if (given !== null && !Array.isArray(given)) return {error: "Materials must be a list"};
+    const items = given === null ? null : given.filter((t) => typeof t === "string").map((text) => ({text}));
+    const cleaned = items === null ? null : normalizeMaterials(items, makeId);
+    if (cleaned === null) {
+      if (row && row.materials !== undefined) remove.push("materials");
+    } else {
+      set.materials = cleaned.map((m) => ({...m, checked: true}));
     }
   }
   if ("projectId" in fields) {

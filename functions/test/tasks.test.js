@@ -44,6 +44,13 @@ describe("tasks.js", () => {
       assert.equal("timerStartedAt" in r.completedTask, false);
       assert.equal(completeInList(existingTasks(), "c", today, makeIdGenerator(), "2026-10-23T08:02:00.000Z").completedTask.trackedSeconds, 0);
     });
+    it("archives the first start time with the task, and leaves it off the next occurrence", () => {
+      const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, recurrence: weekly, trackedSeconds: 60, firstStartedAt: "2026-10-22T20:00:00.000Z", timerStartedAt: "2026-10-23T08:00:00.000Z"} : t));
+      const r = completeInList(tasks, "b", today, makeIdGenerator(), "2026-10-23T08:02:00.000Z");
+      assert.equal(r.completedTask.firstStartedAt, "2026-10-22T20:00:00.000Z");
+      assert.equal("firstStartedAt" in r.spawned, false);
+      assert.equal("firstStartedAt" in completeInList(existingTasks(), "c", today, makeIdGenerator(), "2026-10-23T08:02:00.000Z").completedTask, false);
+    });
     it("gives the next occurrence no tracked time and no running timer", () => {
       const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, recurrence: weekly, trackedSeconds: 600, timerStartedAt: "2026-10-23T08:00:00.000Z"} : t));
       const spawned = completeInList(tasks, "b", today, makeIdGenerator(), "2026-10-23T08:02:00.000Z").spawned;
@@ -171,6 +178,8 @@ describe("tasks.js", () => {
       assert.equal(out.timerStartedAt, "2026-10-23T08:00:00.000Z");
       assert.equal("trackedSeconds" in applyDirectUpdate(base, {trackedSeconds: 5}), false);
       assert.equal("active" in applyDirectUpdate(base, {active: true}), false);
+      assert.equal(applyDirectUpdate({...base, firstStartedAt: "2026-10-23T08:00:00.000Z"}, {firstStartedAt: "2030-01-01T00:00:00.000Z"}).firstStartedAt, "2026-10-23T08:00:00.000Z");
+      assert.equal("firstStartedAt" in applyDirectUpdate(base, {firstStartedAt: "2030-01-01T00:00:00.000Z"}), false);
       assert.equal(applyDirectUpdate({...base, active: true}, {active: false}).active, true);
     });
     it("sets a validated recurrence", () => {

@@ -3,6 +3,8 @@
 
 // Time tracking on a task. A task keeps the seconds it has accrued (`trackedSeconds`, a whole number >= 0, absent
 // until first used) and, while its timer runs, the instant it started (`timerStartedAt`, ISO text; absent when paused).
+// The first time the timer is ever started on the task is kept as `firstStartedAt` (ISO text, set once and never moved by
+// later starts or pauses; absent on a task never timed).
 // The task whose timer was started last also carries `active: true`, which a pause leaves in place, so the page can keep
 // showing it until another task is started; at most one task has it.
 // Everything here is pure: the caller passes the clock as `nowMs` (milliseconds since the epoch).
@@ -47,10 +49,14 @@ function clearActive(task) {
   return next;
 }
 
-// The task with its timer running from `nowMs` and marked `active`; one already running is returned as it is.
+// The task with its timer running from `nowMs` and marked `active` (and `firstStartedAt` set when it has none); one
+// already running is returned as it is.
 function startTimer(task, nowMs) {
   if (isRunning(task) || !Number.isFinite(nowMs)) return task;
-  return {...task, timerStartedAt: new Date(nowMs).toISOString(), active: true};
+  const iso = new Date(nowMs).toISOString();
+  const next = {...task, timerStartedAt: iso, active: true};
+  if (Number.isNaN(Date.parse(task && task.firstStartedAt))) next.firstStartedAt = iso;
+  return next;
 }
 
 // Start or pause one task's timer on the list. Starting also pauses every other running timer, so at most one runs

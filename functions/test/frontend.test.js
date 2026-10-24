@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, historyOf, historyForTitle};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, historyOf, historyForTitle};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -926,7 +926,7 @@ describe("public/index.html helpers", () => {
 
       it("completedFormValues: starts the form from the row, with the time in minutes and the completion on the zone's clock", () => {
         const {completedFormValues} = load();
-        assert.deepEqual(completedFormValues(row, NZ), {priority: "LOW", estimatedMinutes: 30, trackedMinutes: 2, tags: "Garden, Outdoor", comments: "Front only", projectId: "p1", date: "2026-10-18", time: "09:30"});
+        assert.deepEqual(completedFormValues(row, NZ), {priority: "LOW", estimatedMinutes: 30, trackedMinutes: 2, tags: "Garden, Outdoor", materials: "", comments: "Front only", projectId: "p1", date: "2026-10-18", time: "09:30"});
       });
       it("completedFormValues: falls back for a row missing fields", () => {
         const {completedFormValues} = load();
@@ -947,6 +947,18 @@ describe("public/index.html helpers", () => {
         assert.deepEqual(api.completedChanges(row, {...same(api), comments: "   "}, NZ), {fields: {comments: null}});
         assert.deepEqual(api.completedChanges(row, {...same(api), trackedMinutes: "0"}, NZ), {fields: {trackedSeconds: 0}});
         assert.deepEqual(api.completedChanges(row, {...same(api), trackedMinutes: ""}, NZ), {fields: {trackedSeconds: 0}});
+      });
+      it("completed materials: listed one per line from the stored items or texts, and sent as a plain list only when changed", () => {
+        const api = load();
+        const withMats = {...row, materials: [{id: "a", text: "Tap", checked: false}, {id: "b", text: " PTFE tape ", checked: true}, {id: "c", text: "  "}]};
+        assert.deepEqual(api.completedMaterialTexts(withMats), ["Tap", "PTFE tape"]);
+        assert.equal(api.completedFormValues(withMats, NZ).materials, "Tap\nPTFE tape");
+        assert.deepEqual(api.parseMaterialLines(" Tap \r\n\n  PTFE tape\n"), ["Tap", "PTFE tape"]);
+        assert.deepEqual(api.completedChanges(withMats, api.completedFormValues(withMats, NZ), NZ), {fields: {}});
+        assert.deepEqual(api.completedChanges(withMats, {...api.completedFormValues(withMats, NZ), materials: "Tap\n\nPTFE tape\nWasher"}, NZ), {fields: {materials: ["Tap", "PTFE tape", "Washer"]}});
+        assert.deepEqual(api.completedChanges(withMats, {...api.completedFormValues(withMats, NZ), materials: "  \n"}, NZ), {fields: {materials: null}});
+        assert.deepEqual(api.completedChanges(row, {...same(api), materials: "Brush"}, NZ), {fields: {materials: ["Brush"]}});
+        assert.deepEqual(api.completedChanges(row, {...same(api), materials: ""}, NZ), {fields: {}});
       });
       it("completedChanges: sends the project only when it changed, null for none", () => {
         const api = load();

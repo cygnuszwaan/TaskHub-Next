@@ -74,6 +74,32 @@ describe("completedEdit.js", () => {
       });
     });
 
+    describe("materials", () => {
+      const ids = () => {
+        let n = 0;
+        return () => `m${++n}`;
+      };
+      const mats = (fields, r = row) => edit({materials: fields}, r, {...opts, makeId: ids()});
+      it("stores a plain list of texts as checked items, trimmed", () => {
+        assert.deepEqual(mats(["  Tap ", "PTFE tape", ""]), {set: {materials: [{id: "m1", text: "Tap", checked: true}, {id: "m2", text: "PTFE tape", checked: true}]}, remove: []});
+      });
+      it("cuts long texts and lists, and ignores non-text items", () => {
+        const long = mats(["x".repeat(150), 5, null, "ok"]).set.materials;
+        assert.deepEqual(long.map((m) => m.text.length), [100, 2]);
+        assert.equal(mats(Array.from({length: 40}, (_, i) => `item ${i}`)).set.materials.length, 30);
+      });
+      it("removes the list with null or an empty one, and has nothing to change when there was none", () => {
+        const withList = {...row, materials: [{id: "a", text: "Tap", checked: false}]};
+        assert.deepEqual(mats(null, withList), {set: {}, remove: ["materials"]});
+        assert.deepEqual(mats([" ", ""], withList), {set: {}, remove: ["materials"]});
+        assert.deepEqual(mats([]), {error: "Nothing to change"});
+      });
+      it("rejects anything that is not a list", () => {
+        assert.deepEqual(mats("Tap"), {error: "Materials must be a list"});
+        assert.deepEqual(mats({text: "Tap"}), {error: "Materials must be a list"});
+      });
+    });
+
     describe("project", () => {
       it("moves the row to another current project and drops the order number, which belonged to the old one", () => {
         assert.deepEqual(edit({projectId: "p2"}), {set: {projectId: "p2"}, remove: ["projectOrder"]});

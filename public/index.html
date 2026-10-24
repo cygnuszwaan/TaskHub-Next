@@ -545,6 +545,11 @@
       </div>
 
       <div class="form-group">
+        <label for="ceMaterials">Materials <small style="font-weight:normal; color:var(--text-faint);">(one per line, for the job sheet)</small></label>
+        <textarea id="ceMaterials" rows="4"></textarea>
+      </div>
+
+      <div class="form-group">
         <label for="ceComments">Comments</label>
         <textarea id="ceComments" rows="3" maxlength="2000"></textarea>
       </div>
@@ -1267,6 +1272,14 @@
       for (const p of new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(instant)) parts[p.type] = p.value;
       return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
     }
+    // The texts of a completed task's materials, as the edit form lists them (one per line); never the checked state.
+    function completedMaterialTexts(row) {
+      return (Array.isArray(row.materials) ? row.materials : []).map(m => String(m && typeof m === "object" ? m.text : m || "").trim()).filter(Boolean);
+    }
+    // The lines of the Materials textarea as a list: trimmed, blank lines dropped.
+    function parseMaterialLines(text) {
+      return String(text || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    }
     // What the edit form for a completed task starts with (see completedChanges). `trackedMinutes` is 0 when no time
     // was tracked.
     function completedFormValues(row, timeZone) {
@@ -1276,6 +1289,7 @@
         estimatedMinutes: row.estimatedMinutes > 0 ? Math.round(row.estimatedMinutes) : 15,
         trackedMinutes: Number.isFinite(row.trackedSeconds) && row.trackedSeconds > 0 ? Math.round(row.trackedSeconds / 60) : 0,
         tags: (Array.isArray(row.tags) ? row.tags : []).join(", "),
+        materials: completedMaterialTexts(row).join("\n"),
         comments: typeof row.comments === "string" ? row.comments : "",
         projectId: row.projectId || "",
         date: when.date,
@@ -1297,6 +1311,8 @@
       if (Math.round(tracked) !== before.trackedMinutes) fields.trackedSeconds = Math.round(tracked) * 60;
       const tags = parseTagList(form.tags);
       if (tags.join("\n") !== parseTagList(before.tags).join("\n")) fields.tags = tags;
+      const materials = parseMaterialLines(form.materials);
+      if (materials.join("\n") !== parseMaterialLines(before.materials).join("\n")) fields.materials = materials.length ? materials : null;
       const comments = String(form.comments || "").trim();
       if (comments !== before.comments.trim()) fields.comments = comments === "" ? null : comments;
       if ((form.projectId || "") !== before.projectId) fields.projectId = form.projectId || null;
@@ -2299,6 +2315,7 @@
       document.getElementById("ceEstimate").value = values.estimatedMinutes;
       document.getElementById("ceTracked").value = values.trackedMinutes;
       document.getElementById("ceTags").value = values.tags;
+      document.getElementById("ceMaterials").value = values.materials;
       document.getElementById("ceComments").value = values.comments;
       const projectSelect = document.getElementById("ceProject");
       projectSelect.replaceChildren(new Option("No project", ""), ...allProjects.map(p => new Option(p.name, p.id)));
@@ -2326,6 +2343,7 @@
         estimatedMinutes: document.getElementById("ceEstimate").value,
         trackedMinutes: document.getElementById("ceTracked").value,
         tags: document.getElementById("ceTags").value,
+        materials: document.getElementById("ceMaterials").value,
         comments: document.getElementById("ceComments").value,
         projectId: document.getElementById("ceProject").value,
         date: document.getElementById("ceDate").value,

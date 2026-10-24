@@ -105,11 +105,10 @@ function sheetEntry(row, timeZone) {
   const list = (v) => (Array.isArray(v) ? v : []).map((x) => text(typeof x === "string" ? x : x && x.text)).filter(Boolean);
   return {
     title: text(row.title) || "Untitled task",
+    started: whenText(timeZone, row.firstStartedAt),
     completed: whenText(timeZone, toIso(row.completedAt)),
     timeText: entryTimeText(row),
     estimated: !tracked && minutesOf(row) > 0,
-    priority: ["HIGH", "MEDIUM", "LOW"].includes(row.priority) ? row.priority : "",
-    tags: list(row.tags),
     materials: list(row.materials),
     comments: text(row.comments),
   };
@@ -134,8 +133,9 @@ function byCompletion(a, b) {
 //   Project hours section computes them: each week rounded to whole minutes, the total the sum of the weeks; `text` like
 //   "3h 20m (3.33 h)"); `sections`: [{heading, totals, entries}] oldest first with entries oldest first, a TASK sheet one
 //   section without heading or totals, a WEEK sheet one section for the week, a PROJECT sheet one per week with work
-//   (heading the week's range, totals its figures); an entry is {title, completed, timeText, estimated, priority, tags,
-//   materials, comments}; `truncated` is true when only the newest JOB_SHEET_MAX_ENTRIES entries are listed (the totals
+//   (heading the week's range, totals its figures); an entry is {title, started, completed, timeText, estimated,
+//   materials, comments} (`started`: when its timer was first started, "" when it never was; no priority or tags, the
+//   sheet is client-facing); `truncated` is true when only the newest JOB_SHEET_MAX_ENTRIES entries are listed (the totals
 //   still cover everything read); `empty` is true when there is nothing to list.
 function buildJobSheet({request, rows, project, timeZone, now}) {
   const kind = request.type;
