@@ -17,7 +17,7 @@
     :root {
       color-scheme: light dark;
       --bg: #f4f6f8; --surface: #fff; --text: #222; --text-strong: #334155; --text-muted: #475569; --text-faint: #64748b;
-      --border-input: #ccc; --border-chip: #cbd5e1; --divider: #f0f0f0; --header-border: #dbe1e8; --hover: #f8fafc;
+      --border-input: #ccc; --border-chip: #cbd5e1; --divider: #f0f0f0; --header-border: #dbe1e8; --hover: #f8fafc; --flash: #bae6fd;
       --primary: #0266c8; --primary-disabled: #b0c4de; --link: #0266c8;
       --success: #16a34a; --danger: #ef4444; --error: #b91c1c;
       --chip-bg: #f1f5f9; --btn2-bg: #e2e8f0;
@@ -30,7 +30,7 @@
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme="light"]) {
         --bg: #0f172a; --surface: #1e293b; --text: #e2e8f0; --text-strong: #cbd5e1; --text-muted: #a9b6c9; --text-faint: #94a3b8;
-        --border-input: #475569; --border-chip: #475569; --divider: #334155; --header-border: #334155; --hover: #26344a;
+        --border-input: #475569; --border-chip: #475569; --divider: #334155; --header-border: #334155; --hover: #26344a; --flash: #0c4a6e;
         --primary-disabled: #2b4a6f; --link: #60a5fa; --error: #f87171;
         --chip-bg: #2b3a50; --btn2-bg: #334155;
         --high-bg: #4a1d1d; --high-fg: #fca5a5; --medium-bg: #4a3a12; --medium-fg: #fcd34d; --low-bg: #163a25; --low-fg: #86efac;
@@ -44,7 +44,7 @@
     :root[data-theme="dark"] {
       color-scheme: dark;
       --bg: #0f172a; --surface: #1e293b; --text: #e2e8f0; --text-strong: #cbd5e1; --text-muted: #a9b6c9; --text-faint: #94a3b8;
-      --border-input: #475569; --border-chip: #475569; --divider: #334155; --header-border: #334155; --hover: #26344a;
+      --border-input: #475569; --border-chip: #475569; --divider: #334155; --header-border: #334155; --hover: #26344a; --flash: #0c4a6e;
       --primary-disabled: #2b4a6f; --link: #60a5fa; --error: #f87171;
       --chip-bg: #2b3a50; --btn2-bg: #334155;
       --high-bg: #4a1d1d; --high-fg: #fca5a5; --medium-bg: #4a3a12; --medium-fg: #fcd34d; --low-bg: #163a25; --low-fg: #86efac;
@@ -87,6 +87,8 @@
     .task-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px; border-bottom: 1px solid var(--divider); border-radius: 6px; cursor: pointer; transition: background 0.15s ease; }
     .task-item { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     .task-item:hover { background: var(--hover); }
+    .task-item.flash { animation: card-flash 600ms ease-out; }
+    @keyframes card-flash { from { background: var(--flash); } to { background: transparent; } }
     .task-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
     .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: bold; text-transform: uppercase; }
     .HIGH { background: var(--high-bg); color: var(--high-fg); }
@@ -94,6 +96,7 @@
     .LOW { background: var(--low-bg); color: var(--low-fg); }
     .chip { font-size: 11px; background: var(--chip-bg); color: var(--text-muted); padding: 2px 8px; border-radius: 10px; }
     .time-chip { font-size: 11px; background: var(--time-bg); color: var(--time-fg); padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+    .timer-chip { background: var(--time-bg); color: var(--time-fg); font-weight: 600; }
     .sched-chip { background: var(--sched-bg); color: var(--sched-fg); font-weight: 600; }
     .lock-chip { background: var(--lock-bg); color: var(--lock-fg); font-weight: 600; }
     .held-chip { background: var(--held-bg); color: var(--held-fg); font-weight: 600; }
@@ -1628,6 +1631,21 @@
     function isDoubleTap(previous, taskId, now) {
       return !!previous && previous.taskId === taskId && now - previous.at >= 0 && now - previous.at <= DOUBLE_TAP_MS;
     }
+    // The chip on a task that has had its timer started: ▶️ while it runs, ⏸️ while it does not; "" before the first start.
+    function timerChipIcon(task) {
+      if (!task) return "";
+      if (isTimerRunning(task)) return "▶️";
+      const started = !isNaN(Date.parse(task.firstStartedAt)) || Number(task.trackedSeconds) > 0;
+      return started ? "⏸️" : "";
+    }
+    // A card flashes for FLASH_MS after a long press. `flash` is {taskId, at}; returns the milliseconds already played
+    // for that card at `now`, or null when it should not flash (so a redraw mid-flash carries the animation on).
+    const FLASH_MS = 600;
+    function flashElapsed(flash, taskId, now) {
+      if (!flash || flash.taskId !== taskId) return null;
+      const elapsed = now - flash.at;
+      return elapsed >= 0 && elapsed < FLASH_MS ? elapsed : null;
+    }
     // </pure-helpers>
 
     // Dark mode: a data-theme attribute on <html> overrides the device setting (see the stylesheet), the theme-color
@@ -1762,6 +1780,8 @@
           pressFired = true;
           cancelTap();
           if (navigator.vibrate) navigator.vibrate(30);
+          cardFlash = { taskId, at: Date.now() };
+          applyFlash();
           toggleTimer(taskId);
         }, LONG_PRESS_MS);
       };
@@ -2193,6 +2213,7 @@
             <div class="task-meta">
               <span class="badge ${PRIORITIES.includes(t.priority) ? t.priority : ''}">${esc(t.priority)}</span>
               <span class="time-chip">⏱️ ${esc(t.estimatedMinutes || 15)}m</span>
+              ${timerChipIcon(t) ? `<span class="chip timer-chip" title="${isTimerRunning(t) ? 'Timer running' : 'Timer paused'}" aria-label="${isTimerRunning(t) ? 'Timer running' : 'Timer paused'}">${timerChipIcon(t)}</span>` : ''}
               ${isActive ? `<span class="time-chip" id="activeElapsed" title="Time tracked on this task">Tracked ${esc(formatElapsed(elapsedSecondsOf(t)))}</span>` : ''}
               ${(t.tags || []).map(tag => `<span class="chip">${esc(tag)}</span>`).join('')}
               ${projectChip(t)}
@@ -2216,7 +2237,26 @@
       activeTicker = null;
     }
 
+    // The card that was just long-pressed flashes; a redraw during the flash (the timer call redraws the list) picks it up again
+    let cardFlash = null;
+    function applyFlash() {
+      if (!cardFlash) return;
+      const now = Date.now();
+      for (const item of document.querySelectorAll(".task-item")) {
+        const elapsed = flashElapsed(cardFlash, item.dataset.id, now);
+        if (elapsed === null) continue;
+        item.style.animationDelay = `-${elapsed}ms`;
+        item.classList.add("flash");
+        item.addEventListener("animationend", () => { item.classList.remove("flash"); item.style.animationDelay = ""; }, { once: true });
+      }
+    }
+
     function renderTasks() {
+      renderTaskRows();
+      applyFlash();
+    }
+
+    function renderTaskRows() {
       tasksLoaded = true;
       renderProjects();
       renderMaterialsCard();

@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, DOUBLE_TAP_MS, PRESS_MOVE_PX, pressMoved, isDoubleTap};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, DOUBLE_TAP_MS, PRESS_MOVE_PX, pressMoved, isDoubleTap, timerChipIcon, FLASH_MS, flashElapsed};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -36,6 +36,25 @@ describe("public/index.html helpers", () => {
       assert.equal(isDoubleTap(first, "b", 1100), false);
       assert.equal(isDoubleTap(null, "a", 1100), false);
       assert.equal(isDoubleTap(first, "a", 900), false);
+    });
+    it("shows a timer chip only once the timer has been started: play while running, pause otherwise", () => {
+      const {timerChipIcon} = load();
+      assert.equal(timerChipIcon({id: "a"}), "");
+      assert.equal(timerChipIcon(null), "");
+      assert.equal(timerChipIcon({id: "a", trackedSeconds: 0}), "");
+      assert.equal(timerChipIcon({id: "a", firstStartedAt: "2026-10-24T09:00:00.000Z", timerStartedAt: "2026-10-25T09:00:00.000Z"}), "▶️");
+      assert.equal(timerChipIcon({id: "a", firstStartedAt: "2026-10-24T09:00:00.000Z", trackedSeconds: 60}), "⏸️");
+      assert.equal(timerChipIcon({id: "a", trackedSeconds: 30}), "⏸️", "a task timed before firstStartedAt was kept");
+      assert.equal(timerChipIcon({id: "a", timerStartedAt: "2026-10-25T09:00:00.000Z"}), "▶️");
+    });
+    it("carries a flash across a redraw until it has played out", () => {
+      const {flashElapsed, FLASH_MS} = load();
+      const flash = {taskId: "a", at: 1000};
+      assert.equal(flashElapsed(flash, "a", 1000), 0);
+      assert.equal(flashElapsed(flash, "a", 1000 + FLASH_MS - 1), FLASH_MS - 1);
+      assert.equal(flashElapsed(flash, "a", 1000 + FLASH_MS), null);
+      assert.equal(flashElapsed(flash, "b", 1100), null);
+      assert.equal(flashElapsed(null, "a", 1100), null);
     });
     it("holds a long press longer than a double-tap window", () => {
       const {LONG_PRESS_MS, DOUBLE_TAP_MS} = load();
