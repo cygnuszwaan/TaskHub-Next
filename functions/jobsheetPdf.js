@@ -51,6 +51,10 @@ function draw(doc, sheet) {
 
   // Header
   doc.font("Bold").fontSize(20).fillColor(INK).text("Job sheet", left, doc.y, {width});
+  if (sheet.contractorInfo) {
+    doc.font("Sans").fontSize(9.5).fillColor(INK).text(sheet.contractorInfo, left, doc.y + 4, {width});
+    doc.y += 4;
+  }
   doc.moveDown(0.3);
   doc.font("Bold").fontSize(14).fillColor(INK).text(sheet.heading || "", left, doc.y, {width});
   if (sheet.projectName) doc.font("Sans").fontSize(10).fillColor(MUTED).text(`Project: ${sheet.projectName}`, left, doc.y + 2, {width});

@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {DEFAULTS, INTERVALS, mergeSettings, applySettingsUpdate, isRunDue, claimRun} = require("../settings");
+const {MAX_CONTRACTOR_INFO, DEFAULTS, INTERVALS, mergeSettings, applySettingsUpdate, isRunDue, claimRun} = require("../settings");
 
 const base = (extra = {}) => ({...mergeSettings(undefined), ...extra});
 const sched = (schedule, extra = {}) => base({schedule: {...DEFAULTS.schedule, ...schedule}, ...extra});
@@ -66,6 +66,31 @@ describe("settings.js", () => {
     it("accepts the bounds", () => {
       assert.equal(applySettingsUpdate(base(), {scheduleDays: 1}).settings.scheduleDays, 1);
       assert.equal(applySettingsUpdate(base(), {scheduleDays: 28}).settings.scheduleDays, 28);
+    });
+  });
+
+  describe("job sheet contractor information", () => {
+    it("is empty by default, and a stored value that is not text falls back to empty", () => {
+      assert.deepEqual(mergeSettings(undefined).jobSheet, {contractorInfo: ""});
+      assert.deepEqual(mergeSettings({jobSheet: {contractorInfo: 5}}).jobSheet, {contractorInfo: ""});
+      assert.deepEqual(mergeSettings({jobSheet: {contractorInfo: "A Builder\n021 000 000"}}).jobSheet, {contractorInfo: "A Builder\n021 000 000"});
+    });
+    it("is saved with its line breaks, trailing spaces and blank lines at either end removed", () => {
+      const r = applySettingsUpdate(base(), {jobSheet: {contractorInfo: "\r\n  A Builder Ltd  \r\nPh 021 000 000   \n\nGST 12-345-678\n\n"}});
+      assert.equal(r.error, undefined);
+      assert.equal(r.settings.jobSheet.contractorInfo, "  A Builder Ltd\nPh 021 000 000\n\nGST 12-345-678");
+    });
+    it("can be cleared with empty text, and is left alone by an update of other fields", () => {
+      const withInfo = applySettingsUpdate(base(), {jobSheet: {contractorInfo: "A Builder"}}).settings;
+      assert.equal(applySettingsUpdate(withInfo, {gapMinutes: 10}).settings.jobSheet.contractorInfo, "A Builder");
+      assert.equal(applySettingsUpdate(withInfo, {jobSheet: {contractorInfo: "  \n "}}).settings.jobSheet.contractorInfo, "");
+    });
+    it("rejects text that is too long, anything that is not text, and a group that is not an object, saving nothing", () => {
+      assert.equal(applySettingsUpdate(base(), {jobSheet: {contractorInfo: "x".repeat(MAX_CONTRACTOR_INFO)}}).error, undefined);
+      assert.match(applySettingsUpdate(base(), {jobSheet: {contractorInfo: "x".repeat(MAX_CONTRACTOR_INFO + 1)}}).error, /at most 1000/);
+      assert.match(applySettingsUpdate(base(), {jobSheet: {contractorInfo: 7}}).error, /must be text/);
+      assert.match(applySettingsUpdate(base(), {jobSheet: "A Builder"}).error, /jobSheet must be an object/);
+      assert.match(applySettingsUpdate(base(), {gapMinutes: 5, jobSheet: {contractorInfo: null}}).error, /must be text/);
     });
   });
 

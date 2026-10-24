@@ -751,7 +751,7 @@ exports.getJobSheet = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 60}, own
     const request = parseJobSheetRequest(req.body);
     if (request.error) return res.status(400).send({error: request.error});
     const archive = db.collection("completed_tasks");
-    const [{timeZone}, projects] = await Promise.all([readSettings(), readProjects()]);
+    const [{timeZone, jobSheet}, projects] = await Promise.all([readSettings(), readProjects()]);
     let rows;
     let project;
     if (request.type === "TASK") {
@@ -765,7 +765,7 @@ exports.getJobSheet = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 60}, own
       const snap = await archive.where("projectId", "==", project.id).limit(PROJECT_MAX_ROWS).get();
       rows = snap.docs.map((d) => ({...d.data(), archiveId: d.id}));
     }
-    const sheet = buildJobSheet({request, rows, project, timeZone, now: new Date()});
+    const sheet = buildJobSheet({request, rows, project, timeZone, now: new Date(), contractorInfo: jobSheet.contractorInfo});
     const pdf = await renderJobSheetPdf(sheet);
     res.status(200).type("application/pdf").set("Cache-Control", "no-store").send(pdf);
   } catch (err) {
@@ -786,7 +786,7 @@ exports.getSettings = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, r
 }));
 
 // 9. Endpoint: Update Settings
-// Body: {settings: {location?, timeZone?, scheduleDays?, gapMinutes?, day?, lunch?, schedule?}}, any subset of the editable fields. 400 with the reason
+// Body: {settings: {location?, timeZone?, scheduleDays?, gapMinutes?, day?, lunch?, schedule?, jobSheet?}}, any subset of the editable fields. 400 with the reason
 // when a field is invalid (nothing is saved); run state cannot be set.
 exports.updateSettings = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {

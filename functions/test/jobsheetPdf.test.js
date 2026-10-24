@@ -28,6 +28,13 @@ describe("jobsheetPdf.js", () => {
     assert.equal(pages(await render({type: "PROJECT"}, [])), 1);
     assert.equal(pages(await render({type: "TASK"}, [], null)), 1);
   });
+  it("renders contractor information under the title, a long one included, without losing a page's worth of room", async () => {
+    const info = "A Builder Ltd\nPh 021 000 000\nbuilder@example.co.nz\n" + "Licensed Building Practitioner. ".repeat(30);
+    const render2 = (request, r, contractorInfo) => renderJobSheetPdf(buildJobSheet({request, rows: r, project, timeZone: NZ, now, contractorInfo}));
+    assert.equal(pages(await render2({type: "TASK"}, rows(1), info)), 1);
+    assert.ok(pages(await render2({type: "PROJECT"}, rows(60), info)) >= 3);
+    assert.equal(pages(await render2({type: "PROJECT"}, [], info)), 1);
+  });
   it("copes with an unusually long unbroken title and a very long comment", async () => {
     const pdf = await render({type: "PROJECT"}, rows(3, {title: "W".repeat(300), comments: "word ".repeat(2000)}));
     assert.ok(pages(pdf) >= 2);

@@ -21,6 +21,9 @@ const MAX_GAP_MINUTES = 60;
 const MIN_LUNCH_MINUTES = 5;
 const MAX_LUNCH_MINUTES = 180;
 
+// The contractor information printed on every job sheet: free text, line breaks kept, at most this many characters.
+const MAX_CONTRACTOR_INFO = 1000;
+
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const ZONE_PATTERN = /^(UTC|[A-Za-z_]+(\/[A-Za-z0-9_+-]+)+)$/;
 
@@ -32,6 +35,7 @@ const DEFAULTS = Object.freeze({
   day: Object.freeze({start: "09:00", end: "17:00"}),
   lunch: Object.freeze({enabled: false, time: "12:00", minutes: 30}),
   schedule: Object.freeze({enabled: true, frequency: "DAILY", time: "20:00", intervalMinutes: 60}),
+  jobSheet: Object.freeze({contractorInfo: ""}),
   lastAutoRunAt: null,
   lastRunFingerprint: null,
 });
@@ -139,6 +143,15 @@ function checkEnabled(v) {
   return v;
 }
 
+// Contractor information for the job sheets: text (line breaks kept as \n, trailing spaces and blank lines at either end
+// removed), possibly empty, at most MAX_CONTRACTOR_INFO characters.
+function checkContractorInfo(v) {
+  if (typeof v !== "string") throw new Error("jobSheet.contractorInfo must be text");
+  const text = v.replace(/\r\n?/g, "\n").split("\n").map((line) => line.trimEnd()).join("\n").replace(/^\n+|\n+$/g, "");
+  if (text.length > MAX_CONTRACTOR_INFO) throw new Error(`jobSheet.contractorInfo must be at most ${MAX_CONTRACTOR_INFO} characters`);
+  return text;
+}
+
 // Editable fields and their checks, addressed by path. Anything not listed (the run state in particular) can
 // never be set through an update.
 const EDITABLE = [
@@ -157,6 +170,7 @@ const EDITABLE = [
   ["schedule", "frequency", checkFrequency],
   ["schedule", "time", checkTime],
   ["schedule", "intervalMinutes", checkInterval],
+  ["jobSheet", "contractorInfo", checkContractorInfo],
 ];
 
 function readField(source, group, key) {
@@ -176,7 +190,7 @@ function isoOrNull(v) {
 // Full settings from whatever is stored (possibly nothing). A missing or unusable stored field falls back to
 // its default, so a hand-edited document can never break the app. Pure: returns a new object.
 function mergeSettings(stored) {
-  const out = {location: {...DEFAULTS.location}, timeZone: DEFAULTS.timeZone, scheduleDays: DEFAULTS.scheduleDays, gapMinutes: DEFAULTS.gapMinutes, day: {...DEFAULTS.day}, lunch: {...DEFAULTS.lunch}, schedule: {...DEFAULTS.schedule}};
+  const out = {location: {...DEFAULTS.location}, timeZone: DEFAULTS.timeZone, scheduleDays: DEFAULTS.scheduleDays, gapMinutes: DEFAULTS.gapMinutes, day: {...DEFAULTS.day}, lunch: {...DEFAULTS.lunch}, schedule: {...DEFAULTS.schedule}, jobSheet: {...DEFAULTS.jobSheet}};
   for (const [group, key, check] of EDITABLE) {
     const value = readField(stored, group, key);
     if (value === undefined) continue;
@@ -201,7 +215,7 @@ function mergeSettings(stored) {
 // {settings} or {error}; nothing is applied if any provided field is invalid. Run state is carried over.
 function applySettingsUpdate(current, patch) {
   if (!isPlainObject(patch)) return {error: "Settings update must be an object"};
-  for (const group of ["location", "day", "lunch", "schedule"]) {
+  for (const group of ["location", "day", "lunch", "schedule", "jobSheet"]) {
     if (patch[group] !== undefined && !isPlainObject(patch[group])) return {error: `${group} must be an object`};
   }
   const next = mergeSettings(current);
@@ -256,4 +270,4 @@ function claimRun(settings, now = new Date()) {
   return {due: true, settings: {...settings, lastAutoRunAt: now.toISOString()}};
 }
 
-module.exports = {MIN_DAY_MINUTES, dayWindowMinutes, MIN_SCHEDULE_DAYS, MAX_SCHEDULE_DAYS, MIN_GAP_MINUTES, MAX_GAP_MINUTES, MIN_LUNCH_MINUTES, MAX_LUNCH_MINUTES, INTERVALS, FREQUENCIES, TICK_GRACE_MS, DEFAULTS, mergeSettings, applySettingsUpdate, isRunDue, claimRun};
+module.exports = {MAX_CONTRACTOR_INFO, MIN_DAY_MINUTES, dayWindowMinutes, MIN_SCHEDULE_DAYS, MAX_SCHEDULE_DAYS, MIN_GAP_MINUTES, MAX_GAP_MINUTES, MIN_LUNCH_MINUTES, MAX_LUNCH_MINUTES, INTERVALS, FREQUENCIES, TICK_GRACE_MS, DEFAULTS, mergeSettings, applySettingsUpdate, isRunDue, claimRun};

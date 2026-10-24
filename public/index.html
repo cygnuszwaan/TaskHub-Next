@@ -316,7 +316,7 @@
 
   <main id="pageSettings" data-page="settings" hidden>
   <div class="card">
-    <h3 style="margin-top:0; margin-bottom:12px;">Settings</h3>
+    <h3 style="margin-top:0; margin-bottom:12px;">Scheduling</h3>
     <div id="settingsBody">
       <div>
         <div class="form-group">
@@ -384,6 +384,18 @@
       </div>
     </div>
     <div id="scheduleStatus" class="coach-box" style="display:none;"></div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0; margin-bottom:12px;">Job Sheets</h3>
+    <div class="form-group" style="margin-bottom:0;">
+      <label for="contractorInfo">Contractor information</label>
+      <textarea id="contractorInfo" rows="5" maxlength="1000" placeholder="Name, company, phone, email, licence or GST number"></textarea>
+      <p class="settings-note" style="margin:6px 0 0;">Printed at the top of every job sheet, under the \"Job sheet\" title. Up to 1000 characters.</p>
+    </div>
+    <div class="action-row" style="margin-top: 14px;">
+      <button type="button" id="saveJobSheetBtn">Save</button>
+    </div>
+    <div id="jobSheetStatus" class="settings-status"></div>
   </div>
   <div class="card">
     <h3 style="margin-top:0; margin-bottom:12px;">Appearance</h3>
@@ -900,6 +912,11 @@
           intervalMinutes: Number(form.intervalMinutes)
         }
       };
+    }
+
+    // The updateSettings body for the Job Sheets card: the contractor text alone, so the Scheduling form is not saved with it.
+    function jobSheetPayload(text) {
+      return { jobSheet: { contractorInfo: String(text === undefined || text === null ? "" : text) } };
     }
 
     // The addOrUpdateTask body for a task entered by hand (no AI): the title and the fields of the manual form. The
@@ -2562,6 +2579,7 @@
     }
 
     // Show settings from the server in the form, and switch every date and time on the page to the configured zone.
+    let savedContractorInfo = "";
     function applySettings(s) {
       const zoneChanged = s.timeZone !== appTimeZone;
       currentSettings = s;
@@ -2581,6 +2599,11 @@
       updateLunchFields();
       document.getElementById("schedEnabled").checked = !!s.schedule.enabled;
       document.getElementById("schedInterval").value = scheduleChoice(s.schedule);
+      // The contractor text is replaced only while it has no unsaved edits, so saving the Scheduling form keeps them
+      const info = s.jobSheet && typeof s.jobSheet.contractorInfo === "string" ? s.jobSheet.contractorInfo : "";
+      const infoBox = document.getElementById("contractorInfo");
+      if (infoBox.value === savedContractorInfo) infoBox.value = info;
+      savedContractorInfo = info;
       const last = s.lastAutoRunAt ? new Date(s.lastAutoRunAt) : null;
       document.getElementById("settingsLastRun").textContent = last && !isNaN(last)
         ? `Last automatic run: ${formatInstant(last)} (${appTimeZone}).`
@@ -2691,6 +2714,36 @@
       }
     }
 
+    // Save the contractor information alone. Only the job sheet group is sent and applySettings is not called, so
+    // unsaved edits in the Scheduling form stay as they are.
+    async function saveJobSheetSettings() {
+      if (!currentSettings) { document.getElementById("jobSheetStatus").textContent = "Settings are not loaded yet."; return; }
+      const btn = document.getElementById("saveJobSheetBtn");
+      const status = document.getElementById("jobSheetStatus");
+      btn.disabled = true;
+      status.textContent = "Saving...";
+      try {
+        const res = await apiFetch(UPDATE_SETTINGS_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ settings: jobSheetPayload(document.getElementById("contractorInfo").value) })
+        });
+        const saved = (await res.json()).settings;
+        if (!saved || !saved.jobSheet || typeof saved.jobSheet.contractorInfo !== "string") {
+          status.textContent = "Saved, but the server ignored the contractor information. Deploy the latest functions.";
+          return;
+        }
+        currentSettings = { ...currentSettings, jobSheet: saved.jobSheet };
+        savedContractorInfo = saved.jobSheet.contractorInfo;
+        document.getElementById("contractorInfo").value = savedContractorInfo;
+        status.textContent = "Saved.";
+      } catch (err) {
+        status.textContent = "Not saved: " + err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
     async function saveSettings() {
       if (!currentSettings) { setSettingsStatus("Settings are not loaded yet."); return false; }
       const place = chosenPlace();
@@ -2760,6 +2813,7 @@
       renderLocation();
     });
     document.getElementById("saveSettingsBtn").addEventListener("click", saveSettings);
+    document.getElementById("saveJobSheetBtn").addEventListener("click", saveJobSheetSettings);
     document.getElementById("exportBtn").addEventListener("click", downloadExport);
     document.querySelector(".snooze-choices").addEventListener("click", e => {
       const btn = e.target.closest("[data-snooze]");

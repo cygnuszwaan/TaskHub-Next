@@ -126,7 +126,8 @@ function byCompletion(a, b) {
 //   project:  the project {id, name} (PROJECT and WEEK sheets), or for a TASK sheet its project, or null
 //   timeZone: the owner's zone; every date and time is on its clock
 //   now:      the Date of the sheet
-// Returns {kind, heading, projectName, period, generatedText, timeZone, totals, sections, truncated, empty}:
+//   contractorInfo: the owner's contractor text (settings.jobSheet.contractorInfo), printed under the "Job sheet" title
+// Returns {kind, contractorInfo (cleaned by pdfText, "" with none), heading, projectName, period, generatedText, timeZone, totals, sections, truncated, empty}:
 //   `heading`: the title of the completed task, or the project's name; `projectName` is null with none (and for a
 //   PROJECT or WEEK sheet, whose heading is the project's name); `period`: "" for a TASK sheet;
 //   `totals`: null for a TASK sheet, else {count, minutes, estimatedMinutes, text} (the project's figures as the Stats
@@ -137,15 +138,16 @@ function byCompletion(a, b) {
 //   materials, comments} (`started`: when its timer was first started, "" when it never was; no priority or tags, the
 //   sheet is client-facing); `truncated` is true when only the newest JOB_SHEET_MAX_ENTRIES entries are listed (the totals
 //   still cover everything read); `empty` is true when there is nothing to list.
-function buildJobSheet({request, rows, project, timeZone, now}) {
+function buildJobSheet({request, rows, project, timeZone, now, contractorInfo}) {
   const kind = request.type;
+  const contractor = typeof contractorInfo === "string" ? pdfText(contractorInfo) : "";
   const generatedText = pdfText(formatLocalNow(timeZone, now));
   const projectName = project && typeof project.name === "string" ? pdfText(project.name) : "";
   const stamped = (Array.isArray(rows) ? rows : []).map((row) => ({row, iso: toIso(row && row.completedAt)})).filter((r) => r.row);
 
   if (kind === "TASK") {
     const entries = stamped.slice(0, 1).map((r) => sheetEntry(r.row, timeZone));
-    return {kind, heading: entries.length ? entries[0].title : "", projectName: projectName || null, period: "", generatedText, timeZone, totals: null, sections: entries.length ? [{heading: "", totals: null, entries}] : [], truncated: false, empty: entries.length === 0};
+    return {kind, contractorInfo: contractor, heading: entries.length ? entries[0].title : "", projectName: projectName || null, period: "", generatedText, timeZone, totals: null, sections: entries.length ? [{heading: "", totals: null, entries}] : [], truncated: false, empty: entries.length === 0};
   }
 
   // Group by local week, then take the project's figures from the same code the Stats page uses
@@ -174,6 +176,7 @@ function buildJobSheet({request, rows, project, timeZone, now}) {
   const today = localDate(timeZone, now);
   return {
     kind,
+    contractorInfo: contractor,
     heading: projectName || "Project",
     projectName: null,
     period: kind === "WEEK" ? weekRangeText(request.weekStart) : `All work to ${dateText(today)}`,

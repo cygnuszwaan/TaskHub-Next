@@ -86,6 +86,17 @@ describe("jobsheet.js", () => {
       assert.equal("priority" in entry({}), false);
       assert.equal("tags" in entry({}), false);
     });
+    it("carries the contractor information, cleaned for the PDF font, on every kind of sheet", () => {
+      const info = "A Builder Ltd \u{1F528}\nPh 021 000 000";
+      assert.equal(buildJobSheet({request: {type: "TASK"}, rows: [row()], project: null, timeZone: NZ, now, contractorInfo: info}).contractorInfo, "A Builder Ltd\nPh 021 000 000");
+      assert.equal(buildJobSheet({request: {type: "PROJECT"}, rows: [row()], project: {id: "p1", name: "Kitchen reno"}, timeZone: NZ, now, contractorInfo: info}).contractorInfo, "A Builder Ltd\nPh 021 000 000");
+      assert.equal(buildJobSheet({request: {type: "WEEK", weekStart: "2026-10-19"}, rows: [], project: {id: "p1", name: "Kitchen reno"}, timeZone: NZ, now, contractorInfo: info}).contractorInfo, "A Builder Ltd\nPh 021 000 000");
+    });
+    it("has no contractor information when none is given or it is not text", () => {
+      for (const contractorInfo of [undefined, null, "", "   ", 5]) {
+        assert.equal(buildJobSheet({request: {type: "TASK"}, rows: [row()], project: null, timeZone: NZ, now, contractorInfo}).contractorInfo, "", String(contractorInfo));
+      }
+    });
     it("leaves the project line off a task outside any project, and is empty with no row", () => {
       assert.equal(sheet({type: "TASK"}, [row({projectId: undefined})], null).projectName, null);
       const s = sheet({type: "TASK"}, [], null);
