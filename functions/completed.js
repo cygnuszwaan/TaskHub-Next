@@ -246,4 +246,4 @@ function summarizeCompleted(rows, timeZone, now = new Date(), weeks = SUMMARY_WE
   };
 }
 
-module.exports = {DEFAULT_LIMIT, MAX_LIMIT, SUMMARY_WEEKS, SUMMARY_MAX_ROWS, PROJECT_MAX_ROWS, clampLimit, toIso, serializeCompleted, weekStartOf, firstSummaryWeek, summaryWindowStart, computeStreaks, summarizeCompleted, summarizeProjectHours};
+module.exports = {DEFAULT_LIMIT, MAX_LIMIT, SUMMARY_WEEKS, SUMMARY_MAX_ROWS, PROJECT_MAX_ROWS, clampLimit, toIso, serializeCompleted, weekStartOf, firstSummaryWeek, summaryWindowStart, minutesOf, computeStreaks, summarizeCompleted, summarizeProjectHours};

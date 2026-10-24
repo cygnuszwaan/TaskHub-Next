@@ -23,6 +23,8 @@ const {heldTaskIds} = require("./materials");
 const {SUMMARY_MAX_ROWS, PROJECT_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted, summarizeProjectHours} = require("./completed");
 const {isArchiveId, applyCompletedEdit} = require("./completedEdit");
 const {EXPORT_MAX_ROWS, buildExport} = require("./export");
+const {parseJobSheetRequest, buildJobSheet} = require("./jobsheet");
+const {renderJobSheetPdf} = require("./jobsheetPdf");
 const {makeOwnerOnly} = require("./auth");
 const {dayWindowMinutes} = require("./settings");
 const {randomUUID} = require("crypto");
@@ -731,6 +733,41 @@ exports.exportData = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, re
     ]);
     const payload = buildExport({tasks, projects, settings, completed: archiveSnap.docs.map((d) => d.data()), now: new Date()});
     res.status(200).type("application/json").send(JSON.stringify(payload, null, 2));
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 7d. Endpoint: Job sheet (PDF)
+// Body {archiveId} (one completed task, the `archiveId` getCompletedTasks gives each entry), {projectId} (a project to date) or
+// {projectId, weekStart} (its Monday-to-Sunday week; any date in the week names it); see parseJobSheetRequest. Responds
+// with the PDF itself (application/pdf): every time and date on the owner's clock, the tracked time (or estimate), comments, tags and
+// materials of each completed task, and for a project the hours as the Stats page figures them (see buildJobSheet,
+// renderJobSheetPdf). 400 for an unusable body, 404 for an unknown task or project. Read-only. A project's rows are
+// read the way the Stats hours are (at most PROJECT_MAX_ROWS), and a sheet lists at most its newest JOB_SHEET_MAX_ENTRIES.
+exports.getJobSheet = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 60}, ownerOnly(async (req, res) => {
+  try {
+    const request = parseJobSheetRequest(req.body);
+    if (request.error) return res.status(400).send({error: request.error});
+    const archive = db.collection("completed_tasks");
+    const [{timeZone}, projects] = await Promise.all([readSettings(), readProjects()]);
+    let rows;
+    let project;
+    if (request.type === "TASK") {
+      const snap = await archive.doc(request.archiveId).get();
+      if (!snap.exists) return res.status(404).send({error: "Completed task not found"});
+      rows = [{...snap.data(), archiveId: snap.id}];
+      project = projects.find((p) => p.id === rows[0].projectId) || null;
+    } else {
+      project = projects.find((p) => p.id === request.projectId);
+      if (!project) return res.status(404).send({error: "Project not found"});
+      const snap = await archive.where("projectId", "==", project.id).limit(PROJECT_MAX_ROWS).get();
+      rows = snap.docs.map((d) => ({...d.data(), archiveId: d.id}));
+    }
+    const sheet = buildJobSheet({request, rows, project, timeZone, now: new Date()});
+    const pdf = await renderJobSheetPdf(sheet);
+    res.status(200).type("application/pdf").set("Cache-Control", "no-store").send(pdf);
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});

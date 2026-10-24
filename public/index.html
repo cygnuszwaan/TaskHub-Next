@@ -105,7 +105,8 @@
     .summary { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--divider); }
     .summary-total { font-size: 14px; margin-bottom: 10px; }
     .hours-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 3px 0; border-bottom: 1px solid var(--divider); }
-    .hours-row span:last-child { color: var(--text-muted); text-align: right; }
+    .hours-row span:nth-child(2) { color: var(--text-muted); text-align: right; flex: 1; }
+    .sheet-btn { padding: 2px 8px; font-size: 12px; white-space: nowrap; }
     .hours-weeks { max-height: 260px; overflow-y: auto; }
     .completed-comments { font-size: 12px; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 4px; }
     .job-row { margin: 4px 0; font-size: 13px; }
@@ -617,6 +618,7 @@
     const GET_PROJECTS_URL = endpoint("getProjects");
     const UPDATE_PROJECT_URL = endpoint("updateProject");
     const EXPORT_URL = endpoint("exportData");
+    const JOB_SHEET_URL = endpoint("getJobSheet");
 
     // Firebase Auth. The SDK loads from the CDN and the web config from Hosting's reserved URL, so there is no build step or key in this file.
     let authLib = null;
@@ -1331,6 +1333,18 @@
     // The file name of a data export: "taskhub-export-2026-10-24.json" for a YYYY-MM-DD date, else without the date.
     function exportFilename(today) {
       return DATE_ONLY.test(today || "") ? `taskhub-export-${today}.json` : "taskhub-export.json";
+    }
+    // The file name of a job sheet PDF: "jobsheet-kitchen-reno-week-2026-10-19.pdf" for a project week (`weekStart`),
+    // "jobsheet-kitchen-reno-to-2026-10-24.pdf" for a project to date, "jobsheet-fit-tap-2026-10-20.pdf" for one completed
+    // task (dated by its completion); `name` is the project's or task's, turned into lower-case ASCII words (accents and
+    // macrons folded, 40 characters at most, "job" when nothing is left), and `date` the YYYY-MM-DD it is dated with
+    // (left off when it is not a date).
+    function jobSheetFilename({ kind, name, weekStart, date }) {
+      const slug = String(name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "") || "job";
+      const day = DATE_ONLY.test(date || "") ? date : "";
+      const tail = kind === "WEEK" && DATE_ONLY.test(weekStart || "") ? `-week-${weekStart}` : kind === "PROJECT" && day ? `-to-${day}` : kind === "TASK" && day ? `-${day}` : "";
+      return `jobsheet-${slug}${tail}.pdf`;
     }
     // What an export holds, in words: "12 tasks, 1 project, 340 completed" (and a note when the archive was cut off).
     function exportSummary(data) {
@@ -2246,9 +2260,10 @@
     let projectHoursEntries = [];
     let statsProjectId = null;
     function projectHoursBody(entry) {
-      const rows = entry.weeks.map(w => `<div class="hours-row"><span>${esc(weekRangeText(w.weekStart))}</span><span>${esc(projectWeekText(w))}</span></div>`).join("");
+      const rows = entry.weeks.map(w => `<div class="hours-row"><span>${esc(weekRangeText(w.weekStart))}</span><span>${esc(projectWeekText(w))}</span><button type="button" class="btn-secondary sheet-btn" title="Download a job sheet (PDF) for this week" onclick="downloadProjectSheet('${esc(w.weekStart)}', this)">📄</button></div>`).join("");
       const n = entry.count;
       return `<div class="summary-total"><strong>Total</strong> ${esc(hoursText(entry.minutes, entry.estimatedMinutes))} · ${esc(n)} ${n === 1 ? "task" : "tasks"}</div>
+        <div class="summary-total"><button type="button" class="btn-secondary sheet-btn" title="Download a job sheet (PDF) for the whole project to date" onclick="downloadProjectSheet('', this)">📄 Job sheet, project to date</button></div>
         <div class="summary-label">Per week (Monday to Sunday)</div><div class="hours-weeks">${rows}</div>`;
     }
     function renderProjectHours(entries, truncated) {
@@ -2375,7 +2390,7 @@
                 </div>
                 ${t.comments ? `<div class="completed-comments">${esc(t.comments)}</div>` : ''}
               </div>
-              ${t.archiveId ? `<button type="button" class="btn-secondary" title="Correct or delete this entry" onclick="openCompletedEditor('${esc(t.archiveId)}')">Edit</button>` : ''}
+              ${t.archiveId ? `<div style="display:flex; gap:6px; align-items:flex-start;"><button type="button" class="btn-secondary" title="Download a job sheet (PDF) for this task" onclick="downloadTaskSheet('${esc(t.archiveId)}', this)">📄</button><button type="button" class="btn-secondary" title="Correct or delete this entry" onclick="openCompletedEditor('${esc(t.archiveId)}')">Edit</button></div>` : ''}
             </div>`;
         }).join("");
       } catch (err) {
@@ -2581,6 +2596,53 @@
       } catch (err) {
         box.textContent = "Place search failed: " + err.message;
       }
+    }
+
+    // Save a Blob as a file download.
+    function saveBlob(blob, name) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    // Job sheets (PDF): the server builds the file from `body` (see getJobSheet), it comes through apiFetch for the sign-in
+    // token and is saved from a Blob. The button shows "…" and is disabled while the sheet is prepared; a failure is an alert.
+    let jobSheetBusy = false;
+    async function downloadJobSheet(body, name, btn) {
+      if (jobSheetBusy) return;
+      jobSheetBusy = true;
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "…";
+      try {
+        const res = await apiFetch(JOB_SHEET_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        saveBlob(await res.blob(), name);
+      } catch (err) {
+        alert("Job sheet failed: " + err.message);
+      } finally {
+        jobSheetBusy = false;
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    }
+    // The sheet of one completed task in the Stats list.
+    function downloadTaskSheet(archiveId, btn) {
+      const row = completedRows.get(archiveId);
+      if (!row) return;
+      const name = jobSheetFilename({ kind: "TASK", name: row.title, date: zonedDateTime(row.completedAt, appTimeZone).date });
+      downloadJobSheet({ archiveId }, name, btn);
+    }
+    // The sheet of the project chosen in Stats project hours: one week (its Monday), or to date when `weekStart` is empty.
+    function downloadProjectSheet(weekStart, btn) {
+      const entry = projectHoursEntries.find(e => e.projectId === statsProjectId);
+      if (!entry) return;
+      const body = weekStart ? { projectId: entry.projectId, weekStart } : { projectId: entry.projectId };
+      const name = jobSheetFilename({ kind: weekStart ? "WEEK" : "PROJECT", name: entry.name, weekStart, date: todayKey() });
+      downloadJobSheet(body, name, btn);
     }
 
     // Download everything as one JSON file. The data comes through apiFetch (the endpoint needs the sign-in token, so a

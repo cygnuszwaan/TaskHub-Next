@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, historyOf, historyForTitle};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, historyOf, historyForTitle};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -1043,6 +1043,21 @@ describe("public/index.html helpers", () => {
   });
 
   describe("data export", () => {
+    it("jobSheetFilename: names a task, project week or project to date, folding accents to ASCII words", () => {
+      const {jobSheetFilename} = load();
+      assert.equal(jobSheetFilename({kind: "WEEK", name: "Kitchen reno", weekStart: "2026-10-19", date: "2026-10-24"}), "jobsheet-kitchen-reno-week-2026-10-19.pdf");
+      assert.equal(jobSheetFilename({kind: "PROJECT", name: "Kitchen reno", date: "2026-10-24"}), "jobsheet-kitchen-reno-to-2026-10-24.pdf");
+      assert.equal(jobSheetFilename({kind: "TASK", name: "Fit tap", date: "2026-10-20"}), "jobsheet-fit-tap-2026-10-20.pdf");
+      assert.equal(jobSheetFilename({kind: "PROJECT", name: "Whangaparāoa — Māori St!", date: "2026-10-24"}), "jobsheet-whangaparaoa-maori-st-to-2026-10-24.pdf");
+    });
+    it("jobSheetFilename: shortens long names, falls back to job, and leaves off a missing date", () => {
+      const {jobSheetFilename} = load();
+      const long = jobSheetFilename({kind: "TASK", name: "a".repeat(30) + " " + "b".repeat(30), date: "2026-10-20"});
+      assert.equal(long, `jobsheet-${"a".repeat(30)}-${"b".repeat(9)}-2026-10-20.pdf`);
+      assert.equal(jobSheetFilename({kind: "TASK", name: "🌿🌿", date: "2026-10-20"}), "jobsheet-job-2026-10-20.pdf");
+      assert.equal(jobSheetFilename({kind: "PROJECT", name: undefined, date: "soon"}), "jobsheet-job.pdf");
+      assert.equal(jobSheetFilename({kind: "WEEK", name: "X", weekStart: "bad", date: "2026-10-24"}), "jobsheet-x.pdf");
+    });
     it("exportFilename: dates the file, or leaves the date off when there is none", () => {
       const {exportFilename} = load();
       assert.equal(exportFilename("2026-10-24"), "taskhub-export-2026-10-24.json");
