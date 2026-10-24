@@ -6,7 +6,8 @@ const {setGlobalOptions} = require("firebase-functions/v2");
 const {defineString} = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const {GoogleGenAI, Type} = require("@google/genai");
-const {google} = require("googleapis");
+const {calendar: createCalendarClient} = require("@googleapis/calendar");
+const {JWT} = require("google-auth-library");
 const {localDate, startOfLocalDay} = require("./time");
 const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
 const {repairSchedule, buildFixedSlots, matchLockedEvents} = require("./schedule");
@@ -165,14 +166,14 @@ async function getCalendarClient() {
   const serviceAccountJson = JSON.parse(credentialsRaw);
   const formattedPrivateKey = serviceAccountJson.private_key.replace(/\\n/g, "\n");
 
-  const jwtClient = new google.auth.JWT({
+  const jwtClient = new JWT({
     email: serviceAccountJson.client_email,
     key: formattedPrivateKey,
     scopes: ["https://www.googleapis.com/auth/calendar"],
   });
 
   await jwtClient.authorize();
-  return google.calendar({version: "v3", auth: jwtClient});
+  return createCalendarClient({version: "v3", auth: jwtClient});
 }
 
 // Helper: Remove every calendar event belonging to a task
@@ -397,6 +398,7 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
 exports.autoScheduleDaily = onSchedule({
   schedule: "*/15 * * * *",
   timeoutSeconds: 120,
+  memory: "512MiB",
   secrets: [
     {name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"},
   ],
@@ -419,6 +421,7 @@ exports.generateWeeklySchedule = onRequest({
   ],
   cors: ALLOWED_ORIGINS,
   timeoutSeconds: 120,
+  memory: "512MiB",
 }, ownerOnly(async (req, res) => {
   try {
     const result = await runScheduleEngine();
@@ -436,6 +439,7 @@ exports.rescheduleTask = onRequest({
   ],
   cors: ALLOWED_ORIGINS,
   timeoutSeconds: 120,
+  memory: "512MiB",
 }, ownerOnly(async (req, res) => {
   try {
     const {taskId} = req.body || {};
