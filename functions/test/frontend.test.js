@@ -86,10 +86,10 @@ describe("public/index.html helpers", () => {
       assert.deepEqual(insertTaskAt([{id: "a"}], {id: "b"}, 99), [{id: "a"}, {id: "b"}]);
       assert.deepEqual(insertTaskAt(list, {id: "b"}, 0), list, "already back");
     });
-    it("lets the whole Active task box take the gestures and flash, and swipes both it and queued cards", () => {
+    it("lets the whole Active task box take the gestures, and swipes both it and queued cards", () => {
       assert.match(html, /for \(const id of \["taskList", "activeTaskBox"\]\)/);
-      assert.match(html, /\.active-task-box\.flash \{ animation: card-flash/);
-      assert.match(html, /item\.closest\("#activeTaskBox"\) \|\| item/);
+      assert.match(html, /if \(item\.closest\("#activeTaskBox"\)\) continue;/, "the active task does not flash");
+      assert.doesNotMatch(html, /\.active-task-box\.flash/);
       const list = html.slice(html.indexOf("function taskItemHtml"), html.indexOf("function renderTasks"));
       assert.match(list, /swipeRowHtml/);
       assert.match(list, /taskItemHtml\(t, isActive\)/);
@@ -100,6 +100,13 @@ describe("public/index.html helpers", () => {
       assert.doesNotMatch(html, /\.swipe-row \.task-item \{[^}]*background:/);
       assert.match(html, /\.swipe-row\.swiping \.task-item[^{]*\{[^}]*background: var\(--surface\)/);
       assert.match(html, /\.active-task-box \.swipe-row \.task-item:hover \{ background: transparent; \}/);
+    });
+    it("shades the Active task box green while its timer runs and amber while paused, in both themes", () => {
+      assert.match(html, /\.active-task-box\.timer-running \{ background: var\(--timer-run-bg\); \}/);
+      assert.match(html, /\.active-task-box\.timer-paused \{ background: var\(--timer-pause-bg\); \}/);
+      assert.match(html, /toggle\("timer-running", !!active && isTimerRunning\(active\)\)/);
+      assert.match(html, /toggle\("timer-paused", !!active && !isTimerRunning\(active\)\)/);
+      assert.equal((html.match(/--timer-run-bg: #14382a; --timer-pause-bg: #46380f;/g) || []).length, 2, "dark values in both dark blocks");
     });
     it("takes removals off the list before the server answers and keeps later lists from bringing them back", () => {
       const remove = html.slice(html.indexOf("function removeTask("), html.indexOf("async function completeTask("));

@@ -25,6 +25,7 @@
       --time-bg: #e0f2fe; --time-fg: #0369a1; --sched-bg: #dcfce7; --sched-fg: #166534; --lock-bg: #fef3c7; --lock-fg: #92400e;
       --held-bg: #ffedd5; --held-fg: #9a3412; --project-bg: #ccfbf1; --project-fg: #115e59; --repeat-bg: #ede9fe; --repeat-fg: #5b21b6;
       --overdue-bg: #fee2e2; --overdue-fg: #991b1b; --snooze-bg: #e0e7ff; --snooze-fg: #3730a3;
+      --timer-run-bg: #dcfce7; --timer-pause-bg: #fef3c7;
       --coach-bg: #eff6ff; --coach-border: #2563eb;
       --swipe-del: #dc2626; --swipe-snooze: #4f46e5;
     }
@@ -38,6 +39,7 @@
         --time-bg: #123552; --time-fg: #7dd3fc; --sched-bg: #14382a; --sched-fg: #86efac; --lock-bg: #46380f; --lock-fg: #fcd34d;
         --held-bg: #47260f; --held-fg: #fdba74; --project-bg: #0f3b38; --project-fg: #5eead4; --repeat-bg: #2f2759; --repeat-fg: #c4b5fd;
         --overdue-bg: #4a1d1d; --overdue-fg: #fca5a5; --snooze-bg: #26295a; --snooze-fg: #a5b4fc;
+        --timer-run-bg: #14382a; --timer-pause-bg: #46380f;
         --coach-bg: #172a4d; --coach-border: #3b82f6;
         --swipe-del: #991b1b; --swipe-snooze: #3730a3;
       }
@@ -53,6 +55,7 @@
       --time-bg: #123552; --time-fg: #7dd3fc; --sched-bg: #14382a; --sched-fg: #86efac; --lock-bg: #46380f; --lock-fg: #fcd34d;
       --held-bg: #47260f; --held-fg: #fdba74; --project-bg: #0f3b38; --project-fg: #5eead4; --repeat-bg: #2f2759; --repeat-fg: #c4b5fd;
       --overdue-bg: #4a1d1d; --overdue-fg: #fca5a5; --snooze-bg: #26295a; --snooze-fg: #a5b4fc;
+      --timer-run-bg: #14382a; --timer-pause-bg: #46380f;
       --coach-bg: #172a4d; --coach-border: #3b82f6;
       --swipe-del: #991b1b; --swipe-snooze: #3730a3;
     }
@@ -187,15 +190,17 @@
     .active-task-box > .summary-label { margin: 2px 6px 0; }
     .active-task-box .task-item { border-bottom: none; }
     .active-task-box { cursor: pointer; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: background 0.15s ease; }
-    .active-task-box:hover { background: var(--hover); }
     .active-task-box .task-item:hover { background: transparent; }
-    .active-task-box.flash { animation: card-flash 600ms ease-out; }
+    .active-task-box.timer-running { background: var(--timer-run-bg); }
+    .active-task-box.timer-paused { background: var(--timer-pause-bg); }
     .swipe-row { position: relative; overflow: hidden; border-radius: 6px; }
     .swipe-row .task-item { position: relative; touch-action: pan-y; transition: transform 0.18s ease, background 0.15s ease; }
     .swipe-row .task-item:hover { background: var(--hover); }
     .active-task-box .swipe-row .task-item:hover { background: transparent; }
     .swipe-row.swiping .task-item, .active-task-box .swipe-row.swiping .task-item:hover { transition: none; background: var(--surface); }
     .swipe-bg { display: none; position: absolute; inset: 0; align-items: center; padding: 0 20px; color: white; font-weight: 700; font-size: 14px; opacity: 0.75; }
+    .active-task-box.timer-running .swipe-row.swiping .task-item { background: var(--timer-run-bg); }
+    .active-task-box.timer-paused .swipe-row.swiping .task-item { background: var(--timer-pause-bg); }
     .swipe-row.swipe-armed .swipe-bg { opacity: 1; }
     .swipe-del { background: var(--swipe-del); justify-content: flex-end; }
     .swipe-snooze { background: var(--swipe-snooze); justify-content: flex-start; }
@@ -2426,12 +2431,12 @@
       if (!cardFlash) return;
       const now = Date.now();
       for (const item of document.querySelectorAll(".task-item")) {
+        if (item.closest("#activeTaskBox")) continue; // the active task shows its timer state by colour instead
         const elapsed = flashElapsed(cardFlash, item.dataset.id, now);
         if (elapsed === null) continue;
-        const target = item.closest("#activeTaskBox") || item; // the active task flashes as its whole bordered box
-        target.style.animationDelay = `-${elapsed}ms`;
-        target.classList.add("flash");
-        target.addEventListener("animationend", () => { target.classList.remove("flash"); target.style.animationDelay = ""; }, { once: true });
+        item.style.animationDelay = `-${elapsed}ms`;
+        item.classList.add("flash");
+        item.addEventListener("animationend", () => { item.classList.remove("flash"); item.style.animationDelay = ""; }, { once: true });
       }
     }
 
@@ -2451,6 +2456,8 @@
       const active = activeTaskOf(allTasks);
       const activeBox = document.getElementById("activeTaskBox");
       activeBox.hidden = !active;
+      activeBox.classList.toggle("timer-running", !!active && isTimerRunning(active));
+      activeBox.classList.toggle("timer-paused", !!active && !isTimerRunning(active));
       document.getElementById("activeTask").innerHTML = active ? swipeRowHtml(active, true) : "";
       if (active && isTimerRunning(active)) {
         const show = () => { const el = document.getElementById("activeElapsed"); if (el) el.textContent = `Tracked ${formatElapsed(elapsedSecondsOf(active))}`; };
