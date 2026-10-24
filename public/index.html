@@ -181,6 +181,8 @@
     .active-task-box { margin-bottom: 14px; border: 2px solid var(--primary); border-radius: 8px; padding: 6px 6px 2px; }
     .active-task-box > .summary-label { margin: 2px 6px 0; }
     .active-task-box .task-item { border-bottom: none; }
+    .proposal-steps { margin: 0 0 14px; padding-left: 22px; font-size: 14px; line-height: 1.5; }
+    .proposal-actions { display: flex; flex-direction: column; gap: 8px; }
     .modal-extra-actions { display: flex; gap: 8px; margin-top: 14px; align-items: center; }
     .timer-group { display: flex; gap: 8px; align-items: center; }
     .elapsed-time { font-size: 15px; font-variant-numeric: tabular-nums; color: var(--text-muted); min-width: 3.5em; }
@@ -648,6 +650,19 @@
       <div class="modal-actions">
         <button type="button" id="unsnoozeBtn" class="btn-secondary" hidden>Unsnooze</button>
         <button type="button" class="btn-secondary" onclick="closeSnoozeModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="proposalModal" class="modal-overlay" onclick="closeProposalOnOverlay(event)">
+    <div class="modal-card">
+      <h3>Make this a project?</h3>
+      <p class="settings-current">📁 <strong id="proposalName"></strong></p>
+      <ol id="proposalSteps" class="proposal-steps"></ol>
+      <div class="proposal-actions">
+        <button type="button" id="proposalProjectBtn" onclick="answerProposal('project')">Add as a project</button>
+        <button type="button" id="proposalSingleBtn" class="btn-secondary" onclick="answerProposal('single')">Add as one task</button>
+        <button type="button" id="proposalCloseBtn" class="btn-secondary" onclick="closeProposalModal()">Close without adding</button>
       </div>
     </div>
   </div>
@@ -1546,6 +1561,27 @@
       return startNow ? { startNow: true } : {};
     }
 
+    // The post for a free-text add: the text, and that the page can answer a project suggestion.
+    function freeTextBody(input) {
+      return { input, allowProposal: true };
+    }
+
+    // One step of a suggested project as a line: "Sand the walls · 45m · Indoor, Prep".
+    function proposalStepText(step) {
+      const tags = Array.isArray(step.tags) && step.tags.length ? ` · ${step.tags.join(", ")}` : "";
+      return `${step.title} · ${fmtMinutes(step.estimatedMinutes)}${tags}`;
+    }
+
+    // The post that accepts a suggested project, sending the suggestion back as shown ({acceptProposal}).
+    function proposalAcceptBody(proposal, startNow) {
+      return { acceptProposal: { name: proposal.name, steps: proposal.steps }, ...addTaskExtras({ startNow }) };
+    }
+
+    // The post that declines it and adds the model's ordinary changes instead ({apply}).
+    function proposalDeclineBody(singleChanges, startNow) {
+      return { apply: { changes: Array.isArray(singleChanges) ? singleChanges : [] }, ...addTaskExtras({ startNow }) };
+    }
+
     // Photos on completed tasks. The server takes a JPEG of at most PHOTO_MAX_BYTES, three to a task; the page shrinks a
     // picture on a canvas to PHOTO_MAX_SIDE pixels on its longest side at PHOTO_QUALITY, and tries smaller and plainer
     // versions only when that still does not fit.
@@ -1784,7 +1820,7 @@
           materials: manualMaterials,
           comments: document.getElementById("manualComments").value,
           history: historyForTitle(copiedHistory, input)
-        }) : { input };
+        }) : freeTextBody(input);
         Object.assign(body, addTaskExtras({ startNow: document.getElementById("startNow").checked }));
         const res = await apiFetch(ADD_TASK_URL, {
           method: "POST",
@@ -1792,21 +1828,86 @@
           body: JSON.stringify(body)
         });
         const data = await res.json();
-        allTasks = data.tasks || [];
-        document.getElementById("taskInput").value = "";
-        document.getElementById("startNow").checked = false; // it applies to this task only
-        renderTemplateResults();
-        if (manual) {
-          document.getElementById("manualTags").value = "";
-          document.getElementById("manualDue").value = "";
-          resetManualExtras();
+        // Nothing was added: the owner chooses between the suggested project and the single task(s) first. The text stays
+        // in the field until a choice is made, so closing the dialog loses nothing.
+        if (data.needsChoice && data.proposal) {
+          openProposalModal(data.proposal, data.singleChanges, document.getElementById("startNow").checked);
+          return;
         }
-        renderFilterBar();
-        renderTasks();
+        finishAdd(data, manual);
       } catch (err) {
         alert("Error updating tasks: " + err.message);
       } finally {
         setLoading(false);
+      }
+    }
+
+    // Shows what an add returned and resets the add card.
+    function finishAdd(data, manual) {
+      allTasks = data.tasks || [];
+      document.getElementById("taskInput").value = "";
+      document.getElementById("startNow").checked = false; // it applies to this task only
+      renderTemplateResults();
+      if (manual) {
+        document.getElementById("manualTags").value = "";
+        document.getElementById("manualDue").value = "";
+        resetManualExtras();
+      }
+      renderFilterBar();
+      renderTasks();
+    }
+
+    // The project suggestion dialog: Add as a project (acceptProposal), Add as one task (apply) or Close, which adds nothing.
+    let pendingProposal = null; // {proposal, singleChanges, startNow} while the dialog is open
+    let proposalBusy = false;
+
+    function openProposalModal(proposal, singleChanges, startNow) {
+      pendingProposal = { proposal, singleChanges, startNow };
+      document.getElementById("proposalName").textContent = proposal.name;
+      document.getElementById("proposalSteps").innerHTML = proposal.steps.map(step => `<li>${esc(proposalStepText(step))}</li>`).join("");
+      setProposalBusy(false);
+      document.getElementById("proposalModal").style.display = "flex";
+      document.body.classList.add("modal-open");
+    }
+
+    function closeProposalModal() {
+      if (proposalBusy) return;
+      pendingProposal = null;
+      document.getElementById("proposalModal").style.display = "none";
+      document.body.classList.remove("modal-open");
+    }
+
+    function closeProposalOnOverlay(e) {
+      if (e.target.id === "proposalModal") closeProposalModal();
+    }
+
+    function setProposalBusy(busy) {
+      proposalBusy = busy;
+      for (const id of ["proposalProjectBtn", "proposalSingleBtn", "proposalCloseBtn"]) document.getElementById(id).disabled = busy;
+    }
+
+    async function answerProposal(kind) {
+      if (!pendingProposal || proposalBusy) return;
+      const { proposal, singleChanges, startNow } = pendingProposal;
+      const body = kind === "project" ? proposalAcceptBody(proposal, startNow) : proposalDeclineBody(singleChanges, startNow);
+      setProposalBusy(true);
+      try {
+        const res = await apiFetch(ADD_TASK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (kind === "project" && data.projects) {
+          allProjects = data.projects;
+          projectsLoaded = true;
+        }
+        setProposalBusy(false);
+        closeProposalModal();
+        finishAdd(data, false);
+      } catch (err) {
+        setProposalBusy(false); // the dialog stays open so the owner can try again or close it
+        alert("Error updating tasks: " + err.message);
       }
     }
 

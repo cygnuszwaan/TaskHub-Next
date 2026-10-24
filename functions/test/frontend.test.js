@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -1450,6 +1450,29 @@ describe("public/index.html helpers", () => {
       const {addTaskExtras} = load();
       assert.deepEqual(addTaskExtras({startNow: false}), {});
       assert.deepEqual(addTaskExtras({startNow: true}), {startNow: true});
+    });
+    it("lets a free-text add be answered with a project suggestion", () => {
+      const {freeTextBody} = load();
+      assert.deepEqual(freeTextBody("renovate the bathroom"), {input: "renovate the bathroom", allowProposal: true});
+    });
+    it("writes a suggested step as a line", () => {
+      const {proposalStepText} = load();
+      assert.equal(proposalStepText({title: "Sand the walls", estimatedMinutes: 45, tags: ["Indoor", "Prep"]}), "Sand the walls · 45m · Indoor, Prep");
+      assert.equal(proposalStepText({title: "Paint", estimatedMinutes: 150, tags: []}), "Paint · 2h 30m");
+      assert.equal(proposalStepText({title: "Clean", estimatedMinutes: 60}), "Clean · 1h");
+    });
+    it("posts an accepted suggestion as it was shown, and nothing else of it", () => {
+      const {proposalAcceptBody} = load();
+      const proposal = {name: "Bathroom renovation", steps: [{title: "A", priority: "HIGH", estimatedMinutes: 30, tags: []}], extra: 1};
+      assert.deepEqual(proposalAcceptBody(proposal, false), {acceptProposal: {name: "Bathroom renovation", steps: proposal.steps}});
+      assert.deepEqual(proposalAcceptBody(proposal, true), {acceptProposal: {name: "Bathroom renovation", steps: proposal.steps}, startNow: true});
+    });
+    it("posts a declined suggestion's single changes", () => {
+      const {proposalDeclineBody} = load();
+      const changes = [{title: "Renovate the bathroom", order: 1}];
+      assert.deepEqual(proposalDeclineBody(changes, false), {apply: {changes}});
+      assert.deepEqual(proposalDeclineBody(changes, true), {apply: {changes}, startNow: true});
+      assert.deepEqual(proposalDeclineBody(undefined, false), {apply: {changes: []}});
     });
   });
   describe("photos", () => {
