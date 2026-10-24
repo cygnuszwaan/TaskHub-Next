@@ -81,11 +81,21 @@ describe("snooze", () => {
     assert.equal("snoozedUntil" in merged.tasks.find((t) => t.title === "Brand new"), false);
   });
 
-  it("is not carried to the next occurrence of a repeating task", () => {
+  it("is replaced on the next occurrence of a repeating task by a cooldown until its due date", () => {
     const repeating = task("t1", {snoozedUntil: "2026-10-24", recurrence: {frequency: "WEEKLY", interval: 1}, dueDate: "2026-10-22"});
     const {spawned} = completeInList([repeating], "t1", "2026-10-22", () => "new1");
     assert.ok(spawned);
-    assert.equal("snoozedUntil" in spawned, false);
+    assert.equal(spawned.dueDate, "2026-10-29");
+    assert.equal(spawned.snoozedUntil, "2026-10-29");
+  });
+  it("is not set on the next occurrence of a task that does not repeat, because there is none", () => {
+    const once = task("t1", {snoozedUntil: "2026-10-24"});
+    assert.equal(completeInList([once], "t1", "2026-10-22", () => "new1").spawned, null);
+  });
+  it("keeps a repeating task's next occurrence off today's schedule, and places it on its due date", () => {
+    const daily = task("t1", {recurrence: {frequency: "DAILY", interval: 1}, dueDate: "2026-10-22"});
+    const {spawned} = completeInList([daily], "t1", "2026-10-22", () => "new1");
+    assert.equal(startOf(plan([spawned]), "new1"), "2026-10-23T08:00:00+13:00");
   });
 
   describe("planner", () => {

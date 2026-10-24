@@ -236,8 +236,9 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
 //           completed task stops at. The completed task always carries `trackedSeconds` (0 if never timed) and no
 //           `timerStartedAt` or `active`; the next occurrence starts with no tracked time.
 // The next occurrence copies title, priority, estimatedMinutes, tags, recurrence and project membership
-// (projectId, projectOrder), materials (all unchecked, as the next occurrence needs them again) and comments, is PENDING and not snoozed, has the next due date (see nextDueDate) and takes the completed task's
-// rank; it has no schedule, calendar event or lock.
+// (projectId, projectOrder), materials (all unchecked, as the next occurrence needs them again) and comments, is PENDING, has the next due date (see nextDueDate) and takes the completed task's
+// rank; it has no schedule, calendar event or lock. It is snoozed until that due date (a cooldown: the next occurrence is not scheduled before it is
+// due, so a weekly task completed today does not come back on today's schedule).
 // The job's history moves on (see history.js): `history` is {completedCount, recentSeconds?} after this completion, which the
 // caller stores on the archive row (`completedTask` itself keeps the history it had, so an undo restores it) and which the next
 // occurrence carries; the next occurrence's estimate becomes the rolling average of the tracked times, rounded to 5 minutes
@@ -265,6 +266,7 @@ function completeInList(tasks, taskId, today, makeId, now) {
     ...history,
     order: completedTask.order,
   };
+  spawned.snoozedUntil = spawned.dueDate;
   if (typeof now === "string" && now) spawned.addedAt = now;
   if (Array.isArray(completedTask.materials) && completedTask.materials.length > 0) {
     spawned.materials = completedTask.materials.map((m) => ({id: makeId(), text: m.text, checked: false}));

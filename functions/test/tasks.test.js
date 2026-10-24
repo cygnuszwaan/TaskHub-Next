@@ -58,7 +58,7 @@ describe("tasks.js", () => {
     it("creates the next occurrence of a repeating task at the same rank", () => {
       const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, dueDate: "2026-10-26", tags: ["home"], recurrence: weekly} : t));
       const r = completeInList(tasks, "b", today, makeIdGenerator());
-      assert.deepEqual(r.spawned, {id: "new1", title: "B", priority: "LOW", dueDate: "2026-11-02", estimatedMinutes: 10, tags: ["home"], status: "PENDING", recurrence: weekly, completedCount: 1, order: 2});
+      assert.deepEqual(r.spawned, {id: "new1", title: "B", priority: "LOW", dueDate: "2026-11-02", estimatedMinutes: 10, tags: ["home"], status: "PENDING", recurrence: weekly, completedCount: 1, order: 2, snoozedUntil: "2026-11-02"});
       assert.deepEqual(r.tasks.map((t) => t.id).sort(), ["a", "c", "new1"]);
       assert.equal(r.tasks.find((t) => t.id === "new1"), r.spawned);
       assert.equal(r.completedTask.id, "b");
@@ -71,6 +71,15 @@ describe("tasks.js", () => {
       }
       r.spawned.tags.push("y");
       assert.deepEqual(tasks[0].tags, ["x"]);
+    });
+    it("snoozes the next occurrence until its due date, early or late, so it is not scheduled before it is due", () => {
+      const early = existingTasks().map((t) => (t.id === "b" ? {...t, dueDate: "2026-10-26", recurrence: weekly} : t));
+      const late = existingTasks().map((t) => (t.id === "b" ? {...t, dueDate: "2026-10-02", recurrence: weekly} : t));
+      for (const tasks of [early, late]) {
+        const {spawned} = completeInList(tasks, "b", today, makeIdGenerator());
+        assert.ok(spawned.snoozedUntil > today);
+        assert.equal(spawned.snoozedUntil, spawned.dueDate);
+      }
     });
     it("uses today as the base when the task has no due date", () => {
       const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, recurrence: {frequency: "DAILY", interval: 3}} : t));
