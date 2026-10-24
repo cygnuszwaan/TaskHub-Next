@@ -267,6 +267,7 @@
           </select>
           <input type="number" id="manualProjectOrder" min="1" max="999" step="1" placeholder="Order" title="Order number: lower numbers are scheduled first, empty means unordered" style="width: 90px;" disabled>
         </div>
+        <input type="text" id="manualNewProject" maxlength="100" placeholder="Name of the new project (created when the task is added)" style="margin-top: 6px;" hidden>
       </div>
       <div class="form-group">
         <label>Materials</label>
@@ -1002,7 +1003,12 @@
       };
       const recurrence = recurrenceFields(form.recurFreq, form.recurInterval);
       if (recurrence) manual.recurrence = recurrence;
-      if (form.projectId) Object.assign(manual, projectFields(form.projectId, form.projectOrder));
+      const newProject = String(form.newProjectName || "").trim();
+      if (newProject) {
+        // A project to create with the task: the server makes it in the same commit and gives the task its id
+        manual.newProject = newProject;
+        manual.projectOrder = projectFields(NEW_PROJECT, form.projectOrder).projectOrder;
+      } else if (form.projectId) Object.assign(manual, projectFields(form.projectId, form.projectOrder));
       const materials = materialsFields(form.materials || []);
       if (materials) manual.materials = materials;
       const comments = String(form.comments || "").trim();
@@ -1080,6 +1086,8 @@
 
     // The project fields of the edit form as updateTaskDirect fields. No project means neither; an empty or
     // unusable order means unordered (null); a number is rounded and kept within 1..999. The server stays the validator.
+    // The add form's Project select offers this choice last; the project is only created, with the task, when Add succeeds
+    const NEW_PROJECT = "__new__";
     function projectFields(projectId, orderText) {
       if (!projectId) return { projectId: null, projectOrder: null };
       const text = String(orderText ?? "").trim();
@@ -1881,6 +1889,12 @@
       const input = document.getElementById("taskInput").value;
       if (!input.trim()) return;
       const manual = document.getElementById("manualToggle").checked;
+      const newProjectName = manual && document.getElementById("manualProject").value === NEW_PROJECT ? document.getElementById("manualNewProject").value.trim() : "";
+      if (manual && document.getElementById("manualProject").value === NEW_PROJECT && !newProjectName) {
+        alert("Enter a name for the new project, or choose another project.");
+        document.getElementById("manualNewProject").focus();
+        return;
+      }
 
       setLoading(true);
       try {
@@ -1893,7 +1907,8 @@
           recurFreq: document.getElementById("manualRecurFreq").value,
           recurInterval: document.getElementById("manualRecurInterval").value,
           // Without the project list the form cannot offer a project, so it sends none
-          projectId: projectsLoaded ? document.getElementById("manualProject").value : "",
+          projectId: projectsLoaded && !newProjectName ? document.getElementById("manualProject").value : "",
+          newProjectName,
           projectOrder: document.getElementById("manualProjectOrder").value,
           materials: manualMaterials,
           comments: document.getElementById("manualComments").value,
@@ -1923,6 +1938,7 @@
     // Shows what an add returned and resets the add card.
     function finishAdd(data, manual) {
       allTasks = data.tasks || [];
+      if (data.project && data.projects) allProjects = data.projects; // a project made with the task
       document.getElementById("taskInput").value = "";
       document.getElementById("startNow").checked = false; // it applies to this task only
       renderTemplateResults();
@@ -1930,6 +1946,9 @@
         document.getElementById("manualTags").value = "";
         document.getElementById("manualDue").value = "";
         resetManualExtras();
+        // The details form closes again after each manual add
+        document.getElementById("manualToggle").checked = false;
+        document.getElementById("manualFields").hidden = true;
       }
       renderFilterBar();
       renderTasks();
@@ -2053,6 +2072,7 @@
       document.getElementById("manualRecurInterval").value = 1;
       updateRecurUnit("manual");
       document.getElementById("manualProject").value = "";
+      document.getElementById("manualNewProject").value = "";
       updateProjectOrderField("manual");
       manualMaterials = [];
       document.getElementById("manualComments").value = "";
@@ -2064,8 +2084,8 @@
     function renderManualProjects() {
       const select = document.getElementById("manualProject");
       const chosen = select.value;
-      select.replaceChildren(new Option("No project", ""), ...allProjects.map(p => new Option(p.name, p.id)));
-      select.value = allProjects.some(p => p.id === chosen) ? chosen : "";
+      select.replaceChildren(new Option("No project", ""), ...allProjects.map(p => new Option(p.name, p.id)), new Option("＋ New project…", NEW_PROJECT));
+      select.value = chosen === NEW_PROJECT || allProjects.some(p => p.id === chosen) ? chosen : "";
       updateProjectOrderField("manual");
     }
 
@@ -2422,6 +2442,11 @@
       const inProject = document.getElementById(`${prefix}Project`).value !== "";
       input.disabled = !inProject;
       if (!inProject) input.value = "";
+      const nameBox = document.getElementById(`${prefix}NewProject`); // only the add form has one
+      if (nameBox) {
+        nameBox.hidden = document.getElementById(`${prefix}Project`).value !== NEW_PROJECT;
+        if (nameBox.hidden) nameBox.value = "";
+      }
     }
 
     function clearEditDueDate() {

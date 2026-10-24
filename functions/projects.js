@@ -96,6 +96,15 @@ function addProject(projects, rawName, makeId) {
   return {projects: sortProjects([...projects, project]), project};
 }
 
+// A manual entry that names a project to create with it. Pure: no I/O. `changes` are the task changes of the entry (see
+// manualTaskChange); each gets the new project's id as its `projectId`, its `projectOrder` left as sent. Returns
+// {projects, project, changes} as addProject does plus the changed copies, or {error} for an unusable or taken name.
+function withNewProject(projects, changes, rawName, makeId) {
+  const added = addProject(projects, rawName, makeId);
+  if (added.error) return {error: added.error};
+  return {projects: added.projects, project: added.project, changes: changes.map((c) => ({...c, projectId: added.project.id}))};
+}
+
 // Rename a project. Pure: no I/O. Returns {projects, project}, {notFound: true} for an unknown id, or {error}.
 function renameProject(projects, projectId, rawName) {
   if (!projects.some((p) => p.id === projectId)) return {notFound: true};
@@ -116,5 +125,6 @@ module.exports = {
   removeProjectFromTasks,
   sortProjects,
   addProject,
+  withNewProject,
   renameProject,
 };

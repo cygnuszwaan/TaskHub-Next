@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {MAX_NAME_LENGTH, MAX_PROJECT_ORDER, normalizeProjectName, normalizeProjectOrder, applyProjectFields, projectFieldsOf, removeProjectFromTasks, sortProjects, addProject, renameProject} = require("../projects");
+const {MAX_NAME_LENGTH, MAX_PROJECT_ORDER, normalizeProjectName, normalizeProjectOrder, applyProjectFields, projectFieldsOf, removeProjectFromTasks, sortProjects, addProject, withNewProject, renameProject} = require("../projects");
 
 const task = (id, extra = {}) => ({id, title: `Task ${id}`, priority: "MEDIUM", dueDate: "", estimatedMinutes: 15, tags: [], status: "PENDING", ...extra});
 const ids = ["p1", "p2"];
@@ -119,6 +119,27 @@ describe("projects.js", () => {
       const input = [{id: "3", name: "beta"}, {id: "2", name: "Alpha"}, {id: "1", name: "alpha"}];
       assert.deepEqual(sortProjects(input).map((p) => p.id), ["1", "2", "3"]);
       assert.deepEqual(input.map((p) => p.id), ["3", "2", "1"]);
+    });
+  });
+
+  describe("withNewProject", () => {
+    const makeId = () => "new-id";
+    it("adds the project and points every change at it, keeping the order number", () => {
+      const r = withNewProject([{id: "p1", name: "Zed"}], [{title: "A", projectOrder: 2}, {title: "B"}], "  Kitchen   reno ", makeId);
+      assert.deepEqual(r.project, {id: "new-id", name: "Kitchen reno"});
+      assert.deepEqual(r.projects.map((p) => p.name), ["Kitchen reno", "Zed"]);
+      assert.deepEqual(r.changes, [{title: "A", projectOrder: 2, projectId: "new-id"}, {title: "B", projectId: "new-id"}]);
+    });
+    it("does not change its inputs", () => {
+      const projects = [{id: "p1", name: "Zed"}];
+      const changes = [{title: "A", projectId: "p1"}];
+      withNewProject(projects, changes, "Alpha", makeId);
+      assert.deepEqual(projects, [{id: "p1", name: "Zed"}]);
+      assert.deepEqual(changes, [{title: "A", projectId: "p1"}]);
+    });
+    it("refuses an unusable or taken name", () => {
+      assert.ok(withNewProject([], [{title: "A"}], "  ", makeId).error);
+      assert.ok(withNewProject([{id: "p1", name: "Garden"}], [{title: "A"}], "GARDEN", makeId).error);
     });
   });
 

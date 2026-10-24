@@ -14,6 +14,7 @@ const {planSchedule} = require("./planner");
 const {lunchWindows, padWindows} = require("./breaks");
 const {setTimerInList, pauseTimer} = require("./timer");
 const {needsTagFill, cleanTags, newTaskIds, applyDirectUpdate, completeInList, removalRecord, isUndoable, undoInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
+const {withNewProject, normalizeProjectName} = require("./projects");
 const {PROJECTS_COLLECTION, makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
 const {UNAVAILABLE, weatherUrl, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
@@ -498,6 +499,10 @@ exports.addOrUpdateTask = onRequest({
       const change = manualTaskChange(body.manual);
       if (!change) return res.status(400).send({error: "A manual entry needs a title"});
       changes = [change];
+      // A project to create together with the task: refused up front when the name is unusable (a taken name is found in the commit)
+      if (body.manual.newProject !== undefined && normalizeProjectName(body.manual.newProject).error) {
+        return res.status(400).send({error: normalizeProjectName(body.manual.newProject).error.replace("name", "newProject")});
+      }
       if (needsTagFill(change)) {
         try {
           const currentTasks = await readTaskList();
@@ -545,15 +550,26 @@ exports.addOrUpdateTask = onRequest({
     // Merge into the list as it is now, not as it was when the model was asked. The projects are read in the same
     // transaction, so a task only joins a project that still exists at commit time.
     const result = await updateTaskList((tasks, tx, {projects: stored}) => {
-      const merged = mergeTaskChanges(tasks, changes, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined, comments: body.manual !== undefined, history: body.manual !== undefined, now: new Date().toISOString()});
+      // A manual entry's new project is created in the same commit as the task, so nothing is left behind if the add fails
+      let entry = changes;
+      let created = null;
+      if (body.manual !== undefined && body.manual.newProject !== undefined) {
+        created = withNewProject(stored, changes, body.manual.newProject, randomUUID);
+        if (created.error) return {error: created.error, current: tasks};
+        entry = created.changes;
+        stored = created.projects;
+      }
+      const merged = mergeTaskChanges(tasks, entry, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined, comments: body.manual !== undefined, history: body.manual !== undefined, now: new Date().toISOString()});
       const changed = merged.added + merged.updated > 0;
       let list = merged.tasks;
       if (body.startNow === true) {
         const [firstNew] = newTaskIds(tasks, list);
         if (firstNew) list = setTimerInList(list, firstNew, "START", Date.now()).tasks;
       }
-      return {...merged, tasks: changed ? list : null, current: changed ? list : tasks};
+      if (created && changed) tx.set(db.collection(PROJECTS_COLLECTION).doc(created.project.id), created.project);
+      return {...merged, tasks: changed ? list : null, current: changed ? list : tasks, project: changed && created ? created.project : null, projects: changed && created ? created.projects : null};
     }, {withProjects: true});
+    if (result.error) return res.status(400).send({error: result.error});
 
     res.status(200).send({
       success: true,
@@ -561,6 +577,7 @@ exports.addOrUpdateTask = onRequest({
       added: result.added,
       updated: result.updated,
       skipped: result.skipped,
+      ...(result.project ? {project: result.project, projects: result.projects} : {}),
     });
   } catch (err) {
     console.error(err);

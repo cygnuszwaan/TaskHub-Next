@@ -721,6 +721,34 @@ describe("public/index.html helpers", () => {
       assert.equal(find("x", {id: "b", title: 5}), false);
     });
   });
+  describe("manualTaskBody with a new project", () => {
+    const form = {title: "Tile floor", priority: "MEDIUM", estimatedMinutes: "60", tags: "", dueDate: "", newProjectName: "  Bathroom reno ", projectOrder: "3"};
+    it("sends the name and the order, never a project id", () => {
+      const {manual} = load().manualTaskBody({...form, projectId: "stale"});
+      assert.equal(manual.newProject, "Bathroom reno");
+      assert.equal(manual.projectOrder, 3);
+      assert.equal("projectId" in manual, false);
+    });
+    it("sends an empty order as null and ignores a blank name", () => {
+      assert.equal(load().manualTaskBody({...form, projectOrder: ""}).manual.projectOrder, null);
+      const {manual} = load().manualTaskBody({...form, newProjectName: "   ", projectId: "p1"});
+      assert.equal("newProject" in manual, false);
+      assert.equal(manual.projectId, "p1");
+    });
+    it("is accepted by the server-side change builder", () => {
+      const {manualTaskChange} = require("../tasks");
+      assert.equal(manualTaskChange(load().manualTaskBody(form).manual).title, "Tile floor");
+    });
+    it("has the page offer the choice and close the details form after an add", () => {
+      assert.ok(html.includes("id=\"manualNewProject\""));
+      assert.match(html, /new Option\("＋ New project…", NEW_PROJECT\)/);
+      const finish = html.slice(html.indexOf("function finishAdd"), html.indexOf("The project suggestion dialog"));
+      assert.match(finish, /manualToggle"\)\.checked = false/);
+      assert.match(finish, /manualFields"\)\.hidden = true/);
+      assert.match(finish, /data\.project && data\.projects/);
+    });
+  });
+
   describe("manualTaskBody", () => {
     const form = {title: "  Mow lawn ", priority: "HIGH", estimatedMinutes: "45", tags: "Outdoor, ,Physical ", dueDate: "2026-10-30"};
     it("builds the addOrUpdateTask body for a task entered by hand", () => {
@@ -1520,7 +1548,7 @@ describe("public/index.html helpers", () => {
   });
   describe("photos", () => {
     it("has a photo panel in the edit modal of a queued task, keyed by task id", () => {
-      assert.ok(html.includes("id=editPhotos"));
+      assert.ok(html.includes("id=\"editPhotos\""));
       assert.match(html, /showPhotos\(task\.id, "taskId", "editPhotos"\)/);
       assert.match(html, /showPhotos\(id, "archiveId", "cePhotos"\)/);
       assert.match(html, /\[panel\.field\]: key, image/);
