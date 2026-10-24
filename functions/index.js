@@ -26,6 +26,7 @@ const {MAX_TEMPLATES, buildTemplates} = require("./templates");
 const {heldTaskIds} = require("./materials");
 const {SUMMARY_MAX_ROWS, PROJECT_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted, summarizeProjectHours} = require("./completed");
 const {isArchiveId, applyCompletedEdit} = require("./completedEdit");
+const {reopenTask} = require("./reopen");
 const {normalizePhoto, photoOwner, canAddPhoto, serializePhoto, sortPhotos} = require("./photos");
 const {EXPORT_MAX_ROWS, buildExport} = require("./export");
 const {parseJobSheetRequest, buildJobSheet, sheetArchiveIds, gatherPhotos, withPhotos} = require("./jobsheet");
@@ -721,6 +722,39 @@ exports.updateCompletedTask = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async
   }
 }));
 
+// Endpoint: Reopen a completed task. Body {id}, the archive id. The entry leaves `completed_tasks` and its task returns to the end
+// of the queue with the time it accrued, its photos following it (see reopen.js for what comes back and what does not).
+// 400 with the reason for an unusable id or an entry without a title, 404 for an unknown id. Responds {success, tasks, task}.
+// No calendar change: the next schedule run books it.
+exports.reopenCompletedTask = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const {id} = req.body || {};
+    if (!isArchiveId(id)) return res.status(400).send({error: "Missing id"});
+    const archiveRef = db.collection("completed_tasks").doc(id);
+    // The row and its photos are read before the transaction (its callback is synchronous); a photo added in between is moved after the commit
+    const [snap, photoSnap] = await Promise.all([archiveRef.get(), PHOTOS.where("archiveId", "==", id).get()]);
+    if (!snap.exists) return res.status(404).send({error: "Completed task not found"});
+    const row = snap.data();
+    const result = await updateTaskList((tasks, tx, {projects: stored}) => {
+      const done = reopenTask(tasks, row, {projectIds: stored.map((p) => p.id), makeId: randomUUID});
+      if (done.error) return {error: done.error, current: tasks};
+      tx.delete(archiveRef);
+      for (const doc of photoSnap.docs) tx.update(doc.ref, {taskId: done.task.id, archiveId: admin.firestore.FieldValue.delete()});
+      return {tasks: done.tasks, current: done.tasks, task: done.task};
+    }, {withProjects: true});
+    if (result.error) return res.status(400).send({error: result.error});
+    try {
+      const left = await PHOTOS.where("archiveId", "==", id).get();
+      await Promise.all(left.docs.map((d) => d.ref.update({taskId: result.task.id, archiveId: admin.firestore.FieldValue.delete()})));
+    } catch (err) {
+      console.warn("Could not sweep photos after reopening", err);
+    }
+    res.status(200).send({success: true, tasks: result.current, task: result.task});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
 exports.deleteCompletedTask = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
     const {id} = req.body || {};

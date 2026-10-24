@@ -661,7 +661,10 @@
       <p style="font-size: 12px; color: var(--text-faint); margin: 0;">Corrections change Stats and Project hours. They do not rewrite the history (count, average time) already carried by the task's next occurrence.</p>
 
       <div class="modal-actions">
-        <button class="btn-danger" onclick="deleteCompletedEntry()">Delete</button>
+        <div style="display: flex; gap: 6px;">
+          <button class="btn-danger" onclick="deleteCompletedEntry()">Delete</button>
+          <button class="btn-secondary" onclick="reopenCompletedEntry()">Reopen</button>
+        </div>
         <div style="display: flex; gap: 6px;">
           <button class="btn-secondary" onclick="closeCompletedEditor()">Cancel</button>
           <button onclick="saveCompletedEdit()">Save</button>
@@ -727,6 +730,7 @@
     const COMPLETED_URL = endpoint("getCompletedTasks");
     const UPDATE_COMPLETED_URL = endpoint("updateCompletedTask");
     const DELETE_COMPLETED_URL = endpoint("deleteCompletedTask");
+    const REOPEN_COMPLETED_URL = endpoint("reopenCompletedTask");
     const GET_SETTINGS_URL = endpoint("getSettings");
     const UPDATE_SETTINGS_URL = endpoint("updateSettings");
     const GET_PROJECTS_URL = endpoint("getProjects");
@@ -1718,6 +1722,14 @@
     // The confirmation text for deleting a task by swipe.
     function deletePrompt(task) {
       return `Delete ${task && task.title ? `\"${task.title}\"` : "this task"}?`;
+    }
+    // The confirmation text for reopening a completed task (`row` as the Edit Completed Task form would save it): it returns to
+    // the queue with its tracked time, and a repeating task says it comes back without repeating.
+    function reopenPrompt(row) {
+      const name = row && row.title ? `\"${row.title}\"` : "this task";
+      const tracked = row && Number.isFinite(row.trackedSeconds) && row.trackedSeconds > 0 ? ` with its ${durationText(row.trackedSeconds)} of tracked time` : "";
+      const repeats = row && row.recurrence ? " It repeats, and its next occurrence is already in the queue, so this one comes back without repeating." : "";
+      return `Reopen ${name}?\n\nIt returns to the end of the queue${tracked} and leaves Stats and Project hours until it is completed again.${repeats}`;
     }
     // The confirmation text for aborting the Active task by swipe.
     function abortPrompt(task) {
@@ -2903,11 +2915,9 @@
     function closeCompletedEditOnOverlay(e) {
       if (e.target.id === "completedEditModal") closeCompletedEditor();
     }
-    async function saveCompletedEdit() {
-      const id = document.getElementById("ceId").value;
-      const row = completedRows.get(id);
-      if (!row) return closeCompletedEditor();
-      const result = completedChanges(row, {
+    // What the Edit Completed Task form changes on `row`: {fields} to send to updateCompletedTask, or {error}
+    function readCompletedForm(row) {
+      return completedChanges(row, {
         priority: document.getElementById("cePriority").value,
         estimatedMinutes: document.getElementById("ceEstimate").value,
         trackedMinutes: document.getElementById("ceTracked").value,
@@ -2918,6 +2928,12 @@
         date: document.getElementById("ceDate").value,
         time: document.getElementById("ceTime").value
       }, appTimeZone);
+    }
+    async function saveCompletedEdit() {
+      const id = document.getElementById("ceId").value;
+      const row = completedRows.get(id);
+      if (!row) return closeCompletedEditor();
+      const result = readCompletedForm(row);
       if (result.error) { alert(result.error); return; }
       if (Object.keys(result.fields).length === 0) return closeCompletedEditor();
       try {
@@ -2930,6 +2946,39 @@
         await fetchCompleted();
       } catch (err) {
         alert("Failed to save: " + err.message);
+      }
+    }
+    // Reopen: the entry leaves the completed list and its task returns to the queue with its accrued time. Edits made in the
+    // form and not yet saved are saved first, so they come back with it.
+    async function reopenCompletedEntry() {
+      const id = document.getElementById("ceId").value;
+      const row = completedRows.get(id);
+      if (!row) return closeCompletedEditor();
+      const result = readCompletedForm(row);
+      if (result.error) { alert(result.error); return; }
+      if (!confirm(reopenPrompt({ ...row, ...result.fields }))) return;
+      try {
+        if (Object.keys(result.fields).length > 0) {
+          await apiFetch(UPDATE_COMPLETED_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, updatedFields: result.fields })
+          });
+        }
+        const res = await apiFetch(REOPEN_COMPLETED_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id })
+        });
+        const data = await res.json();
+        setTasks(data.tasks || allTasks);
+        templates = null; // the archive has one row fewer
+        closeCompletedEditor();
+        renderFilterBar();
+        renderTasks();
+        await fetchCompleted();
+      } catch (err) {
+        alert("Failed to reopen: " + err.message);
       }
     }
     async function deleteCompletedEntry() {

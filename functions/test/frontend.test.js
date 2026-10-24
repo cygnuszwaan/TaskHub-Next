@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -1142,6 +1142,31 @@ describe("public/index.html helpers", () => {
       it("completedFormValues: starts the form from the row, with the time in minutes and the completion on the zone's clock", () => {
         const {completedFormValues} = load();
         assert.deepEqual(completedFormValues(row, NZ), {priority: "LOW", estimatedMinutes: 30, trackedMinutes: 2, tags: "Garden, Outdoor", materials: "", comments: "Front only", projectId: "p1", date: "2026-10-18", time: "09:30"});
+      });
+      it("reopenPrompt: names the task, says it returns with its tracked time and leaves Stats", () => {
+        const {reopenPrompt} = load();
+        const text = reopenPrompt({title: "Mow lawn", trackedSeconds: 2700});
+        assert.match(text, /^Reopen "Mow lawn"\?/);
+        assert.match(text, /returns to the end of the queue with its 45m of tracked time and leaves Stats and Project hours until it is completed again\./);
+        assert.doesNotMatch(text, /repeats/);
+      });
+      it("reopenPrompt: leaves the time out when there is none, and warns that a repeating task comes back without repeating", () => {
+        const {reopenPrompt} = load();
+        assert.doesNotMatch(reopenPrompt({title: "Mow lawn", trackedSeconds: 0}), /tracked time/);
+        assert.doesNotMatch(reopenPrompt({title: "Mow lawn"}), /tracked time/);
+        assert.match(reopenPrompt({title: "Mow lawn", recurrence: {frequency: "WEEKLY", interval: 1}}), /It repeats, and its next occurrence is already in the queue, so this one comes back without repeating\./);
+        assert.match(reopenPrompt(null), /^Reopen this task\?/);
+      });
+      it("the Reopen button sits in the completed form and reopens through its own endpoint, saving unsaved edits first", () => {
+        assert.match(html, /<button class="btn-secondary" onclick="reopenCompletedEntry\(\)">Reopen<\/button>/);
+        assert.match(html, /const REOPEN_COMPLETED_URL = endpoint\("reopenCompletedTask"\);/);
+        const fn = html.slice(html.indexOf("async function reopenCompletedEntry"), html.indexOf("async function deleteCompletedEntry"));
+        assert.match(fn, /confirm\(reopenPrompt\(\{ \.\.\.row, \.\.\.result\.fields \}\)\)/);
+        assert.ok(fn.indexOf("UPDATE_COMPLETED_URL") < fn.indexOf("REOPEN_COMPLETED_URL"), "edits are saved before the reopen");
+        assert.match(fn, /setTasks\(data\.tasks \|\| allTasks\)/);
+        assert.match(fn, /templates = null;/);
+        assert.match(fn, /await fetchCompleted\(\);/);
+        assert.match(fn, /alert\("Failed to reopen: " \+ err\.message\)/);
       });
       it("completedFormValues: falls back for a row missing fields", () => {
         const {completedFormValues} = load();
