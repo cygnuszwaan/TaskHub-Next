@@ -104,6 +104,9 @@
     .material-group-title { font-weight: 600; font-size: 14px; cursor: pointer; }
     .summary { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--divider); }
     .summary-total { font-size: 14px; margin-bottom: 10px; }
+    .job-row { margin: 4px 0; font-size: 13px; }
+    .job-title { font-weight: 600; overflow-wrap: anywhere; }
+    .job-stats { color: var(--text-muted); font-size: 12px; }
     .summary-label { font-size: 11px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; margin: 10px 0 4px; }
     .week-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); margin: 2px 0; }
     .week-name { width: 70px; flex-shrink: 0; }
@@ -1131,6 +1134,15 @@
     function statProjectName(entry) {
       return entry && typeof entry.name === "string" && entry.name ? entry.name : "Deleted project";
     }
+    // The stats line of a job in the Stats summary: "6 in 8 wks · 24 total · avg 45m · est. 40m". `weeks` is the length of the
+    // summary window; the average (the rolling average of the job's tracked times) and the estimate (the newest completion's
+    // own) are left out when the job has none.
+    function jobStatsText(job, weeks) {
+      const parts = [`${job.count} in ${weeks} wks`, `${job.completedCount} total`];
+      if (Number.isFinite(job.averageMinutes) && job.averageMinutes > 0) parts.push(`avg ${durationText(job.averageMinutes * 60)}`);
+      if (Number.isFinite(job.estimatedMinutes) && job.estimatedMinutes > 0) parts.push(`est. ${durationText(job.estimatedMinutes * 60)}`);
+      return parts.join(" · ");
+    }
     // Dark mode is a per-device choice kept in localStorage under THEME_KEY: "light" or "dark"; anything else, or nothing
     // saved, means "auto" (follow the device's own light/dark setting).
     const THEME_KEY = "taskhub-theme";
@@ -2058,6 +2070,8 @@
         .map(t => `<span class="chip">${esc(t.tag)} ${esc(t.count)} · ${esc(fmtMinutes(t.minutes))}</span>`).join(" ");
       const projectChips = (summary.byProject || []).slice(0, 10)
         .map(p => `<span class="chip project-chip">📁 ${esc(statProjectName(p))} ${esc(p.count)} · ${esc(fmtMinutes(p.minutes))}</span>`).join(" ");
+      const jobRows = (summary.byJob || []).slice(0, 10)
+        .map(j => `<div class="job-row"><div class="job-title">${esc(j.title)}</div><div class="job-stats">${esc(jobStatsText(j, weeks.length))}</div></div>`).join("");
       const streak = streakText(summary.streak);
       return `
         <div class="summary">
@@ -2068,6 +2082,7 @@
           ${priorityChips ? `<div class="summary-label">By priority</div><div class="task-meta" style="margin-top:0;">${priorityChips}</div>` : ""}
           ${tagChips ? `<div class="summary-label">By tag</div><div class="task-meta" style="margin-top:0;">${tagChips}</div>` : ""}
           ${projectChips ? `<div class="summary-label">By project</div><div class="task-meta" style="margin-top:0;">${projectChips}</div>` : ""}
+          ${jobRows ? `<div class="summary-label">Most completed jobs</div>${jobRows}` : ""}
         </div>`;
     }
 

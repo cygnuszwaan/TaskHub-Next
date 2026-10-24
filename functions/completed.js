@@ -1,6 +1,8 @@
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
 const {localDate, localDayStart, addDays} = require("./time");
+const {titleKey} = require("./templates");
+const {normalizeSamples, normalizeCount, averageMinutes} = require("./history");
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -95,7 +97,13 @@ function computeStreaks(days, since, today) {
 //    byTag: [{tag, count, minutes}] most completed first, then most minutes, then name,
 //    byProject: [{projectId, name, count, minutes}] in the same order, a deleted project's tasks together in one
 //      entry with projectId and name null, last on a tie,
+//    byJob: [{title, count, completedCount, averageMinutes, estimatedMinutes}] the jobs (rows sharing a title, ignoring
+//      case) completed at least twice in all, most completed in the window first, then most completed in all, then title,
 //    streak: {current, longest, currentLimited, longestLimited} (see computeStreaks)}.
+// A job's `count` is its completions in the window; `completedCount` is the larger of the newest row's stored count and
+// `count` (rows archived before history was kept have none); `averageMinutes` is the rolling average of its latest tracked
+// times (the newest row's `recentSeconds`, else the tracked times of its rows in the window), rounded to 5 minutes, null
+// with none; `estimatedMinutes` is the newest row's own estimate, null when unusable.
 // Tags group case-insensitively (first spelling seen is shown) and count once per task; tasks without tags are not in byTag.
 // Tasks outside any project are not in byProject.
 function summarizeCompleted(rows, timeZone, now = new Date(), weeks = SUMMARY_WEEKS, projects = []) {
@@ -106,6 +114,7 @@ function summarizeCompleted(rows, timeZone, now = new Date(), weeks = SUMMARY_WE
   const tags = new Map();
   const projectNames = new Map((Array.isArray(projects) ? projects : []).map((p) => [p.id, p.name]));
   const byProject = new Map(); // project id (null for a deleted project) -> entry
+  const jobs = new Map(); // title key -> {count, newest: {row, iso}, timed: [{iso, seconds}]}
   const days = new Set();
   const today = localDate(timeZone, now);
   let totalCount = 0;
@@ -123,6 +132,14 @@ function summarizeCompleted(rows, timeZone, now = new Date(), weeks = SUMMARY_WE
     totalCount++;
     totalMinutes += minutes;
     if (day <= today) days.add(day);
+    const jobKey = titleKey(row.title);
+    if (jobKey) {
+      const job = jobs.get(jobKey) || {count: 0, newest: null, timed: []};
+      job.count++;
+      if (!job.newest || iso > job.newest.iso) job.newest = {row, iso};
+      if (Number.isFinite(row.trackedSeconds) && row.trackedSeconds >= 0.5) job.timed.push({iso, seconds: row.trackedSeconds});
+      jobs.set(jobKey, job);
+    }
     if (typeof row.projectId === "string" && row.projectId) {
       const known = projectNames.has(row.projectId);
       const key = known ? row.projectId : null;
@@ -149,6 +166,23 @@ function summarizeCompleted(rows, timeZone, now = new Date(), weeks = SUMMARY_WE
     }
   }
 
+  const byJob = [];
+  for (const job of jobs.values()) {
+    const row = job.newest.row;
+    const completedCount = Math.max(normalizeCount(row.completedCount), job.count);
+    if (completedCount < 2) continue;
+    let samples = normalizeSamples(row.recentSeconds);
+    if (samples.length === 0) samples = normalizeSamples(job.timed.sort((a, b) => (a.iso < b.iso ? -1 : a.iso > b.iso ? 1 : 0)).map((t) => t.seconds));
+    byJob.push({
+      title: row.title.trim(),
+      count: job.count,
+      completedCount,
+      averageMinutes: averageMinutes(samples),
+      estimatedMinutes: Number.isFinite(row.estimatedMinutes) && row.estimatedMinutes > 0 ? Math.round(row.estimatedMinutes) : null,
+    });
+  }
+  byJob.sort((a, b) => b.count - a.count || b.completedCount - a.completedCount || a.title.localeCompare(b.title));
+
   return {
     since,
     totalCount,
@@ -157,6 +191,7 @@ function summarizeCompleted(rows, timeZone, now = new Date(), weeks = SUMMARY_WE
     byPriority: rounded([...priorities].map(([priority, v]) => ({priority, ...v}))),
     byTag: rounded([...tags.values()].sort((a, b) => b.count - a.count || b.minutes - a.minutes || a.tag.localeCompare(b.tag))),
     byProject: rounded([...byProject.values()].sort((a, b) => b.count - a.count || b.minutes - a.minutes || (a.name === null) - (b.name === null) || String(a.name).localeCompare(String(b.name)))),
+    byJob,
     streak: computeStreaks(days, since, today),
   };
 }

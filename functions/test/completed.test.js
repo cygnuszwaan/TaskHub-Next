@@ -114,6 +114,7 @@ describe("completed.js", () => {
       assert.deepEqual(s.weeks[7], {weekStart: "2026-10-19", count: 0, minutes: 0});
       assert.deepEqual(s.byPriority.map((p) => p.priority), ["HIGH", "MEDIUM", "LOW"]);
       assert.deepEqual(s.byTag, []);
+      assert.deepEqual(s.byJob, []);
     });
     it("counts tracked time instead of the estimate when a row has any, and the estimate when there is none", () => {
       const s = summarizeCompleted([
@@ -355,6 +356,71 @@ describe("completed.js", () => {
     it("treats every project as deleted when none are given", () => {
       const s = summarizeCompleted([done("2026-10-20T01:00:00Z", {projectId: "p1"})], NZ, now);
       assert.deepEqual(s.byProject, [{projectId: null, name: null, count: 1, minutes: 10}]);
+    });
+  });
+
+  describe("summarizeCompleted byJob", () => {
+    const now = new Date("2026-10-22T21:00:00Z"); // Friday 23 Oct 2026, NZ
+    const done = (iso, extra) => ({title: "Mow lawn", priority: "MEDIUM", estimatedMinutes: 40, tags: [], completedAt: new Date(iso), ...extra});
+
+    it("is empty for no rows, and leaves out a task completed only once", () => {
+      assert.deepEqual(summarizeCompleted([], NZ, now).byJob, []);
+      assert.deepEqual(summarizeCompleted([done("2026-10-20T01:00:00Z")], NZ, now).byJob, []);
+    });
+    it("groups rows by title ignoring case, using the newest row's title, estimate, count and samples", () => {
+      const rows = [
+        done("2026-10-06T01:00:00Z", {title: "mow lawn", estimatedMinutes: 30, completedCount: 4, recentSeconds: [1800, 1800, 1800, 1800]}),
+        done("2026-10-20T01:00:00Z", {title: " Mow Lawn ", estimatedMinutes: 45, completedCount: 5, recentSeconds: [1800, 1800, 1800, 1800, 3000]}),
+        done("2026-10-13T01:00:00Z", {completedCount: 5, recentSeconds: [9999]}),
+      ];
+      assert.deepEqual(summarizeCompleted(rows, NZ, now).byJob, [{title: "Mow Lawn", count: 3, completedCount: 5, averageMinutes: 35, estimatedMinutes: 45}]);
+    });
+    it("does not depend on the order of the rows", () => {
+      const a = done("2026-10-06T01:00:00Z", {estimatedMinutes: 30, completedCount: 4});
+      const b = done("2026-10-20T01:00:00Z", {estimatedMinutes: 45, completedCount: 5});
+      assert.deepEqual(summarizeCompleted([a, b], NZ, now).byJob, summarizeCompleted([b, a], NZ, now).byJob);
+      assert.equal(summarizeCompleted([a, b], NZ, now).byJob[0].estimatedMinutes, 45);
+    });
+    it("counts rows archived before history was kept: the count from the rows, the average from their tracked times", () => {
+      const rows = [
+        done("2026-10-06T01:00:00Z", {trackedSeconds: 600}),
+        done("2026-10-13T01:00:00Z", {trackedSeconds: 0}),
+        done("2026-10-20T01:00:00Z", {trackedSeconds: 1200}),
+      ];
+      const [job] = summarizeCompleted(rows, NZ, now).byJob;
+      assert.equal(job.count, 3);
+      assert.equal(job.completedCount, 3);
+      assert.equal(job.averageMinutes, 15); // (10 + 20) / 2, rows with no tracked time left out
+    });
+    it("takes the stored count when it is larger than the rows in the window, so a job seen once this period still shows", () => {
+      const [job] = summarizeCompleted([done("2026-10-20T01:00:00Z", {completedCount: 12})], NZ, now).byJob;
+      assert.equal(job.count, 1);
+      assert.equal(job.completedCount, 12);
+    });
+    it("has no average without tracked time, and no estimate when it is unusable", () => {
+      const rows = [done("2026-10-13T01:00:00Z"), done("2026-10-20T01:00:00Z", {estimatedMinutes: "x"})];
+      const [job] = summarizeCompleted(rows, NZ, now).byJob;
+      assert.equal(job.averageMinutes, null);
+      assert.equal(job.estimatedMinutes, null);
+    });
+    it("ignores rows outside the window and rows without a title", () => {
+      const rows = [done("2026-08-01T00:00:00Z"), done("2026-10-20T01:00:00Z"), done("2026-10-21T01:00:00Z", {title: "  "}), done("2026-10-22T01:00:00Z", {title: undefined})];
+      assert.deepEqual(summarizeCompleted(rows, NZ, now).byJob, []);
+    });
+    it("orders jobs by completions in the window, then in all, then title", () => {
+      const rows = [
+        done("2026-10-19T01:00:00Z", {title: "B job"}), done("2026-10-20T01:00:00Z", {title: "B job"}),
+        done("2026-10-19T02:00:00Z", {title: "A job"}), done("2026-10-20T02:00:00Z", {title: "A job"}),
+        done("2026-10-19T03:00:00Z", {title: "C job", completedCount: 9}), done("2026-10-20T03:00:00Z", {title: "C job", completedCount: 10}),
+        done("2026-10-17T03:00:00Z", {title: "D job"}), done("2026-10-18T03:00:00Z", {title: "D job"}), done("2026-10-19T04:00:00Z", {title: "D job"}),
+      ];
+      assert.deepEqual(summarizeCompleted(rows, NZ, now).byJob.map((j) => j.title), ["D job", "C job", "A job", "B job"]);
+    });
+    it("does not mutate its input", () => {
+      const rows = [done("2026-10-20T01:00:00Z", {trackedSeconds: 60}), done("2026-10-06T01:00:00Z", {trackedSeconds: 120})];
+      const copy = JSON.parse(JSON.stringify(rows));
+      summarizeCompleted(rows, NZ, now);
+      assert.deepEqual(JSON.parse(JSON.stringify(rows)), copy);
     });
   });
 });

@@ -65,4 +65,4 @@ function buildTemplates(rows, limit = MAX_TEMPLATES) {
   return out;
 }
 
-module.exports = {MAX_TEMPLATES, buildTemplates};
+module.exports = {MAX_TEMPLATES, titleKey, buildTemplates};

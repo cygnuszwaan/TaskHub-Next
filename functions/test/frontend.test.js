@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, historyOf, historyForTitle};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, historyOf, historyForTitle};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -862,6 +862,16 @@ describe("public/index.html helpers", () => {
   });
 
   describe("Stats summary", () => {
+    it("jobStatsText: words the window count, total, average and estimate", () => {
+      const {jobStatsText} = load();
+      assert.equal(jobStatsText({count: 6, completedCount: 24, averageMinutes: 45, estimatedMinutes: 40}, 8), "6 in 8 wks · 24 total · avg 45m · est. 40m");
+      assert.equal(jobStatsText({count: 2, completedCount: 2, averageMinutes: 65, estimatedMinutes: 60}, 8), "2 in 8 wks · 2 total · avg 1h 5m · est. 1h");
+    });
+    it("jobStatsText: leaves out an average or estimate the job does not have", () => {
+      const {jobStatsText} = load();
+      assert.equal(jobStatsText({count: 3, completedCount: 3, averageMinutes: null, estimatedMinutes: 15}, 8), "3 in 8 wks · 3 total · est. 15m");
+      assert.equal(jobStatsText({count: 3, completedCount: 3, averageMinutes: null, estimatedMinutes: null}, 8), "3 in 8 wks · 3 total");
+    });
     it("streakText: words the current and longest streak, singular for one day", () => {
       const {streakText} = load();
       assert.equal(streakText({current: 3, longest: 9, currentLimited: false, longestLimited: false}), "Current streak: 3 days · Longest: 9 days");
