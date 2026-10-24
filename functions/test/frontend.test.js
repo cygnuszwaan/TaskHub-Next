@@ -1520,7 +1520,7 @@ describe("public/index.html helpers", () => {
   });
   describe("photos", () => {
     it("has a photo panel in the edit modal of a queued task, keyed by task id", () => {
-      assert.ok(html.includes('id="editPhotos"'));
+      assert.ok(html.includes("id=editPhotos"));
       assert.match(html, /showPhotos\(task\.id, "taskId", "editPhotos"\)/);
       assert.match(html, /showPhotos\(id, "archiveId", "cePhotos"\)/);
       assert.match(html, /\[panel\.field\]: key, image/);
