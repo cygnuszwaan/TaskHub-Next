@@ -1490,9 +1490,13 @@ describe("public/index.html helpers", () => {
       assert.equal(base64FromDataUrl(null), "");
     });
     it("wires the page: file input, viewer and the three endpoints", () => {
-      for (const needle of ["id=\"photoInput\"", "accept=\"image/*\"", "id=\"photoModal\"", "endpoint(\"getCompletedPhotos\")", "endpoint(\"addCompletedPhoto\")", "endpoint(\"deleteCompletedPhoto\")", "data-photo-toggle"]) {
+      for (const needle of ["id=\"photoInput\"", "accept=\"image/*\"", "id=\"photoModal\"", "endpoint(\"getCompletedPhotos\")", "endpoint(\"addCompletedPhoto\")", "endpoint(\"deleteCompletedPhoto\")", "data-completed-open", "id=\"cePhotos\"", "downloadTaskSheet(document.getElementById('ceId').value"]) {
         assert.ok(html.includes(needle), needle);
       }
+      // The cards carry no buttons of their own: photos and the job sheet live in the edit form
+      const card = html.slice(html.indexOf("function completedRowHtml"), html.indexOf("// Draw the search box"));
+      assert.ok(!card.includes("<button"));
+      assert.ok(!html.includes("data-photo-toggle"));
     });
   });
 });

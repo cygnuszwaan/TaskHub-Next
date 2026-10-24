@@ -116,6 +116,8 @@
     .photo-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
     .photo-thumb { padding: 0; border: none; background: var(--chip-bg); border-radius: 6px; line-height: 0; overflow: hidden; cursor: pointer; }
     .photo-thumb img { display: block; width: 72px; height: 72px; object-fit: cover; }
+    .completed-card { cursor: pointer; }
+    #photoModal { z-index: 1050; }
     .photo-modal-card { max-width: 720px; }
     #photoFull { display: block; max-width: 100%; max-height: 70vh; margin: 0 auto; border-radius: 6px; }
     .job-row { margin: 4px 0; font-size: 13px; }
@@ -602,6 +604,16 @@
           <input type="date" id="ceDate" style="flex: 1;">
           <input type="time" id="ceTime" style="flex: 1;">
         </div>
+      </div>
+
+      <div class="form-group">
+        <label>Photos</label>
+        <div id="cePhotos"></div>
+      </div>
+
+      <div class="form-group">
+        <button type="button" class="btn-secondary" onclick="downloadTaskSheet(document.getElementById('ceId').value, this)">📄 Download job sheet (PDF)</button>
+        <p class="settings-note">The sheet shows this entry as last saved.</p>
       </div>
 
       <p style="font-size: 12px; color: var(--text-faint); margin: 0;">Corrections change Stats and Project hours. They do not rewrite the history (count, average time) already carried by the task's next occurrence.</p>
@@ -1618,12 +1630,22 @@
         completedPageNo = 1;
         renderCompletedRows();
       });
-      document.getElementById("completedRows").addEventListener("click", e => {
-        const el = e.target.closest("[data-photo-toggle], [data-photo-add], [data-photo-view]");
+      // Tapping a completed card opens its edit form (the job sheet and photos are in there)
+      const openCompletedCard = e => {
+        const card = e.target.closest("[data-completed-open]");
+        if (card) openCompletedEditor(card.dataset.completedOpen);
+      };
+      document.getElementById("completedRows").addEventListener("click", openCompletedCard);
+      document.getElementById("completedRows").addEventListener("keydown", e => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        openCompletedCard(e);
+      });
+      document.getElementById("cePhotos").addEventListener("click", e => {
+        const el = e.target.closest("[data-photo-add], [data-photo-view]");
         if (!el) return;
-        if (el.dataset.photoToggle) togglePhotos(el.dataset.photoToggle);
-        else if (el.dataset.photoAdd) chooseNewPhoto(el.dataset.photoAdd);
-        else if (el.dataset.photoView) openPhotoViewer(el.dataset.photoView, el.dataset.photoId);
+        if (el.dataset.photoAdd) chooseNewPhoto(el.dataset.photoAdd);
+        else openPhotoViewer(el.dataset.photoView, el.dataset.photoId);
       });
       document.getElementById("photoInput").addEventListener("change", e => {
         const file = e.target.files && e.target.files[0];
@@ -2496,8 +2518,11 @@
       document.getElementById("ceTime").value = values.time;
       document.getElementById("completedEditModal").style.display = "flex";
       document.body.classList.add("modal-open");
+      showPhotos(id);
     }
     function closeCompletedEditor() {
+      photoPanels.delete(document.getElementById("ceId").value);
+      document.getElementById("cePhotos").innerHTML = "";
       document.getElementById("completedEditModal").style.display = "none";
       document.body.classList.remove("modal-open");
     }
@@ -2551,8 +2576,8 @@
       }
     }
 
-    // Photos of completed tasks. A row's 📷 button opens its photo panel: the thumbnails are fetched then, through
-    // apiFetch (never with the list), and kept in `photoPanels` by archive id so redrawing the list keeps them open.
+    // Photos of completed tasks. The edit form of a completed task shows its photo panel: the thumbnails are fetched when
+    // the form opens, through apiFetch (never with the list), and kept in `photoPanels` by archive id while it is open.
     // A panel is {status: "loading" | "ready" | "error", photos: [{id, data, bytes, addedAt}], message, busy}.
     const photoPanels = new Map();
     let photoTargetId = "";
@@ -2567,8 +2592,7 @@
       return `<div class="photo-note">${esc(panel.busy || photoCountText(panel.photos.length))}</div>${thumbs || add ? `<div class="photo-strip">${thumbs}${add}</div>` : ""}`;
     }
     function renderPhotoPanel(archiveId) {
-      const el = [...document.querySelectorAll("[data-photo-panel]")].find(e => e.dataset.photoPanel === archiveId);
-      if (el) el.innerHTML = photoPanelHtml(archiveId);
+      if (document.getElementById("ceId").value === archiveId) document.getElementById("cePhotos").innerHTML = photoPanelHtml(archiveId);
     }
     async function loadPhotos(archiveId, panel) {
       try {
@@ -2582,12 +2606,7 @@
       }
       if (photoPanels.get(archiveId) === panel) renderPhotoPanel(archiveId);
     }
-    function togglePhotos(archiveId) {
-      if (photoPanels.has(archiveId)) {
-        photoPanels.delete(archiveId);
-        renderPhotoPanel(archiveId);
-        return;
-      }
+    function showPhotos(archiveId) {
       const panel = { status: "loading", photos: [], message: "", busy: "" };
       photoPanels.set(archiveId, panel);
       renderPhotoPanel(archiveId);
@@ -2678,7 +2697,8 @@
       photoViewing = null;
       document.getElementById("photoModal").style.display = "none";
       document.getElementById("photoFull").removeAttribute("src");
-      document.body.classList.remove("modal-open");
+      // The page stays locked while the edit form is still open behind the viewer
+      if (document.getElementById("completedEditModal").style.display !== "flex") document.body.classList.remove("modal-open");
     }
     function closePhotoOnOverlay(e) {
       if (e.target.id === "photoModal") closePhotoViewer();
@@ -2709,7 +2729,7 @@
       const done = t.completedAt ? new Date(t.completedAt) : null;
       const when = done && !isNaN(done) ? formatInstant(done) : "";
       return `
-        <div class="task-item" style="cursor: default;">
+        <div class="task-item${t.archiveId ? ' completed-card' : ''}"${t.archiveId ? ` role="button" tabindex="0" title="Open to edit" data-completed-open="${esc(t.archiveId)}"` : ''}>
           <div style="flex:1;">
             <strong>${esc(t.title)}</strong>
             <div class="task-meta">
@@ -2719,9 +2739,7 @@
               ${when ? `<span class="chip">✅ ${esc(when)}</span>` : ''}
             </div>
             ${t.comments ? `<div class="completed-comments">${esc(t.comments)}</div>` : ''}
-            ${t.archiveId ? `<div data-photo-panel="${esc(t.archiveId)}">${photoPanelHtml(t.archiveId)}</div>` : ''}
           </div>
-          ${t.archiveId ? `<div style="display:flex; gap:6px; align-items:flex-start; flex-wrap:wrap; justify-content:flex-end;"><button type="button" class="btn-secondary" title="Photos of this task" data-photo-toggle="${esc(t.archiveId)}">📷</button><button type="button" class="btn-secondary" title="Download a job sheet (PDF) for this task" onclick="downloadTaskSheet('${esc(t.archiveId)}', this)">📄</button><button type="button" class="btn-secondary" title="Correct or delete this entry" onclick="openCompletedEditor('${esc(t.archiveId)}')">Edit</button></div>` : ''}
         </div>`;
     }
     // Draw the search box's page of the completed tasks, its count line and both pagers.
@@ -2751,7 +2769,6 @@
         if (tasks.length === 0) {
           completedAll = [];
           completedRows = new Map();
-          photoPanels.clear();
           browser.hidden = true;
           list.innerHTML = "<p style='color:var(--text-faint); margin:0;'>No completed tasks yet.</p>";
           return;
@@ -2759,7 +2776,6 @@
         completedAll = tasks;
         completedListLimited = data.listTruncated === true;
         completedRows = new Map(tasks.filter(t => t.archiveId).map(t => [t.archiveId, t]));
-        for (const id of [...photoPanels.keys()]) if (!completedRows.has(id)) photoPanels.delete(id);
         list.innerHTML = renderSummary(data.summary) + renderProjectHours(data.projectHours, data.projectHoursTruncated);
         browser.hidden = false;
         renderCompletedRows();
