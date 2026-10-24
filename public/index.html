@@ -193,10 +193,6 @@
     .active-task-box .task-item:hover { background: transparent; }
     .active-task-box.timer-running { background: var(--timer-run-bg); }
     .active-task-box.timer-paused { background: var(--timer-pause-bg); }
-    .active-task-box.timer-running.flash { animation: box-flash-run 600ms ease-out; }
-    .active-task-box.timer-paused.flash { animation: box-flash-pause 600ms ease-out; }
-    @keyframes box-flash-run { from { background: var(--flash); } to { background: var(--timer-run-bg); } }
-    @keyframes box-flash-pause { from { background: var(--flash); } to { background: var(--timer-pause-bg); } }
     .swipe-row { position: relative; overflow: hidden; border-radius: 6px; }
     .swipe-row .task-item { position: relative; touch-action: pan-y; transition: transform 0.18s ease, background 0.15s ease; }
     .swipe-row .task-item:hover { background: var(--hover); }
@@ -2435,12 +2431,12 @@
       if (!cardFlash) return;
       const now = Date.now();
       for (const item of document.querySelectorAll(".task-item")) {
+        if (item.closest("#activeTaskBox")) continue; // the active task shows its timer state by colour instead
         const elapsed = flashElapsed(cardFlash, item.dataset.id, now);
         if (elapsed === null) continue;
-        const target = item.closest("#activeTaskBox") || item; // the active task flashes as its whole bordered box, settling on its tint
-        target.style.animationDelay = `-${elapsed}ms`;
-        target.classList.add("flash");
-        target.addEventListener("animationend", () => { target.classList.remove("flash"); target.style.animationDelay = ""; }, { once: true });
+        item.style.animationDelay = `-${elapsed}ms`;
+        item.classList.add("flash");
+        item.addEventListener("animationend", () => { item.classList.remove("flash"); item.style.animationDelay = ""; }, { once: true });
       }
     }
 
