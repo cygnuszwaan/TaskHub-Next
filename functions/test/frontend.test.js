@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, DOUBLE_TAP_MS, PRESS_MOVE_PX, pressMoved, isDoubleTap, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, withoutTasks, insertTaskAt};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, DOUBLE_TAP_MS, PRESS_MOVE_PX, pressMoved, isDoubleTap, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -86,14 +86,15 @@ describe("public/index.html helpers", () => {
       assert.deepEqual(insertTaskAt([{id: "a"}], {id: "b"}, 99), [{id: "a"}, {id: "b"}]);
       assert.deepEqual(insertTaskAt(list, {id: "b"}, 0), list, "already back");
     });
-    it("lets the whole Active task box take the gestures and flash, and only queued cards swipe", () => {
+    it("lets the whole Active task box take the gestures and flash, and swipes both it and queued cards", () => {
       assert.match(html, /for \(const id of \["taskList", "activeTaskBox"\]\)/);
       assert.match(html, /\.active-task-box\.flash \{ animation: card-flash/);
       assert.match(html, /item\.closest\("#activeTaskBox"\) \|\| item/);
       const list = html.slice(html.indexOf("function taskItemHtml"), html.indexOf("function renderTasks"));
       assert.match(list, /swipeRowHtml/);
-      assert.equal(list.includes("taskItemHtml(t, true)"), false);
-      assert.match(html, /taskItemHtml\(active, true\)/);
+      assert.match(list, /taskItemHtml\(t, isActive\)/);
+      assert.match(html, /swipeRowHtml\(active, true\)/);
+      assert.match(html, /const row = item\.closest\("\.swipe-row"\);/);
     });
     it("takes removals off the list before the server answers and keeps later lists from bringing them back", () => {
       const remove = html.slice(html.indexOf("function removeTask("), html.indexOf("async function completeTask("));
@@ -432,14 +433,20 @@ describe("public/index.html helpers", () => {
       assert.match(fromModal, /if \(!confirm\("Delete this task\?"\)\) return;\s*const taskId/);
       assert.ok(fromModal.indexOf("confirm(") < fromModal.indexOf("closeEditModal()"), "cancelling keeps the modal open");
     });
-    it("has an Undo toast outside the pages, shown after a delete or completion", () => {
-      const toast = at(`id="undoToast"`);
-      assert.ok(toast > at("</main>", at(`id="pageSettings"`)) && toast < at(`id="editModal"`));
-      assert.match(html, /\.toast\[hidden\]\s*\{\s*display:\s*none/);
+    it("has an Undo footnote at the bottom of the page, shown after a delete or completion and kept until the server's window ends", () => {
+      const note = at(`id="undoNote"`);
+      assert.ok(note > at("</main>", at(`id="pageSettings"`)) && note < at(`id="editModal"`));
+      assert.match(html.slice(html.lastIndexOf("<", note), note), /^<footer /);
+      assert.match(html, /\.undo-note\[hidden\]\s*\{\s*display:\s*none/);
       assert.match(html, /const UNDO_URL = endpoint\("undoRemove"\)/);
-      assert.match(html, /showUndoToast\(kind, task\.title\)/);
+      assert.match(html, /showUndoNote\(kind, task\.title\)/);
       assert.match(html, /removeTask\(taskId, "COMPLETE"/);
       assert.match(html, /removeTask\(taskId, "DELETE"/);
+      assert.equal(/toast/i.test(html), false);
+      const {UNDO_WINDOW_MS, UNDO_NOTE_MS} = load();
+      const server = fs.readFileSync(path.join(__dirname, "..", "tasks.js"), "utf8");
+      assert.match(server, new RegExp(`UNDO_WINDOW_MS = ${UNDO_WINDOW_MS / 60000} \\* 60 \\* 1000`), "the page's window matches the server's");
+      assert.ok(UNDO_NOTE_MS < UNDO_WINDOW_MS && UNDO_NOTE_MS > 8000);
     });
     it("starts the Tags and Projects sections collapsed", () => {
       for (const id of ["tagsDetails", "projectsDetails"]) {
@@ -1302,7 +1309,7 @@ describe("public/index.html helpers", () => {
       assert.deepEqual(themeMetaMedia("auto"), {light: "(prefers-color-scheme: light)", dark: "(prefers-color-scheme: dark)"});
     });
     it("has a Dark mode checkbox on the Settings page, outside the saved settings form", () => {
-      const page = html.slice(html.indexOf("id=\"pageSettings\""), html.indexOf("id=\"undoToast\""));
+      const page = html.slice(html.indexOf("id=\"pageSettings\""), html.indexOf("id=\"undoNote\""));
       assert.match(page, /<input type="checkbox" id="darkMode"> Dark mode/);
       assert.equal(/settingsPayload[^;]*darkMode|darkMode[^;]*settingsPayload/.test(html), false);
     });
@@ -1341,7 +1348,7 @@ describe("public/index.html helpers", () => {
       assert.equal(exportSummary({tasks: [], projects: [], completedTasks: [1, 2], completedTruncated: true}), "0 tasks, 0 projects, 2 completed (the newest completed tasks only)");
     });
     it("has a Download button on the Settings page that calls exportData with the sign-in token", () => {
-      const page = html.slice(html.indexOf("id=\"pageSettings\""), html.indexOf("id=\"undoToast\""));
+      const page = html.slice(html.indexOf("id=\"pageSettings\""), html.indexOf("id=\"undoNote\""));
       assert.match(page, /id="exportBtn"/);
       assert.match(html, /const EXPORT_URL = endpoint\("exportData"\)/);
       assert.match(html, /apiFetch\(EXPORT_URL\)/);

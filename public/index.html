@@ -25,7 +25,7 @@
       --time-bg: #e0f2fe; --time-fg: #0369a1; --sched-bg: #dcfce7; --sched-fg: #166534; --lock-bg: #fef3c7; --lock-fg: #92400e;
       --held-bg: #ffedd5; --held-fg: #9a3412; --project-bg: #ccfbf1; --project-fg: #115e59; --repeat-bg: #ede9fe; --repeat-fg: #5b21b6;
       --overdue-bg: #fee2e2; --overdue-fg: #991b1b; --snooze-bg: #e0e7ff; --snooze-fg: #3730a3;
-      --coach-bg: #eff6ff; --coach-border: #2563eb; --toast-bg: #1f2937; --toast-fg: #fff; --toast-link: #7cc0ff;
+      --coach-bg: #eff6ff; --coach-border: #2563eb;
       --swipe-del: #dc2626; --swipe-snooze: #4f46e5;
     }
     @media (prefers-color-scheme: dark) {
@@ -38,7 +38,7 @@
         --time-bg: #123552; --time-fg: #7dd3fc; --sched-bg: #14382a; --sched-fg: #86efac; --lock-bg: #46380f; --lock-fg: #fcd34d;
         --held-bg: #47260f; --held-fg: #fdba74; --project-bg: #0f3b38; --project-fg: #5eead4; --repeat-bg: #2f2759; --repeat-fg: #c4b5fd;
         --overdue-bg: #4a1d1d; --overdue-fg: #fca5a5; --snooze-bg: #26295a; --snooze-fg: #a5b4fc;
-        --coach-bg: #172a4d; --coach-border: #3b82f6; --toast-bg: #334155; --toast-fg: #f8fafc;
+        --coach-bg: #172a4d; --coach-border: #3b82f6;
         --swipe-del: #991b1b; --swipe-snooze: #3730a3;
       }
     }
@@ -53,7 +53,7 @@
       --time-bg: #123552; --time-fg: #7dd3fc; --sched-bg: #14382a; --sched-fg: #86efac; --lock-bg: #46380f; --lock-fg: #fcd34d;
       --held-bg: #47260f; --held-fg: #fdba74; --project-bg: #0f3b38; --project-fg: #5eead4; --repeat-bg: #2f2759; --repeat-fg: #c4b5fd;
       --overdue-bg: #4a1d1d; --overdue-fg: #fca5a5; --snooze-bg: #26295a; --snooze-fg: #a5b4fc;
-      --coach-bg: #172a4d; --coach-border: #3b82f6; --toast-bg: #334155; --toast-fg: #f8fafc;
+      --coach-bg: #172a4d; --coach-border: #3b82f6;
       --swipe-del: #991b1b; --swipe-snooze: #3730a3;
     }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 680px; margin: 0 auto 20px; padding: 0 15px; background: var(--bg); color: var(--text); }
@@ -148,9 +148,9 @@
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; overscroll-behavior: contain; }
     .modal-card { background: var(--surface); width: 90%; max-width: 480px; max-height: 90vh; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; padding: 20px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
     body.modal-open { overflow: hidden; }
-    .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 1100; display: flex; align-items: center; gap: 14px; max-width: 90%; background: var(--toast-bg); color: var(--toast-fg); padding: 10px 14px; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.3); font-size: 14px; }
-    .toast[hidden] { display: none; }
-    .toast button { background: transparent; color: var(--toast-link); font-weight: 700; padding: 4px 6px; }
+    .undo-note { margin: 4px 0 28px; padding: 0 4px; font-size: 13px; color: var(--text-muted); text-align: center; }
+    .undo-note[hidden] { display: none; }
+    .undo-note button { background: transparent; color: var(--link); font-weight: 700; font-size: 13px; padding: 2px 6px; text-decoration: underline; }
     .modal-card h3 { margin-top: 0; margin-bottom: 16px; font-size: 18px; }
     .form-group { margin-bottom: 12px; }
     .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: var(--text-muted); }
@@ -193,6 +193,7 @@
     .swipe-row { position: relative; overflow: hidden; border-radius: 6px; }
     .swipe-row .task-item { position: relative; background: var(--surface); touch-action: pan-y; transition: transform 0.18s ease, background 0.15s ease; }
     .swipe-row .task-item:hover { background: var(--hover); }
+    .active-task-box:hover .swipe-row .task-item { background: var(--hover); }
     .swipe-row.swiping .task-item { transition: none; }
     .swipe-bg { display: none; position: absolute; inset: 0; align-items: center; padding: 0 20px; color: white; font-weight: 700; font-size: 14px; opacity: 0.75; }
     .swipe-row.swipe-armed .swipe-bg { opacity: 1; }
@@ -462,10 +463,10 @@
   </div>
   </main>
 
-  <div id="undoToast" class="toast" role="status" hidden>
-    <span id="undoToastText"></span>
-    <button type="button" id="undoToastBtn">Undo</button>
-  </div>
+  <footer id="undoNote" class="undo-note" role="status" hidden>
+    <span id="undoNoteText"></span>
+    <button type="button" id="undoNoteBtn">Undo</button>
+  </footer>
 
   <div id="editModal" class="modal-overlay" onclick="closeModalOnOverlay(event)">
     <div class="modal-card">
@@ -895,7 +896,10 @@
       return [...tags].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : a < b ? -1 : a > b ? 1 : 0));
     }
 
-    // The toast text after a delete or completion: the task's title is shortened to 40 characters.
+    // How long the server keeps the last removal for Undo (UNDO_WINDOW_MS in tasks.js), and how long the footnote offers it.
+    const UNDO_WINDOW_MS = 10 * 60 * 1000;
+    const UNDO_NOTE_MS = UNDO_WINDOW_MS - 10000;
+    // The footnote text after a delete or completion: the task's title is shortened to 40 characters.
     function removalMessage(kind, title) {
       const text = String(title || "").trim();
       const shown = text.length > 40 ? text.slice(0, 39).trimEnd() + "…" : text;
@@ -1837,7 +1841,7 @@
 
       // Rows in the list and the active task box above the search box behave the same. Gestures: long press starts or
       // pauses the timer, double tap completes (after the usual confirmation), single tap opens the editor. The active
-      // task answers anywhere inside its bordered box; a queued card also swipes (left deletes after a confirmation,
+      // task answers anywhere inside its bordered box; every card also swipes (left deletes after a confirmation,
       // right opens the snooze dialog).
       let pressTimer = null;
       let pressStart = null;
@@ -1873,7 +1877,7 @@
         cancelPress();
         pressStart = { x: e.clientX, y: e.clientY };
         const taskId = item.dataset.id;
-        const row = e.currentTarget.id === "taskList" ? item.closest(".swipe-row") : null;
+        const row = item.closest(".swipe-row");
         swipe = row ? { item, row, id: taskId, x: e.clientX, y: e.clientY, dx: 0, dy: 0, dragging: false, pointerId: e.pointerId } : null;
         pressTimer = setTimeout(() => {
           pressTimer = null;
@@ -2214,22 +2218,23 @@
       updateProjectOrderField("manual");
     }
 
-    // The "Undo" toast after a delete or completion: shown for 8 seconds; Undo asks the server to put the last removed
-    // task back (it keeps one step for ten minutes, see undoRemove).
+    // The "Undo" footnote at the bottom of the page after a delete or completion: it stays until the next removal
+    // replaces it, an Undo or a failed removal clears it, or the server stops keeping the step (UNDO_WINDOW_MS).
+    // Undo asks the server to put the last removed task back (it keeps one step, see undoRemove).
     let undoTimer = null;
-    let undoToastTaskId = null; // the task the toast is about, so a failed removal can take its own toast away
-    function showUndoToast(kind, title) {
-      document.getElementById("undoToastText").textContent = removalMessage(kind, title);
-      document.getElementById("undoToast").hidden = false;
+    let undoNoteTaskId = null; // the task the footnote is about, so a failed removal can take its own footnote away
+    function showUndoNote(kind, title) {
+      document.getElementById("undoNoteText").textContent = removalMessage(kind, title) + ". ";
+      document.getElementById("undoNote").hidden = false;
       clearTimeout(undoTimer);
-      undoTimer = setTimeout(hideUndoToast, 8000);
+      undoTimer = setTimeout(hideUndoNote, UNDO_NOTE_MS);
     }
-    function hideUndoToast() {
+    function hideUndoNote() {
       clearTimeout(undoTimer);
-      document.getElementById("undoToast").hidden = true;
+      document.getElementById("undoNote").hidden = true;
     }
     async function undoRemoval() {
-      hideUndoToast();
+      hideUndoNote();
       await removalChain; // the server keeps one step, so an unfinished removal must land first
       try {
         const res = await apiFetch(UNDO_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
@@ -2255,8 +2260,8 @@
       allTasks = withoutTasks(allTasks, pendingRemovals);
       renderFilterBar();
       renderTasks();
-      undoToastTaskId = taskId;
-      showUndoToast(kind, task.title);
+      undoNoteTaskId = taskId;
+      showUndoNote(kind, task.title);
       const run = async () => {
         try {
           const res = await apiFetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -2269,7 +2274,7 @@
         } catch (err) {
           pendingRemovals.delete(taskId);
           allTasks = insertTaskAt(allTasks, task, index);
-          if (undoToastTaskId === taskId) hideUndoToast();
+          if (undoNoteTaskId === taskId) hideUndoNote();
           renderFilterBar();
           renderTasks();
           alert((kind === "COMPLETE" ? "Error completing task: " : "Error deleting task: ") + err.message);
@@ -2404,8 +2409,8 @@
     }
 
     // A queued task's row: the card inside a wrapper that shows the action under it while it is dragged sideways
-    function swipeRowHtml(t) {
-      return `<div class="swipe-row"><div class="swipe-bg swipe-snooze" aria-hidden="true">😴 Snooze</div><div class="swipe-bg swipe-del" aria-hidden="true">🗑️ Delete</div>${taskItemHtml(t)}</div>`;
+    function swipeRowHtml(t, isActive = false) {
+      return `<div class="swipe-row"><div class="swipe-bg swipe-snooze" aria-hidden="true">😴 Snooze</div><div class="swipe-bg swipe-del" aria-hidden="true">🗑️ Delete</div>${taskItemHtml(t, isActive)}</div>`;
     }
 
     // The active task's tracked time ticks every second while its timer runs
@@ -2446,7 +2451,7 @@
       const active = activeTaskOf(allTasks);
       const activeBox = document.getElementById("activeTaskBox");
       activeBox.hidden = !active;
-      document.getElementById("activeTask").innerHTML = active ? taskItemHtml(active, true) : "";
+      document.getElementById("activeTask").innerHTML = active ? swipeRowHtml(active, true) : "";
       if (active && isTimerRunning(active)) {
         const show = () => { const el = document.getElementById("activeElapsed"); if (el) el.textContent = `Tracked ${formatElapsed(elapsedSecondsOf(active))}`; };
         activeTicker = setInterval(show, 1000);
@@ -2779,7 +2784,7 @@
     }
 
     // Tasks are deleted only from the edit modal, after a confirmation (cancelling leaves the modal open); the Undo
-    // toast that follows is a second safety net
+    // footnote that follows is a second safety net
     async function deleteTaskFromModal() {
       if (!confirm("Delete this task?")) return;
       const taskId = document.getElementById("editTaskId").value;
@@ -3531,7 +3536,7 @@
       }
     }
 
-    document.getElementById("undoToastBtn").addEventListener("click", undoRemoval);
+    document.getElementById("undoNoteBtn").addEventListener("click", undoRemoval);
     document.getElementById("tabBar").addEventListener("click", e => {
       const btn = e.target.closest("[data-tab]");
       if (btn) showTab(btn.dataset.tab);
