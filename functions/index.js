@@ -24,7 +24,7 @@ const {SUMMARY_MAX_ROWS, PROJECT_MAX_ROWS, clampLimit, serializeCompleted, summa
 const {isArchiveId, applyCompletedEdit} = require("./completedEdit");
 const {normalizePhoto, canAddPhoto, serializePhoto, sortPhotos} = require("./photos");
 const {EXPORT_MAX_ROWS, buildExport} = require("./export");
-const {parseJobSheetRequest, buildJobSheet} = require("./jobsheet");
+const {parseJobSheetRequest, buildJobSheet, sheetArchiveIds, gatherPhotos, withPhotos} = require("./jobsheet");
 const {renderJobSheetPdf} = require("./jobsheetPdf");
 const {makeOwnerOnly} = require("./auth");
 const {dayWindowMinutes} = require("./settings");
@@ -825,10 +825,10 @@ exports.exportData = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, re
 // Body {archiveId} (one completed task, the `archiveId` getCompletedTasks gives each entry), {projectId} (a project to date) or
 // {projectId, weekStart} (its Monday-to-Sunday week; any date in the week names it); see parseJobSheetRequest. Responds
 // with the PDF itself (application/pdf): every time and date on the owner's clock, the tracked time (or estimate), comments, tags and
-// materials of each completed task, and for a project the hours as the Stats page figures them (see buildJobSheet,
+// materials and photos (at most JOB_SHEET_MAX_PHOTOS a sheet) of each completed task, and for a project the hours as the Stats page figures them (see buildJobSheet,
 // renderJobSheetPdf). 400 for an unusable body, 404 for an unknown task or project. Read-only. A project's rows are
 // read the way the Stats hours are (at most PROJECT_MAX_ROWS), and a sheet lists at most its newest JOB_SHEET_MAX_ENTRIES.
-exports.getJobSheet = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 60}, ownerOnly(async (req, res) => {
+exports.getJobSheet = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 60, memory: "512MiB"}, ownerOnly(async (req, res) => {
   try {
     const request = parseJobSheetRequest(req.body);
     if (request.error) return res.status(400).send({error: request.error});
@@ -848,7 +848,12 @@ exports.getJobSheet = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 60}, own
       rows = snap.docs.map((d) => ({...d.data(), archiveId: d.id}));
     }
     const sheet = buildJobSheet({request, rows, project, timeZone, now: new Date(), contractorInfo: jobSheet.contractorInfo});
-    const pdf = await renderJobSheetPdf(sheet);
+    // Each listed task's photos go in the PDF, at most JOB_SHEET_MAX_PHOTOS in all (see gatherPhotos)
+    const {byId, omitted} = await gatherPhotos(sheetArchiveIds(sheet), {
+      fetchChunk: async (ids) => (await PHOTOS.where("archiveId", "in", ids).get()).docs.map((d) => ({archiveId: d.get("archiveId"), ...serializePhoto(d.id, d.data())})),
+      countChunk: async (ids) => (await PHOTOS.where("archiveId", "in", ids).count().get()).data().count,
+    });
+    const pdf = await renderJobSheetPdf(withPhotos(sheet, byId, omitted));
     res.status(200).type("application/pdf").set("Cache-Control", "no-store").send(pdf);
   } catch (err) {
     console.error(err);

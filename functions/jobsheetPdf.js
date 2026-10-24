@@ -13,6 +13,9 @@ const INK = "#111111";
 const MUTED = "#666666";
 const RULE = "#cccccc";
 const TIME_WIDTH = 92;
+// Photos are drawn two to a row, each scaled to fit a cell this tall (and half the page wide).
+const PHOTO_GAP = 8;
+const PHOTO_MAX_HEIGHT = 190;
 
 // "4 tasks", "1 task"
 function taskCount(n) {
@@ -48,6 +51,30 @@ function draw(doc, sheet) {
   const ensure = (h) => {
     if (doc.y + h > limit() && h <= pageHeight()) doc.addPage();
   };
+  // An entry's photos, two to a row, each scaled to fit its cell with the JPEG passed through as it is. A picture the PDF
+  // library cannot read is skipped.
+  const drawPhotos = (photos) => {
+    const cell = (width - PHOTO_GAP) / 2;
+    const images = [];
+    for (const data of photos || []) {
+      try {
+        const buffer = Buffer.from(data, "base64");
+        const {width: w, height: h} = doc.openImage(buffer);
+        const scale = Math.min(cell / w, PHOTO_MAX_HEIGHT / h, 1);
+        images.push({buffer, width: w * scale, height: h * scale});
+      } catch (err) {
+        continue;
+      }
+    }
+    for (let i = 0; i < images.length; i += 2) {
+      const row = images.slice(i, i + 2);
+      const rowHeight = Math.max(...row.map((img) => img.height));
+      ensure(rowHeight + 6);
+      const y = doc.y;
+      row.forEach((img, col) => doc.image(img.buffer, left + col * (cell + PHOTO_GAP), y, {width: img.width, height: img.height}));
+      doc.y = y + rowHeight + 6;
+    }
+  };
 
   // Header
   doc.font("Bold").fontSize(20).fillColor(INK).text("Job sheet", left, doc.y, {width});
@@ -77,6 +104,11 @@ function draw(doc, sheet) {
       doc.font("Sans").fontSize(8.5).fillColor(MUTED).text("This project has a very large number of completed tasks; only the newest are listed. The totals cover them all.", left, doc.y, {width});
       doc.y += 6;
     }
+  }
+
+  if (sheet.photosOmitted > 0) {
+    doc.font("Sans").fontSize(8.5).fillColor(MUTED).text(`${sheet.photosOmitted} more ${sheet.photosOmitted === 1 ? "photo was" : "photos were"} left out to keep this sheet a manageable size.`, left, doc.y, {width});
+    doc.y += 6;
   }
 
   if (sheet.empty) {
@@ -117,6 +149,11 @@ function draw(doc, sheet) {
       if (meta) doc.font("Sans").fontSize(8.5).fillColor(MUTED).text(meta, left, doc.y + 1, {width});
       if (materials) doc.font("Sans").fontSize(8.5).fillColor(MUTED).text(materials, left, doc.y + 2, {width});
       if (entry.comments) doc.font("Sans").fontSize(9).fillColor(INK).text(entry.comments, left + 12, doc.y + 3, {width: width - 12});
+      if (entry.photos && entry.photos.length) {
+        doc.y += 6;
+        drawPhotos(entry.photos);
+        doc.y -= 6;
+      }
       doc.y += 9;
     }
   }

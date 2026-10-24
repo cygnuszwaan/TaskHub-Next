@@ -3,10 +3,15 @@
 const {localDate, formatLocalNow, addDays} = require("./time");
 const {isArchiveId} = require("./completedEdit");
 const {toIso, weekStartOf, minutesOf, summarizeProjectHours} = require("./completed");
+const {sortPhotos} = require("./photos");
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 // Most entries one job sheet lists (the newest); `truncated` says when there were more.
 const JOB_SHEET_MAX_ENTRIES = 1000;
+// Most photos one job sheet carries (the first in the sheet's order); `photosOmitted` counts the rest.
+const JOB_SHEET_MAX_PHOTOS = 60;
+// How many entries' photos are read in one query (Firestore's `in` limit is 30).
+const PHOTO_CHUNK = 30;
 
 // Which job sheet a request body asks for. Pure.
 //   {archiveId}                a completed task (the `archiveId` getCompletedTasks gives each entry)
@@ -104,6 +109,7 @@ function sheetEntry(row, timeZone) {
   const text = (v) => (typeof v === "string" ? pdfText(v) : "");
   const list = (v) => (Array.isArray(v) ? v : []).map((x) => text(typeof x === "string" ? x : x && x.text)).filter(Boolean);
   return {
+    archiveId: typeof row.archiveId === "string" ? row.archiveId : "",
     title: text(row.title) || "Untitled task",
     started: whenText(timeZone, row.firstStartedAt),
     completed: whenText(timeZone, toIso(row.completedAt)),
@@ -135,7 +141,7 @@ function byCompletion(a, b) {
 //   "3h 20m (3.33 h)"); `sections`: [{heading, totals, entries}] oldest first with entries oldest first, a TASK sheet one
 //   section without heading or totals, a WEEK sheet one section for the week, a PROJECT sheet one per week with work
 //   (heading the week's range, totals its figures); an entry is {title, started, completed, timeText, estimated,
-//   materials, comments} (`started`: when its timer was first started, "" when it never was; no priority or tags, the
+//   materials, comments, archiveId} (`started`: when its timer was first started, "" when it never was; no priority or tags, the
 //   sheet is client-facing); `truncated` is true when only the newest JOB_SHEET_MAX_ENTRIES entries are listed (the totals
 //   still cover everything read); `empty` is true when there is nothing to list.
 function buildJobSheet({request, rows, project, timeZone, now, contractorInfo}) {
@@ -189,4 +195,55 @@ function buildJobSheet({request, rows, project, timeZone, now, contractorInfo}) 
   };
 }
 
-module.exports = {JOB_SHEET_MAX_ENTRIES, parseJobSheetRequest, pdfText, fmtMinutes, decimalHours, hoursText, entryTimeText, whenText, dateText, weekRangeText, buildJobSheet};
+// The archive ids of a sheet's entries in the order the sheet lists them (oldest first), without repeats. Pure.
+function sheetArchiveIds(sheet) {
+  const ids = [];
+  for (const section of (sheet && sheet.sections) || []) {
+    for (const entry of section.entries) if (entry.archiveId && !ids.includes(entry.archiveId)) ids.push(entry.archiveId);
+  }
+  return ids;
+}
+
+// Read the photos a sheet will carry, at most `cap` of them, taking the entries in `ids` order (and each entry's photos
+// oldest first). Entries are read `chunkSize` at a time, and once the cap is reached the rest are only counted, so a big
+// project sheet never loads more than it prints.
+//   fetchChunk(ids) -> [{archiveId, id, data, addedAt}]   the photos of those archive ids
+//   countChunk(ids) -> number                              how many photos those archive ids have, without reading them
+// Resolves to {byId: Map(archiveId -> [photo]), omitted}, `omitted` being the photos left out by the cap.
+async function gatherPhotos(ids, {fetchChunk, countChunk, cap = JOB_SHEET_MAX_PHOTOS, chunkSize = PHOTO_CHUNK}) {
+  const byId = new Map();
+  const unique = [...new Set(ids)];
+  const rest = [];
+  let taken = 0;
+  let omitted = 0;
+  for (let i = 0; i < unique.length; i += chunkSize) {
+    const chunk = unique.slice(i, i + chunkSize);
+    if (taken >= cap) {
+      rest.push(chunk);
+      continue;
+    }
+    const found = await fetchChunk(chunk);
+    for (const id of chunk) {
+      for (const photo of sortPhotos(found.filter((p) => p.archiveId === id))) {
+        if (taken < cap) {
+          if (!byId.has(id)) byId.set(id, []);
+          byId.get(id).push(photo);
+          taken++;
+        } else {
+          omitted++;
+        }
+      }
+    }
+  }
+  for (const n of await Promise.all(rest.map(countChunk))) omitted += n;
+  return {byId, omitted};
+}
+
+// The sheet with each entry's photos added as `photos` (base64 JPEGs, [] with none) and `photosOmitted` (what the cap left
+// out). Pure: the sheet is not modified.
+function withPhotos(sheet, byId, omitted) {
+  const sections = sheet.sections.map((section) => ({...section, entries: section.entries.map((entry) => ({...entry, photos: ((byId && byId.get(entry.archiveId)) || []).map((p) => p.data)}))}));
+  return {...sheet, sections, photosOmitted: Number.isInteger(omitted) && omitted > 0 ? omitted : 0};
+}
+
+module.exports = {JOB_SHEET_MAX_ENTRIES, JOB_SHEET_MAX_PHOTOS, PHOTO_CHUNK, sheetArchiveIds, gatherPhotos, withPhotos, parseJobSheetRequest, pdfText, fmtMinutes, decimalHours, hoursText, entryTimeText, whenText, dateText, weekRangeText, buildJobSheet};

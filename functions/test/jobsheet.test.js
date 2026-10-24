@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {JOB_SHEET_MAX_ENTRIES, parseJobSheetRequest, pdfText, fmtMinutes, decimalHours, hoursText, entryTimeText, weekRangeText, buildJobSheet} = require("../jobsheet");
+const {JOB_SHEET_MAX_ENTRIES, parseJobSheetRequest, pdfText, fmtMinutes, decimalHours, hoursText, entryTimeText, weekRangeText, buildJobSheet, JOB_SHEET_MAX_PHOTOS, sheetArchiveIds, gatherPhotos, withPhotos} = require("../jobsheet");
 const {summarizeProjectHours} = require("../completed");
 
 const NZ = "Pacific/Auckland";
@@ -75,7 +75,7 @@ describe("jobsheet.js", () => {
       assert.equal(s.empty, false);
       assert.equal(s.sections.length, 1);
       assert.equal(s.sections[0].heading, "");
-      assert.deepEqual(s.sections[0].entries[0], {title: "Fit tap", started: "", completed: "Tue, 20 Oct, 12:00 pm", timeText: "25m", estimated: false, materials: ["Tap", "PTFE tape"], comments: "Washer replaced"});
+      assert.deepEqual(s.sections[0].entries[0], {archiveId: "", title: "Fit tap", started: "", completed: "Tue, 20 Oct, 12:00 pm", timeText: "25m", estimated: false, materials: ["Tap", "PTFE tape"], comments: "Washer replaced"});
       assert.match(s.generatedText, /24 October 2026/);
       assert.equal(s.timeZone, NZ);
     });
@@ -182,6 +182,74 @@ describe("jobsheet.js", () => {
       sheet({type: "PROJECT"}, rows);
       sheet({type: "TASK"}, rows);
       assert.deepEqual(JSON.parse(JSON.stringify(rows)), copy);
+    });
+  });
+  describe("photos", () => {
+    const rowsWithIds = (n) => Array.from({length: n}, (_, i) => row({archiveId: `a${i}`, title: `Job ${i}`, completedAt: at("2026-10-20", 8 + i)}));
+    const photo = (archiveId, id, minute = 0) => ({archiveId, id, data: `data-${id}`, addedAt: `2026-10-21T00:${String(minute).padStart(2, "0")}:00.000Z`});
+    const fakes = (all) => {
+      const calls = {fetch: [], count: []};
+      return {
+        calls,
+        fetchChunk: async (ids) => {
+          calls.fetch.push(ids);
+          return all.filter((p) => ids.includes(p.archiveId));
+        },
+        countChunk: async (ids) => {
+          calls.count.push(ids);
+          return all.filter((p) => ids.includes(p.archiveId)).length;
+        },
+      };
+    };
+
+    it("puts each entry's archive id on the sheet and lists them in sheet order", () => {
+      const s = sheet({type: "PROJECT"}, rowsWithIds(3).reverse());
+      assert.deepEqual(sheetArchiveIds(s), ["a0", "a1", "a2"]);
+      assert.deepEqual(sheetArchiveIds(sheet({type: "PROJECT"}, [row()])), []);
+      assert.deepEqual(sheetArchiveIds(null), []);
+    });
+    it("reads the photos of every entry, oldest first, when they are under the cap", async () => {
+      const f = fakes([photo("a0", "p2", 5), photo("a0", "p1", 1), photo("a2", "p3")]);
+      const {byId, omitted} = await gatherPhotos(["a0", "a1", "a2"], f);
+      assert.deepEqual(byId.get("a0").map((p) => p.id), ["p1", "p2"]);
+      assert.equal(byId.has("a1"), false);
+      assert.deepEqual(byId.get("a2").map((p) => p.id), ["p3"]);
+      assert.equal(omitted, 0);
+      assert.equal(f.calls.count.length, 0);
+    });
+    it("stops at the cap in sheet order and counts the rest", async () => {
+      const all = [];
+      for (let i = 0; i < 5; i++) for (let j = 0; j < 3; j++) all.push(photo(`a${i}`, `p${i}${j}`, j));
+      const {byId, omitted} = await gatherPhotos(["a0", "a1", "a2", "a3", "a4"], {...fakes(all), cap: 7, chunkSize: 5});
+      assert.equal([...byId.values()].flat().length, 7);
+      assert.deepEqual(byId.get("a2").map((p) => p.id), ["p20"]);
+      assert.equal(byId.has("a3"), false);
+      assert.equal(omitted, 8);
+    });
+    it("only counts, never reads, the chunks after the cap is reached", async () => {
+      const all = ["a0", "a1", "a2", "a3"].flatMap((id) => [photo(id, `${id}x`), photo(id, `${id}y`, 1)]);
+      const f = fakes(all);
+      const {byId, omitted} = await gatherPhotos(["a0", "a1", "a2", "a3"], {...f, cap: 2, chunkSize: 1});
+      assert.deepEqual([...byId.keys()], ["a0"]);
+      assert.equal(omitted, 6);
+      assert.deepEqual(f.calls.fetch, [["a0"]]);
+      assert.equal(f.calls.count.length, 3);
+    });
+    it("has a cap of 60 and no photos for no entries", async () => {
+      assert.equal(JOB_SHEET_MAX_PHOTOS, 60);
+      const f = fakes([]);
+      assert.deepEqual(await gatherPhotos([], f), {byId: new Map(), omitted: 0});
+      assert.equal(f.calls.fetch.length, 0);
+    });
+    it("adds the photos to the entries without changing the sheet", () => {
+      const s = sheet({type: "PROJECT"}, rowsWithIds(2));
+      const byId = new Map([["a1", [photo("a1", "p1")]]]);
+      const out = withPhotos(s, byId, 4);
+      const entries = out.sections.flatMap((x) => x.entries);
+      assert.deepEqual(entries.map((e) => e.photos), [[], ["data-p1"]]);
+      assert.equal(out.photosOmitted, 4);
+      assert.equal(s.sections[0].entries[0].photos, undefined);
+      assert.equal(withPhotos(s, new Map(), undefined).photosOmitted, 0);
     });
   });
 });

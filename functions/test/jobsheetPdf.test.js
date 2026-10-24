@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {buildJobSheet} = require("../jobsheet");
+const {buildJobSheet, withPhotos} = require("../jobsheet");
 const {renderJobSheetPdf} = require("../jobsheetPdf");
 
 const NZ = "Pacific/Auckland";
@@ -38,5 +38,38 @@ describe("jobsheetPdf.js", () => {
   it("copes with an unusually long unbroken title and a very long comment", async () => {
     const pdf = await render({type: "PROJECT"}, rows(3, {title: "W".repeat(300), comments: "word ".repeat(2000)}));
     assert.ok(pages(pdf) >= 2);
+  });
+  describe("photos", () => {
+    // A tiny but valid baseline JPEG (64 x 48), which the PDF library reads
+    const JPEG = "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/yQALCAAwAEABAREA/8wABgAQEAX/2gAIAQEAAD8A0s8g/9k=";
+    const sheetFor = (n, omitted = 0, data = JPEG) => {
+      const s = buildJobSheet({request: {type: "PROJECT"}, rows: rows(2).map((r, i) => ({...r, archiveId: `a${i}`})), project, timeZone: NZ, now});
+      const byId = new Map([["a0", Array.from({length: n}, (_, i) => ({id: `p${i}`, data}))]]);
+      return withPhotos(s, byId, omitted);
+    };
+    const imageCount = (pdf) => (pdf.toString("latin1").match(/\/Subtype \/Image/g) || []).length;
+
+    it("draws each photo as an image in the PDF", async () => {
+      const none = await renderJobSheetPdf(sheetFor(0));
+      const three = await renderJobSheetPdf(sheetFor(3));
+      assert.equal(imageCount(none), 0);
+      assert.ok(imageCount(three) >= 1);
+      assert.equal(pages(three), 1);
+    });
+    it("skips a picture the PDF library cannot read instead of failing", async () => {
+      const pdf = await renderJobSheetPdf(sheetFor(2, 0, Buffer.from("not a jpeg at all").toString("base64")));
+      assert.equal(imageCount(pdf), 0);
+      assert.equal(pages(pdf), 1);
+    });
+    it("moves photo rows to a new page rather than running off the bottom", async () => {
+      const s = sheetFor(3);
+      const many = {...s, sections: s.sections.map((sec) => ({...sec, entries: sec.entries.map((e) => ({...e, photos: Array.from({length: 12}, () => JPEG)}))}))};
+      assert.ok(pages(await renderJobSheetPdf(many)) >= 2);
+    });
+    it("notes the photos left out by the cap", async () => {
+      const pdf = await renderJobSheetPdf(sheetFor(1, 12));
+      assert.ok(pdf.length > 0);
+      assert.equal(pages(pdf), 1);
+    });
   });
 });
