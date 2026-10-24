@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, historyOf, historyForTitle};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, historyOf, historyForTitle};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -905,6 +905,67 @@ describe("public/index.html helpers", () => {
       assert.equal(pickStatsProject([entries[0], entries[2]], null), "c");
       assert.equal(pickStatsProject([], "a"), null);
       assert.equal(pickStatsProject(undefined, null), null);
+    });
+    it("parseTagList: trims and drops empty entries", () => {
+      const {parseTagList} = load();
+      assert.deepEqual(parseTagList(" Home ,, Paid ,"), ["Home", "Paid"]);
+      assert.deepEqual(parseTagList(""), []);
+      assert.deepEqual(parseTagList(undefined), []);
+    });
+    it("zonedDateTime: the date and time of day on a zone's wall clock", () => {
+      const {zonedDateTime} = load();
+      assert.deepEqual(zonedDateTime("2026-10-17T20:30:00.000Z", "Pacific/Auckland"), {date: "2026-10-18", time: "09:30"});
+      assert.deepEqual(zonedDateTime("2026-10-25T11:30:00Z", "Pacific/Auckland"), {date: "2026-10-26", time: "00:30"});
+      assert.deepEqual(zonedDateTime("2026-07-01T00:00:00Z", "Pacific/Auckland"), {date: "2026-07-01", time: "12:00"});
+      assert.deepEqual(zonedDateTime("nope", "Pacific/Auckland"), {date: "", time: ""});
+    });
+    describe("completed task edit form", () => {
+      const NZ = "Pacific/Auckland";
+      const row = {title: "Mow lawn", priority: "LOW", estimatedMinutes: 30, trackedSeconds: 125, tags: ["Garden", "Outdoor"], comments: "Front only", projectId: "p1", completedAt: "2026-10-17T20:30:00.000Z"};
+      const same = (load_) => load_.completedFormValues(row, NZ);
+
+      it("completedFormValues: starts the form from the row, with the time in minutes and the completion on the zone's clock", () => {
+        const {completedFormValues} = load();
+        assert.deepEqual(completedFormValues(row, NZ), {priority: "LOW", estimatedMinutes: 30, trackedMinutes: 2, tags: "Garden, Outdoor", comments: "Front only", projectId: "p1", date: "2026-10-18", time: "09:30"});
+      });
+      it("completedFormValues: falls back for a row missing fields", () => {
+        const {completedFormValues} = load();
+        const v = completedFormValues({completedAt: "2026-10-17T20:30:00.000Z"}, NZ);
+        assert.deepEqual([v.priority, v.estimatedMinutes, v.trackedMinutes, v.tags, v.comments, v.projectId], ["MEDIUM", 15, 0, "", "", ""]);
+      });
+      it("completedChanges: sends nothing for an untouched form, so a tracked time is not rounded just by saving", () => {
+        const api = load();
+        assert.deepEqual(api.completedChanges(row, same(api), NZ), {fields: {}});
+      });
+      it("completedChanges: sends only what changed", () => {
+        const api = load();
+        const form = {...same(api), priority: "HIGH", trackedMinutes: "90", tags: "Garden, Paid", projectId: "", date: "2026-10-19", time: "10:15", comments: "  Front and back  "};
+        assert.deepEqual(api.completedChanges(row, form, NZ), {fields: {priority: "HIGH", trackedSeconds: 5400, tags: ["Garden", "Paid"], comments: "Front and back", projectId: null, completedDate: "2026-10-19", completedTime: "10:15"}});
+      });
+      it("completedChanges: clears the comments with empty text and the time with 0 or an empty box", () => {
+        const api = load();
+        assert.deepEqual(api.completedChanges(row, {...same(api), comments: "   "}, NZ), {fields: {comments: null}});
+        assert.deepEqual(api.completedChanges(row, {...same(api), trackedMinutes: "0"}, NZ), {fields: {trackedSeconds: 0}});
+        assert.deepEqual(api.completedChanges(row, {...same(api), trackedMinutes: ""}, NZ), {fields: {trackedSeconds: 0}});
+      });
+      it("completedChanges: sends the project only when it changed, null for none", () => {
+        const api = load();
+        assert.deepEqual(api.completedChanges(row, {...same(api), projectId: "p2"}, NZ), {fields: {projectId: "p2"}});
+        assert.deepEqual(api.completedChanges({...row, projectId: undefined}, {...same(api), projectId: ""}, NZ), {fields: {}});
+      });
+      it("completedChanges: reports an unusable estimate, time, date or time of day", () => {
+        const api = load();
+        assert.match(api.completedChanges(row, {...same(api), estimatedMinutes: "0"}, NZ).error, /estimate/);
+        assert.match(api.completedChanges(row, {...same(api), estimatedMinutes: ""}, NZ).error, /estimate/);
+        assert.match(api.completedChanges(row, {...same(api), trackedMinutes: "-5"}, NZ).error, /time spent/);
+        assert.match(api.completedChanges(row, {...same(api), trackedMinutes: "abc"}, NZ).error, /time spent/);
+        assert.match(api.completedChanges(row, {...same(api), date: ""}, NZ).error, /date and time/);
+        assert.match(api.completedChanges(row, {...same(api), time: ""}, NZ).error, /date and time/);
+      });
+      it("completedChanges: needs both the date and the time of day even when only one changed", () => {
+        const api = load();
+        assert.deepEqual(api.completedChanges(row, {...same(api), time: "11:00"}, NZ), {fields: {completedDate: "2026-10-18", completedTime: "11:00"}});
+      });
     });
     it("jobStatsText: words the window count, total, average and estimate", () => {
       const {jobStatsText} = load();

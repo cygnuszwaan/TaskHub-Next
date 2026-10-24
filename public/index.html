@@ -107,6 +107,7 @@
     .hours-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 3px 0; border-bottom: 1px solid var(--divider); }
     .hours-row span:last-child { color: var(--text-muted); text-align: right; }
     .hours-weeks { max-height: 260px; overflow-y: auto; }
+    .completed-comments { font-size: 12px; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 4px; }
     .job-row { margin: 4px 0; font-size: 13px; }
     .job-title { font-weight: 600; overflow-wrap: anywhere; }
     .job-stats { color: var(--text-muted); font-size: 12px; }
@@ -502,6 +503,71 @@
     </div>
   </div>
 
+  <div id="completedEditModal" class="modal-overlay" onclick="closeCompletedEditOnOverlay(event)">
+    <div class="modal-card">
+      <h3>Edit Completed Task</h3>
+      <input type="hidden" id="ceId">
+
+      <div class="form-group">
+        <label>Task</label>
+        <div id="ceTitle" style="font-weight: 600; overflow-wrap: anywhere;"></div>
+      </div>
+
+      <div style="display: flex; gap: 10px;">
+        <div class="form-group" style="flex: 1;">
+          <label>Priority</label>
+          <select id="cePriority">
+            <option value="HIGH">HIGH</option>
+            <option value="MEDIUM">MEDIUM</option>
+            <option value="LOW">LOW</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex: 1;">
+          <label>Est. Minutes</label>
+          <input type="number" id="ceEstimate" min="1" step="1">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Time spent (minutes) <small style="font-weight:normal; color:var(--text-faint);">(0 means none was tracked, so the estimate counts)</small></label>
+        <input type="number" id="ceTracked" min="0" step="1">
+      </div>
+
+      <div class="form-group">
+        <label>Tags (comma separated)</label>
+        <input type="text" id="ceTags" placeholder="e.g. Outdoor, Physical">
+      </div>
+
+      <div class="form-group">
+        <label>Project</label>
+        <select id="ceProject" style="width: 100%;"></select>
+      </div>
+
+      <div class="form-group">
+        <label for="ceComments">Comments</label>
+        <textarea id="ceComments" rows="3" maxlength="2000"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Completed</label>
+        <div style="display: flex; gap: 6px;">
+          <input type="date" id="ceDate" style="flex: 1;">
+          <input type="time" id="ceTime" style="flex: 1;">
+        </div>
+      </div>
+
+      <p style="font-size: 12px; color: var(--text-faint); margin: 0;">Corrections change Stats and Project hours. They do not rewrite the history (count, average time) already carried by the task's next occurrence.</p>
+
+      <div class="modal-actions">
+        <button class="btn-danger" onclick="deleteCompletedEntry()">Delete</button>
+        <div style="display: flex; gap: 6px;">
+          <button class="btn-secondary" onclick="closeCompletedEditor()">Cancel</button>
+          <button onclick="saveCompletedEdit()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="snoozeModal" class="modal-overlay" onclick="closeSnoozeOnOverlay(event)">
     <div class="modal-card">
       <h3>Snooze</h3>
@@ -544,6 +610,8 @@
     const RESCHEDULE_URL = endpoint("rescheduleTask");
     const TIMER_URL = endpoint("toggleTimer");
     const COMPLETED_URL = endpoint("getCompletedTasks");
+    const UPDATE_COMPLETED_URL = endpoint("updateCompletedTask");
+    const DELETE_COMPLETED_URL = endpoint("deleteCompletedTask");
     const GET_SETTINGS_URL = endpoint("getSettings");
     const UPDATE_SETTINGS_URL = endpoint("updateSettings");
     const GET_PROJECTS_URL = endpoint("getProjects");
@@ -1183,6 +1251,59 @@
         if (e.weeks && e.weeks[0] && !(best.weeks && best.weeks[0] && best.weeks[0].weekStart >= e.weeks[0].weekStart)) best = e;
       }
       return best.projectId;
+    }
+    // A comma separated tag field as a list: trimmed, empty entries dropped.
+    function parseTagList(text) {
+      return String(text || "").split(",").map(s => s.trim()).filter(Boolean);
+    }
+    // The date and time of day of an instant on the wall clock of a zone: {date: "2026-10-18", time: "09:30"}, both ""
+    // for an instant that is not valid.
+    function zonedDateTime(iso, timeZone) {
+      const instant = new Date(iso);
+      if (isNaN(instant)) return { date: "", time: "" };
+      const parts = {};
+      for (const p of new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(instant)) parts[p.type] = p.value;
+      return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+    }
+    // What the edit form for a completed task starts with (see completedChanges). `trackedMinutes` is 0 when no time
+    // was tracked.
+    function completedFormValues(row, timeZone) {
+      const when = zonedDateTime(row.completedAt, timeZone);
+      return {
+        priority: ["HIGH", "MEDIUM", "LOW"].includes(row.priority) ? row.priority : "MEDIUM",
+        estimatedMinutes: row.estimatedMinutes > 0 ? Math.round(row.estimatedMinutes) : 15,
+        trackedMinutes: Number.isFinite(row.trackedSeconds) && row.trackedSeconds > 0 ? Math.round(row.trackedSeconds / 60) : 0,
+        tags: (Array.isArray(row.tags) ? row.tags : []).join(", "),
+        comments: typeof row.comments === "string" ? row.comments : "",
+        projectId: row.projectId || "",
+        date: when.date,
+        time: when.time
+      };
+    }
+    // The corrections to send for a completed task: {fields} holding only what differs from the row (so untouched values
+    // stay exactly as stored, a tracked time of 125 seconds is not rounded to 2 minutes just by saving), or {error} with
+    // text for an unusable form. `form` has the keys of completedFormValues.
+    function completedChanges(row, form, timeZone) {
+      const before = completedFormValues(row, timeZone);
+      const fields = {};
+      if (form.priority !== before.priority) fields.priority = form.priority;
+      const estimate = Number(form.estimatedMinutes);
+      if (!Number.isFinite(estimate) || estimate < 1) return { error: "Enter an estimate of at least 1 minute." };
+      if (Math.round(estimate) !== before.estimatedMinutes) fields.estimatedMinutes = Math.round(estimate);
+      const tracked = String(form.trackedMinutes).trim() === "" ? 0 : Number(form.trackedMinutes);
+      if (!Number.isFinite(tracked) || tracked < 0) return { error: "Enter the time spent in minutes (0 or more)." };
+      if (Math.round(tracked) !== before.trackedMinutes) fields.trackedSeconds = Math.round(tracked) * 60;
+      const tags = parseTagList(form.tags);
+      if (tags.join("\n") !== parseTagList(before.tags).join("\n")) fields.tags = tags;
+      const comments = String(form.comments || "").trim();
+      if (comments !== before.comments.trim()) fields.comments = comments === "" ? null : comments;
+      if ((form.projectId || "") !== before.projectId) fields.projectId = form.projectId || null;
+      if (form.date !== before.date || form.time !== before.time) {
+        if (!DATE_ONLY.test(form.date || "") || !/^\d{2}:\d{2}$/.test(form.time || "")) return { error: "Enter the date and time of completion." };
+        fields.completedDate = form.date;
+        fields.completedTime = form.time;
+      }
+      return { fields };
     }
     // Dark mode is a per-device choice kept in localStorage under THEME_KEY: "light" or "dark"; anything else, or nothing
     // saved, means "auto" (follow the device's own light/dark setting).
@@ -2151,6 +2272,82 @@
       document.getElementById("projectHoursBody").innerHTML = projectHoursBody(entry);
     }
 
+    // Correcting or deleting a completed task: the entries listed by the last fetchCompleted, by archive id
+    let completedRows = new Map();
+    function openCompletedEditor(id) {
+      const row = completedRows.get(id);
+      if (!row) return;
+      const values = completedFormValues(row, appTimeZone);
+      document.getElementById("ceId").value = id;
+      document.getElementById("ceTitle").textContent = row.title || "";
+      document.getElementById("cePriority").value = values.priority;
+      document.getElementById("ceEstimate").value = values.estimatedMinutes;
+      document.getElementById("ceTracked").value = values.trackedMinutes;
+      document.getElementById("ceTags").value = values.tags;
+      document.getElementById("ceComments").value = values.comments;
+      const projectSelect = document.getElementById("ceProject");
+      projectSelect.replaceChildren(new Option("No project", ""), ...allProjects.map(p => new Option(p.name, p.id)));
+      // A project that no longer exists stays selectable, so saving leaves the entry's project as it was
+      if (row.projectId && !allProjects.some(p => p.id === row.projectId)) projectSelect.add(new Option("Deleted project", row.projectId));
+      projectSelect.value = values.projectId;
+      document.getElementById("ceDate").value = values.date;
+      document.getElementById("ceTime").value = values.time;
+      document.getElementById("completedEditModal").style.display = "flex";
+      document.body.classList.add("modal-open");
+    }
+    function closeCompletedEditor() {
+      document.getElementById("completedEditModal").style.display = "none";
+      document.body.classList.remove("modal-open");
+    }
+    function closeCompletedEditOnOverlay(e) {
+      if (e.target.id === "completedEditModal") closeCompletedEditor();
+    }
+    async function saveCompletedEdit() {
+      const id = document.getElementById("ceId").value;
+      const row = completedRows.get(id);
+      if (!row) return closeCompletedEditor();
+      const result = completedChanges(row, {
+        priority: document.getElementById("cePriority").value,
+        estimatedMinutes: document.getElementById("ceEstimate").value,
+        trackedMinutes: document.getElementById("ceTracked").value,
+        tags: document.getElementById("ceTags").value,
+        comments: document.getElementById("ceComments").value,
+        projectId: document.getElementById("ceProject").value,
+        date: document.getElementById("ceDate").value,
+        time: document.getElementById("ceTime").value
+      }, appTimeZone);
+      if (result.error) { alert(result.error); return; }
+      if (Object.keys(result.fields).length === 0) return closeCompletedEditor();
+      try {
+        await apiFetch(UPDATE_COMPLETED_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, updatedFields: result.fields })
+        });
+        closeCompletedEditor();
+        await fetchCompleted();
+      } catch (err) {
+        alert("Failed to save: " + err.message);
+      }
+    }
+    async function deleteCompletedEntry() {
+      const id = document.getElementById("ceId").value;
+      const row = completedRows.get(id);
+      if (!row) return closeCompletedEditor();
+      if (!confirm(`Delete "${row.title}" from the completed tasks?\n\nIt is removed from Stats and Project hours for good and cannot be undone.`)) return;
+      try {
+        await apiFetch(DELETE_COMPLETED_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id })
+        });
+        closeCompletedEditor();
+        await fetchCompleted();
+      } catch (err) {
+        alert("Failed to delete: " + err.message);
+      }
+    }
+
     async function fetchCompleted() {
       const list = document.getElementById("completedList");
       list.textContent = "Loading...";
@@ -2162,6 +2359,7 @@
           list.innerHTML = "<p style='color:var(--text-faint); margin:0;'>No completed tasks yet.</p>";
           return;
         }
+        completedRows = new Map(tasks.filter(t => t.archiveId).map(t => [t.archiveId, t]));
         list.innerHTML = renderSummary(data.summary) + renderProjectHours(data.projectHours, data.projectHoursTruncated) + tasks.map(t => {
           const done = t.completedAt ? new Date(t.completedAt) : null;
           const when = done && !isNaN(done) ? formatInstant(done) : "";
@@ -2175,7 +2373,9 @@
                   ${(t.tags || []).map(tag => `<span class="chip">${esc(tag)}</span>`).join('')}
                   ${when ? `<span class="chip">✅ ${esc(when)}</span>` : ''}
                 </div>
+                ${t.comments ? `<div class="completed-comments">${esc(t.comments)}</div>` : ''}
               </div>
+              ${t.archiveId ? `<button type="button" class="btn-secondary" title="Correct or delete this entry" onclick="openCompletedEditor('${esc(t.archiveId)}')">Edit</button>` : ''}
             </div>`;
         }).join("");
       } catch (err) {

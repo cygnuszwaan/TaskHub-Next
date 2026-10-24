@@ -21,6 +21,7 @@ const {buildTaskPrompt, buildTagPrompt} = require("./prompts");
 const {MAX_TEMPLATES, buildTemplates} = require("./templates");
 const {heldTaskIds} = require("./materials");
 const {SUMMARY_MAX_ROWS, PROJECT_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted, summarizeProjectHours} = require("./completed");
+const {isArchiveId, applyCompletedEdit} = require("./completedEdit");
 const {EXPORT_MAX_ROWS, buildExport} = require("./export");
 const {makeOwnerOnly} = require("./auth");
 const {dayWindowMinutes} = require("./settings");
@@ -569,7 +570,7 @@ exports.getCompletedTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (
     const projectHours = summarizeProjectHours(projectSnaps.flatMap((snap) => snap.docs.map((d) => d.data())), projects, timeZone);
     res.status(200).send({
       success: true,
-      tasks: serializeCompleted(listSnap.docs.map((d) => d.data())),
+      tasks: serializeCompleted(listSnap.docs.map((d) => ({...d.data(), archiveId: d.id}))),
       summary,
       projectHours,
       projectHoursTruncated: projectSnaps.some((snap) => snap.size >= PROJECT_MAX_ROWS),
@@ -588,6 +589,48 @@ exports.getCompletedTemplates = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(asy
     const snap = await db.collection("completed_tasks").orderBy("completedAt", "desc").limit(SUMMARY_MAX_ROWS).get();
     const templates = buildTemplates(serializeCompleted(snap.docs.map((d) => d.data())), MAX_TEMPLATES);
     res.status(200).send({success: true, templates});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 6c. Endpoint: Correct or remove a completed task
+// updateCompletedTask: body {id, updatedFields}, `id` the `archiveId` getCompletedTasks gives each entry. The editable fields
+// are priority, estimatedMinutes, trackedSeconds, tags, comments, projectId and the completion time (completedDate and completedTime
+// together, in the owner's zone); see applyCompletedEdit. Responds {success, task} with the entry as it now is; 400 with the
+// reason for an unusable value, 404 for an unknown id. deleteCompletedTask: body {id}, removes the entry for good.
+// Both change the archive row only, which Stats and Project hours are computed from: the job history already carried by
+// the live next occurrence of a repeating task, and by later archive rows, is not rewritten.
+exports.updateCompletedTask = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const {id, updatedFields} = req.body || {};
+    if (!isArchiveId(id)) return res.status(400).send({error: "Missing id"});
+    const ref = db.collection("completed_tasks").doc(id);
+    const [snap, {timeZone}, projects] = await Promise.all([ref.get(), readSettings(), readProjects()]);
+    if (!snap.exists) return res.status(404).send({error: "Completed task not found"});
+    const edit = applyCompletedEdit(snap.data(), updatedFields, {projectIds: projects.map((p) => p.id), timeZone, now: new Date()});
+    if (edit.error) return res.status(400).send({error: edit.error});
+    const changes = {...edit.set};
+    if (changes.completedAt) changes.completedAt = admin.firestore.Timestamp.fromDate(changes.completedAt);
+    for (const field of edit.remove) changes[field] = admin.firestore.FieldValue.delete();
+    await ref.update(changes);
+    const fresh = await ref.get();
+    res.status(200).send({success: true, task: serializeCompleted([{...fresh.data(), archiveId: id}])[0]});
+  } catch (err) {
+    console.error(err);
+    res.status(err.code === 5 ? 404 : 500).send({error: err.code === 5 ? "Completed task not found" : err.message});
+  }
+}));
+
+exports.deleteCompletedTask = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const {id} = req.body || {};
+    if (!isArchiveId(id)) return res.status(400).send({error: "Missing id"});
+    const ref = db.collection("completed_tasks").doc(id);
+    if (!(await ref.get()).exists) return res.status(404).send({error: "Completed task not found"});
+    await ref.delete();
+    res.status(200).send({success: true});
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});
