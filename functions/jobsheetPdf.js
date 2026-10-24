@@ -52,8 +52,11 @@ function draw(doc, sheet) {
   // Header
   doc.font("Bold").fontSize(20).fillColor(INK).text("Job sheet", left, doc.y, {width});
   if (sheet.contractorInfo) {
-    doc.font("Sans").fontSize(9.5).fillColor(INK).text(sheet.contractorInfo, left, doc.y + 4, {width});
-    doc.y += 4;
+    // One line of the contractor text's own height above and below, so the block is not cramped.
+    doc.font("Sans").fontSize(9.5);
+    const line = doc.currentLineHeight(true);
+    doc.fillColor(INK).text(sheet.contractorInfo, left, doc.y + 4 + line, {width});
+    doc.y += 4 + line;
   }
   doc.moveDown(0.3);
   doc.font("Bold").fontSize(14).fillColor(INK).text(sheet.heading || "", left, doc.y, {width});
