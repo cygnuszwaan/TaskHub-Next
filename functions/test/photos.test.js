@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {MAX_PHOTO_BYTES, MAX_PHOTOS, normalizePhoto, canAddPhoto, serializePhoto, sortPhotos} = require("../photos");
+const {MAX_PHOTO_BYTES, MAX_PHOTOS, normalizePhoto, photoOwner, canAddPhoto, serializePhoto, sortPhotos} = require("../photos");
 
 const jpeg = (size = 100) => {
   const buffer = Buffer.alloc(size, 7);
@@ -14,6 +14,20 @@ const jpeg = (size = 100) => {
 const b64 = (size) => jpeg(size).toString("base64");
 
 describe("photos.js", () => {
+  describe("photoOwner", () => {
+    it("takes an archiveId or a taskId", () => {
+      assert.deepEqual(photoOwner({archiveId: "abc"}), {field: "archiveId", id: "abc"});
+      assert.deepEqual(photoOwner({taskId: "t-1"}), {field: "taskId", id: "t-1"});
+    });
+    it("refuses both, neither, or an unusable id", () => {
+      assert.ok(photoOwner({archiveId: "a", taskId: "t"}).error);
+      for (const body of [undefined, null, {}, {image: "x"}]) assert.ok(photoOwner(body).error, JSON.stringify(body));
+      for (const bad of ["", 5, {}, "a/b", "x".repeat(201)]) {
+        assert.ok(photoOwner({archiveId: bad}).error, String(bad));
+        assert.ok(photoOwner({taskId: bad}).error, String(bad));
+      }
+    });
+  });
   describe("normalizePhoto", () => {
     it("accepts a JPEG and reports its decoded size", () => {
       const result = normalizePhoto(b64(100));

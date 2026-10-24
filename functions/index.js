@@ -23,7 +23,7 @@ const {MAX_TEMPLATES, buildTemplates} = require("./templates");
 const {heldTaskIds} = require("./materials");
 const {SUMMARY_MAX_ROWS, PROJECT_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted, summarizeProjectHours} = require("./completed");
 const {isArchiveId, applyCompletedEdit} = require("./completedEdit");
-const {normalizePhoto, canAddPhoto, serializePhoto, sortPhotos} = require("./photos");
+const {normalizePhoto, photoOwner, canAddPhoto, serializePhoto, sortPhotos} = require("./photos");
 const {EXPORT_MAX_ROWS, buildExport} = require("./export");
 const {parseJobSheetRequest, buildJobSheet, sheetArchiveIds, gatherPhotos, withPhotos} = require("./jobsheet");
 const {renderJobSheetPdf} = require("./jobsheetPdf");
@@ -41,7 +41,7 @@ const db = admin.firestore();
 const {updateTaskList, getTasks: readTaskList} = makeTaskStore(db);
 // The last task deleted or completed, for undoRemove: one document, replaced by each removal
 const LAST_REMOVED_REF = db.doc("settings/lastRemoved");
-// Photos of completed tasks, one document each in `completed_photos/{auto-id}` {archiveId, data, bytes, addedAt}; see photos.js.
+// Photos of tasks, one document each in `completed_photos/{auto-id}` {archiveId | taskId, data, bytes, addedAt}; see photos.js.
 const PHOTOS = db.collection("completed_photos");
 // Projects that tasks can belong to, in `projects/{id}`; see projects.js and store.js.
 const {getProjects: readProjects, createProject, renameProject, deleteProject} = makeProjectStore(db);
@@ -579,6 +579,8 @@ exports.completeTask = onRequest({
 
     // The transaction function may run more than once, so the owner's local date is worked out before it
     const today = localDate((await readSettings()).timeZone);
+    // The task's photos move to its archive row in the same commit (read here: the transaction callback is synchronous)
+    const photoRefs = (await PHOTOS.where("taskId", "==", taskId).get()).docs.map((d) => d.ref);
     // Archive, removal and the next occurrence of a recurring task commit together; calendar cleanup follows once they have
     const result = await updateTaskList((tasks, tx) => {
       const done = completeInList(tasks, taskId, today, randomUUID, new Date().toISOString());
@@ -589,11 +591,21 @@ exports.completeTask = onRequest({
         ...done.history,
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+      for (const ref of photoRefs) tx.update(ref, {archiveId: archiveRef.id, taskId: admin.firestore.FieldValue.delete()});
       // Kept for undoRemove, in the same commit
       tx.set(LAST_REMOVED_REF, removalRecord("COMPLETE", done.completedTask, archiveRef.id, done.spawned, Date.now()));
-      return {tasks: done.tasks, current: done.tasks, completedTask: done.completedTask, spawned: done.spawned};
+      return {tasks: done.tasks, current: done.tasks, completedTask: done.completedTask, spawned: done.spawned, archiveId: archiveRef.id};
     });
     await removeTaskCalendarEvent(result.completedTask);
+    // A photo added while the task was being completed is moved too
+    if (result.completedTask && result.archiveId) {
+      try {
+        const left = await PHOTOS.where("taskId", "==", taskId).get();
+        await Promise.all(left.docs.map((d) => d.ref.update({archiveId: result.archiveId, taskId: admin.firestore.FieldValue.delete()})));
+      } catch (err) {
+        console.warn("Could not sweep photos after completion", err);
+      }
+    }
 
     res.status(200).send({success: true, tasks: result.current, spawned: result.spawned || null});
   } catch (err) {
@@ -709,24 +721,32 @@ exports.deleteCompletedTask = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async
   }
 }));
 
-// 6b. Endpoints: photos on completed tasks (see photos.js)
-// addCompletedPhoto: body {archiveId, image}, `image` a base64 JPEG of at most about 300 KB; at most 3 photos per completed
-// task. Responds {success, photo: {id, bytes, addedAt}}; 400 with the reason for an unusable image or a full task, 404 for an
-// unknown archive row. getCompletedPhotos: body {archiveId}; responds {photos: [{id, data, bytes, addedAt}]}, oldest first,
-// `data` the base64 JPEG. deleteCompletedPhoto: body {id}, the photo's id; deletes it for good, 404 for an unknown id.
+// 6b. Endpoints: photos on tasks (see photos.js)
+// addCompletedPhoto: body {archiveId | taskId, image}, `image` a base64 JPEG of at most about 300 KB, `archiveId` a completed
+// task and `taskId` one still in the queue; at most 3 photos per task. Responds {success, photo: {id, bytes, addedAt}}; 400
+// with the reason for an unusable image or a full task, 404 for an unknown archive row or task. getCompletedPhotos: body
+// {archiveId | taskId}; responds {photos: [{id, data, bytes, addedAt}]}, oldest first, `data` the base64 JPEG.
+// deleteCompletedPhoto: body {id}, the photo's id; deletes it for good, 404 for an unknown id.
+// A photo of a queued task moves to the archive row when the task is completed (completeTask), is deleted with the task
+// (updateTaskDirect DELETE), and moves back if the completion is undone (undoRemove).
 exports.addCompletedPhoto = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
-    const {archiveId, image} = req.body || {};
-    if (!isArchiveId(archiveId)) return res.status(400).send({error: "Missing archiveId"});
+    const {image} = req.body || {};
+    const owner = photoOwner(req.body);
+    if (owner.error) return res.status(400).send({error: owner.error});
     const photo = normalizePhoto(image);
     if (photo.error) return res.status(400).send({error: photo.error});
-    const archiveRef = db.collection("completed_tasks").doc(archiveId);
+    // A queued task is looked up in the task list just before the transaction; one completed in between is re-keyed by completeTask's sweep
+    if (owner.field === "taskId" && !(await readTaskList()).some((t) => t.id === owner.id)) {
+      return res.status(404).send({error: "Task not found"});
+    }
+    const archiveRef = owner.field === "archiveId" ? db.collection("completed_tasks").doc(owner.id) : null;
     const result = await db.runTransaction(async (tx) => {
-      const [row, existing] = await Promise.all([tx.get(archiveRef), tx.get(PHOTOS.where("archiveId", "==", archiveId))]);
-      if (!row.exists) return {notFound: true};
+      const [row, existing] = await Promise.all([archiveRef ? tx.get(archiveRef) : null, tx.get(PHOTOS.where(owner.field, "==", owner.id))]);
+      if (row && !row.exists) return {notFound: true};
       if (!canAddPhoto(existing.size)) return {full: true};
       const ref = PHOTOS.doc();
-      const doc = {archiveId, data: photo.data, bytes: photo.bytes, addedAt: admin.firestore.Timestamp.now()};
+      const doc = {[owner.field]: owner.id, data: photo.data, bytes: photo.bytes, addedAt: admin.firestore.Timestamp.now()};
       tx.set(ref, doc);
       return {id: ref.id, doc};
     });
@@ -742,9 +762,9 @@ exports.addCompletedPhoto = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (
 
 exports.getCompletedPhotos = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
-    const {archiveId} = req.body || {};
-    if (!isArchiveId(archiveId)) return res.status(400).send({error: "Missing archiveId"});
-    const snap = await PHOTOS.where("archiveId", "==", archiveId).get();
+    const owner = photoOwner(req.body);
+    if (owner.error) return res.status(400).send({error: owner.error});
+    const snap = await PHOTOS.where(owner.field, "==", owner.id).get();
     res.status(200).send({photos: sortPhotos(snap.docs.map((d) => serializePhoto(d.id, d.data())))});
   } catch (err) {
     console.error(err);
@@ -774,6 +794,8 @@ exports.updateTaskDirect = onRequest({
 }, ownerOnly(async (req, res) => {
   try {
     const {taskId, action, updatedFields} = req.body;
+    // A deleted task's photos go with it (read here: the transaction callback is synchronous)
+    const photoRefs = action === "DELETE" && taskId ? (await PHOTOS.where("taskId", "==", taskId).get()).docs.map((d) => d.ref) : [];
 
     // The project list is read in the same transaction, so a task can only join a project that exists at commit time
     const result = await updateTaskList((tasks, tx, {projects}) => {
@@ -782,6 +804,7 @@ exports.updateTaskDirect = onRequest({
         if (!removedTask) return {current: tasks};
         const remaining = tasks.filter((t) => t.id !== taskId);
         tx.set(LAST_REMOVED_REF, removalRecord("DELETE", pauseTimer(removedTask, Date.now()), null, null, Date.now())); // kept for undoRemove
+        for (const ref of photoRefs) tx.delete(ref);
         return {tasks: remaining, current: remaining, removedTask};
       }
       if (action === "UPDATE" && tasks.some((t) => t.id === taskId)) {
@@ -832,8 +855,9 @@ exports.undoRemove = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, re
     const snap = await LAST_REMOVED_REF.get();
     const record = snap.exists ? snap.data() : null;
     if (!isUndoable(record, Date.now())) return res.status(404).send({error: "Nothing to undo"});
-    // The archive row's photos go with it. They are read before the transaction (its callback is synchronous) and any added
-    // in between are swept after the commit.
+    // The archive row's photos go back to the task. They are read before the transaction (its callback is synchronous) and
+    // any added in between are moved after the commit.
+    const backToTask = (ref) => ref.update({taskId: record.task.id, archiveId: admin.firestore.FieldValue.delete()});
     const photoRefs = record.archiveId ? (await PHOTOS.where("archiveId", "==", record.archiveId).get()).docs.map((d) => d.ref) : [];
     const result = await updateTaskList((tasks, tx) => {
       const undone = undoInList(tasks, record);
@@ -841,16 +865,16 @@ exports.undoRemove = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, re
       if (!undone) return {current: tasks};
       if (record.archiveId) {
         tx.delete(db.collection("completed_tasks").doc(record.archiveId));
-        for (const ref of photoRefs) tx.delete(ref);
+        for (const ref of photoRefs) tx.update(ref, {taskId: record.task.id, archiveId: admin.firestore.FieldValue.delete()});
       }
       return {tasks: undone.tasks, current: undone.tasks, restored: true};
     });
     if (result.restored && record.archiveId) {
       try {
         const left = await PHOTOS.where("archiveId", "==", record.archiveId).get();
-        await Promise.all(left.docs.map((d) => d.ref.delete()));
+        await Promise.all(left.docs.map((d) => backToTask(d.ref)));
       } catch (err) {
-        console.warn("Could not sweep photos after undo", err);
+        console.warn("Could not move photos back after undo", err);
       }
     }
     res.status(200).send({success: true, tasks: result.current, kind: record.kind, restored: Boolean(result.restored)});

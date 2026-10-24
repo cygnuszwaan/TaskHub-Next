@@ -1,8 +1,10 @@
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
 
-// Photos on completed tasks: one document per photo in `completed_photos/{auto-id}`, {archiveId, data, bytes, addedAt},
-// kept out of the archive row so the stats scans stay light. This module is pure validation.
+// Photos on tasks: one document per photo in `completed_photos/{auto-id}`, {archiveId, data, bytes, addedAt} for a
+// completed task, {taskId, data, bytes, addedAt} for a task still in the queue (completing the task re-keys its photos
+// from taskId to the archive row's id). Kept out of the task list and the archive row so those stay light. This module is
+// pure validation.
 
 // Most decoded bytes one photo may hold (the page shrinks pictures well below this), most photos per completed task.
 const MAX_PHOTO_BYTES = 300 * 1024;
@@ -31,7 +33,20 @@ function normalizePhoto(image) {
   return {data: text, bytes: buffer.length};
 }
 
-// Whether a completed task holding `count` photos may take another. Pure.
+// Which task a request means: {archiveId} for a completed task or {taskId} for one in the queue, exactly one of them.
+// Pure. Returns {field, id}, `field` being "archiveId" or "taskId", or {error}.
+function photoOwner(body) {
+  const {archiveId, taskId} = body || {};
+  const valid = (id) => typeof id === "string" && id !== "" && id.length <= 200 && !id.includes("/");
+  const hasArchive = archiveId !== undefined && archiveId !== null;
+  const hasTask = taskId !== undefined && taskId !== null;
+  if (hasArchive && hasTask) return {error: "Give archiveId or taskId, not both"};
+  if (hasArchive) return valid(archiveId) ? {field: "archiveId", id: archiveId} : {error: "Missing archiveId"};
+  if (hasTask) return valid(taskId) ? {field: "taskId", id: taskId} : {error: "Missing taskId"};
+  return {error: "Missing archiveId or taskId"};
+}
+
+// Whether a task holding `count` photos may take another. Pure.
 function canAddPhoto(count) {
   return Number.isInteger(count) && count >= 0 && count < MAX_PHOTOS;
 }
@@ -48,4 +63,4 @@ function sortPhotos(photos) {
   return [...photos].sort((a, b) => String(a.addedAt || "").localeCompare(String(b.addedAt || "")) || String(a.id).localeCompare(String(b.id)));
 }
 
-module.exports = {MAX_PHOTO_BYTES, MAX_PHOTOS, normalizePhoto, canAddPhoto, serializePhoto, sortPhotos};
+module.exports = {MAX_PHOTO_BYTES, MAX_PHOTOS, normalizePhoto, photoOwner, canAddPhoto, serializePhoto, sortPhotos};

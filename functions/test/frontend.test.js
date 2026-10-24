@@ -1519,6 +1519,14 @@ describe("public/index.html helpers", () => {
     });
   });
   describe("photos", () => {
+    it("has a photo panel in the edit modal of a queued task, keyed by task id", () => {
+      assert.ok(html.includes('id="editPhotos"'));
+      assert.match(html, /showPhotos\(task\.id, "taskId", "editPhotos"\)/);
+      assert.match(html, /showPhotos\(id, "archiveId", "cePhotos"\)/);
+      assert.match(html, /\[panel\.field\]: key, image/);
+      const close = html.slice(html.indexOf("function closeEditModal"), html.indexOf("function closeModalOnOverlay"));
+      assert.match(close, /photoPanels\.delete\(/);
+    });
     it("keeps the server's limits", () => {
       const {MAX_PHOTOS, PHOTO_MAX_BYTES, PHOTO_MAX_SIDE, PHOTO_QUALITY} = load();
       assert.equal(MAX_PHOTOS, 3);
