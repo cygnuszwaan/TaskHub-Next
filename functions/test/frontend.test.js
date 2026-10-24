@@ -721,6 +721,17 @@ describe("public/index.html helpers", () => {
       assert.equal(find("x", {id: "b", title: 5}), false);
     });
   });
+  describe("Settings: delete duplicate tasks", () => {
+    it("asks the server first with a dry run, then deletes only after a confirmation", () => {
+      const fn = html.slice(html.indexOf("async function removeDuplicateTasks"), html.indexOf("async function downloadExport"));
+      assert.match(fn, /post\(\{ dryRun: true \}\)/);
+      assert.ok(fn.indexOf("dryRun: true") < fn.indexOf("confirm("));
+      assert.ok(fn.indexOf("confirm(") < fn.indexOf("post({})"));
+      assert.ok(html.includes("id=\"dedupBtn\""));
+      assert.match(html, /endpoint\("removeDuplicateTasks"\)/);
+    });
+  });
+
   describe("manualTaskBody with a new project", () => {
     const form = {title: "Tile floor", priority: "MEDIUM", estimatedMinutes: "60", tags: "", dueDate: "", newProjectName: "  Bathroom reno ", projectOrder: "3"};
     it("sends the name and the order, never a project id", () => {

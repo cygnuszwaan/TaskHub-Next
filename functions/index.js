@@ -15,6 +15,7 @@ const {lunchWindows, padWindows} = require("./breaks");
 const {setTimerInList, pauseTimer} = require("./timer");
 const {needsTagFill, cleanTags, newTaskIds, applyDirectUpdate, completeInList, removalRecord, isUndoable, undoInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {withNewProject, normalizeProjectName} = require("./projects");
+const {findDuplicateTasks} = require("./duplicates");
 const {PROJECTS_COLLECTION, makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
 const {UNAVAILABLE, weatherUrl, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
@@ -570,6 +571,8 @@ exports.addOrUpdateTask = onRequest({
       return {...merged, tasks: changed ? list : null, current: changed ? list : tasks, project: changed && created ? created.project : null, projects: changed && created ? created.projects : null};
     }, {withProjects: true});
     if (result.error) return res.status(400).send({error: result.error});
+    // A request that adds this many tasks at once is unusual: leave a trace of how it came about
+    if (result.added > 3) console.warn(`addOrUpdateTask added ${result.added} tasks (${body.manual !== undefined ? "manual" : body.apply !== undefined ? "apply" : "free text"}, ${changes.length} change(s), ${result.updated} updated, ${result.skipped} skipped)`);
 
     res.status(200).send({
       success: true,
@@ -834,6 +837,46 @@ exports.updateTaskDirect = onRequest({
     await removeTaskCalendarEvent(result.removedTask);
 
     res.status(200).send({success: true, tasks: result.current});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 6c. Endpoint: remove duplicate tasks from the queue (see duplicates.js)
+// Body {dryRun?: true}. With `dryRun` nothing is changed and the response is {success, duplicates: [{id, title, dueDate}], tasks};
+// without it the most recently added copies are deleted (with their photos and calendar events; there is no undo) and the
+// response is {success, removed: n, tasks}.
+exports.removeDuplicateTasks = onRequest({
+  secrets: [{name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"}],
+  cors: ALLOWED_ORIGINS,
+}, ownerOnly(async (req, res) => {
+  try {
+    const dryRun = (req.body || {}).dryRun === true;
+    const result = await updateTaskList((tasks) => {
+      const duplicates = findDuplicateTasks(tasks);
+      if (dryRun || duplicates.length === 0) return {current: tasks, duplicates};
+      const gone = new Set(duplicates.map((t) => t.id));
+      const remaining = tasks.filter((t) => !gone.has(t.id));
+      return {tasks: remaining, current: remaining, duplicates};
+    });
+    if (!dryRun) {
+      for (const task of result.duplicates) await removeTaskCalendarEvent(task);
+      try {
+        for (const task of result.duplicates) {
+          const photos = await PHOTOS.where("taskId", "==", task.id).get();
+          await Promise.all(photos.docs.map((d) => d.ref.delete()));
+        }
+      } catch (err) {
+        console.warn("Could not delete the photos of removed duplicates", err);
+      }
+      console.log(`Removed ${result.duplicates.length} duplicate task(s)`);
+    }
+    res.status(200).send({
+      success: true,
+      ...(dryRun ? {duplicates: result.duplicates.map((t) => ({id: t.id, title: t.title, dueDate: t.dueDate || ""}))} : {removed: result.duplicates.length}),
+      tasks: result.current,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});

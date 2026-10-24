@@ -438,6 +438,12 @@
     <p class="settings-note" style="margin:6px 0 0;">One JSON file with the task list, projects, settings and the completed archive.</p>
     <div id="exportStatus" class="settings-status"></div>
   </div>
+  <div class="card">
+    <h3 style="margin-top:0; margin-bottom:12px;">Tidy up</h3>
+    <button type="button" id="dedupBtn" class="btn-secondary" title="Find tasks in the queue that are copies of an earlier one and delete the copies">🧹 Delete duplicate tasks</button>
+    <p class="settings-note" style="margin:6px 0 0;">Finds queued tasks with the same title, due date, project and repeat as an earlier one and deletes the most recently added copies, after asking. A copy you have started the timer on is never deleted. This cannot be undone.</p>
+    <div id="dedupStatus" class="settings-status"></div>
+  </div>
   </main>
 
   <div id="undoToast" class="toast" role="status" hidden>
@@ -702,6 +708,7 @@
     const GET_PROJECTS_URL = endpoint("getProjects");
     const UPDATE_PROJECT_URL = endpoint("updateProject");
     const EXPORT_URL = endpoint("exportData");
+    const REMOVE_DUPLICATES_URL = endpoint("removeDuplicateTasks");
     const JOB_SHEET_URL = endpoint("getJobSheet");
     const GET_PHOTOS_URL = endpoint("getCompletedPhotos");
     const ADD_PHOTO_URL = endpoint("addCompletedPhoto");
@@ -3263,6 +3270,37 @@
 
     // Download everything as one JSON file. The data comes through apiFetch (the endpoint needs the sign-in token, so a
     // plain link will not do) and is saved from a Blob.
+    // Settings > Tidy up: ask the server which queued tasks are copies (dry run), show them, delete them once confirmed
+    async function removeDuplicateTasks() {
+      const btn = document.getElementById("dedupBtn");
+      const status = document.getElementById("dedupStatus");
+      const post = body => apiFetch(REMOVE_DUPLICATES_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(res => res.json());
+      btn.disabled = true;
+      status.textContent = "Looking...";
+      try {
+        const found = await post({ dryRun: true });
+        const duplicates = found.duplicates || [];
+        if (duplicates.length === 0) {
+          status.textContent = "No duplicate tasks found.";
+          return;
+        }
+        const shown = duplicates.slice(0, 10).map(d => `• ${d.title}`).join("\n") + (duplicates.length > 10 ? `\n…and ${duplicates.length - 10} more` : "");
+        if (!confirm(`Delete ${duplicates.length} duplicate task${duplicates.length === 1 ? "" : "s"}? The earlier copy of each is kept. This cannot be undone.\n\n${shown}`)) {
+          status.textContent = "Nothing deleted.";
+          return;
+        }
+        status.textContent = "Deleting...";
+        const done = await post({});
+        allTasks = done.tasks || allTasks;
+        renderTasks();
+        status.textContent = `Deleted ${done.removed} duplicate task${done.removed === 1 ? "" : "s"}.`;
+      } catch (err) {
+        status.textContent = "Failed: " + err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
     async function downloadExport() {
       const btn = document.getElementById("exportBtn");
       const status = document.getElementById("exportStatus");
@@ -3390,6 +3428,7 @@
     document.getElementById("saveSettingsBtn").addEventListener("click", saveSettings);
     document.getElementById("saveJobSheetBtn").addEventListener("click", saveJobSheetSettings);
     document.getElementById("exportBtn").addEventListener("click", downloadExport);
+    document.getElementById("dedupBtn").addEventListener("click", removeDuplicateTasks);
     document.querySelector(".snooze-choices").addEventListener("click", e => {
       const btn = e.target.closest("[data-snooze]");
       if (!btn) return;
