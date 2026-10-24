@@ -15,10 +15,33 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, DOUBLE_TAP_MS, PRESS_MOVE_PX, pressMoved, isDoubleTap};`)();
 }
 
 describe("public/index.html helpers", () => {
+  describe("task card gestures", () => {
+    it("treats a drift beyond the tolerance as a scroll, not a press", () => {
+      const {pressMoved, PRESS_MOVE_PX} = load();
+      assert.equal(pressMoved(0, 0), false);
+      assert.equal(pressMoved(PRESS_MOVE_PX, 0), false);
+      assert.equal(pressMoved(0, -(PRESS_MOVE_PX + 1)), true);
+      assert.equal(pressMoved(8, 8), true);
+      assert.equal(pressMoved(undefined, undefined), false);
+    });
+    it("recognises a second tap on the same card within the window", () => {
+      const {isDoubleTap, DOUBLE_TAP_MS} = load();
+      const first = {taskId: "a", at: 1000};
+      assert.equal(isDoubleTap(first, "a", 1000 + DOUBLE_TAP_MS), true);
+      assert.equal(isDoubleTap(first, "a", 1000 + DOUBLE_TAP_MS + 1), false);
+      assert.equal(isDoubleTap(first, "b", 1100), false);
+      assert.equal(isDoubleTap(null, "a", 1100), false);
+      assert.equal(isDoubleTap(first, "a", 900), false);
+    });
+    it("holds a long press longer than a double-tap window", () => {
+      const {LONG_PRESS_MS, DOUBLE_TAP_MS} = load();
+      assert.ok(LONG_PRESS_MS > DOUBLE_TAP_MS);
+    });
+  });
   describe("snooze", () => {
     // 22 Oct 2026 is a Thursday: the 24th is a Saturday, the 25th a Sunday, the 26th a Monday.
     it("steps dates across month and year ends", () => {
@@ -73,10 +96,10 @@ describe("public/index.html helpers", () => {
       assert.equal(snoozeNeedsReschedule({...scheduled, materials: [{id: "m", text: "Paint", checked: false}]}), false);
       assert.equal(snoozeNeedsReschedule({...scheduled, materials: [{id: "m", text: "Paint", checked: true}]}), true);
     });
-    it("puts a Snooze button next to Complete on the task card, and a dialog outside the edit modal", () => {
+    it("keeps Snooze off the task card, with a dialog outside the edit modal", () => {
       const list = html.slice(html.indexOf("function taskItemHtml"), html.indexOf("function renderTasks"));
-      assert.match(list, /data-action="snooze"/);
-      assert.ok(list.indexOf("data-action=\"snooze\"") < list.indexOf("data-action=\"complete\""));
+      assert.equal(list.includes("data-action"), false);
+      assert.equal(list.includes("<button"), false);
       assert.match(list, /snoozeChip\(t\)/);
       const dialog = html.indexOf("id=\"snoozeModal\"");
       assert.ok(dialog > html.indexOf("id=\"editModal\""));
@@ -1337,8 +1360,9 @@ describe("public/index.html helpers", () => {
       assert.equal(completedTimeText({estimatedMinutes: 30}), "30m est.");
       assert.equal(completedTimeText({}), "15m est.");
     });
-    it("has a timer icon on the task card and a timer button beside Snooze in the edit modal, and no Reschedule button", () => {
-      assert.ok(html.includes("data-action=\"timer\""));
+    it("has no timer button on the task card, a timer button beside Snooze in the edit modal, and no Reschedule button", () => {
+      assert.equal(html.includes("data-action=\"timer\""), false);
+      assert.match(html, /toggleTimer\(taskId\);\n {8}\}, LONG_PRESS_MS\)/);
       const modal = html.slice(html.indexOf("modal-extra-actions\">"), html.indexOf("modal-actions\">"));
       assert.ok(modal.includes("id=\"editTimerBtn\"") && modal.includes("id=\"editElapsed\"") && modal.includes("snoozeFromModal"));
       assert.equal(html.includes("rescheduleFromModal"), false);

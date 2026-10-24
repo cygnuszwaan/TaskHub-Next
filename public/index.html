@@ -85,6 +85,7 @@
     .project-add { margin-top: 8px; }
 
     .task-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px; border-bottom: 1px solid var(--divider); border-radius: 6px; cursor: pointer; transition: background 0.15s ease; }
+    .task-item { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     .task-item:hover { background: var(--hover); }
     .task-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
     .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: bold; text-transform: uppercase; }
@@ -137,8 +138,6 @@
     .overdue-chip { background: var(--overdue-bg); color: var(--overdue-fg); font-weight: 600; }
     .coach-box { background: var(--coach-bg); border-left: 4px solid var(--coach-border); padding: 14px; margin-top: 14px; border-radius: 4px; font-size: 14px; line-height: 1.5; }
 
-    .action-btns { display: flex; gap: 4px; }
-    .complete-btn { background: transparent; color: var(--success); border: none; padding: 4px 6px; font-size: 16px; cursor: pointer; }
 
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; overscroll-behavior: contain; }
     .modal-card { background: var(--surface); width: 90%; max-width: 480px; max-height: 90vh; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; padding: 20px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
@@ -1616,6 +1615,19 @@
       const match = /^data:[^,]*;base64,(.*)$/s.exec(String(url || ""));
       return match ? match[1] : "";
     }
+    // Task card gestures: a long press starts or pauses the timer, a double tap completes, a single tap opens the editor
+    // (held back for DOUBLE_TAP_MS so a second tap can still turn it into a double tap).
+    const LONG_PRESS_MS = 500;
+    const DOUBLE_TAP_MS = 300;
+    const PRESS_MOVE_PX = 10;
+    // True when a finger has drifted far enough from where it went down that it is a scroll, not a press.
+    function pressMoved(dx, dy) {
+      return Math.hypot(Number(dx) || 0, Number(dy) || 0) > PRESS_MOVE_PX;
+    }
+    // True when a tap on `taskId` at time `now` (ms) follows `previous` ({taskId, at}) on the same card closely enough.
+    function isDoubleTap(previous, taskId, now) {
+      return !!previous && previous.taskId === taskId && now - previous.at >= 0 && now - previous.at <= DOUBLE_TAP_MS;
+    }
     // </pure-helpers>
 
     // Dark mode: a data-theme attribute on <html> overrides the device setting (see the stylesheet), the theme-color
@@ -1728,22 +1740,61 @@
         setProjectFilter(chip.hasAttribute("data-all") ? null : chip.dataset.project);
       });
 
-      // Rows in the list and the active task above the search box behave the same
+      // Rows in the list and the active task above the search box behave the same. Gestures: long press starts or
+      // pauses the timer, double tap completes (after the usual confirmation), single tap opens the editor.
+      let pressTimer = null;
+      let pressStart = null;
+      let pressFired = false; // a long press happened: the click that ends it must do nothing
+      let lastTap = null;
+      let tapTimer = null;
+      const cancelPress = () => { if (pressTimer !== null) clearTimeout(pressTimer); pressTimer = null; pressStart = null; };
+      const cancelTap = () => { if (tapTimer !== null) clearTimeout(tapTimer); tapTimer = null; lastTap = null; };
+      const onTaskRowDown = e => {
+        const item = e.target.closest(".task-item");
+        if (!item || (e.pointerType === "mouse" && e.button !== 0)) return;
+        pressFired = false;
+        cancelPress();
+        pressStart = { x: e.clientX, y: e.clientY };
+        const taskId = item.dataset.id;
+        pressTimer = setTimeout(() => {
+          pressTimer = null;
+          pressStart = null;
+          pressFired = true;
+          cancelTap();
+          if (navigator.vibrate) navigator.vibrate(30);
+          toggleTimer(taskId);
+        }, LONG_PRESS_MS);
+      };
+      const onTaskRowMove = e => {
+        if (pressStart && pressMoved(e.clientX - pressStart.x, e.clientY - pressStart.y)) cancelPress();
+      };
       const onTaskRowClick = e => {
         const item = e.target.closest(".task-item");
         if (!item) return;
+        if (pressFired) { pressFired = false; return; }
         const taskId = item.dataset.id;
-        const btn = e.target.closest("[data-action]");
-        if (btn && item.contains(btn)) {
-          if (btn.dataset.action === "complete") { if (confirmComplete(taskId)) completeTask(taskId); }
-          else if (btn.dataset.action === "snooze") openSnoozeModal(taskId);
-          else if (btn.dataset.action === "timer") toggleTimer(taskId);
+        const now = Date.now();
+        if (isDoubleTap(lastTap, taskId, now)) {
+          cancelTap();
+          if (confirmComplete(taskId)) completeTask(taskId);
           return;
         }
-        openEditModal(taskId);
+        cancelTap();
+        lastTap = { taskId, at: now };
+        tapTimer = setTimeout(() => {
+          tapTimer = null;
+          lastTap = null;
+          openEditModal(taskId);
+        }, DOUBLE_TAP_MS);
       };
-      document.getElementById("taskList").addEventListener("click", onTaskRowClick);
-      document.getElementById("activeTask").addEventListener("click", onTaskRowClick);
+      for (const id of ["taskList", "activeTask"]) {
+        const box = document.getElementById(id);
+        box.addEventListener("pointerdown", onTaskRowDown);
+        box.addEventListener("pointermove", onTaskRowMove);
+        for (const type of ["pointerup", "pointercancel", "pointerleave"]) box.addEventListener(type, cancelPress);
+        box.addEventListener("click", onTaskRowClick);
+        box.addEventListener("contextmenu", e => { if (e.target.closest(".task-item")) e.preventDefault(); }); // no menu after a long press
+      }
 
       // The materials lists of the edit modal and of the add form share their behaviour
       for (const [boxId, getList, render, addBtnId, textId, add] of [
@@ -2137,7 +2188,7 @@
     // One task as a list row. The active task, shown above the search box, also carries its tracked time.
     function taskItemHtml(t, isActive = false) {
       return `        <div class="task-item" data-id="${esc(t.id)}">
-          <div style="flex:1;">
+          <div style="flex:1; min-width:0;">
             <strong>${esc(t.title)}</strong>
             <div class="task-meta">
               <span class="badge ${PRIORITIES.includes(t.priority) ? t.priority : ''}">${esc(t.priority)}</span>
@@ -2154,11 +2205,6 @@
               ${t.locked ? `<span class="chip lock-chip" title="Pinned: its event was moved to your personal calendar, so Update now leaves it alone">🔒 Locked</span>` : ''}
             </div>
             ${t.comments ? `<div class="task-comments">${esc(t.comments)}</div>` : ''}
-          </div>
-          <div class="action-btns">
-            <button class="complete-btn" title="${isTimerRunning(t) ? 'Pause the timer' : 'Start the timer'}" aria-label="${isTimerRunning(t) ? 'Pause the timer' : 'Start the timer'}" data-action="timer">${isTimerRunning(t) ? '⏸️' : '▶️'}</button>
-            <button class="complete-btn" title="Snooze: keep it off the schedule until a later day" data-action="snooze">💤</button>
-            <button class="complete-btn" title="Complete & Archive Task" data-action="complete">✅</button>
           </div>
         </div>`;
     }
