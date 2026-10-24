@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, DOUBLE_TAP_MS, PRESS_MOVE_PX, pressMoved, isDoubleTap, timerChipIcon, FLASH_MS, flashElapsed};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, DOUBLE_TAP_MS, PRESS_MOVE_PX, pressMoved, isDoubleTap, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, withoutTasks, insertTaskAt};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -46,6 +46,61 @@ describe("public/index.html helpers", () => {
       assert.equal(timerChipIcon({id: "a", firstStartedAt: "2026-10-24T09:00:00.000Z", trackedSeconds: 60}), "⏸️");
       assert.equal(timerChipIcon({id: "a", trackedSeconds: 30}), "⏸️", "a task timed before firstStartedAt was kept");
       assert.equal(timerChipIcon({id: "a", timerStartedAt: "2026-10-25T09:00:00.000Z"}), "▶️");
+    });
+    it("starts a swipe only for a clearly sideways drag", () => {
+      const {isHorizontalDrag, SWIPE_START_PX} = load();
+      assert.equal(isHorizontalDrag(SWIPE_START_PX, 0), false);
+      assert.equal(isHorizontalDrag(SWIPE_START_PX + 1, 0), true);
+      assert.equal(isHorizontalDrag(-40, 10), true);
+      assert.equal(isHorizontalDrag(40, 30), false, "a diagonal is a scroll");
+      assert.equal(isHorizontalDrag(undefined, undefined), false);
+    });
+    it("maps a long enough swipe to delete (left) or snooze (right)", () => {
+      const {swipeAction, SWIPE_COMMIT_PX} = load();
+      assert.equal(swipeAction(-SWIPE_COMMIT_PX, 0), "DELETE");
+      assert.equal(swipeAction(SWIPE_COMMIT_PX, 5), "SNOOZE");
+      assert.equal(swipeAction(-(SWIPE_COMMIT_PX - 1), 0), null);
+      assert.equal(swipeAction(SWIPE_COMMIT_PX, SWIPE_COMMIT_PX), null);
+    });
+    it("holds the card's follow distance to a limit either way", () => {
+      const {swipeOffset} = load();
+      assert.equal(swipeOffset(50, 200), 50);
+      assert.equal(swipeOffset(-500, 200), -200);
+      assert.equal(swipeOffset(500, 200), 200);
+      assert.equal(swipeOffset(30, 0), 0);
+      assert.equal(swipeOffset(undefined, 100), 0);
+    });
+    it("asks about a swipe delete by title", () => {
+      const {deletePrompt} = load();
+      assert.equal(deletePrompt({title: "Mow lawn"}), 'Delete "Mow lawn"?');
+      assert.equal(deletePrompt(null), "Delete this task?");
+    });
+    it("hides tasks whose removal is pending and puts a failed one back once", () => {
+      const {withoutTasks, insertTaskAt} = load();
+      const list = [{id: "a"}, {id: "b"}, {id: "c"}];
+      assert.deepEqual(withoutTasks(list, new Set(["b"])), [{id: "a"}, {id: "c"}]);
+      assert.deepEqual(withoutTasks(list, ["a", "c"]), [{id: "b"}]);
+      assert.deepEqual(withoutTasks(list, new Set()), list);
+      assert.deepEqual(withoutTasks(null, new Set(["a"])), []);
+      assert.deepEqual(insertTaskAt([{id: "a"}, {id: "c"}], {id: "b"}, 1), list);
+      assert.deepEqual(insertTaskAt([{id: "a"}], {id: "b"}, 99), [{id: "a"}, {id: "b"}]);
+      assert.deepEqual(insertTaskAt(list, {id: "b"}, 0), list, "already back");
+    });
+    it("lets the whole Active task box take the gestures and flash, and only queued cards swipe", () => {
+      assert.match(html, /for \(const id of \["taskList", "activeTaskBox"\]\)/);
+      assert.match(html, /\.active-task-box\.flash \{ animation: card-flash/);
+      assert.match(html, /item\.closest\("#activeTaskBox"\) \|\| item/);
+      const list = html.slice(html.indexOf("function taskItemHtml"), html.indexOf("function renderTasks"));
+      assert.match(list, /swipeRowHtml/);
+      assert.equal(list.includes("taskItemHtml(t, true)"), false);
+      assert.match(html, /taskItemHtml\(active, true\)/);
+    });
+    it("takes removals off the list before the server answers and keeps later lists from bringing them back", () => {
+      const remove = html.slice(html.indexOf("function removeTask("), html.indexOf("async function completeTask("));
+      assert.ok(remove.indexOf("withoutTasks(allTasks, pendingRemovals)") < remove.indexOf("await apiFetch"));
+      assert.match(remove, /insertTaskAt\(allTasks, task, index\)/);
+      assert.equal(html.includes("allTasks = data.tasks"), false);
+      assert.match(html, /await removalChain;/);
     });
     it("carries a flash across a redraw until it has played out", () => {
       const {flashElapsed, FLASH_MS} = load();
@@ -382,8 +437,9 @@ describe("public/index.html helpers", () => {
       assert.ok(toast > at("</main>", at(`id="pageSettings"`)) && toast < at(`id="editModal"`));
       assert.match(html, /\.toast\[hidden\]\s*\{\s*display:\s*none/);
       assert.match(html, /const UNDO_URL = endpoint\("undoRemove"\)/);
-      assert.match(html, /showUndoToast\("COMPLETE", task\.title\)/);
-      assert.match(html, /showUndoToast\("DELETE", task\.title\)/);
+      assert.match(html, /showUndoToast\(kind, task\.title\)/);
+      assert.match(html, /removeTask\(taskId, "COMPLETE"/);
+      assert.match(html, /removeTask\(taskId, "DELETE"/);
     });
     it("starts the Tags and Projects sections collapsed", () => {
       for (const id of ["tagsDetails", "projectsDetails"]) {

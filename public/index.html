@@ -26,6 +26,7 @@
       --held-bg: #ffedd5; --held-fg: #9a3412; --project-bg: #ccfbf1; --project-fg: #115e59; --repeat-bg: #ede9fe; --repeat-fg: #5b21b6;
       --overdue-bg: #fee2e2; --overdue-fg: #991b1b; --snooze-bg: #e0e7ff; --snooze-fg: #3730a3;
       --coach-bg: #eff6ff; --coach-border: #2563eb; --toast-bg: #1f2937; --toast-fg: #fff; --toast-link: #7cc0ff;
+      --swipe-del: #dc2626; --swipe-snooze: #4f46e5;
     }
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme="light"]) {
@@ -38,6 +39,7 @@
         --held-bg: #47260f; --held-fg: #fdba74; --project-bg: #0f3b38; --project-fg: #5eead4; --repeat-bg: #2f2759; --repeat-fg: #c4b5fd;
         --overdue-bg: #4a1d1d; --overdue-fg: #fca5a5; --snooze-bg: #26295a; --snooze-fg: #a5b4fc;
         --coach-bg: #172a4d; --coach-border: #3b82f6; --toast-bg: #334155; --toast-fg: #f8fafc;
+        --swipe-del: #991b1b; --swipe-snooze: #3730a3;
       }
     }
     :root[data-theme="light"] { color-scheme: light; }
@@ -52,6 +54,7 @@
       --held-bg: #47260f; --held-fg: #fdba74; --project-bg: #0f3b38; --project-fg: #5eead4; --repeat-bg: #2f2759; --repeat-fg: #c4b5fd;
       --overdue-bg: #4a1d1d; --overdue-fg: #fca5a5; --snooze-bg: #26295a; --snooze-fg: #a5b4fc;
       --coach-bg: #172a4d; --coach-border: #3b82f6; --toast-bg: #334155; --toast-fg: #f8fafc;
+      --swipe-del: #991b1b; --swipe-snooze: #3730a3;
     }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 680px; margin: 0 auto 20px; padding: 0 15px; background: var(--bg); color: var(--text); }
     .card { background: var(--surface); padding: 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 16px; }
@@ -183,6 +186,19 @@
     .active-task-box { margin-bottom: 14px; border: 2px solid var(--primary); border-radius: 8px; padding: 6px 6px 2px; }
     .active-task-box > .summary-label { margin: 2px 6px 0; }
     .active-task-box .task-item { border-bottom: none; }
+    .active-task-box { cursor: pointer; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: background 0.15s ease; }
+    .active-task-box:hover { background: var(--hover); }
+    .active-task-box .task-item:hover { background: transparent; }
+    .active-task-box.flash { animation: card-flash 600ms ease-out; }
+    .swipe-row { position: relative; overflow: hidden; border-radius: 6px; }
+    .swipe-row .task-item { position: relative; background: var(--surface); touch-action: pan-y; transition: transform 0.18s ease, background 0.15s ease; }
+    .swipe-row .task-item:hover { background: var(--hover); }
+    .swipe-row.swiping .task-item { transition: none; }
+    .swipe-bg { display: none; position: absolute; inset: 0; align-items: center; padding: 0 20px; color: white; font-weight: 700; font-size: 14px; opacity: 0.75; }
+    .swipe-row.swipe-armed .swipe-bg { opacity: 1; }
+    .swipe-del { background: var(--swipe-del); justify-content: flex-end; }
+    .swipe-snooze { background: var(--swipe-snooze); justify-content: flex-start; }
+    .swipe-row.swipe-left .swipe-del, .swipe-row.swipe-right .swipe-snooze { display: flex; }
     .proposal-steps .proposal-note { margin-top: 2px; font-size: 12px; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .proposal-steps li { margin-bottom: 6px; }
     .proposal-steps { margin: 0 0 14px; padding-left: 22px; font-size: 14px; line-height: 1.5; }
@@ -828,6 +844,12 @@
     }
 
     let allTasks = [];
+    // Deleted or completed tasks whose server call has not finished: they are already off the page, and no list that
+    // arrives meanwhile (from any call) may bring them back.
+    const pendingRemovals = new Set();
+    function setTasks(list) {
+      allTasks = withoutTasks(list, pendingRemovals);
+    }
     let tasksLoaded = false; // set once the list has been drawn
     let selectedTagFilter = null; // null = show all
     let selectedProjectFilter = null; // a project id, null = show all
@@ -1666,6 +1688,41 @@
       const elapsed = now - flash.at;
       return elapsed >= 0 && elapsed < FLASH_MS ? elapsed : null;
     }
+    // Swipes on a queued task card: left deletes (after a confirmation), right snoozes (opens the snooze dialog). A drag
+    // counts as a swipe once it is clearly more sideways than up or down, and acts when released far enough across.
+    const SWIPE_START_PX = 12;
+    const SWIPE_COMMIT_PX = 90;
+    function isHorizontalDrag(dx, dy) {
+      const x = Math.abs(Number(dx) || 0);
+      return x > SWIPE_START_PX && x > Math.abs(Number(dy) || 0) * 1.5;
+    }
+    // "DELETE" for a long enough drag to the left, "SNOOZE" to the right, null for anything else.
+    function swipeAction(dx, dy) {
+      if (!isHorizontalDrag(dx, dy) || Math.abs(dx) < SWIPE_COMMIT_PX) return null;
+      return dx < 0 ? "DELETE" : "SNOOZE";
+    }
+    // How far the card follows the finger: the drag, held to `max` pixels either way.
+    function swipeOffset(dx, max) {
+      const x = Number(dx) || 0;
+      const limit = Math.max(0, Number(max) || 0);
+      return Math.max(-limit, Math.min(limit, x));
+    }
+    // The confirmation text for deleting a task by swipe.
+    function deletePrompt(task) {
+      return `Delete ${task && task.title ? `\"${task.title}\"` : "this task"}?`;
+    }
+    // Optimistic removal: the list without the tasks whose removal is still waiting on the server, and a task put back at
+    // its old place when that removal fails (never twice).
+    function withoutTasks(tasks, ids) {
+      const gone = ids instanceof Set ? ids : new Set(ids || []);
+      return (tasks || []).filter(t => !gone.has(t.id));
+    }
+    function insertTaskAt(tasks, task, index) {
+      const list = (tasks || []).slice();
+      if (!task || list.some(t => t.id === task.id)) return list;
+      list.splice(Math.max(0, Math.min(list.length, Number(index) || 0)), 0, task);
+      return list;
+    }
     // </pure-helpers>
 
     // Dark mode: a data-theme attribute on <html> overrides the device setting (see the stylesheet), the theme-color
@@ -1778,26 +1835,51 @@
         setProjectFilter(chip.hasAttribute("data-all") ? null : chip.dataset.project);
       });
 
-      // Rows in the list and the active task above the search box behave the same. Gestures: long press starts or
-      // pauses the timer, double tap completes (after the usual confirmation), single tap opens the editor.
+      // Rows in the list and the active task box above the search box behave the same. Gestures: long press starts or
+      // pauses the timer, double tap completes (after the usual confirmation), single tap opens the editor. The active
+      // task answers anywhere inside its bordered box; a queued card also swipes (left deletes after a confirmation,
+      // right opens the snooze dialog).
       let pressTimer = null;
       let pressStart = null;
       let pressFired = false; // a long press happened: the click that ends it must do nothing
+      let swipe = null; // the drag in progress on a queued card: {item, row, id, x, y, dx, dy, dragging, pointerId}
+      let swiped = false; // a swipe happened: the click that ends it must do nothing
       let lastTap = null;
       let tapTimer = null;
       const cancelPress = () => { if (pressTimer !== null) clearTimeout(pressTimer); pressTimer = null; pressStart = null; };
       const cancelTap = () => { if (tapTimer !== null) clearTimeout(tapTimer); tapTimer = null; lastTap = null; };
-      const onTaskRowDown = e => {
+      // The card a pointer event is about; anywhere in the active task box counts as that box's card
+      const cardOf = e => {
         const item = e.target.closest(".task-item");
+        if (item) return item;
+        return e.currentTarget.id === "activeTaskBox" ? e.currentTarget.querySelector(".task-item") : null;
+      };
+      const paintSwipe = s => {
+        const offset = swipeOffset(s.dx, s.row.offsetWidth * 0.6);
+        s.item.style.transform = `translateX(${offset}px)`;
+        s.row.classList.toggle("swipe-left", offset < 0);
+        s.row.classList.toggle("swipe-right", offset > 0);
+        s.row.classList.toggle("swipe-armed", swipeAction(s.dx, s.dy) !== null);
+      };
+      const resetSwipe = s => {
+        s.row.classList.remove("swiping", "swipe-left", "swipe-right", "swipe-armed");
+        s.item.style.transform = "";
+      };
+      const onTaskRowDown = e => {
+        const item = cardOf(e);
         if (!item || (e.pointerType === "mouse" && e.button !== 0)) return;
         pressFired = false;
+        swiped = false;
         cancelPress();
         pressStart = { x: e.clientX, y: e.clientY };
         const taskId = item.dataset.id;
+        const row = e.currentTarget.id === "taskList" ? item.closest(".swipe-row") : null;
+        swipe = row ? { item, row, id: taskId, x: e.clientX, y: e.clientY, dx: 0, dy: 0, dragging: false, pointerId: e.pointerId } : null;
         pressTimer = setTimeout(() => {
           pressTimer = null;
           pressStart = null;
           pressFired = true;
+          swipe = null;
           cancelTap();
           if (navigator.vibrate) navigator.vibrate(30);
           cardFlash = { taskId, at: Date.now() };
@@ -1806,11 +1888,46 @@
         }, LONG_PRESS_MS);
       };
       const onTaskRowMove = e => {
+        if (swipe) {
+          const s = swipe;
+          const dx = e.clientX - s.x;
+          const dy = e.clientY - s.y;
+          if (!s.dragging && isHorizontalDrag(dx, dy)) {
+            s.dragging = true;
+            cancelPress();
+            cancelTap();
+            try { s.item.setPointerCapture(s.pointerId); } catch (err) { /* the drag still works without it */ }
+            s.row.classList.add("swiping");
+          }
+          if (s.dragging) {
+            s.dx = dx;
+            s.dy = dy;
+            paintSwipe(s);
+            return;
+          }
+        }
         if (pressStart && pressMoved(e.clientX - pressStart.x, e.clientY - pressStart.y)) cancelPress();
       };
+      const onTaskRowUp = e => {
+        cancelPress();
+        const s = swipe;
+        swipe = null;
+        if (!s || !s.dragging) return;
+        swiped = true;
+        const action = e.type === "pointerup" ? swipeAction(s.dx, s.dy) : null;
+        if (action === "DELETE") {
+          // the card stays pulled aside, over the red, while the question is asked
+          const task = allTasks.find(t => t.id === s.id);
+          if (confirm(deletePrompt(task))) deleteTask(s.id);
+        } else if (action === "SNOOZE") {
+          openSnoozeModal(s.id);
+        }
+        resetSwipe(s);
+      };
       const onTaskRowClick = e => {
-        const item = e.target.closest(".task-item");
+        const item = cardOf(e);
         if (!item) return;
+        if (swiped) { swiped = false; return; }
         if (pressFired) { pressFired = false; return; }
         const taskId = item.dataset.id;
         const now = Date.now();
@@ -1827,13 +1944,14 @@
           openEditModal(taskId);
         }, DOUBLE_TAP_MS);
       };
-      for (const id of ["taskList", "activeTask"]) {
+      for (const id of ["taskList", "activeTaskBox"]) {
         const box = document.getElementById(id);
         box.addEventListener("pointerdown", onTaskRowDown);
         box.addEventListener("pointermove", onTaskRowMove);
-        for (const type of ["pointerup", "pointercancel", "pointerleave"]) box.addEventListener(type, cancelPress);
+        for (const type of ["pointerup", "pointercancel"]) box.addEventListener(type, onTaskRowUp);
+        box.addEventListener("pointerleave", cancelPress);
         box.addEventListener("click", onTaskRowClick);
-        box.addEventListener("contextmenu", e => { if (e.target.closest(".task-item")) e.preventDefault(); }); // no menu after a long press
+        box.addEventListener("contextmenu", e => { if (cardOf(e)) e.preventDefault(); }); // no menu after a long press
       }
 
       // The materials lists of the edit modal and of the add form share their behaviour
@@ -1884,7 +2002,7 @@
       try {
         const res = await apiFetch(GET_TASKS_URL);
         const data = await res.json();
-        allTasks = data.tasks || [];
+        setTasks(data.tasks || []);
         renderFilterBar();
         renderTasks();
       } catch (err) {
@@ -1944,7 +2062,7 @@
 
     // Shows what an add returned and resets the add card.
     function finishAdd(data, manual) {
-      allTasks = data.tasks || [];
+      setTasks(data.tasks || []);
       if (data.project && data.projects) allProjects = data.projects; // a project made with the task
       document.getElementById("taskInput").value = "";
       document.getElementById("startNow").checked = false; // it applies to this task only
@@ -2099,6 +2217,7 @@
     // The "Undo" toast after a delete or completion: shown for 8 seconds; Undo asks the server to put the last removed
     // task back (it keeps one step for ten minutes, see undoRemove).
     let undoTimer = null;
+    let undoToastTaskId = null; // the task the toast is about, so a failed removal can take its own toast away
     function showUndoToast(kind, title) {
       document.getElementById("undoToastText").textContent = removalMessage(kind, title);
       document.getElementById("undoToast").hidden = false;
@@ -2111,10 +2230,11 @@
     }
     async function undoRemoval() {
       hideUndoToast();
+      await removalChain; // the server keeps one step, so an unfinished removal must land first
       try {
         const res = await apiFetch(UNDO_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
         const data = await res.json();
-        allTasks = data.tasks || [];
+        setTasks(data.tasks || []);
         templates = null; // an undone completion leaves the archive
         renderFilterBar();
         renderTasks();
@@ -2123,23 +2243,44 @@
       }
     }
 
+    // Deleting and completing take the task off the page at once and make the server call afterwards, one removal at a
+    // time and in order. The server's list then replaces the page's (a repeating task's next occurrence arrives with
+    // it); if the call fails the task goes back where it was and an alert says so.
+    let removalChain = Promise.resolve();
+    function removeTask(taskId, kind, url, body) {
+      const index = allTasks.findIndex(t => t.id === taskId);
+      if (index < 0) return removalChain;
+      const task = allTasks[index];
+      pendingRemovals.add(taskId);
+      allTasks = withoutTasks(allTasks, pendingRemovals);
+      renderFilterBar();
+      renderTasks();
+      undoToastTaskId = taskId;
+      showUndoToast(kind, task.title);
+      const run = async () => {
+        try {
+          const res = await apiFetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          const data = await res.json();
+          pendingRemovals.delete(taskId);
+          setTasks(data.tasks || allTasks);
+          if (kind === "COMPLETE") templates = null; // the archive has a new row
+          renderFilterBar();
+          renderTasks();
+        } catch (err) {
+          pendingRemovals.delete(taskId);
+          allTasks = insertTaskAt(allTasks, task, index);
+          if (undoToastTaskId === taskId) hideUndoToast();
+          renderFilterBar();
+          renderTasks();
+          alert((kind === "COMPLETE" ? "Error completing task: " : "Error deleting task: ") + err.message);
+        }
+      };
+      removalChain = removalChain.then(run);
+      return removalChain;
+    }
+
     async function completeTask(taskId) {
-      const task = allTasks.find(t => t.id === taskId);
-      try {
-        const res = await apiFetch(COMPLETE_TASK_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ taskId })
-        });
-        const data = await res.json();
-        allTasks = data.tasks || [];
-        templates = null; // the archive has a new row
-        renderFilterBar();
-        renderTasks();
-        if (task && !allTasks.some(t => t.id === taskId)) showUndoToast("COMPLETE", task.title);
-      } catch (err) {
-        alert("Error completing task: " + err.message);
-      }
+      await removeTask(taskId, "COMPLETE", COMPLETE_TASK_URL, { taskId });
     }
 
     // Asks before a task is marked complete; false when the owner cancels (the edit modal, if open, stays open)
@@ -2262,6 +2403,11 @@
         </div>`;
     }
 
+    // A queued task's row: the card inside a wrapper that shows the action under it while it is dragged sideways
+    function swipeRowHtml(t) {
+      return `<div class="swipe-row"><div class="swipe-bg swipe-snooze" aria-hidden="true">😴 Snooze</div><div class="swipe-bg swipe-del" aria-hidden="true">🗑️ Delete</div>${taskItemHtml(t)}</div>`;
+    }
+
     // The active task's tracked time ticks every second while its timer runs
     let activeTicker = null;
     function stopActiveTicker() {
@@ -2277,9 +2423,10 @@
       for (const item of document.querySelectorAll(".task-item")) {
         const elapsed = flashElapsed(cardFlash, item.dataset.id, now);
         if (elapsed === null) continue;
-        item.style.animationDelay = `-${elapsed}ms`;
-        item.classList.add("flash");
-        item.addEventListener("animationend", () => { item.classList.remove("flash"); item.style.animationDelay = ""; }, { once: true });
+        const target = item.closest("#activeTaskBox") || item; // the active task flashes as its whole bordered box
+        target.style.animationDelay = `-${elapsed}ms`;
+        target.classList.add("flash");
+        target.addEventListener("animationend", () => { target.classList.remove("flash"); target.style.animationDelay = ""; }, { once: true });
       }
     }
 
@@ -2317,7 +2464,7 @@
 
       filtered = sortTasks(filtered, sortKey, sortDescending);
 
-      listContainer.innerHTML = filtered.map(t => taskItemHtml(t)).join("");
+      listContainer.innerHTML = filtered.map(t => swipeRowHtml(t)).join("");
     }
 
     function renderMaterialRows(boxId, list) {
@@ -2375,7 +2522,7 @@
           body: JSON.stringify({ taskId, action: "UPDATE", updatedFields: { materials: withMaterialChecked(task, materialId, checked) } })
         });
         const data = await res.json();
-        allTasks = data.tasks || allTasks;
+        setTasks(data.tasks || allTasks);
         status.textContent = "";
         renderFilterBar();
         renderTasks();
@@ -2494,7 +2641,7 @@
           body: JSON.stringify({ taskId, action: isTimerRunning(task) ? "PAUSE" : "START" })
         });
         const data = await res.json();
-        allTasks = data.tasks || allTasks;
+        setTasks(data.tasks || allTasks);
         renderTasks();
         if (document.getElementById("editModal").style.display === "flex") showEditTimer();
       } catch (err) {
@@ -2557,7 +2704,7 @@
           body: JSON.stringify({ taskId, action: "UPDATE", updatedFields: { snoozedUntil: date } })
         });
         const data = await res.json();
-        allTasks = data.tasks || [];
+        setTasks(data.tasks || []);
         renderFilterBar();
         renderTasks();
       } catch (err) {
@@ -2592,7 +2739,7 @@
           body: JSON.stringify({ taskId, action: "UPDATE", updatedFields })
         });
         const data = await res.json();
-        allTasks = data.tasks || [];
+        setTasks(data.tasks || []);
         renderFilterBar();
         renderTasks();
         return true;
@@ -2621,7 +2768,7 @@
           body: JSON.stringify({ taskId })
         });
         const data = await res.json();
-        allTasks = data.tasks || allTasks;
+        setTasks(data.tasks || allTasks);
         renderFilterBar();
         renderTasks();
         statusDiv.innerText = `Rescheduled "${task ? task.title : "task"}".`;
@@ -2641,21 +2788,7 @@
     }
 
     async function deleteTask(taskId) {
-      const task = allTasks.find(t => t.id === taskId);
-      try {
-        const res = await apiFetch(DIRECT_UPDATE_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ taskId, action: "DELETE" })
-        });
-        const data = await res.json();
-        allTasks = data.tasks || [];
-        renderFilterBar();
-        renderTasks();
-        if (task && !allTasks.some(t => t.id === taskId)) showUndoToast("DELETE", task.title);
-      } catch (err) {
-        alert("Error deleting task: " + err.message);
-      }
+      await removeTask(taskId, "DELETE", DIRECT_UPDATE_URL, { taskId, action: "DELETE" });
     }
 
     // Completion totals from getCompletedTasks: the streak, per week, by priority, by tag and by project
@@ -3072,7 +3205,7 @@
         allProjects = data.projects || allProjects;
         projectsLoaded = true;
         if (data.tasks) {
-          allTasks = data.tasks;
+          setTasks(data.tasks);
           renderFilterBar();
         }
         renderTasks();
@@ -3291,7 +3424,7 @@
         }
         status.textContent = "Deleting...";
         const done = await post({});
-        allTasks = done.tasks || allTasks;
+        setTasks(done.tasks || allTasks);
         renderTasks();
         status.textContent = `Deleted ${done.removed} duplicate task${done.removed === 1 ? "" : "s"}.`;
       } catch (err) {
