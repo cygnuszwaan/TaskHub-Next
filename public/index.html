@@ -108,6 +108,9 @@
     .hours-row span:nth-child(2) { color: var(--text-muted); text-align: right; flex: 1; }
     .sheet-btn { padding: 2px 8px; font-size: 12px; white-space: nowrap; }
     .hours-weeks { max-height: 260px; overflow-y: auto; }
+    .pager { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center; margin: 10px 0; }
+    .pager button { min-width: 36px; padding: 6px 10px; }
+    .pager .pager-gap { color: var(--text-faint); }
     .completed-comments { font-size: 12px; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 4px; }
     .job-row { margin: 4px 0; font-size: 13px; }
     .job-title { font-weight: 600; overflow-wrap: anywhere; }
@@ -311,6 +314,16 @@
   <div class="card">
     <h3 style="margin-top:0; margin-bottom:12px;">Recently completed</h3>
     <div id="completedList"></div>
+    <div id="completedBrowser" hidden>
+      <div class="search-row">
+        <input type="search" id="completedSearch" class="search-box" placeholder="Search completed tasks" autocomplete="off" enterkeyhint="search" aria-label="Search completed tasks">
+        <button type="button" class="btn-secondary" id="clearCompletedSearchBtn" hidden>Clear</button>
+      </div>
+      <p class="settings-note" id="completedCount" style="margin:8px 0;"></p>
+      <div class="pager" data-pager></div>
+      <div id="completedRows"></div>
+      <div class="pager" data-pager></div>
+    </div>
   </div>
   </main>
 
@@ -1340,6 +1353,60 @@
       }
       return { fields };
     }
+    // Completed tasks are listed this many to a page.
+    const COMPLETED_PAGE_SIZE = 50;
+    // Whether a completed task matches a search: every word of `query` (case-insensitive, any order, part of a word is
+    // enough) must appear somewhere in its title, tags, materials, comments or project name. Empty matches everything.
+    function matchesCompletedSearch(row, query, projectName) {
+      const words = String(query || "").toLowerCase().split(/\s+/).filter(Boolean);
+      if (words.length === 0) return true;
+      const text = (v) => (typeof v === "string" ? v : "");
+      const hay = [text(row.title), ...(Array.isArray(row.tags) ? row.tags : []).map(text), ...completedMaterialTexts(row), text(row.comments), text(projectName)].join("\n").toLowerCase();
+      return words.every(w => hay.includes(w));
+    }
+    // One page of the completed tasks that match a search (the list is newest first and keeps that order). `page` is
+    // counted from 1 and clamped to the pages there are; `projectNameOf` gives a project's name for its id.
+    // Returns {items, page, pages, total (the tasks matching), all (every task), from, to (1-based positions of the
+    // page's first and last task among the matches; 0 when none)}.
+    function completedBrowse(rows, query, page, projectNameOf, pageSize = COMPLETED_PAGE_SIZE) {
+      const all = Array.isArray(rows) ? rows : [];
+      const lookup = typeof projectNameOf === "function" ? projectNameOf : () => "";
+      const matches = all.filter(r => matchesCompletedSearch(r, query, r.projectId ? lookup(r.projectId) : ""));
+      const pages = Math.max(1, Math.ceil(matches.length / pageSize));
+      const current = Math.min(Math.max(1, Math.floor(Number(page)) || 1), pages);
+      const start = (current - 1) * pageSize;
+      const items = matches.slice(start, start + pageSize);
+      return { items, page: current, pages, total: matches.length, all: all.length, from: items.length ? start + 1 : 0, to: start + items.length };
+    }
+    // The links of a pager: Previous, page numbers and Next, as [{kind: "prev"|"next"|"page"|"gap", page, current,
+    // disabled}]. Always the first and last page and two either side of the current one, a "gap" where more are skipped.
+    // Nothing for a single page.
+    function pagerItems(page, pages) {
+      if (!(pages > 1)) return [];
+      const shown = [];
+      for (let n = 1; n <= pages; n++) if (n === 1 || n === pages || Math.abs(n - page) <= 2) shown.push(n);
+      const items = [{ kind: "prev", page: page - 1, disabled: page <= 1 }];
+      shown.forEach((n, i) => {
+        if (i > 0 && n - shown[i - 1] === 2) items.push({ kind: "page", page: n - 1, current: false });
+        else if (i > 0 && n - shown[i - 1] > 2) items.push({ kind: "gap" });
+        items.push({ kind: "page", page: n, current: n === page });
+      });
+      items.push({ kind: "next", page: page + 1, disabled: page >= pages });
+      return items;
+    }
+    // The line above the completed list: "Showing 51-100 of 312 completed tasks", "Showing 1-12 of 12 matches (312
+    // completed tasks)" or the no-match text; `limited` adds that older entries exist beyond those loaded.
+    function completedCountText(browse, query, limited) {
+      const searching = String(query || "").trim() !== "";
+      let text;
+      if (browse.total === 0) text = searching ? "No completed tasks match the search." : "No completed tasks.";
+      else {
+        const range = browse.from === browse.to ? `${browse.from}` : `${browse.from}\u2013${browse.to}`;
+        text = searching ? `Showing ${range} of ${browse.total} ${browse.total === 1 ? "match" : "matches"} (${browse.all} completed tasks)` : `Showing ${range} of ${browse.total} completed tasks`;
+        text += ".";
+      }
+      return limited ? `${text} Only the newest ${browse.all} are loaded.` : text;
+    }
     // Dark mode is a per-device choice kept in localStorage under THEME_KEY: "light" or "dark"; anything else, or nothing
     // saved, means "auto" (follow the device's own light/dark setting).
     const THEME_KEY = "taskhub-theme";
@@ -1483,6 +1550,27 @@
         document.getElementById("clearSearchBtn").hidden = true;
         box.focus();
         renderTasks();
+      });
+      // Completed tasks: live search (back to page 1 on every change) and the page links
+      document.getElementById("completedSearch").addEventListener("input", () => {
+        document.getElementById("clearCompletedSearchBtn").hidden = document.getElementById("completedSearch").value === "";
+        completedPageNo = 1;
+        renderCompletedRows();
+      });
+      document.getElementById("clearCompletedSearchBtn").addEventListener("click", () => {
+        const box = document.getElementById("completedSearch");
+        box.value = "";
+        document.getElementById("clearCompletedSearchBtn").hidden = true;
+        box.focus();
+        completedPageNo = 1;
+        renderCompletedRows();
+      });
+      document.getElementById("completedBrowser").addEventListener("click", e => {
+        const link = e.target.closest("button[data-page]");
+        if (!link || link.disabled) return;
+        completedPageNo = Number(link.dataset.page);
+        renderCompletedRows();
+        document.getElementById("completedSearch").scrollIntoView({ block: "start" });
       });
       // Sort by: the select and the direction button redraw the list; the choice lasts until the page is reloaded
       const sortSelect = document.getElementById("sortBy");
@@ -2398,36 +2486,67 @@
       }
     }
 
+    // The completed tasks fetched (newest first, up to COMPLETED_FETCH_LIMIT), searched and paged in the browser. The search
+    // text lives in its box and the page here; both survive a reload of the list after an edit.
+    const COMPLETED_FETCH_LIMIT = 1000;
+    let completedAll = [];
+    let completedListLimited = false;
+    let completedPageNo = 1;
+    function completedRowHtml(t) {
+      const done = t.completedAt ? new Date(t.completedAt) : null;
+      const when = done && !isNaN(done) ? formatInstant(done) : "";
+      return `
+        <div class="task-item" style="cursor: default;">
+          <div style="flex:1;">
+            <strong>${esc(t.title)}</strong>
+            <div class="task-meta">
+              <span class="badge ${PRIORITIES.includes(t.priority) ? t.priority : ''}">${esc(t.priority)}</span>
+              <span class="time-chip" title="${t.trackedSeconds > 0 ? 'Time tracked' : 'Estimate: no time was tracked'}">⏱️ ${esc(completedTimeText(t))}</span>
+              ${(t.tags || []).map(tag => `<span class="chip">${esc(tag)}</span>`).join('')}
+              ${when ? `<span class="chip">✅ ${esc(when)}</span>` : ''}
+            </div>
+            ${t.comments ? `<div class="completed-comments">${esc(t.comments)}</div>` : ''}
+          </div>
+          ${t.archiveId ? `<div style="display:flex; gap:6px; align-items:flex-start;"><button type="button" class="btn-secondary" title="Download a job sheet (PDF) for this task" onclick="downloadTaskSheet('${esc(t.archiveId)}', this)">📄</button><button type="button" class="btn-secondary" title="Correct or delete this entry" onclick="openCompletedEditor('${esc(t.archiveId)}')">Edit</button></div>` : ''}
+        </div>`;
+    }
+    // Draw the search box's page of the completed tasks, its count line and both pagers.
+    function renderCompletedRows() {
+      const query = document.getElementById("completedSearch").value;
+      const projectName = (id) => (allProjects.find(p => p.id === id) || {}).name || "";
+      const browse = completedBrowse(completedAll, query, completedPageNo, projectName);
+      completedPageNo = browse.page;
+      document.getElementById("completedCount").textContent = completedCountText(browse, query, completedListLimited);
+      document.getElementById("completedRows").innerHTML = browse.items.map(completedRowHtml).join("");
+      const pager = pagerItems(browse.page, browse.pages).map(it => {
+        if (it.kind === "gap") return '<span class="pager-gap">\u2026</span>';
+        const label = it.kind === "prev" ? "\u2039 Previous" : it.kind === "next" ? "Next \u203a" : String(it.page);
+        const aria = it.kind === "page" ? `Page ${it.page}${it.current ? " (current)" : ""}` : label;
+        return `<button type="button" class="${it.current ? "" : "btn-secondary"}" data-page="${it.page}" aria-label="${esc(aria)}" ${it.disabled ? "disabled" : ""} ${it.current ? 'aria-current="page"' : ""}>${esc(label)}</button>`;
+      }).join("");
+      document.querySelectorAll("#completedBrowser [data-pager]").forEach(el => { el.innerHTML = pager; });
+    }
     async function fetchCompleted() {
       const list = document.getElementById("completedList");
+      const browser = document.getElementById("completedBrowser");
       list.textContent = "Loading...";
       try {
-        const res = await apiFetch(COMPLETED_URL);
+        const res = await apiFetch(`${COMPLETED_URL}?limit=${COMPLETED_FETCH_LIMIT}`);
         const data = await res.json();
         const tasks = data.tasks || [];
         if (tasks.length === 0) {
+          completedAll = [];
+          completedRows = new Map();
+          browser.hidden = true;
           list.innerHTML = "<p style='color:var(--text-faint); margin:0;'>No completed tasks yet.</p>";
           return;
         }
+        completedAll = tasks;
+        completedListLimited = data.listTruncated === true;
         completedRows = new Map(tasks.filter(t => t.archiveId).map(t => [t.archiveId, t]));
-        list.innerHTML = renderSummary(data.summary) + renderProjectHours(data.projectHours, data.projectHoursTruncated) + tasks.map(t => {
-          const done = t.completedAt ? new Date(t.completedAt) : null;
-          const when = done && !isNaN(done) ? formatInstant(done) : "";
-          return `
-            <div class="task-item" style="cursor: default;">
-              <div style="flex:1;">
-                <strong>${esc(t.title)}</strong>
-                <div class="task-meta">
-                  <span class="badge ${PRIORITIES.includes(t.priority) ? t.priority : ''}">${esc(t.priority)}</span>
-                  <span class="time-chip" title="${t.trackedSeconds > 0 ? 'Time tracked' : 'Estimate: no time was tracked'}">⏱️ ${esc(completedTimeText(t))}</span>
-                  ${(t.tags || []).map(tag => `<span class="chip">${esc(tag)}</span>`).join('')}
-                  ${when ? `<span class="chip">✅ ${esc(when)}</span>` : ''}
-                </div>
-                ${t.comments ? `<div class="completed-comments">${esc(t.comments)}</div>` : ''}
-              </div>
-              ${t.archiveId ? `<div style="display:flex; gap:6px; align-items:flex-start;"><button type="button" class="btn-secondary" title="Download a job sheet (PDF) for this task" onclick="downloadTaskSheet('${esc(t.archiveId)}', this)">📄</button><button type="button" class="btn-secondary" title="Correct or delete this entry" onclick="openCompletedEditor('${esc(t.archiveId)}')">Edit</button></div>` : ''}
-            </div>`;
-        }).join("");
+        list.innerHTML = renderSummary(data.summary) + renderProjectHours(data.projectHours, data.projectHoursTruncated);
+        browser.hidden = false;
+        renderCompletedRows();
       } catch (err) {
         list.innerHTML = "<p>Error loading completed tasks: " + esc(err.message) + "</p>";
       }

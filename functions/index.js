@@ -551,7 +551,7 @@ exports.getTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res)
 }));
 
 // 6. Endpoint: Read Completed Tasks
-// Recently completed tasks from the archive, newest first (optional ?limit=, default 50, at most 200), plus a
+// Recently completed tasks from the archive, newest first (optional ?limit=, default 50, at most 1000; the page asks for 1000 and searches and pages through them itself, and `listTruncated` is true when the list reached its limit, so older entries exist), plus a
 // summary of the last 8 local weeks of completions. The summary is computed from its own query, so it does not
 // depend on the limit; `truncated` is true if the window held more rows than were read. `projectHours` is the hours of each
 // current project per Monday-to-Sunday week over all time (see summarizeProjectHours), from one query per project of at most
@@ -561,8 +561,9 @@ exports.getCompletedTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (
     const archive = db.collection("completed_tasks");
     const {timeZone} = await readSettings();
     const now = new Date();
+    const limit = clampLimit(req.query.limit);
     const [listSnap, windowSnap, projects] = await Promise.all([
-      archive.orderBy("completedAt", "desc").limit(clampLimit(req.query.limit)).get(),
+      archive.orderBy("completedAt", "desc").limit(limit).get(),
       archive.where("completedAt", ">=", summaryWindowStart(timeZone, now)).orderBy("completedAt", "desc").limit(SUMMARY_MAX_ROWS).get(),
       readProjects(),
     ]);
@@ -573,6 +574,7 @@ exports.getCompletedTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (
     res.status(200).send({
       success: true,
       tasks: serializeCompleted(listSnap.docs.map((d) => ({...d.data(), archiveId: d.id}))),
+      listTruncated: listSnap.size >= limit,
       summary,
       projectHours,
       projectHoursTruncated: projectSnaps.some((snap) => snap.size >= PROJECT_MAX_ROWS),

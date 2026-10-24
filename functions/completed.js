@@ -5,7 +5,8 @@ const {titleKey} = require("./templates");
 const {normalizeSamples, normalizeCount, averageMinutes} = require("./history");
 
 const DEFAULT_LIMIT = 50;
-const MAX_LIMIT = 200;
+// The most entries one list request returns; the same as the number of rows a summary reads (SUMMARY_MAX_ROWS).
+const MAX_LIMIT = 1000;
 // The summary covers this many local weeks (Monday start), the current one included.
 const SUMMARY_WEEKS = 8;
 // Most archive rows read for one summary.

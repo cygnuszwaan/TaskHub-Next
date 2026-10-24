@@ -17,6 +17,11 @@ describe("completed.js", () => {
       assert.equal(clampLimit(String(MAX_LIMIT)), MAX_LIMIT);
       assert.equal(clampLimit("100000"), MAX_LIMIT);
     });
+    it("allows as many as a summary reads, which is what the page loads", () => {
+      assert.equal(MAX_LIMIT, 1000);
+      assert.equal(clampLimit("1000"), 1000);
+      assert.equal(clampLimit("1001"), 1000);
+    });
     it("falls back to the default for missing, zero, negative and non-numeric values", () => {
       for (const raw of [undefined, null, "", "abc", "0", "-5", NaN, {}]) {
         assert.equal(clampLimit(raw), DEFAULT_LIMIT);

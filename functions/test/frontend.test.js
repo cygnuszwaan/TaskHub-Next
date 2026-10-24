@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, historyOf, historyForTitle};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, historyOf, historyForTitle};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -991,6 +991,92 @@ describe("public/index.html helpers", () => {
       it("completedChanges: needs both the date and the time of day even when only one changed", () => {
         const api = load();
         assert.deepEqual(api.completedChanges(row, {...same(api), time: "11:00"}, NZ), {fields: {completedDate: "2026-10-18", completedTime: "11:00"}});
+      });
+    });
+    describe("completed list search and pages", () => {
+      const rowsOf = (n) => Array.from({length: n}, (_, i) => ({archiveId: `a${i}`, title: `Job ${i}`}));
+      const noProject = () => "";
+      it("matchesCompletedSearch: every word must appear in the title, tags, materials, comments or project, in any order and case", () => {
+        const {matchesCompletedSearch: m} = load();
+        const row = {title: "Fit tap", tags: ["Plumbing"], materials: [{id: "a", text: "PTFE tape"}], comments: "Washer replaced", projectId: "p1"};
+        assert.equal(m(row, "", ""), true);
+        assert.equal(m(row, "   ", ""), true);
+        assert.equal(m(row, "TAP plumb", ""), true);
+        assert.equal(m(row, "ptfe", ""), true);
+        assert.equal(m(row, "washer fit", ""), true);
+        assert.equal(m(row, "kitchen", "Kitchen reno"), true);
+        assert.equal(m(row, "kitchen", ""), false);
+        assert.equal(m(row, "tap bathroom", "Kitchen reno"), false);
+      });
+      it("matchesCompletedSearch: copes with rows missing fields and with odd types", () => {
+        const {matchesCompletedSearch: m} = load();
+        assert.equal(m({}, "x", ""), false);
+        assert.equal(m({}, "", ""), true);
+        assert.equal(m({title: "Mow", tags: [5, null, "Lawn"], materials: "junk", comments: 7}, "lawn", undefined), true);
+        assert.equal(m({title: "Mow"}, undefined, ""), true);
+      });
+      it("completedBrowse: pages the newest-first list 50 to a page, keeping its order", () => {
+        const {completedBrowse, COMPLETED_PAGE_SIZE} = load();
+        assert.equal(COMPLETED_PAGE_SIZE, 50);
+        const rows = rowsOf(120);
+        const p1 = completedBrowse(rows, "", 1, noProject);
+        assert.deepEqual([p1.items.length, p1.page, p1.pages, p1.total, p1.all, p1.from, p1.to], [50, 1, 3, 120, 120, 1, 50]);
+        assert.equal(p1.items[0].archiveId, "a0");
+        const p3 = completedBrowse(rows, "", 3, noProject);
+        assert.deepEqual([p3.items.length, p3.from, p3.to, p3.items[0].archiveId], [20, 101, 120, "a100"]);
+      });
+      it("completedBrowse: clamps an out-of-range or unusable page", () => {
+        const {completedBrowse} = load();
+        const rows = rowsOf(120);
+        assert.equal(completedBrowse(rows, "", 99, noProject).page, 3);
+        for (const page of [0, -4, NaN, undefined, "x"]) assert.equal(completedBrowse(rows, "", page, noProject).page, 1, String(page));
+        assert.equal(completedBrowse(rows, "", "2", noProject).page, 2);
+      });
+      it("completedBrowse: pages only the matches, and says so when none match or there are no rows", () => {
+        const {completedBrowse} = load();
+        const rows = rowsOf(120);
+        const b = completedBrowse(rows, "job 11", 1, noProject);
+        assert.deepEqual(b.items.map((r) => r.archiveId), ["a11", "a110", "a111", "a112", "a113", "a114", "a115", "a116", "a117", "a118", "a119"]);
+        assert.deepEqual([b.total, b.all, b.pages], [11, 120, 1]);
+        const none = completedBrowse(rows, "zzz", 4, noProject);
+        assert.deepEqual([none.items.length, none.page, none.pages, none.total, none.from, none.to], [0, 1, 1, 0, 0, 0]);
+        assert.deepEqual([completedBrowse([], "", 1, noProject).total, completedBrowse(undefined, "", 1).total], [0, 0]);
+      });
+      it("completedBrowse: matches a task's project by the name the page looks up", () => {
+        const {completedBrowse} = load();
+        const rows = [{archiveId: "x", title: "Fit tap", projectId: "p1"}, {archiveId: "y", title: "Mow lawn"}];
+        const names = (id) => ({p1: "Kitchen reno"})[id];
+        assert.deepEqual(completedBrowse(rows, "kitchen", 1, names).items.map((r) => r.archiveId), ["x"]);
+        assert.deepEqual(completedBrowse(rows, "kitchen", 1).items, []);
+      });
+      it("pagerItems: has no links for a single page", () => {
+        const {pagerItems} = load();
+        assert.deepEqual(pagerItems(1, 1), []);
+        assert.deepEqual(pagerItems(1, 0), []);
+      });
+      it("pagerItems: gives Previous, every page number when there are few, and Next, disabled at the ends", () => {
+        const {pagerItems} = load();
+        const label = (it) => (it.kind === "page" ? (it.current ? `[${it.page}]` : String(it.page)) : it.kind === "gap" ? "..." : `${it.kind}${it.disabled ? "-off" : ""}`);
+        assert.equal(pagerItems(1, 3).map(label).join(" "), "prev-off [1] 2 3 next");
+        assert.equal(pagerItems(3, 3).map(label).join(" "), "prev 1 2 [3] next-off");
+        assert.deepEqual(pagerItems(2, 3).filter((i) => i.kind === "prev" || i.kind === "next").map((i) => i.page), [1, 3]);
+      });
+      it("pagerItems: keeps the first and last page and two either side of the current, with a gap where more are skipped", () => {
+        const {pagerItems} = load();
+        const label = (it) => (it.kind === "page" ? (it.current ? `[${it.page}]` : String(it.page)) : it.kind === "gap" ? "..." : it.kind);
+        assert.equal(pagerItems(1, 20).map(label).join(" "), "prev [1] 2 3 ... 20 next");
+        assert.equal(pagerItems(10, 20).map(label).join(" "), "prev 1 ... 8 9 [10] 11 12 ... 20 next");
+        assert.equal(pagerItems(20, 20).map(label).join(" "), "prev 1 ... 18 19 [20] next");
+        assert.equal(pagerItems(4, 20).map(label).join(" "), "prev 1 2 3 [4] 5 6 ... 20 next");
+      });
+      it("completedCountText: words the range, the matches and what was not loaded", () => {
+        const {completedBrowse, completedCountText} = load();
+        const rows = rowsOf(120);
+        assert.equal(completedCountText(completedBrowse(rows, "", 2, noProject), "", false), "Showing 51\u2013100 of 120 completed tasks.");
+        assert.equal(completedCountText(completedBrowse(rows, "job 11", 1, noProject), "job 11", false), "Showing 1\u201311 of 11 matches (120 completed tasks).");
+        assert.equal(completedCountText(completedBrowse(rows, "job 119", 1, noProject), "job 119", false), "Showing 1 of 1 match (120 completed tasks).");
+        assert.equal(completedCountText(completedBrowse(rows, "zzz", 1, noProject), "zzz", false), "No completed tasks match the search.");
+        assert.equal(completedCountText(completedBrowse(rows, "", 1, noProject), "", true), "Showing 1\u201350 of 120 completed tasks. Only the newest 120 are loaded.");
       });
     });
     it("jobStatsText: words the window count, total, average and estimate", () => {
