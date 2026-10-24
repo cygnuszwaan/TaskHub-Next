@@ -18,7 +18,7 @@ const {PROJECTS_COLLECTION, makeTaskStore, makeProjectStore, makeSettingsStore} 
 const {UNAVAILABLE, weatherUrl, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
 const {buildTaskPrompt, buildTagPrompt} = require("./prompts");
-const {normalizeProposal, acceptProposalInList, applyChanges} = require("./proposal");
+const {checkProposal, acceptProposalInList, applyChanges} = require("./proposal");
 const {MAX_TEMPLATES, buildTemplates} = require("./templates");
 const {heldTaskIds} = require("./materials");
 const {SUMMARY_MAX_ROWS, PROJECT_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted, summarizeProjectHours} = require("./completed");
@@ -535,7 +535,9 @@ exports.addOrUpdateTask = onRequest({
       const parsed = JSON.parse(response.text);
       changes = parsed.tasks || [];
       // A valid suggestion commits nothing: the owner chooses between the project and the single task(s) first
-      const proposal = allowProposal ? normalizeProposal(parsed.projectProposal, {input: userInput, projects, changes}) : null;
+      const verdict = allowProposal ? checkProposal(parsed.projectProposal, {input: userInput, projects, changes}) : {};
+      if (allowProposal && !verdict.proposal) console.log(`No project suggestion (${verdict.reason}); the model returned ${changes.length} task change(s).`);
+      const proposal = verdict.proposal || null;
       if (proposal) return res.status(200).send({success: true, needsChoice: true, proposal, singleChanges: changes});
     }
 

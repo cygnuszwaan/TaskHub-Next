@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {MIN_STEPS, MAX_STEPS, MAX_APPLY_CHANGES, namesProject, normalizeStep, normalizeProposal, proposalChanges, acceptProposalInList, applyChanges} = require("../proposal");
+const {MIN_STEPS, MAX_STEPS, MAX_APPLY_CHANGES, namesProject, normalizeStep, checkProposal, normalizeProposal, proposalChanges, acceptProposalInList, applyChanges} = require("../proposal");
 
 const step = (n, extra = {}) => ({title: `Step ${n}`, priority: "MEDIUM", estimatedMinutes: 30, tags: ["Indoor"], ...extra});
 const steps = (n) => Array.from({length: n}, (_, i) => step(i + 1));
@@ -186,6 +186,29 @@ describe("proposal.js", () => {
     it("allows at most MAX_APPLY_CHANGES changes", () => {
       assert.equal(applyChanges({changes: Array.from({length: MAX_APPLY_CHANGES}, () => ({title: "a"}))}).length, MAX_APPLY_CHANGES);
       assert.equal(applyChanges({changes: Array.from({length: MAX_APPLY_CHANGES + 1}, () => ({title: "a"}))}), null);
+    });
+  });
+
+  describe("checkProposal", () => {
+    it("returns the proposal, and no reason, for a usable suggestion", () => {
+      const r = checkProposal(raw(), opts);
+      assert.equal(r.reason, undefined);
+      assert.equal(r.proposal.name, "Bathroom renovation");
+      assert.deepEqual(r.proposal, normalizeProposal(raw(), opts));
+    });
+    it("says why a suggestion is not used", () => {
+      const why = (r, o = opts) => checkProposal(r, o).reason;
+      assert.match(why(undefined), /returned no projectProposal/);
+      assert.match(why(null), /returned no projectProposal/);
+      assert.match(why("x"), /not an object/);
+      assert.match(why(raw({name: " "})), /name is unusable/);
+      assert.match(why(raw({steps: "no"})), /no steps list/);
+      assert.match(why(raw({steps: steps(MAX_STEPS + 1)})), /13 steps is more than 12/);
+      assert.match(why(raw({steps: [step(1), step(2), {title: ""}]})), /only 2 usable steps, 3 needed/);
+      assert.match(why(raw({name: "kitchen reno"})), /already exists/);
+      assert.match(why(raw(), {...opts, input: "tile the deck"}), /names an existing project/);
+      assert.match(why(raw(), {...opts, changes: [{title: "x", projectId: "p1"}]}), /into an existing project/);
+      assert.equal(checkProposal(raw(), {...opts, input: "tile the deck"}).proposal, undefined);
     });
   });
 });

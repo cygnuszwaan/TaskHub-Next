@@ -42,14 +42,15 @@ describe("prompts.js", () => {
       assert.ok(!prompt().includes("projectProposal"));
       assert.ok(!prompt({proposals: false}).includes("projectProposal"));
     });
-    it("asks conservatively for a project suggestion when proposals are allowed", () => {
+    it("asks for a project suggestion when proposals are allowed, including when the input lists the stages itself", () => {
       const text = prompt({proposals: true});
       assert.match(text, /projectProposal/);
       assert.match(text, /ONE goal/);
       assert.match(text, /at least three sequential stages/);
       assert.match(text, /3 to 12 steps/);
       assert.match(text, /unrelated errands/);
-      assert.match(text, /When in doubt, leave projectProposal out/);
+      assert.match(text, /Leave projectProposal out when it is\s+not clearly one multi-stage goal/);
+      assert.match(text, /input lists the stages itself/);
       assert.ok(text.startsWith(prompt().slice(0, 200)));
     });
     it("copes with no projects", () => {

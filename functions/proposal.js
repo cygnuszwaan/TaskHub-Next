@@ -40,27 +40,35 @@ function normalizeStep(raw) {
   };
 }
 
-// The project the model suggests for an input, checked. Pure: no I/O, nothing is modified.
+// The project the model suggests for an input, checked, with the reason when it is not used. Pure: no I/O, nothing is modified.
 //   raw:  the model's `projectProposal`: {name, steps: [{title, priority, estimatedMinutes, tags}]}, or anything else
 //   opts: {input, projects, changes}: the text the owner typed, the stored projects [{id, name}] and the model's task
 //         changes (to see whether it placed a task in a project)
-// Returns {name, steps} (steps in the order given, each {title, priority, estimatedMinutes, tags}) or null. The proposal is
-// dropped as a whole when the name is unusable, when fewer than MIN_STEPS steps are usable, when there are more than
-// MAX_STEPS steps, when the name matches an existing project (ignoring case and spacing), and when the input already
-// names a project or the model put a task of this input into one: the owner then has a project in mind.
-function normalizeProposal(raw, {input = "", projects = [], changes = []} = {}) {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+// Returns {proposal: {name, steps}} (steps in the order given, each {title, priority, estimatedMinutes, tags}) or {reason}, the
+// reason being a short sentence for the log. The proposal is dropped as a whole when the model gave none, when the name is
+// unusable, when fewer than MIN_STEPS steps are usable, when there are more than MAX_STEPS steps, when the name matches an
+// existing project (ignoring case and spacing), and when the input already names a project or the model put a task of this
+// input into one: the owner then has a project in mind.
+function checkProposal(raw, {input = "", projects = [], changes = []} = {}) {
+  if (raw === undefined || raw === null) return {reason: "the model returned no projectProposal"};
+  if (typeof raw !== "object" || Array.isArray(raw)) return {reason: "projectProposal is not an object"};
   const named = normalizeProjectName(raw.name);
-  if (named.error) return null;
-  if (!Array.isArray(raw.steps) || raw.steps.length > MAX_STEPS) return null;
+  if (named.error) return {reason: "the project name is unusable"};
+  if (!Array.isArray(raw.steps)) return {reason: "projectProposal has no steps list"};
+  if (raw.steps.length > MAX_STEPS) return {reason: `${raw.steps.length} steps is more than ${MAX_STEPS}`};
   const steps = raw.steps.map(normalizeStep).filter(Boolean);
-  if (steps.length < MIN_STEPS) return null;
+  if (steps.length < MIN_STEPS) return {reason: `only ${steps.length} usable steps, ${MIN_STEPS} needed`};
   const known = Array.isArray(projects) ? projects : [];
-  if (known.some((p) => p && typeof p.name === "string" && squash(p.name) === squash(named.name))) return null;
-  if (namesProject(input, known)) return null;
+  if (known.some((p) => p && typeof p.name === "string" && squash(p.name) === squash(named.name))) return {reason: `a project named "${named.name}" already exists`};
+  if (namesProject(input, known)) return {reason: "the input names an existing project"};
   const ids = new Set(known.map((p) => p && p.id));
-  if ((Array.isArray(changes) ? changes : []).some((c) => c && typeof c.projectId === "string" && ids.has(c.projectId))) return null;
-  return {name: named.name, steps};
+  if ((Array.isArray(changes) ? changes : []).some((c) => c && typeof c.projectId === "string" && ids.has(c.projectId))) return {reason: "the model put a task of the input into an existing project"};
+  return {proposal: {name: named.name, steps}};
+}
+
+// The checked suggestion, or null (see checkProposal for the reasons).
+function normalizeProposal(raw, opts) {
+  return checkProposal(raw, opts).proposal || null;
 }
 
 // The new-task changes for a project's steps, in the shape mergeTaskChanges takes. Pure: no I/O.
@@ -104,4 +112,4 @@ function applyChanges(raw) {
   return raw.changes;
 }
 
-module.exports = {MIN_STEPS, MAX_STEPS, MAX_APPLY_CHANGES, namesProject, normalizeStep, normalizeProposal, proposalChanges, acceptProposalInList, applyChanges};
+module.exports = {MIN_STEPS, MAX_STEPS, MAX_APPLY_CHANGES, namesProject, normalizeStep, checkProposal, normalizeProposal, proposalChanges, acceptProposalInList, applyChanges};

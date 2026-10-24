@@ -9,12 +9,14 @@ function oneLine(text) {
 // Added to the task prompt when the model may suggest a project. Worded conservatively: a wrong suggestion costs the owner a
 // dialog, a missed one costs nothing.
 const PROPOSAL_INSTRUCTIONS = `
-      Project suggestion: if, and only if, the whole input is ONE goal that clearly takes at least three sequential stages
-      (for example "renovate the bathroom" or "plan and run my daughter's birthday party"), also return projectProposal: a short
-      project name and 3 to 12 steps in the order they are done, each with a title, priority, estimatedMinutes and tags.
+      Project suggestion: if the whole input is ONE goal that takes at least three sequential stages (for example "renovate the
+      bathroom" or "plan and run my daughter's birthday party"), also return projectProposal: a short project name and
+      3 to 12 steps in the order they are done, each with a title, priority, estimatedMinutes and tags. This applies just as much when
+      the input lists the stages itself ("strip the walls, tile, then paint"): those stages are the steps.
       Still return the tasks as you normally would, reading the input as a single task or as the tasks it names.
       Never suggest a project for a single errand, for a list of unrelated errands, for a repeating task, for a change to
-      existing tasks, or when the input already names or uses one of the Existing Projects. When in doubt, leave projectProposal out.`;
+      existing tasks, or when the input already names or uses one of the Existing Projects. Leave projectProposal out when it is
+      not clearly one multi-stage goal.`;
 
 // The prompt that turns free text into new or changed tasks. Pure: no I/O.
 //   tasks:    the stored task list (the model sees only the fields it may change, plus id, rank and project)
