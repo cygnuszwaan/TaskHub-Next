@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, sortTasksForList, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, historyOf, historyForTitle};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, historyOf, historyForTitle};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -72,19 +72,6 @@ describe("public/index.html helpers", () => {
       assert.equal(snoozeNeedsReschedule({...scheduled, locked: true}), false);
       assert.equal(snoozeNeedsReschedule({...scheduled, materials: [{id: "m", text: "Paint", checked: false}]}), false);
       assert.equal(snoozeNeedsReschedule({...scheduled, materials: [{id: "m", text: "Paint", checked: true}]}), true);
-    });
-    it("sorts snoozed tasks last, and keeps overdue first and then rank within each group", () => {
-      const {sortTasksForList} = load();
-      const now = new Date("2026-10-22T09:00:00+13:00");
-      const tasks = [
-        {id: "snoozed", order: 1, snoozedUntil: "2026-10-25"},
-        {id: "plain", order: 2},
-        {id: "overdue", order: 3, dueDate: "2026-10-20"},
-        {id: "snoozed-overdue", order: 4, dueDate: "2026-10-19", snoozedUntil: "2026-10-23"},
-        {id: "over-snooze", order: 5, snoozedUntil: "2026-10-21"},
-      ];
-      assert.deepEqual(sortTasksForList(tasks, now).map((t) => t.id), ["overdue", "plain", "over-snooze", "snoozed-overdue", "snoozed"]);
-      assert.deepEqual(tasks.map((t) => t.id), ["snoozed", "plain", "overdue", "snoozed-overdue", "over-snooze"], "the input is not reordered");
     });
     it("puts a Snooze button next to Complete on the task card, and a dialog outside the edit modal", () => {
       const list = html.slice(html.indexOf("function taskItemHtml"), html.indexOf("function renderTasks"));
@@ -976,19 +963,23 @@ describe("public/index.html helpers", () => {
       {id: "t4", order: 4, priority: "HIGH", dueDate: "2026-10-25", addedAt: "2026-10-21T01:00:00.000Z", scheduledStart: "2026-10-27"},
     ];
 
-    it("offers Task number, Priority, Date added, Due date, Scheduled date and Name, and falls back to Task number", () => {
+    it("offers Priority, Date added, Due date, Scheduled date and Name (no task number), and falls back to Scheduled date", () => {
       const {SORT_OPTIONS, normalizeSortKey} = load();
-      assert.deepEqual(SORT_OPTIONS.map((o) => o[1]), ["Task number", "Priority", "Date added", "Due date", "Scheduled date", "Name"]);
+      assert.deepEqual(SORT_OPTIONS.map((o) => o[1]), ["Priority", "Date added", "Due date", "Scheduled date", "Name"]);
       assert.equal(normalizeSortKey("due"), "due");
-      assert.equal(normalizeSortKey("nonsense"), "order");
-      assert.equal(normalizeSortKey(undefined), "order");
+      assert.equal(normalizeSortKey("order"), "scheduled");
+      assert.equal(normalizeSortKey("nonsense"), "scheduled");
+      assert.equal(normalizeSortKey(undefined), "scheduled");
     });
-    it("sorts by task number as the list always did, and reverses it as a whole", () => {
-      const {sortTasks, sortTasksForList} = load();
-      const list = [{id: "s", order: 1, snoozedUntil: "2026-10-25"}, {id: "p", order: 2}, {id: "o", order: 3, dueDate: "2026-10-20"}];
-      assert.deepEqual(ids(sortTasks(list, "order", false, now)), ids(sortTasksForList(list, now)));
-      assert.deepEqual(ids(sortTasks(list, "order", false, now)), ["o", "p", "s"]);
-      assert.deepEqual(ids(sortTasks(list, "order", true, now)), ["s", "p", "o"]);
+    it("sorts by scheduled date, ascending, unless told otherwise, and the page starts there", () => {
+      const {sortTasks} = load();
+      assert.deepEqual(ids(sortTasks(tasks())), ids(sortTasks(tasks(), "scheduled", false)));
+      assert.deepEqual(ids(sortTasks(tasks(), "order", false)), ids(sortTasks(tasks(), "scheduled", false)));
+      assert.ok(html.includes("let sortKey = \"scheduled\""));
+    });
+    it("does not show the task number on a task card", () => {
+      const card = html.slice(html.indexOf("function taskItemHtml"), html.indexOf("function renderTasks"));
+      assert.ok(!card.includes("t.order"));
     });
     it("sorts by priority, highest first when ascending, ties by task number", () => {
       const {sortTasks} = load();

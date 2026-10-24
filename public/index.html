@@ -661,7 +661,7 @@
     let tasksLoaded = false; // set once the list has been drawn
     let selectedTagFilter = null; // null = show all
     let selectedProjectFilter = null; // a project id, null = show all
-    let sortKey = "order"; // the Queue's "Sort by" choice (see SORT_OPTIONS)
+    let sortKey = "scheduled"; // the Queue's "Sort by" choice (see SORT_OPTIONS)
     let sortDescending = false;
     let editMaterials = []; // the materials list being edited in the modal: [{id, text, checked}]
     let manualMaterials = []; // the materials list of the add form's own entry, same shape
@@ -1015,22 +1015,8 @@
     function snoozeNeedsReschedule(t) {
       return Boolean(t.googleCalendarEventId || t.scheduledStart) && !t.locked && openMaterialsOf(t).length === 0;
     }
-    // The list order: snoozed tasks last; within each group overdue tasks first (most overdue first), then by rank.
-    function sortTasksForList(tasks, now = new Date()) {
-      const today = todayKey(now);
-      return [...tasks].sort((a, b) => {
-        const sa = isSnoozedTask(a, today), sb = isSnoozedTask(b, today);
-        if (sa !== sb) return sa ? 1 : -1;
-        const da = daysUntilDue(a, now), db = daysUntilDue(b, now);
-        const oa = da !== null && da < 0, ob = db !== null && db < 0;
-        if (oa !== ob) return oa ? -1 : 1;
-        if (oa && da !== db) return da - db;
-        return a.order - b.order;
-      });
-    }
-    // The Queue's "Sort by" choices as [key, label], in menu order. "order" (Task number) is the list order above.
+    // The Queue's "Sort by" choices as [key, label], in menu order. The default is "scheduled".
     const SORT_OPTIONS = [
-      ["order", "Task number"],
       ["priority", "Priority"],
       ["added", "Date added"],
       ["due", "Due date"],
@@ -1038,9 +1024,9 @@
       ["name", "Name"]
     ];
     const PRIORITY_RANK = ["HIGH", "MEDIUM", "LOW"];
-    // A saved or typed sort key as a known one; anything else is "order".
+    // A saved or typed sort key as a known one; anything else is "scheduled".
     function normalizeSortKey(key) {
-      return SORT_OPTIONS.some(o => o[0] === key) ? key : "order";
+      return SORT_OPTIONS.some(o => o[0] === key) ? key : "scheduled";
     }
     // The number a task sorts by under `key` (smaller comes first when ascending). Priority: High, Medium, Low (an
     // unknown one last). Date added (`addedAt`): a task without one counts as the oldest. Due date and Scheduled date:
@@ -1070,20 +1056,16 @@
         const [h, m] = clock.format(when).split(":").map(Number);
         return Date.parse(`${fmt.key.format(when)}T00:00:00Z`) + ((h % 24) * 60 + m) * 60000;
       }
-      return task.order;
+      return Infinity;
     }
-    // The tasks in the order of the "Sort by" choice `key`, reversed when `descending` (which applies to every key,
-    // so missing dates move to the front). "order" is the standard list order (sortTasksForList), reversed as a
-    // whole; every other key sorts by that value alone, with ties kept in task number order whichever way it runs.
+    // The tasks in the order of the "Sort by" choice `key` (Scheduled date by default), reversed when `descending`
+    // (which applies to every key, so missing dates move to the front). Each key sorts by its own value alone, with ties
+    // kept in the tasks' internal rank (`order`, which the page does not show) whichever way it runs.
     // "name" sorts by title A to Z, ignoring case and surrounding spaces, with numbers in numeric order ("Task 2"
     // before "Task 10"), so tasks with the same title end up next to each other.
     // Pure: the input is not modified.
-    function sortTasks(tasks, key = "order", descending = false, now = new Date()) {
+    function sortTasks(tasks, key = "scheduled", descending = false) {
       const sortKey = normalizeSortKey(key);
-      if (sortKey === "order") {
-        const list = sortTasksForList(tasks, now);
-        return descending ? list.reverse() : list;
-      }
       const sign = descending ? -1 : 1;
       if (sortKey === "name") {
         const collator = new Intl.Collator("en-NZ", { sensitivity: "base", numeric: true });
@@ -1657,7 +1639,7 @@
     function taskItemHtml(t, isActive = false) {
       return `        <div class="task-item" data-id="${esc(t.id)}">
           <div style="flex:1;">
-            <strong>#${esc(t.order)} ${esc(t.title)}</strong>
+            <strong>${esc(t.title)}</strong>
             <div class="task-meta">
               <span class="badge ${PRIORITIES.includes(t.priority) ? t.priority : ''}">${esc(t.priority)}</span>
               <span class="time-chip">⏱️ ${esc(t.estimatedMinutes || 15)}m</span>
@@ -1716,7 +1698,6 @@
         return;
       }
 
-      // Task number: snoozed tasks last, then overdue first (most overdue first), then by rank; the other choices sort by their own field
       filtered = sortTasks(filtered, sortKey, sortDescending);
 
       listContainer.innerHTML = filtered.map(t => taskItemHtml(t)).join("");
