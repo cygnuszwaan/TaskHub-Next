@@ -1131,6 +1131,23 @@ describe("public/index.html helpers", () => {
       assert.deepEqual(templateMatches(templates, "verge mow").map((t) => t.title), ["Mow the verge"]);
       assert.deepEqual(templateMatches(templates, "zzz"), []);
     });
+    it("lists the most often completed first, keeping the newest first among equal counts", () => {
+      const {templateMatches} = load();
+      const list = [
+        {title: "Mow lawn", completedCount: 2},
+        {title: "Mow the verge", completedCount: 9},
+        {title: "Mow edges", completedCount: 2},
+        {title: "Mow roof"},
+        {title: "Mow hedge", completedCount: 5},
+      ];
+      assert.deepEqual(templateMatches(list, "mow").map((t) => t.title), ["Mow the verge", "Mow hedge", "Mow lawn", "Mow edges", "Mow roof"]);
+      assert.deepEqual(list.map((t) => t.title)[0], "Mow lawn"); // the input is not reordered
+    });
+    it("picks the limit from the most common matches, not the newest", () => {
+      const {templateMatches} = load();
+      const list = [{title: "Mow a", completedCount: 1}, {title: "Mow b", completedCount: 1}, {title: "Mow c", completedCount: 8}];
+      assert.deepEqual(templateMatches(list, "mow", 1).map((t) => t.title), ["Mow c"]);
+    });
     it("shows at most the limit", () => {
       const {templateMatches} = load();
       assert.equal(templateMatches(templates, "mow", 1).length, 1);

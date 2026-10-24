@@ -1184,11 +1184,13 @@
     }
 
     // Completed tasks (templates from getCompletedTemplates, newest first) whose title matches the text typed in the
-    // add field, at most `limit` of them. Matching is the Queue search's (see matchesSearch); nothing is offered for an
+    // add field, most often completed first (`completedCount`, descending; equal counts keep the newest-first order of
+    // the list), at most `limit` of them. Matching is the Queue search's (see matchesSearch); nothing is offered for an
     // empty or one-letter text. Pure: the input is not modified.
     function templateMatches(templates, query, limit = 6) {
       if (String(query || "").trim().length < 2) return [];
-      return (templates || []).filter(t => matchesSearch(t, query)).slice(0, limit);
+      const count = t => (Number.isInteger(t.completedCount) && t.completedCount > 0 ? t.completedCount : 0);
+      return (templates || []).filter(t => matchesSearch(t, query)).sort((a, b) => count(b) - count(a)).slice(0, limit);
     }
 
     // The second line of a template in the results: "HIGH · 45 min · Outdoor, Garden" (the tags are left out when it has none)
