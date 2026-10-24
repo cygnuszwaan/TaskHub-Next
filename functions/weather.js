@@ -18,8 +18,13 @@ const UNAVAILABLE = "Weather data currently unavailable";
 // Days of daily forecast the scheduler uses. Weather says nothing useful about days further out, so later days are
 // scheduled without regard to it.
 const WEATHER_DAYS = 3;
-// A day with at least this much forecast precipitation (mm) counts as rainy even when its dominant weather code is dry.
+// A day shows signs of rain when its dominant weather code is wet or it has at least this much forecast precipitation (mm).
 const WET_DAY_MM = 1;
+// Such a day counts as rainy only when the chance of rain (the day's maximum, %) is at least this; a day with no chance figure
+// is judged on the signs alone.
+const RAIN_CHANCE_MIN = 40;
+// A day with at least this much forecast precipitation (mm) counts as rainy whatever its chance of rain.
+const HEAVY_DAY_MM = 3;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 // Open-Meteo request for the current weather and the next WEATHER_DAYS daily forecasts at a location
@@ -45,9 +50,10 @@ const isNumber = (v) => typeof v === "number" && Number.isFinite(v);
 const isWetCode = (code) => Object.prototype.hasOwnProperty.call(WEATHER_CODES, code) && !(code === 0 || code === 1 || code === 2 || code === 3 || code === 45 || code === 48);
 
 // The daily forecast in Open-Meteo's response as [{date, conditions, minTemp, maxTemp, precipitationMm, rainChance, rainy}],
-// in date order, at most WEATHER_DAYS days. `rainy` is true when the day's dominant condition is wet or at least
-// WET_DAY_MM of precipitation is forecast. A missing figure is null; a day without a valid date is skipped. A missing
-// or unusable `daily` object gives an empty list. Pure: no I/O.
+// in date order, at most WEATHER_DAYS days. `rainy` is true when the day shows signs of rain (its dominant condition is
+// wet, or at least WET_DAY_MM of precipitation is forecast) and its chance of rain is at least RAIN_CHANCE_MIN, or when at
+// least HEAVY_DAY_MM is forecast whatever the chance; a day with signs but no chance figure counts as rainy. A missing
+// figure is null; a day without a valid date is skipped. A missing or unusable `daily` object gives an empty list. Pure: no I/O.
 function parseForecast(data) {
   const d = data && data.daily;
   if (!d || !Array.isArray(d.time)) return [];
@@ -57,14 +63,16 @@ function parseForecast(data) {
     if (typeof date !== "string" || !DATE_ONLY.test(date)) return;
     const code = at(d.weather_code, i);
     const mm = at(d.precipitation_sum, i);
+    const chance = at(d.precipitation_probability_max, i);
+    const signs = (code !== null && isWetCode(code)) || (mm !== null && mm >= WET_DAY_MM);
     days.push({
       date,
       conditions: code !== null && Object.prototype.hasOwnProperty.call(WEATHER_CODES, code) ? WEATHER_CODES[code] : "Variable conditions",
       minTemp: at(d.temperature_2m_min, i),
       maxTemp: at(d.temperature_2m_max, i),
       precipitationMm: mm,
-      rainChance: at(d.precipitation_probability_max, i),
-      rainy: (code !== null && isWetCode(code)) || (mm !== null && mm >= WET_DAY_MM),
+      rainChance: chance,
+      rainy: (mm !== null && mm >= HEAVY_DAY_MM) || (signs && (chance === null || chance >= RAIN_CHANCE_MIN)),
     });
   });
   return days.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)).slice(0, WEATHER_DAYS);
@@ -103,4 +111,4 @@ function weatherWindow({today, forecast, current}) {
   return {lastDate, rainyDates};
 }
 
-module.exports = {WEATHER_CODES, UNAVAILABLE, WEATHER_DAYS, WET_DAY_MM, WEATHER_TAGS, weatherUrl, weatherKey, parseForecast, forecastKey, isWeatherSensitive, weatherWindow};
+module.exports = {WEATHER_CODES, UNAVAILABLE, WEATHER_DAYS, WET_DAY_MM, RAIN_CHANCE_MIN, HEAVY_DAY_MM, WEATHER_TAGS, weatherUrl, weatherKey, parseForecast, forecastKey, isWeatherSensitive, weatherWindow};

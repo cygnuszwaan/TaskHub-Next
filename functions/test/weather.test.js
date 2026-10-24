@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {WEATHER_CODES, UNAVAILABLE, WEATHER_DAYS, weatherUrl, weatherKey, parseForecast, forecastKey, isWeatherSensitive, weatherWindow} = require("../weather");
+const {WEATHER_CODES, UNAVAILABLE, WEATHER_DAYS, RAIN_CHANCE_MIN, HEAVY_DAY_MM, weatherUrl, weatherKey, parseForecast, forecastKey, isWeatherSensitive, weatherWindow} = require("../weather");
 
 describe("weather.js", () => {
   describe("weatherUrl", () => {
@@ -61,13 +61,33 @@ describe("weather.js", () => {
         {date: "2026-10-24", conditions: "Overcast", minTemp: 11, maxTemp: 17, precipitationMm: 0.2, rainChance: 20, rainy: false},
       ]);
     });
-    it("calls a day rainy for a wet code or for at least 1 mm, but not for drizzle-level amounts under a dry code", () => {
-      const r = parseForecast(daily({weather_code: [51, 3, 3], precipitation_sum: [0, 1, 0.9]}));
+    it("calls a day rainy for a wet code or for at least 1 mm when the chance of rain is high enough, but not for under 1 mm under a dry code", () => {
+      const r = parseForecast(daily({weather_code: [51, 3, 3], precipitation_sum: [0, 1, 0.9], precipitation_probability_max: [60, 60, 60]}));
       assert.deepEqual(r.map((d) => d.rainy), [true, true, false]);
     });
     it("treats showers, snow and thunderstorms as rainy", () => {
-      const r = parseForecast(daily({weather_code: [80, 71, 95]}));
+      const r = parseForecast(daily({weather_code: [80, 71, 95], precipitation_probability_max: [60, 60, 60]}));
       assert.deepEqual(r.map((d) => d.rainy), [true, true, true]);
+    });
+    it("does not call a day rainy when the signs are slight and the chance of rain is low (light drizzle, 1.1 mm, 8%)", () => {
+      const r = parseForecast(daily({weather_code: [45, 51, 51], precipitation_sum: [0, 1.1, 0.2], precipitation_probability_max: [0, 8, 4]}));
+      assert.deepEqual(r.map((d) => d.rainy), [false, false, false]);
+    });
+    it("needs a chance of rain of at least RAIN_CHANCE_MIN", () => {
+      const r = parseForecast(daily({weather_code: [61, 61, 61], precipitation_sum: [2, 2, 2], precipitation_probability_max: [RAIN_CHANCE_MIN - 1, RAIN_CHANCE_MIN, RAIN_CHANCE_MIN + 1]}));
+      assert.deepEqual(r.map((d) => d.rainy), [false, true, true]);
+    });
+    it("calls a day rainy for at least HEAVY_DAY_MM whatever the chance of rain, even under a dry code", () => {
+      const r = parseForecast(daily({weather_code: [3, 61, 61], precipitation_sum: [HEAVY_DAY_MM, HEAVY_DAY_MM, HEAVY_DAY_MM - 0.1], precipitation_probability_max: [10, 5, 5]}));
+      assert.deepEqual(r.map((d) => d.rainy), [true, true, false]);
+    });
+    it("does not call a day rainy for a high chance of rain alone, with a dry code and under 1 mm", () => {
+      const r = parseForecast(daily({weather_code: [3, 3, 3], precipitation_sum: [0, 0.5, 0], precipitation_probability_max: [90, 90, 90]}));
+      assert.deepEqual(r.map((d) => d.rainy), [false, false, false]);
+    });
+    it("judges a day with no chance figure on its signs alone", () => {
+      const r = parseForecast({daily: {time: ["2026-10-22", "2026-10-23", "2026-10-24"], weather_code: [61, 3, 3], precipitation_sum: [0, 1, 0.5]}});
+      assert.deepEqual(r.map((d) => d.rainy), [true, true, false]);
     });
     it("keeps missing figures as null and an unknown code as variable conditions", () => {
       const r = parseForecast({daily: {time: ["2026-10-22"], weather_code: [1234]}});
