@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, sortTasksForList, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, sortTasksForList, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, historyOf, historyForTitle};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -1144,7 +1144,7 @@ describe("public/index.html helpers", () => {
     it("fills the form with the old details but no due date, and every material unchecked", () => {
       const {templateFormValues} = load();
       const v = templateFormValues(templates[0], ["p1"]);
-      assert.deepEqual(v, {title: "Mow lawn", priority: "LOW", estimatedMinutes: 45, tags: "Outdoor, Garden", dueDate: "", recurFreq: "WEEKLY", recurInterval: 2, projectId: "p1", projectOrder: 2, materials: [{id: "", text: "Petrol", checked: false}, {id: "", text: "Oil", checked: false}], comments: "Check the blade"});
+      assert.deepEqual(v, {title: "Mow lawn", priority: "LOW", estimatedMinutes: 45, tags: "Outdoor, Garden", dueDate: "", recurFreq: "WEEKLY", recurInterval: 2, projectId: "p1", projectOrder: 2, materials: [{id: "", text: "Petrol", checked: false}, {id: "", text: "Oil", checked: false}], comments: "Check the blade", history: null});
     });
     it("drops a project that no longer exists, with its order number", () => {
       const {templateFormValues} = load();
@@ -1152,9 +1152,32 @@ describe("public/index.html helpers", () => {
       assert.equal(v.projectId, "");
       assert.equal(v.projectOrder, "");
     });
+    it("carries the job history of a template into the form values and the posted entry", () => {
+      const {templateFormValues, manualTaskBody, historyOf} = load();
+      const t = {title: "Mow lawn", completedCount: 7, recentSeconds: [1200, 0, 1500], estimatedMinutes: 25};
+      assert.deepEqual(historyOf(t), {completedCount: 7, recentSeconds: [1200, 1500]});
+      assert.equal(templateFormValues(t).estimatedMinutes, 25);
+      assert.deepEqual(templateFormValues(t).history, {completedCount: 7, recentSeconds: [1200, 1500]});
+      assert.deepEqual(manualTaskBody({title: "Mow lawn", priority: "LOW", history: {completedCount: 7}}).manual.history, {completedCount: 7});
+      assert.ok(!("history" in manualTaskBody({title: "x", priority: "LOW", history: null}).manual));
+    });
+    it("leaves out unusable history parts", () => {
+      const {historyOf} = load();
+      assert.equal(historyOf({}), null);
+      assert.equal(historyOf({completedCount: 0, recentSeconds: [0, -1, "5"]}), null);
+      assert.deepEqual(historyOf({completedCount: 2}), {completedCount: 2});
+    });
+    it("posts the copied history only while the title still names the same job", () => {
+      const {historyForTitle} = load();
+      const copied = {title: "Mow lawn", history: {completedCount: 3}};
+      assert.deepEqual(historyForTitle(copied, "  MOW lawn "), {completedCount: 3});
+      assert.equal(historyForTitle(copied, "Mow the verge"), null);
+      assert.equal(historyForTitle(null, "Mow lawn"), null);
+      assert.equal(historyForTitle({title: "x", history: null}, "x"), null);
+    });
     it("falls back to the form's defaults for a bare template", () => {
       const {templateFormValues} = load();
-      assert.deepEqual(templateFormValues({title: "x"}), {title: "x", priority: "MEDIUM", estimatedMinutes: 15, tags: "", dueDate: "", recurFreq: "NONE", recurInterval: 1, projectId: "", projectOrder: "", materials: [], comments: ""});
+      assert.deepEqual(templateFormValues({title: "x"}), {title: "x", priority: "MEDIUM", estimatedMinutes: 15, tags: "", dueDate: "", recurFreq: "NONE", recurInterval: 1, projectId: "", projectOrder: "", materials: [], comments: "", history: null});
     });
     it("posts startNow only when ticked", () => {
       const {addTaskExtras} = load();

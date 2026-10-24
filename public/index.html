@@ -840,6 +840,7 @@
       if (materials) manual.materials = materials;
       const comments = String(form.comments || "").trim();
       if (comments) manual.comments = comments;
+      if (form.history) manual.history = form.history;
       return { manual };
     }
 
@@ -1197,6 +1198,23 @@
       return parts.join(" · ");
     }
 
+    // The job history a template carries ({completedCount, recentSeconds}, either part left out when unusable), or null.
+    // The server keeps it on the copy, so the count and the rolling average carry on from the old instances.
+    function historyOf(t) {
+      const out = {};
+      if (Number.isInteger(t.completedCount) && t.completedCount >= 1) out.completedCount = t.completedCount;
+      const samples = (Array.isArray(t.recentSeconds) ? t.recentSeconds : []).filter(s => Number.isFinite(s) && s > 0);
+      if (samples.length > 0) out.recentSeconds = samples;
+      return Object.keys(out).length > 0 ? out : null;
+    }
+
+    // The history to post with a manual entry: the copied template's, but only while the title still names the same job
+    // (ignoring case and surrounding spaces); a title typed over it starts a new job. `copied` is {title, history} or null.
+    function historyForTitle(copied, title) {
+      if (!copied || !copied.history) return null;
+      return String(title || "").trim().toLowerCase() === String(copied.title || "").trim().toLowerCase() ? copied.history : null;
+    }
+
     // The add form's fields for a new task copied from a template. The due date is left empty (the old one belongs to
     // that instance), the project only when it is in `projectIds` (with its order number), and every material comes
     // back unchecked. Pure.
@@ -1214,7 +1232,8 @@
         projectId: inProject ? t.projectId : "",
         projectOrder: inProject && Number.isInteger(t.projectOrder) ? t.projectOrder : "",
         materials: (Array.isArray(t.materials) ? t.materials : []).slice(0, MAX_MATERIALS).map(text => ({ id: "", text: String(text), checked: false })),
-        comments: typeof t.comments === "string" ? t.comments : ""
+        comments: typeof t.comments === "string" ? t.comments : "",
+        history: historyOf(t)
       };
     }
 
@@ -1383,7 +1402,8 @@
           projectId: projectsLoaded ? document.getElementById("manualProject").value : "",
           projectOrder: document.getElementById("manualProjectOrder").value,
           materials: manualMaterials,
-          comments: document.getElementById("manualComments").value
+          comments: document.getElementById("manualComments").value,
+          history: historyForTitle(copiedHistory, input)
         }) : { input };
         Object.assign(body, addTaskExtras({ startNow: document.getElementById("startNow").checked }));
         const res = await apiFetch(ADD_TASK_URL, {
@@ -1425,6 +1445,7 @@
       return templatesLoading;
     }
 
+    let copiedHistory = null; // {title, history} of the template last copied into the form; posted with the entry while the title matches, cleared with it
     let shownTemplates = [];
     function renderTemplateResults() {
       const box = document.getElementById("templateResults");
@@ -1459,6 +1480,7 @@
       document.getElementById("manualProjectOrder").value = projectsLoaded ? v.projectOrder : "";
       updateProjectOrderField("manual");
       manualMaterials = v.materials;
+      copiedHistory = { title: v.title, history: v.history };
       document.getElementById("manualNewMaterialText").value = "";
       renderManualMaterials();
       document.getElementById("manualComments").value = v.comments;
@@ -1467,6 +1489,7 @@
 
     // Repeats, project, materials and comments belong to one task, so they are cleared after each manual add
     function resetManualExtras() {
+      copiedHistory = null;
       document.getElementById("manualRecurFreq").value = "NONE";
       document.getElementById("manualRecurInterval").value = 1;
       updateRecurUnit("manual");
@@ -2374,6 +2397,7 @@
     document.getElementById("lunchEnabled").addEventListener("change", updateLunchFields);
     document.getElementById("manualToggle").addEventListener("change", e => {
       document.getElementById("manualFields").hidden = !e.target.checked;
+      if (!e.target.checked) copiedHistory = null;
     });
     document.getElementById("taskInput").addEventListener("input", searchTemplates);
     document.getElementById("templateResults").addEventListener("click", e => {

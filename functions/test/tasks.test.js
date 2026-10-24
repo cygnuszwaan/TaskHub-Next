@@ -58,7 +58,7 @@ describe("tasks.js", () => {
     it("creates the next occurrence of a repeating task at the same rank", () => {
       const tasks = existingTasks().map((t) => (t.id === "b" ? {...t, dueDate: "2026-10-26", tags: ["home"], recurrence: weekly} : t));
       const r = completeInList(tasks, "b", today, makeIdGenerator());
-      assert.deepEqual(r.spawned, {id: "new1", title: "B", priority: "LOW", dueDate: "2026-11-02", estimatedMinutes: 10, tags: ["home"], status: "PENDING", recurrence: weekly, order: 2});
+      assert.deepEqual(r.spawned, {id: "new1", title: "B", priority: "LOW", dueDate: "2026-11-02", estimatedMinutes: 10, tags: ["home"], status: "PENDING", recurrence: weekly, completedCount: 1, order: 2});
       assert.deepEqual(r.tasks.map((t) => t.id).sort(), ["a", "c", "new1"]);
       assert.equal(r.tasks.find((t) => t.id === "new1"), r.spawned);
       assert.equal(r.completedTask.id, "b");
@@ -748,5 +748,72 @@ describe("tag fill and new ids", () => {
   it("lists the ids that are new, in list order", () => {
     assert.deepEqual(newTaskIds([{id: "a"}, {id: "b"}], [{id: "a"}, {id: "n1"}, {id: "b"}, {id: "n2"}]), ["n1", "n2"]);
     assert.deepEqual(newTaskIds([{id: "a"}], [{id: "a"}]), []);
+  });
+});
+
+describe("job history", () => {
+  const {completeInList, mergeTaskChanges, applyDirectUpdate, manualTaskChange, removalRecord, undoInList} = require("../tasks");
+  const weekly = {frequency: "WEEKLY", interval: 1};
+  const makeId = () => "new1";
+  const job = (extra = {}) => ({id: "t1", title: "Mow lawn", priority: "LOW", dueDate: "2026-10-26", estimatedMinutes: 30, tags: [], status: "PENDING", recurrence: weekly, order: 1, ...extra});
+
+  it("counts a completion and carries the history to the next occurrence", () => {
+    const r = completeInList([job({completedCount: 2, recentSeconds: [1200], trackedSeconds: 1800})], "t1", "2026-10-24", makeId, "2026-10-24T08:00:00.000Z");
+    assert.deepEqual(r.history, {completedCount: 3, recentSeconds: [1200, 1800]});
+    assert.equal(r.spawned.completedCount, 3);
+    assert.deepEqual(r.spawned.recentSeconds, [1200, 1800]);
+  });
+  it("sets the next occurrence's estimate to the rolling average rounded to 5 minutes", () => {
+    const r = completeInList([job({completedCount: 1, recentSeconds: [1200], trackedSeconds: 1500})], "t1", "2026-10-24", makeId);
+    assert.equal(r.spawned.estimatedMinutes, 25); // (20 + 25) / 2 = 22.5, a half rounds up
+    const r2 = completeInList([job({recentSeconds: [], trackedSeconds: 421})], "t1", "2026-10-24", makeId);
+    assert.equal(r2.spawned.estimatedMinutes, 5); // 7.0 min
+    const r3 = completeInList([job({trackedSeconds: 600})], "t1", "2026-10-24", makeId);
+    assert.equal(r3.spawned.estimatedMinutes, 10);
+  });
+  it("keeps the estimate while no instance has tracked time, but still counts", () => {
+    const r = completeInList([job()], "t1", "2026-10-24", makeId);
+    assert.equal(r.spawned.estimatedMinutes, 30);
+    assert.equal(r.history.completedCount, 1);
+    assert.equal("recentSeconds" in r.spawned, false);
+  });
+  it("returns the history for a task that does not repeat, and leaves the archived task's own fields alone", () => {
+    const plain = job({recurrence: undefined, completedCount: 4, trackedSeconds: 300});
+    delete plain.recurrence;
+    const r = completeInList([plain], "t1", "2026-10-24", makeId);
+    assert.equal(r.spawned, null);
+    assert.equal(r.history.completedCount, 5);
+    assert.equal(r.completedTask.completedCount, 4);
+  });
+  it("restores the earlier history when a completion is undone", () => {
+    const tasks = [job({completedCount: 2, recentSeconds: [600], trackedSeconds: 900})];
+    const done = completeInList(tasks, "t1", "2026-10-24", makeId);
+    const back = undoInList(done.tasks, removalRecord("COMPLETE", done.completedTask, "arch1", done.spawned, Date.now()));
+    assert.equal(back.restored.completedCount, 2);
+    assert.deepEqual(back.restored.recentSeconds, [600]);
+  });
+  it("lets a manual new task take a validated history, and nothing else does", () => {
+    const history = {completedCount: 7, recentSeconds: [600, 0, 900]};
+    const change = manualTaskChange({title: "Mow lawn", history});
+    assert.deepEqual(change.history, history);
+    const withIt = mergeTaskChanges([], [change], makeId, [], {history: true});
+    assert.equal(withIt.tasks[0].completedCount, 7);
+    assert.deepEqual(withIt.tasks[0].recentSeconds, [600, 900]);
+    const without = mergeTaskChanges([], [change], makeId, [], {});
+    assert.equal("completedCount" in without.tasks[0], false);
+    const fromModel = mergeTaskChanges([], [{title: "x", completedCount: 9, recentSeconds: [60]}], makeId, [], {});
+    assert.equal("completedCount" in fromModel.tasks[0], false);
+    assert.equal("recentSeconds" in fromModel.tasks[0], false);
+  });
+  it("ignores an unusable history on a manual task", () => {
+    const r = mergeTaskChanges([], [manualTaskChange({title: "x", history: {completedCount: -2, recentSeconds: "abc"}})], makeId, [], {history: true});
+    assert.equal("completedCount" in r.tasks[0], false);
+    assert.equal("recentSeconds" in r.tasks[0], false);
+  });
+  it("never lets an edit change the history", () => {
+    const next = applyDirectUpdate(job({completedCount: 3, recentSeconds: [600]}), {completedCount: 99, recentSeconds: [1], title: "Renamed"});
+    assert.equal(next.title, "Renamed");
+    assert.equal(next.completedCount, 3);
+    assert.deepEqual(next.recentSeconds, [600]);
   });
 });

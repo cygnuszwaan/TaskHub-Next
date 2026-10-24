@@ -480,7 +480,7 @@ exports.addOrUpdateTask = onRequest({
     // Merge into the list as it is now, not as it was when the model was asked. The projects are read in the same
     // transaction, so a task only joins a project that still exists at commit time.
     const result = await updateTaskList((tasks, tx, {projects: stored}) => {
-      const merged = mergeTaskChanges(tasks, changes, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined, comments: body.manual !== undefined, now: new Date().toISOString()});
+      const merged = mergeTaskChanges(tasks, changes, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined, comments: body.manual !== undefined, history: body.manual !== undefined, now: new Date().toISOString()});
       const changed = merged.added + merged.updated > 0;
       let list = merged.tasks;
       if (body.startNow === true) {
@@ -521,6 +521,7 @@ exports.completeTask = onRequest({
       const archiveRef = db.collection("completed_tasks").doc();
       tx.create(archiveRef, {
         ...done.completedTask,
+        ...done.history,
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
       // Kept for undoRemove, in the same commit

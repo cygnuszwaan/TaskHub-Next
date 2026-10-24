@@ -6,6 +6,7 @@ const {applyProjectFields, projectFieldsOf} = require("./projects");
 const {normalizeMaterials} = require("./materials");
 const {normalizeSnooze} = require("./snooze");
 const {normalizeComments} = require("./comments");
+const {averageMinutes, normalizeHistory, recordCompletion} = require("./history");
 const {settleTimer} = require("./timer");
 const PRIORITIES = ["HIGH", "MEDIUM", "LOW"];
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -43,6 +44,8 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   delete rest.materials;
   delete rest.snoozedUntil;
   delete rest.comments;
+  delete rest.completedCount;
+  delete rest.recentSeconds;
   delete rest.addedAt;
   delete rest.trackedSeconds;
   delete rest.timerStartedAt;
@@ -109,7 +112,7 @@ function manualTaskChange(manual) {
   if (!manual || typeof manual !== "object" || Array.isArray(manual)) return null;
   if (typeof manual.title !== "string" || !manual.title.trim()) return null;
   const change = {title: manual.title, priority: manual.priority, dueDate: manual.dueDate, estimatedMinutes: manual.estimatedMinutes, tags: manual.tags};
-  for (const key of ["recurrence", "projectId", "projectOrder", "materials", "comments"]) {
+  for (const key of ["recurrence", "projectId", "projectOrder", "materials", "comments", "history"]) {
     if (manual[key] !== undefined) change[key] = manual[key];
   }
   return change;
@@ -158,7 +161,7 @@ function placeAtRank(list, task, rank) {
 //   makeId:   () => new task id
 //   projectIds: ids of the projects that exist (none when omitted). The model's projectId and projectOrder are applied
 //             through applyProjectFields (see modelProjectFields for what counts).
-//   options:  {materials: true} lets a new task take the change's `materials` (validated by normalizeMaterials) and
+//   options:  {history: true} lets a new task take the change's `history` (validated by normalizeHistory), {materials: true} lets a new task take the change's `materials` (validated by normalizeMaterials) and
 //             {comments: true} its `comments` (validated by normalizeComments); only a manual entry sets them. Without
 //             the option, and for an update, the field is never read.
 // Untouched tasks, and every server-owned field of updated tasks, are preserved. A change naming an id that is
@@ -210,6 +213,10 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
         const comments = normalizeComments(change.comments);
         if (comments) task.comments = comments;
       }
+      if (options.history === true) {
+        const history = normalizeHistory(change.history);
+        if (history) Object.assign(task, history);
+      }
       list = placeAtRank(list, task, change.order);
       added++;
     } else {
@@ -231,25 +238,31 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
 // The next occurrence copies title, priority, estimatedMinutes, tags, recurrence and project membership
 // (projectId, projectOrder), materials (all unchecked, as the next occurrence needs them again) and comments, is PENDING and not snoozed, has the next due date (see nextDueDate) and takes the completed task's
 // rank; it has no schedule, calendar event or lock.
+// The job's history moves on (see history.js): `history` is {completedCount, recentSeconds?} after this completion, which the
+// caller stores on the archive row (`completedTask` itself keeps the history it had, so an undo restores it) and which the next
+// occurrence carries; the next occurrence's estimate becomes the rolling average of the tracked times, rounded to 5 minutes
+// (the completed task's estimate while no instance has any tracked time).
 // Other tasks are left exactly as they were. Returns null when no task has that id, otherwise
-// {tasks, completedTask, spawned} with spawned null for a task that does not repeat.
+// {tasks, completedTask, spawned, history} with spawned null for a task that does not repeat.
 function completeInList(tasks, taskId, today, makeId, now) {
   const index = tasks.findIndex((t) => t.id === taskId);
   if (index === -1) return null;
   const completedTask = settleTimer(tasks[index], Date.parse(now));
+  const history = recordCompletion(completedTask);
   const recurrence = normalizeRecurrence(completedTask.recurrence);
   const rest = tasks.filter((t) => t.id !== taskId);
-  if (!recurrence) return {tasks: rest, completedTask, spawned: null};
+  if (!recurrence) return {tasks: rest, completedTask, spawned: null, history};
   const spawned = {
     id: makeId(),
     title: completedTask.title,
     priority: completedTask.priority,
     dueDate: nextDueDate(completedTask.dueDate, recurrence, today),
-    estimatedMinutes: completedTask.estimatedMinutes,
+    estimatedMinutes: averageMinutes(history.recentSeconds) || completedTask.estimatedMinutes,
     tags: [...(completedTask.tags || [])],
     status: "PENDING",
     recurrence,
     ...projectFieldsOf(completedTask),
+    ...history,
     order: completedTask.order,
   };
   if (typeof now === "string" && now) spawned.addedAt = now;
@@ -257,7 +270,7 @@ function completeInList(tasks, taskId, today, makeId, now) {
     spawned.materials = completedTask.materials.map((m) => ({id: makeId(), text: m.text, checked: false}));
   }
   if (typeof completedTask.comments === "string" && completedTask.comments !== "") spawned.comments = completedTask.comments;
-  return {tasks: [...rest, spawned], completedTask, spawned};
+  return {tasks: [...rest, spawned], completedTask, spawned, history};
 }
 
 // How long after a delete or completion it can still be undone.
