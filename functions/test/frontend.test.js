@@ -72,7 +72,7 @@ describe("public/index.html helpers", () => {
     });
     it("asks about a swipe delete by title", () => {
       const {deletePrompt} = load();
-      assert.equal(deletePrompt({title: "Mow lawn"}), 'Delete "Mow lawn"?');
+      assert.equal(deletePrompt({title: "Mow lawn"}), "Delete \"Mow lawn\"?");
       assert.equal(deletePrompt(null), "Delete this task?");
     });
     it("hides tasks whose removal is pending and puts a failed one back once", () => {
