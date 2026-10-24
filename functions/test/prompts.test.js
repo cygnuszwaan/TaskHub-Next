@@ -38,6 +38,20 @@ describe("prompts.js", () => {
       assert.match(p, /set projectOrder to a whole number from 1/);
       assert.match(p, /cannot create, rename or delete projects, or take a task out of one/);
     });
+    it("leaves the project suggestion out unless proposals are allowed, so the prompt is as before", () => {
+      assert.ok(!prompt().includes("projectProposal"));
+      assert.ok(!prompt({proposals: false}).includes("projectProposal"));
+    });
+    it("asks conservatively for a project suggestion when proposals are allowed", () => {
+      const text = prompt({proposals: true});
+      assert.match(text, /projectProposal/);
+      assert.match(text, /ONE goal/);
+      assert.match(text, /at least three sequential stages/);
+      assert.match(text, /3 to 12 steps/);
+      assert.match(text, /unrelated errands/);
+      assert.match(text, /When in doubt, leave projectProposal out/);
+      assert.ok(text.startsWith(prompt().slice(0, 200)));
+    });
     it("copes with no projects", () => {
       assert.match(prompt({projects: []}), /Existing Projects[^\n]*\n\s*\[\]/);
     });

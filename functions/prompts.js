@@ -6,12 +6,23 @@ function oneLine(text) {
   return String(text).replace(/\s+/g, " ").trim();
 }
 
+// Added to the task prompt when the model may suggest a project. Worded conservatively: a wrong suggestion costs the owner a
+// dialog, a missed one costs nothing.
+const PROPOSAL_INSTRUCTIONS = `
+      Project suggestion: if, and only if, the whole input is ONE goal that clearly takes at least three sequential stages
+      (for example "renovate the bathroom" or "plan and run my daughter's birthday party"), also return projectProposal: a short
+      project name and 3 to 12 steps in the order they are done, each with a title, priority, estimatedMinutes and tags.
+      Still return the tasks as you normally would, reading the input as a single task or as the tasks it names.
+      Never suggest a project for a single errand, for a list of unrelated errands, for a repeating task, for a change to
+      existing tasks, or when the input already names or uses one of the Existing Projects. When in doubt, leave projectProposal out.`;
+
 // The prompt that turns free text into new or changed tasks. Pure: no I/O.
 //   tasks:    the stored task list (the model sees only the fields it may change, plus id, rank and project)
 //   projects: [{id, name}], the stored projects; the model may only use these ids
 //   input:    the text the owner typed
 //   today:    the current local date, YYYY-MM-DD
-function buildTaskPrompt({tasks, projects, input, today}) {
+//   proposals: true to also let the model suggest a new project (see below); left out of the prompt otherwise
+function buildTaskPrompt({tasks, projects, input, today, proposals = false}) {
   const visibleTasks = tasks.map(({id, title, priority, dueDate, estimatedMinutes, tags, recurrence, projectId, projectOrder, order}) => ({id, title, priority, dueDate, estimatedMinutes, tags, recurrence, projectId, projectOrder, order}));
   const visibleProjects = projects.map((p) => ({id: p.id, name: oneLine(p.name)}));
 
@@ -38,7 +49,7 @@ function buildTaskPrompt({tasks, projects, input, today}) {
       Never invent a project or an id: if the input names a project that is not listed, leave projectId out.
       If the input gives the task's place in the project's sequence (for example "first", "step 2"), set projectOrder to a whole number from 1; tasks that can be done in any order share a number.
       Leave projectId and projectOrder out for tasks the input does not place in a project, and for existing tasks whose project the input does not mention.
-      You cannot create, rename or delete projects, or take a task out of one.
+      You cannot create, rename or delete projects, or take a task out of one.${proposals ? PROPOSAL_INSTRUCTIONS : ""}
     `;
 }
 

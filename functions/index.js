@@ -18,6 +18,7 @@ const {makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
 const {UNAVAILABLE, weatherUrl, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
 const {buildTaskPrompt, buildTagPrompt} = require("./prompts");
+const {normalizeProposal} = require("./proposal");
 const {MAX_TEMPLATES, buildTemplates} = require("./templates");
 const {heldTaskIds} = require("./materials");
 const {SUMMARY_MAX_ROWS, PROJECT_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted, summarizeProjectHours} = require("./completed");
@@ -125,6 +126,30 @@ const changeSchema = {
     },
   },
   required: ["tasks"],
+};
+
+// JSON Schema for the project the model may suggest for an input (only asked for when the request allows proposals)
+const proposalSchema = {
+  type: Type.OBJECT,
+  description: "A project to suggest, only when the whole input is one goal with at least three sequential stages; omit otherwise",
+  properties: {
+    name: {type: Type.STRING, description: "Short project name"},
+    steps: {
+      type: Type.ARRAY,
+      description: "3 to 12 steps in the order they are done",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          title: {type: Type.STRING},
+          priority: {type: Type.STRING, enum: ["HIGH", "MEDIUM", "LOW"]},
+          estimatedMinutes: {type: Type.INTEGER},
+          tags: {type: Type.ARRAY, items: {type: Type.STRING}},
+        },
+        required: ["title", "priority", "estimatedMinutes", "tags"],
+      },
+    },
+  },
+  required: ["name", "steps"],
 };
 
 // Helper: Authenticated Google Calendar Client
@@ -436,7 +461,9 @@ exports.rescheduleTask = onRequest({
 // called to parse it: the fields are used as entered (validated like the model's) and the task is added at the end of the
 // list. The one exception is a manual entry with no tags, for which the model is asked for tags only (a failure leaves
 // the task untagged). `startNow: true` starts the timer of
-// the first task the request adds, which also makes it the active task.
+// the first task the request adds, which also makes it the active task. A free-text body with `allowProposal: true` lets the
+// model suggest a project (see proposal.js): when it does, nothing is committed and the response is
+// {success, needsChoice: true, proposal: {name, steps}, singleChanges} (the model's ordinary changes).
 exports.addOrUpdateTask = onRequest({
   secrets: ["GEMINI_API_KEY"], cors: ALLOWED_ORIGINS, timeoutSeconds: 120,
 }, ownerOnly(async (req, res) => {
@@ -469,18 +496,24 @@ exports.addOrUpdateTask = onRequest({
       const [currentTasks, {timeZone}, projects] = await Promise.all([readTaskList(), readSettings(), readProjects()]);
 
       const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
-      const prompt = buildTaskPrompt({tasks: currentTasks, projects, input: userInput, today: localDate(timeZone)});
+      // A project suggestion is only asked for when the caller says it can answer one (`allowProposal`)
+      const allowProposal = body.allowProposal === true;
+      const prompt = buildTaskPrompt({tasks: currentTasks, projects, input: userInput, today: localDate(timeZone), proposals: allowProposal});
 
       const response = await ai.models.generateContent({
         model: MODEL_NAME,
         contents: prompt,
         config: {
           responseMimeType: "application/json",
-          responseSchema: changeSchema,
+          responseSchema: allowProposal ? {...changeSchema, properties: {...changeSchema.properties, projectProposal: proposalSchema}} : changeSchema,
         },
       });
 
-      changes = JSON.parse(response.text).tasks || [];
+      const parsed = JSON.parse(response.text);
+      changes = parsed.tasks || [];
+      // A valid suggestion commits nothing: the owner chooses between the project and the single task(s) first
+      const proposal = allowProposal ? normalizeProposal(parsed.projectProposal, {input: userInput, projects, changes}) : null;
+      if (proposal) return res.status(200).send({success: true, needsChoice: true, proposal, singleChanges: changes});
     }
 
     // Merge into the list as it is now, not as it was when the model was asked. The projects are read in the same
