@@ -90,11 +90,13 @@ function cleanFields(change) {
   return out;
 }
 
-// The project fields the model may set, as {projectId?, projectOrder?} for applyProjectFields. Pure: no I/O.
-// Only an id in `projectIds` counts, and only a number is an order, so the model can put a task in a project or
+// The project fields of a change, as {projectId?, projectOrder?} for applyProjectFields. Pure: no I/O.
+// Only an id in `projectIds` counts, and only a number is an order, so a change can put a task in a project or
 // move it to another and give it an order number, but an empty, null, unknown or missing value changes nothing:
 // it never removes a task from a project or clears its order number, and never invents a project.
-function modelProjectFields(change, projectIds) {
+// Only manual entries and accepted project suggestions carry these fields; the model's changes are stripped of them
+// first (withoutProjectFields).
+function changeProjectFields(change, projectIds) {
   const out = {};
   if (typeof change.projectId === "string" && projectIds.includes(change.projectId)) out.projectId = change.projectId;
   if (Number.isFinite(change.projectOrder)) out.projectOrder = change.projectOrder;
@@ -105,7 +107,7 @@ function modelProjectFields(change, projectIds) {
 //   manual: {title, priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?, comments?}
 //           from the entry form
 // Returns null without a usable title. The fields are validated by the same rules as the model's (see cleanFields,
-// modelProjectFields), so an unusable priority, date, estimate, tag list, recurrence or project falls back to the
+// changeProjectFields), so an unusable priority, date, estimate, tag list, recurrence or project falls back to the
 // new-task default; a field the form did not send is left out of the change. `materials` and `comments` are passed on as
 // sent and are only applied when mergeTaskChanges is told to (the model's changes never set them). There is no id (a manual
 // entry is always a new task) and no rank (it goes last).
@@ -117,6 +119,17 @@ function manualTaskChange(manual) {
     if (manual[key] !== undefined) change[key] = manual[key];
   }
   return change;
+}
+
+// The model's changes with every project field removed, so a free-text add never puts a task into a project, moves it
+// or renumbers it (a project comes only from a manual entry or an accepted suggestion). Pure: no I/O; the changes
+// passed in are not modified, and anything that is not an object is passed through for mergeTaskChanges to skip.
+function withoutProjectFields(changes) {
+  return (Array.isArray(changes) ? changes : []).map((change) => {
+    if (!change || typeof change !== "object" || Array.isArray(change)) return change;
+    const {projectId, projectOrder, ...rest} = change; // eslint-disable-line no-unused-vars
+    return rest;
+  });
 }
 
 // Whether a manual entry's change has no usable tag, so the model is asked to fill them. Pure.
@@ -161,7 +174,7 @@ function placeAtRank(list, task, rank) {
 //             and gets a server id.
 //   makeId:   () => new task id
 //   projectIds: ids of the projects that exist (none when omitted). The model's projectId and projectOrder are applied
-//             through applyProjectFields (see modelProjectFields for what counts).
+//             through applyProjectFields (see changeProjectFields for what counts).
 //   options:  {history: true} lets a new task take the change's `history` (validated by normalizeHistory), {materials: true} lets a new task take the change's `materials` (validated by normalizeMaterials) and
 //             {comments: true} its `comments` (validated by normalizeComments); only a manual entry sets them. Without
 //             the option, and for an update, the field is never read.
@@ -183,7 +196,7 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
     const current = change.id ? list.find((t) => t.id === change.id) : null;
 
     if (current) {
-      const next = applyProjectFields({...current, ...fields}, modelProjectFields(change, projectIds), projectIds);
+      const next = applyProjectFields({...current, ...fields}, changeProjectFields(change, projectIds), projectIds);
       if (next.recurrence === null) delete next.recurrence;
       if (Number.isInteger(change.order)) {
         list = placeAtRank(list, next, change.order);
@@ -205,7 +218,7 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
       };
       if (fields.recurrence) base.recurrence = fields.recurrence;
       if (typeof options.now === "string" && options.now) base.addedAt = options.now;
-      const task = applyProjectFields(base, modelProjectFields(change, projectIds), projectIds);
+      const task = applyProjectFields(base, changeProjectFields(change, projectIds), projectIds);
       if (options.materials === true) {
         const materials = normalizeMaterials(change.materials, makeId);
         if (materials) task.materials = materials;
@@ -352,4 +365,4 @@ function applyScheduleResults({tasks, knownIds, locked, scheduled, createdEvents
   return {tasks: updatedTasks, orphanEventIds};
 }
 
-module.exports = {needsTagFill, cleanTags, newTaskIds, FREQUENCIES, MAX_INTERVAL, UNDO_WINDOW_MS, normalizeRecurrence, manualTaskChange, applyDirectUpdate, completeInList, removalRecord, isUndoable, undoInList, mergeTaskChanges, applyScheduleResults};
+module.exports = {withoutProjectFields, needsTagFill, cleanTags, newTaskIds, FREQUENCIES, MAX_INTERVAL, UNDO_WINDOW_MS, normalizeRecurrence, manualTaskChange, applyDirectUpdate, completeInList, removalRecord, isUndoable, undoInList, mergeTaskChanges, applyScheduleResults};

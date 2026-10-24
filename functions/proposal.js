@@ -47,14 +47,13 @@ function normalizeStep(raw) {
 
 // The project the model suggests for an input, checked, with the reason when it is not used. Pure: no I/O, nothing is modified.
 //   raw:  the model's `projectProposal`: {name, steps: [{title, priority, estimatedMinutes, tags}]}, or anything else
-//   opts: {input, projects, changes}: the text the owner typed, the stored projects [{id, name}] and the model's task
-//         changes (to see whether it placed a task in a project)
+//   opts: {input, projects}: the text the owner typed and the stored projects [{id, name}]
 // Returns {proposal: {name, steps}} (steps in the order given, each {title, priority, estimatedMinutes, tags}) or {reason}, the
 // reason being a short sentence for the log. The proposal is dropped as a whole when the model gave none, when the name is
 // unusable, when fewer than MIN_STEPS steps are usable, when there are more than MAX_STEPS steps, when the name matches an
-// existing project (ignoring case and spacing), and when the input already names a project or the model put a task of this
-// input into one: the owner then has a project in mind.
-function checkProposal(raw, {input = "", projects = [], changes = []} = {}) {
+// existing project (ignoring case and spacing), and when the input already names a project: the owner then has a project
+// in mind.
+function checkProposal(raw, {input = "", projects = []} = {}) {
   if (raw === undefined || raw === null) return {reason: "the model returned no projectProposal"};
   if (typeof raw !== "object" || Array.isArray(raw)) return {reason: "projectProposal is not an object"};
   const named = normalizeProjectName(raw.name);
@@ -66,8 +65,6 @@ function checkProposal(raw, {input = "", projects = [], changes = []} = {}) {
   const known = Array.isArray(projects) ? projects : [];
   if (known.some((p) => p && typeof p.name === "string" && squash(p.name) === squash(named.name))) return {reason: `a project named "${named.name}" already exists`};
   if (namesProject(input, known)) return {reason: "the input names an existing project"};
-  const ids = new Set(known.map((p) => p && p.id));
-  if ((Array.isArray(changes) ? changes : []).some((c) => c && typeof c.projectId === "string" && ids.has(c.projectId))) return {reason: "the model put a task of the input into an existing project"};
   return {proposal: {name: named.name, steps}};
 }
 

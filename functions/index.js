@@ -14,7 +14,7 @@ const {repairSchedule, buildFixedSlots, matchLockedEvents} = require("./schedule
 const {planSchedule} = require("./planner");
 const {lunchWindows, padWindows} = require("./breaks");
 const {setTimerInList, pauseTimer} = require("./timer");
-const {needsTagFill, cleanTags, newTaskIds, applyDirectUpdate, completeInList, removalRecord, isUndoable, undoInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
+const {withoutProjectFields, needsTagFill, cleanTags, newTaskIds, applyDirectUpdate, completeInList, removalRecord, isUndoable, undoInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {withNewProject, normalizeProjectName} = require("./projects");
 const {findDuplicateTasks} = require("./duplicates");
 const {PROJECTS_COLLECTION, makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
@@ -110,14 +110,6 @@ const changeSchema = {
               interval: {type: Type.INTEGER, description: "Repeat every this many days, weeks, months or years (1 or more)"},
             },
             required: ["frequency", "interval"],
-          },
-          projectId: {
-            type: Type.STRING,
-            description: "Id of an existing project the input puts the task in, copied exactly from the project list; omit otherwise",
-          },
-          projectOrder: {
-            type: Type.INTEGER,
-            description: "Position (from 1) in the project's sequence when the input gives one; omit otherwise",
           },
           order: {
             type: Type.INTEGER,
@@ -474,6 +466,8 @@ exports.rescheduleTask = onRequest({
 // comes back without the model: `acceptProposal: {name, steps}` creates the project and its steps (each with `projectId`
 // and `projectOrder` 1..n) in one transaction, re-validated against the projects stored then, and responds with `project`
 // and `projects` as well; `apply: {changes}` merges the declined suggestion's `singleChanges` like any model output.
+// The model's own changes never carry a project or an order number (withoutProjectFields): that is the only way a
+// task joins a project here, apart from a manual entry.
 exports.addOrUpdateTask = onRequest({
   secrets: ["GEMINI_API_KEY"], cors: ALLOWED_ORIGINS, timeoutSeconds: 120,
 }, ownerOnly(async (req, res) => {
@@ -500,6 +494,7 @@ exports.addOrUpdateTask = onRequest({
       // The owner declined a suggested project: its single-task changes are merged as the model's output would be
       changes = applyChanges(body.apply);
       if (!changes) return res.status(400).send({error: "apply needs a changes list of at most 100 task changes"});
+      changes = withoutProjectFields(changes);
     } else if (body.manual !== undefined) {
       const change = manualTaskChange(body.manual);
       if (!change) return res.status(400).send({error: "A manual entry needs a title"});
@@ -544,9 +539,10 @@ exports.addOrUpdateTask = onRequest({
       });
 
       const parsed = JSON.parse(response.text);
-      changes = parsed.tasks || [];
+      // The model never places a task in a project; only an accepted suggestion (or a manual entry) does
+      changes = withoutProjectFields(parsed.tasks);
       // A valid suggestion commits nothing: the owner chooses between the project and the single task(s) first
-      const verdict = allowProposal ? checkProposal(parsed.projectProposal, {input: userInput, projects, changes}) : {};
+      const verdict = allowProposal ? checkProposal(parsed.projectProposal, {input: userInput, projects}) : {};
       if (allowProposal && !verdict.proposal) console.log(`No project suggestion (${verdict.reason}); the model returned ${changes.length} task change(s).`);
       const proposal = verdict.proposal || null;
       if (proposal) return res.status(200).send({success: true, needsChoice: true, proposal, singleChanges: changes});

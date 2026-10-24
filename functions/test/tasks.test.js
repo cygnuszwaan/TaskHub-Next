@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {MAX_INTERVAL, normalizeRecurrence, applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults} = require("../tasks");
+const {withoutProjectFields, MAX_INTERVAL, normalizeRecurrence, applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults} = require("../tasks");
 
 function makeIdGenerator() {
   let n = 0;
@@ -833,5 +833,41 @@ describe("job history", () => {
     assert.equal(next.title, "Renamed");
     assert.equal(next.completedCount, 3);
     assert.deepEqual(next.recentSeconds, [600]);
+  });
+});
+
+describe("withoutProjectFields", () => {
+  it("removes projectId and projectOrder from every change and keeps the other fields", () => {
+    const changes = [
+      {title: "N", priority: "HIGH", projectId: "p1", projectOrder: 2},
+      {id: "b", title: "B2", estimatedMinutes: 30, projectId: "p2", order: 1},
+      {title: "M", projectOrder: 3},
+    ];
+    assert.deepEqual(withoutProjectFields(changes), [
+      {title: "N", priority: "HIGH"},
+      {id: "b", title: "B2", estimatedMinutes: 30, order: 1},
+      {title: "M"},
+    ]);
+  });
+  it("does not modify the changes passed in", () => {
+    const changes = [{title: "N", projectId: "p1", projectOrder: 1}];
+    withoutProjectFields(changes);
+    assert.deepEqual(changes, [{title: "N", projectId: "p1", projectOrder: 1}]);
+  });
+  it("passes non-objects through for the merge to skip, and gives an empty list for a non-list", () => {
+    assert.deepEqual(withoutProjectFields([null, "x", [1]]), [null, "x", [1]]);
+    for (const bad of [undefined, null, "x", {title: "N"}]) assert.deepEqual(withoutProjectFields(bad), []);
+  });
+  it("leaves a new task outside any project and an existing task's project and order unchanged when merged", () => {
+    const ids = ["p1", "p2"];
+    const list = [{id: "b", title: "B", priority: "LOW", dueDate: "", estimatedMinutes: 10, tags: [], status: "PENDING", order: 1, projectId: "p1", projectOrder: 2}];
+    const changes = withoutProjectFields([{title: "N", projectId: "p1", projectOrder: 1}, {id: "b", title: "B", projectId: "p2", projectOrder: 5}]);
+    const r = mergeTaskChanges(list, changes, makeIdGenerator(), ids);
+    const n = r.tasks.find((t) => t.title === "N");
+    assert.equal("projectId" in n, false);
+    assert.equal("projectOrder" in n, false);
+    const b = r.tasks.find((t) => t.id === "b");
+    assert.equal(b.projectId, "p1");
+    assert.equal(b.projectOrder, 2);
   });
 });

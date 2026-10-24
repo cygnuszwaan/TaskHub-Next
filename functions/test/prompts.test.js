@@ -22,21 +22,20 @@ describe("prompts.js", () => {
       assert.match(prompt(), /Today's date is: 2026-10-22\./);
       assert.match(prompt(), /New Input: "tile the splashback, step 2 of Kitchen reno"/);
     });
-    it("lists the projects with their ids, one line each", () => {
+    it("lists the project names only, one line each, with no ids", () => {
       const p = prompt();
-      assert.match(p, /Existing Projects[^\n]*\n\s*\[\s*\{\s*"id": "p1",\s*"name": "Kitchen reno"\s*\},\s*\{\s*"id": "p2",\s*"name": "Garden"/);
+      assert.match(p, /Existing Projects[^\n]*\n\s*\[\s*"Kitchen reno",\s*"Garden"\s*\]/);
+      assert.ok(!/"p1"|"p2"/.test(p));
     });
-    it("shows each task's project and order number, and only the fields the model may change", () => {
+    it("shows only the fields the model may change, and no project fields", () => {
       const p = prompt();
-      assert.match(p, /"projectId": "p1",\s+"projectOrder": 1/);
-      for (const hidden of ["googleCalendarEventId", "scheduledStart", "locked", "ev9", "PENDING"]) assert.ok(!p.includes(hidden), hidden);
+      assert.match(p, /"title": "Demolition"/);
+      for (const hidden of ["projectId", "projectOrder", "googleCalendarEventId", "scheduledStart", "locked", "ev9", "PENDING"]) assert.ok(!p.includes(hidden), hidden);
     });
-    it("tells the model to use listed ids only, and that it cannot create, rename, delete or remove", () => {
+    it("tells the model not to put tasks into projects or return project fields", () => {
       const p = prompt();
-      assert.match(p, /set projectId to that project's id, copied exactly from the list/);
-      assert.match(p, /Never invent a project or an id/);
-      assert.match(p, /set projectOrder to a whole number from 1/);
-      assert.match(p, /cannot create, rename or delete projects, or take a task out of one/);
+      assert.match(p, /Do not put tasks into projects and do not return project fields/);
+      assert.doesNotMatch(p, /set projectId|set projectOrder/);
     });
     it("leaves the project suggestion out unless proposals are allowed, so the prompt is as before", () => {
       assert.ok(!prompt().includes("projectProposal"));

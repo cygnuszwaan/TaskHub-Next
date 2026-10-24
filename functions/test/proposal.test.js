@@ -83,10 +83,6 @@ describe("proposal.js", () => {
       assert.equal(normalizeProposal(raw(), {...opts, input: "start the deck: sand, stain, seal"}), null);
       assert.ok(normalizeProposal(raw(), {...opts, input: "redo the decking"}));
     });
-    it("is dropped when the model put a task of the input into a project", () => {
-      assert.equal(normalizeProposal(raw(), {...opts, changes: [{title: "Sand", projectId: "p1"}]}), null);
-      assert.ok(normalizeProposal(raw(), {...opts, changes: [{title: "Sand", projectId: "nope"}]}));
-    });
     it("works with no options and does not modify its input", () => {
       assert.ok(normalizeProposal(raw()));
       const input = raw();
@@ -233,7 +229,6 @@ describe("proposal.js", () => {
       assert.match(why(raw({steps: [step(1), step(2), {title: ""}]})), /only 2 usable steps, 3 needed/);
       assert.match(why(raw({name: "kitchen reno"})), /already exists/);
       assert.match(why(raw(), {...opts, input: "tile the deck"}), /names an existing project/);
-      assert.match(why(raw(), {...opts, changes: [{title: "x", projectId: "p1"}]}), /into an existing project/);
       assert.equal(checkProposal(raw(), {...opts, input: "tile the deck"}).proposal, undefined);
     });
   });
