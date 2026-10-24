@@ -144,6 +144,7 @@ const proposalSchema = {
           priority: {type: Type.STRING, enum: ["HIGH", "MEDIUM", "LOW"]},
           estimatedMinutes: {type: Type.INTEGER},
           tags: {type: Type.ARRAY, items: {type: Type.STRING}},
+          comments: {type: Type.STRING, description: "The useful detail the input gives for this step (measurements, materials, rules, warnings), as short plain-text lines; omit when the input has nothing specific for the step"},
         },
         required: ["title", "priority", "estimatedMinutes", "tags"],
       },

@@ -1,6 +1,6 @@
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
-// Task comments: free text the owner writes about a task. Never read or written by the model. Pure: no I/O.
+// Task comments: free text the owner writes about a task. Never shown to the model; it writes comments only on the steps of a suggested project (see proposal.js). Pure: no I/O.
 
 const MAX_COMMENTS_LENGTH = 2000;
 

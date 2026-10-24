@@ -2,6 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {normalizeProjectName, addProject} = require("./projects");
 const {cleanTags, mergeTaskChanges} = require("./tasks");
+const {normalizeComments} = require("./comments");
 
 // A suggested project has at least this many steps and at most this many.
 const MIN_STEPS = 3;
@@ -28,16 +29,20 @@ function namesProject(text, projects) {
 }
 
 // One step as a task would have it: a title, a priority (MEDIUM when unusable), an estimate in whole minutes (15 when
-// unusable) and cleaned tags, the same rules as a manual entry. null for a step without a title.
+// unusable), cleaned tags and, when the model gave usable text, `comments` (trimmed, at most 2000 characters, as a task's
+// comments are), the same rules as a manual entry. The key is absent when there are no comments. null for a step without a title.
 function normalizeStep(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   if (typeof raw.title !== "string" || !raw.title.trim()) return null;
-  return {
+  const step = {
     title: raw.title.replace(/\s+/g, " ").trim(),
     priority: PRIORITIES.includes(raw.priority) ? raw.priority : "MEDIUM",
     estimatedMinutes: Number.isFinite(raw.estimatedMinutes) && raw.estimatedMinutes > 0 ? Math.round(raw.estimatedMinutes) : DEFAULT_ESTIMATE,
     tags: cleanTags(raw.tags),
   };
+  const comments = normalizeComments(raw.comments);
+  if (typeof comments === "string") step.comments = comments;
+  return step;
 }
 
 // The project the model suggests for an input, checked, with the reason when it is not used. Pure: no I/O, nothing is modified.
@@ -74,12 +79,14 @@ function normalizeProposal(raw, opts) {
 // The new-task changes for a project's steps, in the shape mergeTaskChanges takes. Pure: no I/O.
 // Step n (1-based) goes into the project with order number n, so each step is its own tier and the scheduling engine
 // places them one after another. No id and no rank, so every step is a new task added at the end of the list in order.
+// A step's `comments` is passed on when it has any (mergeTaskChanges applies it only when told to).
 function proposalChanges(proposal, projectId) {
   return proposal.steps.map((step, i) => ({
     title: step.title,
     priority: step.priority,
     estimatedMinutes: step.estimatedMinutes,
     tags: step.tags,
+    ...(step.comments ? {comments: step.comments} : {}),
     projectId,
     projectOrder: i + 1,
   }));
@@ -98,7 +105,7 @@ function acceptProposalInList(tasks, projects, raw, makeId, now) {
   if (!proposal) return {error: `The project suggestion cannot be used: it needs a name no project has, and ${MIN_STEPS} to ${MAX_STEPS} steps with titles`};
   const created = addProject(stored, proposal.name, makeId);
   if (created.error) return {error: created.error};
-  const merged = mergeTaskChanges(tasks, proposalChanges(proposal, created.project.id), makeId, [created.project.id], {now});
+  const merged = mergeTaskChanges(tasks, proposalChanges(proposal, created.project.id), makeId, [created.project.id], {comments: true, now});
   return {tasks: merged.tasks, project: created.project, projects: created.projects, added: merged.added};
 }
 

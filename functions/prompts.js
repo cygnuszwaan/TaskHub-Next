@@ -11,8 +11,11 @@ function oneLine(text) {
 const PROPOSAL_INSTRUCTIONS = `
       Project suggestion: if the whole input is ONE goal that takes at least three sequential stages (for example "renovate the
       bathroom" or "plan and run my daughter's birthday party"), also return projectProposal: a short project name and
-      3 to 12 steps in the order they are done, each with a title, priority, estimatedMinutes and tags. This applies just as much when
-      the input lists the stages itself ("strip the walls, tile, then paint"): those stages are the steps.
+      3 to 12 steps in the order they are done, each with a title, priority, estimatedMinutes and tags. This applies just as much
+      when the input lists the stages itself ("strip the walls, tile, then paint"): those stages are the steps.
+      When the input gives useful detail for a step (measurements, materials, grades, spacings, rules, warnings), also give that
+      step a comments field: short plain-text lines, at most 2000 characters, kept to what the input says, with no citation markers
+      such as [1, 2]. Leave comments out of a step the input says nothing specific about.
       Still return the tasks as you normally would, reading the input as a single task or as the tasks it names.
       Never suggest a project for a single errand, for a list of unrelated errands, for a repeating task, for a change to
       existing tasks, or when the input already names or uses one of the Existing Projects. Leave projectProposal out when it is

@@ -97,6 +97,11 @@ describe("proposal.js", () => {
   });
 
   describe("proposalChanges", () => {
+    it("passes a step's comments on, and only when it has some", () => {
+      const changes = proposalChanges({name: "P", steps: [step(1, {comments: "Detail"}), step(2)]}, "proj");
+      assert.equal(changes[0].comments, "Detail");
+      assert.equal("comments" in changes[1], false);
+    });
     it("makes one new-task change per step, in order, each its own tier of the project", () => {
       const changes = proposalChanges({name: "Bathroom renovation", steps: steps(3)}, "proj");
       assert.equal(changes.length, 3);
@@ -154,11 +159,18 @@ describe("proposal.js", () => {
       assert.equal(acceptProposalInList([], undefined, raw(), makeId, NOW).tasks.length, 4);
     });
     it("takes the model's cleaned fields only, ignoring anything else a step carries", () => {
-      const r = acceptProposalInList([], projects, raw({steps: [step(1, {id: "evil", order: 1, status: "COMPLETED", comments: "x", materials: [{text: "m"}], snoozedUntil: "2030-01-01"}), step(2), step(3)]}), makeId, NOW);
+      const r = acceptProposalInList([], projects, raw({steps: [step(1, {id: "evil", order: 1, status: "COMPLETED", materials: [{text: "m"}], snoozedUntil: "2030-01-01"}), step(2), step(3)]}), makeId, NOW);
       const first = r.tasks[0];
       assert.equal(first.status, "PENDING");
       assert.notEqual(first.id, "evil");
       for (const key of ["comments", "materials", "snoozedUntil"]) assert.equal(key in first, false);
+    });
+    it("stores a step's comments on its task, and leaves the key off a step with none", () => {
+      const r = acceptProposalInList([], projects, raw({steps: [step(1, {comments: "  Check the council rules.\nH5 piles.  "}), step(2), step(3, {comments: "   "}), step(4, {comments: 5})]}), makeId, NOW);
+      assert.equal(r.tasks[0].comments, "Check the council rules.\nH5 piles.");
+      assert.equal("comments" in r.tasks[1], false);
+      assert.equal("comments" in r.tasks[2], false);
+      assert.equal("comments" in r.tasks[3], false);
     });
     it("does not modify what it is given", () => {
       const tasks = JSON.parse(JSON.stringify(existing));
@@ -186,6 +198,20 @@ describe("proposal.js", () => {
     it("allows at most MAX_APPLY_CHANGES changes", () => {
       assert.equal(applyChanges({changes: Array.from({length: MAX_APPLY_CHANGES}, () => ({title: "a"}))}).length, MAX_APPLY_CHANGES);
       assert.equal(applyChanges({changes: Array.from({length: MAX_APPLY_CHANGES + 1}, () => ({title: "a"}))}), null);
+    });
+  });
+
+  describe("step comments", () => {
+    it("are trimmed and cut to 2000 characters like a task's comments", () => {
+      assert.equal(normalizeStep({...step(1), comments: "  Hello  "}).comments, "Hello");
+      assert.equal(normalizeStep({...step(1), comments: "x".repeat(2500)}).comments.length, 2000);
+    });
+    it("are left off when blank or not text", () => {
+      for (const c of [undefined, null, "", "  \n ", 5, {}, []]) assert.equal("comments" in normalizeStep({...step(1), comments: c}), false);
+    });
+    it("survive normalizeProposal on the steps that have them", () => {
+      const r = normalizeProposal(raw({steps: [step(1, {comments: "A"}), step(2), step(3, {comments: "C"})]}), opts);
+      assert.deepEqual(r.steps.map((s) => s.comments), ["A", undefined, "C"]);
     });
   });
 

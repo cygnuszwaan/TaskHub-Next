@@ -51,6 +51,14 @@ describe("prompts.js", () => {
       assert.match(text, /unrelated errands/);
       assert.match(text, /Leave projectProposal out when it is\s+not clearly one multi-stage goal/);
       assert.match(text, /input lists the stages itself/);
+    });
+    it("asks for per-step comments only where the input has detail, without citation markers", () => {
+      const text = prompt({proposals: true});
+      assert.match(text, /comments field/);
+      assert.match(text, /at most 2000 characters/);
+      assert.match(text, /no citation markers/);
+      assert.match(text, /Leave comments out of a step the input says nothing specific about/);
+      assert.ok(!prompt().includes("comments field"));
       assert.ok(text.startsWith(prompt().slice(0, 200)));
     });
     it("copes with no projects", () => {
