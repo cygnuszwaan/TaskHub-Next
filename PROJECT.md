@@ -104,6 +104,7 @@ The cron and the manual trigger run the full engine and both use `USER_CALENDAR_
 Each step fits in one turn. Do them in order unless told otherwise. Each step adds tests for any new pure logic.
 
 1. Stats: add a per-job section (jobs completed most often, with `completedCount`, the rolling average time and the latest estimate), built from the archive's `completedCount` and `recentSeconds`.
+2. Only when the archive nears 1000 completions, or a job done rarely drops out of the completed-task search (`getCompletedTemplates` and the stats summary each read at most the newest 1000 `completed_tasks` rows): add a `jobs/{titleKey}` summary document, one per distinct title (`titleKey` from `templates.js`), `{title, priority, estimatedMinutes, tags, recurrence, projectId, projectOrder, materials, comments, completedCount, recentSeconds, lastCompletedAt}`. `completeTask` updates it in the same transaction as the archive write, `undoRemove` rolls it back, and `getCompletedTemplates` reads it instead of scanning the archive (one read per job, no 1000-row cap). Add a one-off backfill from the existing archive and include `jobs` in `exportData`. `completed_tasks` stays one append-only row per completion, since the stats queries by `completedAt` and the per-completion snapshots depend on it; do not merge a job's completions into one document with an array (unbounded growth against the 1 MiB document limit, a whole-document rewrite per completion, no range queries over elements).
 
 ## Open questions
 
