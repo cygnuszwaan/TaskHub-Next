@@ -191,10 +191,10 @@
     .active-task-box .task-item:hover { background: transparent; }
     .active-task-box.flash { animation: card-flash 600ms ease-out; }
     .swipe-row { position: relative; overflow: hidden; border-radius: 6px; }
-    .swipe-row .task-item { position: relative; background: var(--surface); touch-action: pan-y; transition: transform 0.18s ease, background 0.15s ease; }
+    .swipe-row .task-item { position: relative; touch-action: pan-y; transition: transform 0.18s ease, background 0.15s ease; }
     .swipe-row .task-item:hover { background: var(--hover); }
-    .active-task-box:hover .swipe-row .task-item { background: var(--hover); }
-    .swipe-row.swiping .task-item { transition: none; }
+    .active-task-box .swipe-row .task-item:hover { background: transparent; }
+    .swipe-row.swiping .task-item, .active-task-box .swipe-row.swiping .task-item:hover { transition: none; background: var(--surface); }
     .swipe-bg { display: none; position: absolute; inset: 0; align-items: center; padding: 0 20px; color: white; font-weight: 700; font-size: 14px; opacity: 0.75; }
     .swipe-row.swipe-armed .swipe-bg { opacity: 1; }
     .swipe-del { background: var(--swipe-del); justify-content: flex-end; }

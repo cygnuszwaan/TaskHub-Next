@@ -96,6 +96,11 @@ describe("public/index.html helpers", () => {
       assert.match(html, /swipeRowHtml\(active, true\)/);
       assert.match(html, /const row = item\.closest\("\.swipe-row"\);/);
     });
+    it("keeps a card transparent at rest so the active box's flash shows behind it, opaque only while dragged", () => {
+      assert.doesNotMatch(html, /\.swipe-row \.task-item \{[^}]*background:/);
+      assert.match(html, /\.swipe-row\.swiping \.task-item[^{]*\{[^}]*background: var\(--surface\)/);
+      assert.match(html, /\.active-task-box \.swipe-row \.task-item:hover \{ background: transparent; \}/);
+    });
     it("takes removals off the list before the server answers and keeps later lists from bringing them back", () => {
       const remove = html.slice(html.indexOf("function removeTask("), html.indexOf("async function completeTask("));
       assert.ok(remove.indexOf("withoutTasks(allTasks, pendingRemovals)") < remove.indexOf("await apiFetch"));
