@@ -212,6 +212,27 @@
     .btn-secondary { background: var(--btn2-bg); color: var(--text-strong); }
     .btn-success { background: var(--success); color: white; }
     .btn-danger { background: var(--danger); color: white; }
+    /* The "are you sure" dialog (askConfirm): above every other modal, the photo viewer included */
+    .confirm-overlay { z-index: 1100; }
+    .confirm-card { max-width: 340px; padding: 26px 20px 20px; text-align: center; animation: confirm-in 0.14s ease-out; }
+    @keyframes confirm-in { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: reduce) { .confirm-card { animation: none; } }
+    .confirm-icon { display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 50%; }
+    .confirm-icon svg { width: 26px; height: 26px; }
+    .confirm-icon.danger { background: var(--overdue-bg); color: var(--overdue-fg); }
+    .confirm-icon.warning { background: var(--lock-bg); color: var(--lock-fg); }
+    .confirm-icon.success { background: var(--sched-bg); color: var(--sched-fg); }
+    .confirm-icon.info { background: var(--time-bg); color: var(--time-fg); }
+    .confirm-card .confirm-title { margin: 0 0 8px; font-size: 18px; line-height: 1.3; color: var(--text); overflow-wrap: anywhere; }
+    .confirm-detail { max-height: 40vh; overflow-y: auto; overscroll-behavior: contain; }
+    .confirm-detail p { margin: 0 0 8px; font-size: 14px; line-height: 1.45; color: var(--text-muted); white-space: pre-line; overflow-wrap: anywhere; }
+    .confirm-detail p.confirm-list { padding: 10px 12px; border-radius: 8px; background: var(--chip-bg); color: var(--text-strong); font-size: 13px; text-align: left; }
+    .confirm-actions { display: flex; gap: 10px; margin-top: 18px; }
+    .confirm-actions button { flex: 1; min-height: 46px; font-size: 15px; white-space: normal; }
+    .confirm-actions button:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
+    .confirm-actions .confirm-ok.danger { background: var(--danger); }
+    .confirm-actions .confirm-ok.warning { background: var(--swipe-abort); }
+    .confirm-actions .confirm-ok.success { background: var(--success); }
 
     [hidden] { display: none !important; }
     .gate { max-width: 360px; margin: 80px auto; text-align: center; }
@@ -970,6 +991,18 @@
       </div>
     </div>
   </div>
+
+  <div id="confirmModal" class="modal-overlay confirm-overlay" onclick="closeConfirmOnOverlay(event)">
+    <div class="modal-card confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmDetail">
+      <div id="confirmIcon" class="confirm-icon" aria-hidden="true"></div>
+      <h3 id="confirmTitle" class="confirm-title"></h3>
+      <div id="confirmDetail" class="confirm-detail"></div>
+      <div class="confirm-actions">
+        <button type="button" id="confirmCancelBtn" class="btn-secondary">Cancel</button>
+        <button type="button" id="confirmOkBtn" class="confirm-ok">OK</button>
+      </div>
+    </div>
+  </div>
   </div>
 
   <script>
@@ -1526,7 +1559,7 @@
     // The confirmation before deleting a client; `projects` is how many of the owner's projects belong to it.
     function deleteClientPrompt(name, projects) {
       const n = Number.isFinite(projects) ? projects : 0;
-      return `Delete client "${name}"?` + (n > 0 ? ` Its ${n === 1 ? "project stays" : n + " projects stay"} on the list, with no client.` : "");
+      return `Delete client "${name}"?` + (n > 0 ? `\n\nIts ${n === 1 ? "project stays" : n + " projects stay"} on the list, with no client.` : "");
     }
 
     // Members per project: {projectId: count}, for tasks that belong to one.
@@ -1567,13 +1600,13 @@
     // The confirmation text for deleting a project with `count` member tasks.
     function deleteProjectPrompt(name, count) {
       if (!count) return `Delete project "${name}"?`;
-      return `Delete project "${name}"? ${count === 1 ? "Its 1 task stays" : `Its ${count} tasks stay`} on the list but ${count === 1 ? "leaves" : "leave"} the project.`;
+      return `Delete project "${name}"?\n\n${count === 1 ? "Its 1 task stays" : `Its ${count} tasks stay`} on the list but ${count === 1 ? "leaves" : "leave"} the project.`;
     }
 
     // The confirmation text for marking a task complete; a repeating task says its next occurrence will be added.
     function completePrompt(task) {
       const name = task && task.title ? `"${task.title}"` : "this task";
-      const repeats = task && task.recurrence ? " It repeats, so its next occurrence will be added." : "";
+      const repeats = task && task.recurrence ? "\n\nIt repeats, so its next occurrence will be added." : "";
       return `Mark ${name} as complete?${repeats}`;
     }
 
@@ -2228,7 +2261,7 @@
     }
     // The confirmation text for aborting the Active task by swipe.
     function abortPrompt(task) {
-      return `Abort ${task && task.title ? `\"${task.title}\"` : "this task"}? Its timer stops, its tracked time and start time are erased and it returns to the queue.`;
+      return `Abort ${task && task.title ? `\"${task.title}\"` : "this task"}?\n\nIts timer stops, its tracked time and start time are erased and it returns to the queue.`;
     }
     // Optimistic removal: the list without the tasks whose removal is still waiting on the server, and a task put back at
     // its old place when that removal fails (never twice).
@@ -2266,7 +2299,7 @@
 
     // The confirmation text for deleting a template.
     function deleteTemplatePrompt(name) {
-      return `Delete template "${name}"? Projects already started from it are not affected.`;
+      return `Delete template "${name}"?\n\nProjects already started from it are not affected.`;
     }
 
     // The message after a project is started from a template.
@@ -2348,7 +2381,91 @@
       const text = date ? `Snoozed ${taskCountText(count)} until ${date}.` : `Unsnoozed ${taskCountText(count)}.`;
       return rescheduleError ? `${text} Their calendar events could not be moved yet (${rescheduleError}); the next run will do it.` : text;
     }
+    // The look of the confirmation dialog for each tone: an icon (inline SVG, drawn in the tone's colour) and whether the
+    // dialog opens with Cancel focused (every tone that destroys something, so a stray Enter cannot confirm it).
+    const CONFIRM_ICON_ATTRS = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+    const CONFIRM_TONES = {
+      danger: { focusCancel: true, icon: `<svg ${CONFIRM_ICON_ATTRS}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>` },
+      warning: { focusCancel: true, icon: `<svg ${CONFIRM_ICON_ATTRS}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>` },
+      success: { focusCancel: false, icon: `<svg ${CONFIRM_ICON_ATTRS}><polyline points="20 6 9 17 4 12"/></svg>` },
+      info: { focusCancel: false, icon: `<svg ${CONFIRM_ICON_ATTRS}><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>` }
+    };
+    // What the confirmation dialog shows for a prompt text. The first paragraph (up to a blank line) is the question and
+    // becomes the title; later paragraphs are the detail, and one whose first line starts with a bullet is shown as a list.
+    // `options`: `tone` (danger, warning, success or info; info when missing or unknown) and `confirmLabel` (the confirm
+    // button's words, "OK" when missing). The answer is always Cancel or the confirm button, never a guess from the text.
+    function confirmView(text, options) {
+      const o = options || {};
+      const paragraphs = String(text === undefined || text === null ? "" : text).split(/\n[ \t]*\n/).map(p => p.trim()).filter(Boolean);
+      const tone = Object.prototype.hasOwnProperty.call(CONFIRM_TONES, o.tone) ? o.tone : "info";
+      const label = typeof o.confirmLabel === "string" ? o.confirmLabel.trim() : "";
+      return {
+        tone,
+        icon: CONFIRM_TONES[tone].icon,
+        title: paragraphs[0] || "Are you sure?",
+        detail: paragraphs.slice(1).map(p => ({ text: p, list: p.startsWith("\u2022 ") })),
+        confirmLabel: label || "OK",
+        focusCancel: CONFIRM_TONES[tone].focusCancel
+      };
+    }
     // </pure-helpers>
+
+    // The confirmation dialog, in place of the browser's confirm(): `askConfirm(text, { tone, confirmLabel })` shows it and
+    // resolves true on the confirm button and false on Cancel, a tap outside the card or Escape (see confirmView for the
+    // text and tones). It opens over any other modal and leaves that modal as it was. Asking again while one is open
+    // cancels the first.
+    let confirmPending = null; // { resolve, opener, bodyWasLocked } while the dialog is open
+    function settleConfirm(answer) {
+      const pending = confirmPending;
+      if (!pending) return;
+      confirmPending = null;
+      document.getElementById("confirmModal").style.display = "none";
+      if (!pending.bodyWasLocked) document.body.classList.remove("modal-open");
+      if (pending.opener && pending.opener.isConnected && typeof pending.opener.focus === "function") pending.opener.focus({ preventScroll: true });
+      pending.resolve(answer);
+    }
+    function askConfirm(text, options) {
+      settleConfirm(false);
+      const view = confirmView(text, options);
+      const icon = document.getElementById("confirmIcon");
+      icon.className = `confirm-icon ${view.tone}`;
+      icon.innerHTML = view.icon; // fixed markup from CONFIRM_TONES, never the task's text
+      document.getElementById("confirmTitle").textContent = view.title;
+      const detail = document.getElementById("confirmDetail");
+      detail.replaceChildren(...view.detail.map(part => {
+        const p = document.createElement("p");
+        p.textContent = part.text;
+        if (part.list) p.className = "confirm-list";
+        return p;
+      }));
+      const ok = document.getElementById("confirmOkBtn");
+      ok.textContent = view.confirmLabel;
+      ok.className = `confirm-ok ${view.tone}`;
+      return new Promise(resolve => {
+        confirmPending = { resolve, opener: document.activeElement, bodyWasLocked: document.body.classList.contains("modal-open") };
+        document.getElementById("confirmModal").style.display = "flex";
+        document.body.classList.add("modal-open");
+        detail.scrollTop = 0;
+        (view.focusCancel ? document.getElementById("confirmCancelBtn") : ok).focus({ preventScroll: true });
+      });
+    }
+    function closeConfirmOnOverlay(e) {
+      if (e.target.id === "confirmModal") settleConfirm(false);
+    }
+    document.getElementById("confirmOkBtn").addEventListener("click", () => settleConfirm(true));
+    document.getElementById("confirmCancelBtn").addEventListener("click", () => settleConfirm(false));
+    // Escape cancels; Tab stays between the two buttons while the dialog is open
+    document.addEventListener("keydown", e => {
+      if (!confirmPending) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        settleConfirm(false);
+      } else if (e.key === "Tab") {
+        e.preventDefault();
+        const cancel = document.getElementById("confirmCancelBtn");
+        (document.activeElement === cancel ? document.getElementById("confirmOkBtn") : cancel).focus();
+      }
+    });
 
     // Share to TaskHub: text shared from another app arrives as /?title=&text=&url=. It is kept in sessionStorage (it survives a
     // redirect sign-in), the address is cleaned so a reload does not repeat it, and once signed in it is put in the add field
@@ -2555,7 +2672,7 @@
         }
         if (pressStart && pressMoved(e.clientX - pressStart.x, e.clientY - pressStart.y)) cancelPress();
       };
-      const onTaskRowUp = e => {
+      const onTaskRowUp = async e => {
         cancelPress();
         const s = swipe;
         swipe = null;
@@ -2565,13 +2682,13 @@
         // the card stays pulled aside, over its colour, while a question is asked
         const task = allTasks.find(t => t.id === s.id);
         if (action === "DELETE") {
-          if (confirm(deletePrompt(task))) deleteTask(s.id);
+          if (await askConfirm(deletePrompt(task), { tone: "danger", confirmLabel: "Delete" })) deleteTask(s.id);
         } else if (action === "SNOOZE") {
           openSnoozeModal(s.id);
         } else if (action === "ABORT") {
-          if (confirm(abortPrompt(task))) abortTask(s.id);
+          if (await askConfirm(abortPrompt(task), { tone: "warning", confirmLabel: "Abort" })) abortTask(s.id);
         } else if (action === "COMPLETE") {
-          if (confirmComplete(s.id)) completeTask(s.id);
+          if (await confirmComplete(s.id)) completeTask(s.id);
         }
         resetSwipe(s);
       };
@@ -2939,15 +3056,15 @@
       await removeTask(taskId, "COMPLETE", COMPLETE_TASK_URL, { taskId });
     }
 
-    // Asks before a task is marked complete; false when the owner cancels (the edit modal, if open, stays open)
+    // Asks before a task is marked complete; resolves false when the owner cancels (the edit modal, if open, stays open)
     function confirmComplete(taskId) {
       const task = allTasks.find(t => t.id === taskId);
-      return confirm(completePrompt(task));
+      return askConfirm(completePrompt(task), { tone: "success", confirmLabel: "Complete" });
     }
 
     async function completeTaskFromModal() {
       const taskId = document.getElementById("editTaskId").value;
-      if (!confirmComplete(taskId)) return;
+      if (!(await confirmComplete(taskId))) return;
       closeEditModal();
       await completeTask(taskId);
     }
@@ -3513,7 +3630,7 @@
     // Tasks are deleted only from the edit modal, after a confirmation (cancelling leaves the modal open); the Undo
     // footnote that follows is a second safety net
     async function deleteTaskFromModal() {
-      if (!confirm("Delete this task?")) return;
+      if (!await askConfirm("Delete this task?", { tone: "danger", confirmLabel: "Delete" })) return;
       const taskId = document.getElementById("editTaskId").value;
       closeEditModal();
       await deleteTask(taskId);
@@ -3574,7 +3691,7 @@
     async function batchRemove(kind) {
       const tasks = selectedTasks();
       if (tasks.length === 0) return;
-      if (!confirm(batchRemovePrompt(kind, tasks))) return;
+      if (!await askConfirm(batchRemovePrompt(kind, tasks), kind === "COMPLETE" ? { tone: "success", confirmLabel: "Complete" } : { tone: "danger", confirmLabel: "Delete" })) return;
       batchBusy = true;
       setBatchStatus("");
       hideUndoNote(); // the server keeps one undo step, which a batch would leave pointing at its last task only
@@ -3816,7 +3933,7 @@
       if (!row) return closeCompletedEditor();
       const result = readCompletedForm(row);
       if (result.error) { alert(result.error); return; }
-      if (!confirm(reopenPrompt({ ...row, ...result.fields }))) return;
+      if (!await askConfirm(reopenPrompt({ ...row, ...result.fields }), { tone: "info", confirmLabel: "Reopen" })) return;
       try {
         if (Object.keys(result.fields).length > 0) {
           await apiFetch(UPDATE_COMPLETED_URL, {
@@ -3845,7 +3962,7 @@
       const id = document.getElementById("ceId").value;
       const row = completedRows.get(id);
       if (!row) return closeCompletedEditor();
-      if (!confirm(`Delete "${row.title}" from the completed tasks?\n\nIt is removed from History and Project hours for good and cannot be undone.`)) return;
+      if (!await askConfirm(`Delete "${row.title}" from the completed tasks?\n\nIt is removed from History and Project hours for good and cannot be undone.`, { tone: "danger", confirmLabel: "Delete" })) return;
       try {
         await apiFetch(DELETE_COMPLETED_URL, {
           method: "POST",
@@ -3991,7 +4108,7 @@
     async function deleteViewedPhoto() {
       if (!photoViewing) return;
       const { key, id } = photoViewing;
-      if (!confirm("Delete this photo?\n\nIt is removed for good and cannot be undone.")) return;
+      if (!await askConfirm("Delete this photo?\n\nIt is removed for good and cannot be undone.", { tone: "danger", confirmLabel: "Delete" })) return;
       try {
         await apiFetch(DELETE_PHOTO_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
       } catch (err) {
@@ -4178,7 +4295,7 @@
     async function deleteProject(projectId) {
       const project = allProjects.find(p => p.id === projectId);
       if (!project) return;
-      if (!confirm(deleteProjectPrompt(project.name, projectTaskCounts(allTasks)[projectId] || 0))) return;
+      if (!await askConfirm(deleteProjectPrompt(project.name, projectTaskCounts(allTasks)[projectId] || 0), { tone: "danger", confirmLabel: "Delete" })) return;
       await saveProject({ action: "DELETE", projectId }, `Deleted "${project.name}".`);
     }
 
@@ -4283,7 +4400,7 @@
 
     async function deleteTemplate() {
       const template = allTemplates.find(t => t.id === document.getElementById("templateSelect").value);
-      if (!template || !confirm(deleteTemplatePrompt(template.name))) return;
+      if (!template || !await askConfirm(deleteTemplatePrompt(template.name), { tone: "danger", confirmLabel: "Delete" })) return;
       const data = await sendTemplate({ action: "DELETE", templateId: template.id }, "Deleting...");
       if (!data) return;
       allTemplates = data.templates || allTemplates;
@@ -4388,7 +4505,7 @@
       const client = allClients.find(c => c.id === clientId);
       if (!client) return;
       const count = allProjects.filter(p => p.clientId === clientId).length;
-      if (!confirm(deleteClientPrompt(client.name, count))) return;
+      if (!await askConfirm(deleteClientPrompt(client.name, count), { tone: "danger", confirmLabel: "Delete" })) return;
       if (await saveClientRequest({ action: "DELETE", clientId }, `Deleted "${client.name}".`) && editingClientId === clientId) fillClientForm(null);
     }
 
@@ -4585,7 +4702,7 @@
           return;
         }
         const shown = duplicates.slice(0, 10).map(d => `• ${d.title}`).join("\n") + (duplicates.length > 10 ? `\n…and ${duplicates.length - 10} more` : "");
-        if (!confirm(`Delete ${duplicates.length} duplicate task${duplicates.length === 1 ? "" : "s"}? The earlier copy of each is kept. This cannot be undone.\n\n${shown}`)) {
+        if (!await askConfirm(`Delete ${duplicates.length} duplicate task${duplicates.length === 1 ? "" : "s"}?\n\nThe earlier copy of each is kept. This cannot be undone.\n\n${shown}`, { tone: "danger", confirmLabel: "Delete" })) {
           status.textContent = "Nothing deleted.";
           return;
         }

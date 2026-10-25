@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText};`)();
+    return {confirmView, CONFIRM_TONES, TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -69,15 +69,15 @@ describe("public/index.html helpers", () => {
     });
     it("asks before aborting, naming the task and what abort does", () => {
       const {abortPrompt} = load();
-      assert.equal(abortPrompt({title: "Mow lawn"}), "Abort \"Mow lawn\"? Its timer stops, its tracked time and start time are erased and it returns to the queue.");
+      assert.equal(abortPrompt({title: "Mow lawn"}), "Abort \"Mow lawn\"?\n\nIts timer stops, its tracked time and start time are erased and it returns to the queue.");
       assert.match(abortPrompt(null), /^Abort this task\?/);
     });
     it("wires the swipes by card: queued left delete and right snooze, Active left abort and right complete", () => {
       const up = html.slice(html.indexOf("const onTaskRowUp"), html.indexOf("const onTaskRowClick"));
       assert.match(up, /swipeAction\(s\.dx, s\.dy, s\.active\)/);
-      assert.match(up, /action === "ABORT"[\s\S]*confirm\(abortPrompt\(task\)\)[\s\S]*abortTask\(s\.id\)/);
-      assert.match(up, /action === "COMPLETE"[\s\S]*confirmComplete\(s\.id\)[\s\S]*completeTask\(s\.id\)/);
-      assert.match(up, /action === "DELETE"[\s\S]*deleteTask\(s\.id\)/);
+      assert.match(up, /action === "ABORT"[\s\S]*await askConfirm\(abortPrompt\(task\), \{ tone: "warning"[\s\S]*abortTask\(s\.id\)/);
+      assert.match(up, /action === "COMPLETE"[\s\S]*await confirmComplete\(s\.id\)[\s\S]*completeTask\(s\.id\)/);
+      assert.match(up, /action === "DELETE"[\s\S]*await askConfirm\(deletePrompt\(task\), \{ tone: "danger"[\s\S]*deleteTask\(s\.id\)/);
       assert.match(up, /action === "SNOOZE"[\s\S]*openSnoozeModal\(s\.id\)/);
       assert.match(html, /active: !!item\.closest\("#activeTaskBox"\)/);
     });
@@ -514,8 +514,8 @@ describe("public/index.html helpers", () => {
       const click = html.slice(html.indexOf(`getElementById("taskList").addEventListener("click"`), html.indexOf(`getElementById("taskList").addEventListener("click"`) + 700);
       assert.doesNotMatch(click, /deleteTask/);
       const fromModal = html.slice(html.indexOf("async function deleteTaskFromModal"), html.indexOf("async function deleteTask("));
-      assert.match(fromModal, /if \(!confirm\("Delete this task\?"\)\) return;\s*const taskId/);
-      assert.ok(fromModal.indexOf("confirm(") < fromModal.indexOf("closeEditModal()"), "cancelling keeps the modal open");
+      assert.match(fromModal, /if \(!await askConfirm\("Delete this task\?", \{ tone: "danger", confirmLabel: "Delete" \}\)\) return;\s*const taskId/);
+      assert.ok(fromModal.indexOf("askConfirm(") < fromModal.indexOf("closeEditModal()"), "cancelling keeps the modal open");
     });
     it("has an Undo bar pinned to the bottom of the screen, shown after a delete or completion and kept until the server's window ends", () => {
       const note = at(`id="undoNote"`);
@@ -1162,8 +1162,8 @@ describe("public/index.html helpers", () => {
     it("asks the server first with a dry run, then deletes only after a confirmation", () => {
       const fn = html.slice(html.indexOf("async function removeDuplicateTasks"), html.indexOf("async function downloadExport"));
       assert.match(fn, /post\(\{ dryRun: true \}\)/);
-      assert.ok(fn.indexOf("dryRun: true") < fn.indexOf("confirm("));
-      assert.ok(fn.indexOf("confirm(") < fn.indexOf("post({})"));
+      assert.ok(fn.indexOf("dryRun: true") < fn.indexOf("askConfirm("));
+      assert.ok(fn.indexOf("askConfirm(") < fn.indexOf("post({})"));
       assert.ok(html.includes("id=\"dedupBtn\""));
       assert.match(html, /endpoint\("removeDuplicateTasks"\)/);
     });
@@ -1335,7 +1335,7 @@ describe("public/index.html helpers", () => {
     it("completePrompt: names the task and mentions the next occurrence of a repeating one", () => {
       const {completePrompt: c} = load();
       assert.equal(c({title: "Mow lawn"}), "Mark \"Mow lawn\" as complete?");
-      assert.equal(c({title: "Mow lawn", recurrence: {frequency: "WEEKLY", interval: 1}}), "Mark \"Mow lawn\" as complete? It repeats, so its next occurrence will be added.");
+      assert.equal(c({title: "Mow lawn", recurrence: {frequency: "WEEKLY", interval: 1}}), "Mark \"Mow lawn\" as complete?\n\nIt repeats, so its next occurrence will be added.");
       assert.equal(c(undefined), "Mark this task as complete?");
     });
     it("deleteProjectPrompt: says what happens to the member tasks", () => {
@@ -1495,7 +1495,7 @@ describe("public/index.html helpers", () => {
         assert.match(html, /<button class="btn-secondary" onclick="reopenCompletedEntry\(\)">Reopen<\/button>/);
         assert.match(html, /const REOPEN_COMPLETED_URL = endpoint\("reopenCompletedTask"\);/);
         const fn = html.slice(html.indexOf("async function reopenCompletedEntry"), html.indexOf("async function deleteCompletedEntry"));
-        assert.match(fn, /confirm\(reopenPrompt\(\{ \.\.\.row, \.\.\.result\.fields \}\)\)/);
+        assert.match(fn, /await askConfirm\(reopenPrompt\(\{ \.\.\.row, \.\.\.result\.fields \}\), \{ tone: "info"/);
         assert.ok(fn.indexOf("UPDATE_COMPLETED_URL") < fn.indexOf("REOPEN_COMPLETED_URL"), "edits are saved before the reopen");
         assert.match(fn, /setTasks\(data\.tasks \|\| allTasks\)/);
         assert.match(fn, /templates = null;/);
@@ -2239,7 +2239,7 @@ describe("public/index.html helpers", () => {
     });
     it("words the delete confirmation and the started message", () => {
       const h = load();
-      assert.match(h.deleteTemplatePrompt("Deck"), /Delete template "Deck"\?.*not affected/);
+      assert.match(h.deleteTemplatePrompt("Deck"), /Delete template "Deck"\?\n\nProjects already started from it are not affected/);
       assert.equal(h.startedText("Back deck", 1), "Started \"Back deck\" with 1 task.");
       assert.equal(h.startedText("Back deck", 5), "Started \"Back deck\" with 5 tasks.");
     });
@@ -2487,6 +2487,110 @@ describe("public/index.html helpers", () => {
       assert.ok(fn.indexOf("catch") > fn.indexOf("setSelectMode(false)"));
       assert.equal(fn.slice(fn.indexOf("catch")).includes("setSelectMode"), false);
       for (const action of ["MOVE_TO_TOP", "SNOOZE", "SET_DUE", "SET_PROJECT"]) assert.ok(html.includes(`batchBody("${action}"`), action);
+    });
+  });
+  describe("the confirmation dialog", () => {
+    it("takes the first paragraph as the title and the rest as the detail", () => {
+      const {confirmView} = load();
+      const v = confirmView("Abort \"Mow lawn\"?\n\nIts timer stops.\n\nThe time is erased.", {tone: "warning", confirmLabel: "Abort"});
+      assert.equal(v.title, "Abort \"Mow lawn\"?");
+      assert.deepEqual(v.detail, [{text: "Its timer stops.", list: false}, {text: "The time is erased.", list: false}]);
+      assert.equal(v.confirmLabel, "Abort");
+      assert.equal(v.tone, "warning");
+    });
+    it("never splits a title on a question mark or quote inside the task's own name", () => {
+      const {confirmView} = load();
+      const v = confirmView("Delete \"Why? Because 5\" pipe\"?");
+      assert.equal(v.title, "Delete \"Why? Because 5\" pipe\"?");
+      assert.deepEqual(v.detail, []);
+    });
+    it("shows a paragraph that starts with a bullet as a list", () => {
+      const {confirmView} = load();
+      const v = confirmView("Delete 2 duplicate tasks?\n\nThe earlier copy is kept.\n\n\u2022 Mow\n\u2022 Rake\n\u2026and 3 more");
+      assert.deepEqual(v.detail.map((d) => d.list), [false, true]);
+      assert.equal(v.detail[1].text, "\u2022 Mow\n\u2022 Rake\n\u2026and 3 more");
+    });
+    it("treats a blank line with spaces on it as a paragraph break and ignores surrounding blank lines", () => {
+      const {confirmView} = load();
+      const v = confirmView("\n\nDelete it?\n  \nIt is gone.\n\n");
+      assert.equal(v.title, "Delete it?");
+      assert.deepEqual(v.detail, [{text: "It is gone.", list: false}]);
+    });
+    it("falls back to a plain question, the info tone and an OK button for missing or odd input", () => {
+      const {confirmView} = load();
+      for (const v of [confirmView(), confirmView(null, null), confirmView("", {tone: "nonsense", confirmLabel: "  "}), confirmView("   ", {tone: "__proto__"})]) {
+        assert.equal(v.title, "Are you sure?");
+        assert.equal(v.tone, "info");
+        assert.equal(v.confirmLabel, "OK");
+        assert.deepEqual(v.detail, []);
+      }
+    });
+    it("opens with Cancel focused for every tone that destroys something, and on the confirm button otherwise", () => {
+      const {confirmView} = load();
+      assert.equal(confirmView("x?", {tone: "danger"}).focusCancel, true);
+      assert.equal(confirmView("x?", {tone: "warning"}).focusCancel, true);
+      assert.equal(confirmView("x?", {tone: "success"}).focusCancel, false);
+      assert.equal(confirmView("x?", {tone: "info"}).focusCancel, false);
+    });
+    it("draws an icon for every tone from the tone's colour, never a fixed one", () => {
+      const {CONFIRM_TONES} = load();
+      assert.deepEqual(Object.keys(CONFIRM_TONES).sort(), ["danger", "info", "success", "warning"]);
+      for (const tone of Object.values(CONFIRM_TONES)) {
+        assert.match(tone.icon, /^<svg [^>]*stroke="currentColor"/);
+        assert.doesNotMatch(tone.icon, /#[0-9a-fA-F]{3,8}\b/);
+      }
+    });
+    it("splits each prompt into its question and its detail with a blank line", () => {
+      const {confirmView, abortPrompt, completePrompt, deleteProjectPrompt, deleteClientPrompt, deleteTemplatePrompt, reopenPrompt, batchRemovePrompt} = load();
+      assert.equal(confirmView(abortPrompt({title: "Mow lawn"})).title, "Abort \"Mow lawn\"?");
+      assert.equal(confirmView(abortPrompt({title: "Mow lawn"})).detail.length, 1);
+      assert.equal(confirmView(completePrompt({title: "Mow lawn", recurrence: {frequency: "WEEKLY", interval: 1}})).detail.length, 1);
+      assert.equal(confirmView(completePrompt({title: "Mow lawn"})).detail.length, 0);
+      assert.equal(confirmView(deleteProjectPrompt("Garden", 3)).title, "Delete project \"Garden\"?");
+      assert.equal(confirmView(deleteProjectPrompt("Garden", 3)).detail.length, 1);
+      assert.equal(confirmView(deleteProjectPrompt("Garden", 0)).detail.length, 0);
+      assert.equal(confirmView(deleteClientPrompt("Jo", 2)).title, "Delete client \"Jo\"?");
+      assert.equal(confirmView(deleteClientPrompt("Jo", 2)).detail.length, 1);
+      assert.equal(confirmView(deleteTemplatePrompt("Deck")).title, "Delete template \"Deck\"?");
+      assert.equal(confirmView(deleteTemplatePrompt("Deck")).detail.length, 1);
+      assert.equal(confirmView(reopenPrompt({title: "Mow lawn"})).title, "Reopen \"Mow lawn\"?");
+      assert.equal(confirmView(batchRemovePrompt("DELETE", [{}, {}])).title, "Delete 2 tasks?");
+    });
+    it("replaces every native confirm() in the page", () => {
+      const code = html.replace(/\/\/.*$/gm, "");
+      assert.doesNotMatch(code, /(?<![\w.])confirm\(/, "a native confirm() is left");
+      const asks = code.match(/(?<!function )askConfirm\(/g) || [];
+      assert.equal(asks.length, 12, "the twelve questions the page asks");
+    });
+    it("marks the dialog up as a modal alert dialog above every other modal, with Cancel and a confirm button", () => {
+      assert.match(html, /<div id="confirmModal" class="modal-overlay confirm-overlay"/);
+      assert.match(html, /role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmDetail"/);
+      assert.match(html, /id="confirmCancelBtn"[^>]*>Cancel</);
+      assert.match(html, /id="confirmOkBtn"/);
+      const css = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+      const z = (selector) => Number(new RegExp(`${selector} \\{[^}]*?z-index: (\\d+)`).exec(css)[1]);
+      assert.ok(z("\\.confirm-overlay") > z("#photoModal"), "above the photo viewer");
+      assert.ok(z("\\.confirm-overlay") > z("\\.modal-overlay"), "above the other modals");
+    });
+    it("puts the owner's text in the dialog as text, never as markup", () => {
+      const fn = html.slice(html.indexOf("function askConfirm"), html.indexOf("function closeConfirmOnOverlay"));
+      assert.match(fn, /getElementById\("confirmTitle"\)\.textContent = view\.title/);
+      assert.match(fn, /p\.textContent = part\.text/);
+      assert.equal((fn.match(/innerHTML/g) || []).length, 1, "only the fixed icon markup is set as HTML");
+      assert.match(fn, /icon\.innerHTML = view\.icon/);
+    });
+    it("cancels on Escape, a tap outside the card and a second question, and leaves a modal underneath locked", () => {
+      const dom = html.slice(html.indexOf("let confirmPending"), html.indexOf("// Share to TaskHub"));
+      assert.match(dom, /e\.key === "Escape"[\s\S]*settleConfirm\(false\)/);
+      assert.match(dom, /e\.target\.id === "confirmModal"\) settleConfirm\(false\)/);
+      assert.match(dom, /function askConfirm\(text, options\) \{\s*settleConfirm\(false\);/);
+      assert.match(dom, /bodyWasLocked: document\.body\.classList\.contains\("modal-open"\)/);
+      assert.match(dom, /if \(!pending\.bodyWasLocked\) document\.body\.classList\.remove\("modal-open"\)/);
+    });
+    it("keeps the swipe card pulled aside until the question is answered, then lets it snap back", () => {
+      const up = html.slice(html.indexOf("const onTaskRowUp"), html.indexOf("const onTaskRowClick"));
+      assert.match(up, /const onTaskRowUp = async e =>/);
+      assert.ok(up.lastIndexOf("await ") < up.indexOf("resetSwipe(s)"), "the card is reset after the last answer");
     });
   });
 });
