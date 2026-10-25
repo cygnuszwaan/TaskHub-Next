@@ -64,6 +64,86 @@ describe("jobsheet.js", () => {
     });
   });
 
+  describe("buildJobSheet invoice figures", () => {
+    const costed = (extra) => row({materials: [{id: "a", text: "Washer", checked: true, cost: 2.5}, {id: "b", text: "Tape", checked: true}], ...extra});
+    const inv = (request, rows, hourlyRate) => buildJobSheet({request, rows, project, timeZone: NZ, now, hourlyRate});
+    it("prints no money without a rate or a cost, whatever else is on the sheet", () => {
+      for (const hourlyRate of [undefined, null, 0, "85", NaN, -5]) {
+        const s = inv({type: "PROJECT"}, [row({})], hourlyRate);
+        assert.equal(s.invoice, false);
+        assert.equal(s.rateText, "");
+        assert.equal(s.totals.money, null);
+        assert.equal(s.sections[0].totals.money, null);
+        assert.equal(s.sections[0].entries[0].money, null);
+      }
+    });
+    it("bills the tracked minutes at the rate for a task: 25m at $85/h is $35.42", () => {
+      const s = inv({type: "TASK"}, [row({})], 85);
+      assert.equal(s.invoice, true);
+      assert.equal(s.rateText, "$85.00");
+      assert.deepEqual(s.sections[0].entries[0].money, {labour: "$35.42", materials: "", total: "$35.42"});
+    });
+    it("adds materials to the total and lists a costed material with its cost", () => {
+      const s = inv({type: "TASK"}, [costed({})], 85);
+      const e = s.sections[0].entries[0];
+      assert.deepEqual(e.money, {labour: "$35.42", materials: "$2.50", total: "$37.92"});
+      assert.deepEqual(e.materials, ["Washer ($2.50)", "Tape"]);
+    });
+    it("prints materials alone when there is no rate but a cost", () => {
+      const s = inv({type: "TASK"}, [costed({})], null);
+      assert.equal(s.invoice, true);
+      assert.equal(s.rateText, "");
+      assert.deepEqual(s.sections[0].entries[0].money, {labour: "", materials: "$2.50", total: "$2.50"});
+    });
+    it("bills an estimate when no time was tracked and marks it est.", () => {
+      const e = inv({type: "TASK"}, [row({trackedSeconds: 0, estimatedMinutes: 30})], 90).sections[0].entries[0];
+      assert.deepEqual(e.money, {labour: "$45.00 est.", materials: "", total: "$45.00"});
+    });
+    it("bills nothing for a task with neither time nor estimate", () => {
+      assert.equal(inv({type: "TASK"}, [row({trackedSeconds: 0, estimatedMinutes: undefined})], 90).sections[0].entries[0].money.total, "$0.00");
+    });
+    it("rounds the time to the minute as the sheet shows it", () => {
+      assert.equal(inv({type: "TASK"}, [row({trackedSeconds: 3920})], 60).sections[0].entries[0].money.labour, "$65.00");
+      assert.equal(inv({type: "TASK"}, [row({trackedSeconds: 3929})], 60).sections[0].entries[0].money.labour, "$65.00");
+      assert.equal(inv({type: "TASK"}, [row({trackedSeconds: 3931})], 60).sections[0].entries[0].money.labour, "$66.00");
+    });
+    it("totals each week and the project as sums of the tasks' own amounts", () => {
+      const rows = [
+        costed({title: "A", completedAt: at("2026-10-20"), trackedSeconds: 1500}),
+        row({title: "B", completedAt: at("2026-10-21"), trackedSeconds: 600}),
+        costed({title: "C", completedAt: at("2026-10-13"), trackedSeconds: 0, estimatedMinutes: 20}),
+      ];
+      const s = inv({type: "PROJECT"}, rows, 85);
+      // A 25m = 35.42, B 10m = 14.17, C 20m = 28.33
+      assert.deepEqual(s.sections[1].totals.money, {labour: "$49.59", materials: "$2.50", total: "$52.09"});
+      assert.deepEqual(s.sections[0].totals.money, {labour: "$28.33", materials: "$2.50", total: "$30.83"});
+      assert.deepEqual(s.totals.money, {labour: "$77.92", materials: "$5.00", total: "$82.92"});
+    });
+    it("a week sheet totals only its own week", () => {
+      const rows = [row({title: "In", completedAt: at("2026-10-20"), trackedSeconds: 3600}), row({title: "Out", completedAt: at("2026-10-13"), trackedSeconds: 3600})];
+      const s = inv({type: "WEEK", weekStart: "2026-10-19"}, rows, 100);
+      assert.equal(s.totals.money.total, "$100.00");
+    });
+    it("keeps the totals complete when a very long project lists only its newest entries", () => {
+      const rows = Array.from({length: JOB_SHEET_MAX_ENTRIES + 5}, (_, i) => row({title: `T${i}`, trackedSeconds: 3600, completedAt: new Date(Date.parse("2026-01-05T00:00:00Z") + i * 3600e3)}));
+      const s = inv({type: "PROJECT"}, rows, 10);
+      assert.equal(s.truncated, true);
+      assert.equal(s.totals.money.total, new Intl.NumberFormat("en-NZ", {style: "currency", currency: "NZD"}).format((JOB_SHEET_MAX_ENTRIES + 5) * 10));
+    });
+    it("leaves the time figures as they were", () => {
+      const rows = [row({trackedSeconds: 1500}), costed({completedAt: at("2026-10-21"), trackedSeconds: 600})];
+      const plain = sheet({type: "PROJECT"}, rows);
+      const priced = inv({type: "PROJECT"}, rows, 85);
+      assert.equal(priced.totals.text, plain.totals.text);
+      assert.deepEqual(priced.sections.map((x) => x.totals.minutes), plain.sections.map((x) => x.totals.minutes));
+    });
+    it("works for an empty sheet", () => {
+      const s = inv({type: "PROJECT"}, [], 85);
+      assert.equal(s.empty, true);
+      assert.deepEqual(s.totals.money, {labour: "$0.00", materials: "", total: "$0.00"});
+    });
+  });
+
   describe("buildJobSheet", () => {
     it("builds a task sheet with its times, comments and materials, no totals, priority or tags", () => {
       const s = sheet({type: "TASK"}, [row({comments: "Washer replaced", materials: [{id: "m", text: "Tap", checked: true}, {id: "n", text: "PTFE tape", checked: false}]})]);
@@ -75,7 +155,7 @@ describe("jobsheet.js", () => {
       assert.equal(s.empty, false);
       assert.equal(s.sections.length, 1);
       assert.equal(s.sections[0].heading, "");
-      assert.deepEqual(s.sections[0].entries[0], {archiveId: "", jobNumber: "", title: "Fit tap", started: "", completed: "Tue, 20 Oct, 12:00 pm", timeText: "25m", estimated: false, materials: ["Tap", "PTFE tape"], comments: "Washer replaced"});
+      assert.deepEqual(s.sections[0].entries[0], {archiveId: "", jobNumber: "", title: "Fit tap", started: "", completed: "Tue, 20 Oct, 12:00 pm", timeText: "25m", estimated: false, money: null, materials: ["Tap", "PTFE tape"], comments: "Washer replaced"});
       assert.match(s.generatedText, /24 October 2026/);
       assert.equal(s.timeZone, NZ);
     });
@@ -136,8 +216,8 @@ describe("jobsheet.js", () => {
       const stats = summarizeProjectHours(rows, [project], NZ)[0];
       assert.deepEqual({count: s.totals.count, minutes: s.totals.minutes, estimatedMinutes: s.totals.estimatedMinutes}, {count: stats.count, minutes: stats.minutes, estimatedMinutes: stats.estimatedMinutes});
       assert.equal(s.totals.text, "1h (1.00 h)");
-      assert.deepEqual(s.sections[1].totals, {count: 2, minutes: 40, estimatedMinutes: 0, text: "40m (0.67 h)"});
-      assert.deepEqual(s.sections[0].totals, {count: 1, minutes: 20, estimatedMinutes: 20, text: "20m (0.33 h)"});
+      assert.deepEqual(s.sections[1].totals, {count: 2, minutes: 40, estimatedMinutes: 0, text: "40m (0.67 h)", money: null});
+      assert.deepEqual(s.sections[0].totals, {count: 1, minutes: 20, estimatedMinutes: 20, text: "20m (0.33 h)", money: null});
       assert.equal(s.truncated, false);
       assert.equal(s.empty, false);
     });

@@ -1045,8 +1045,8 @@ exports.exportData = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, re
 // Body {archiveId} (one completed task, the `archiveId` getCompletedTasks gives each entry), {projectId} (a project to date) or
 // {projectId, weekStart} (its Monday-to-Sunday week; any date in the week names it); see parseJobSheetRequest. Responds
 // with the PDF itself (application/pdf): every time and date on the owner's clock, the tracked time (or estimate), comments, tags and
-// materials and photos (at most JOB_SHEET_MAX_PHOTOS a sheet) of each completed task, and for a project the hours as the Stats page figures them (see buildJobSheet,
-// renderJobSheetPdf). 400 for an unusable body, 404 for an unknown task or project. Read-only. A project's rows are
+// materials (with costs) and photos (at most JOB_SHEET_MAX_PHOTOS a sheet) of each completed task, and for a project the hours as the Stats page figures them (see buildJobSheet,
+// renderJobSheetPdf), plus labour at the hourly rate, materials cost and a total when a rate or any cost is set (see invoice.js). 400 for an unusable body, 404 for an unknown task or project. Read-only. A project's rows are
 // read the way the Stats hours are (at most PROJECT_MAX_ROWS), and a sheet lists at most its newest JOB_SHEET_MAX_ENTRIES.
 exports.getJobSheet = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 60, memory: "512MiB"}, ownerOnly(async (req, res) => {
   try {
@@ -1067,7 +1067,7 @@ exports.getJobSheet = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 60, memo
       const snap = await archive.where("projectId", "==", project.id).limit(PROJECT_MAX_ROWS).get();
       rows = snap.docs.map((d) => ({...d.data(), archiveId: d.id}));
     }
-    const sheet = buildJobSheet({request, rows, project, timeZone, now: new Date(), contractorInfo: jobSheet.contractorInfo});
+    const sheet = buildJobSheet({request, rows, project, timeZone, now: new Date(), contractorInfo: jobSheet.contractorInfo, hourlyRate: jobSheet.hourlyRate});
     // Each listed task's photos go in the PDF, at most JOB_SHEET_MAX_PHOTOS in all (see gatherPhotos)
     const {byId, omitted} = await gatherPhotos(sheetArchiveIds(sheet), {
       fetchChunk: async (ids) => (await PHOTOS.where("archiveId", "in", ids).get()).docs.map((d) => ({archiveId: d.get("archiveId"), ...serializePhoto(d.id, d.data())})),

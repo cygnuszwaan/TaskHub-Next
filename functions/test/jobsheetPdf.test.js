@@ -9,7 +9,7 @@ const NZ = "Pacific/Auckland";
 const now = new Date("2026-10-24T02:00:00Z");
 const project = {id: "p1", name: "Whangaparāoa deck 🌿"};
 const rows = (n, extra = {}) => Array.from({length: n}, (_, i) => ({title: `Job ${i} Māori 🌿`, priority: "LOW", estimatedMinutes: 30, trackedSeconds: 600 + i, tags: ["Outdoor"], comments: i % 3 === 0 ? "Long comment. ".repeat(40) : undefined, completedAt: new Date(Date.parse("2026-10-12T00:00:00Z") + i * 3 * 3600e3), ...extra}));
-const render = (request, r, p = project) => renderJobSheetPdf(buildJobSheet({request, rows: r, project: p, timeZone: NZ, now}));
+const render = (request, r, p = project, hourlyRate) => renderJobSheetPdf(buildJobSheet({request, rows: r, project: p, timeZone: NZ, now, hourlyRate}));
 const pages = (pdf) => Number(/\/Type \/Pages[\s\S]*?\/Count (\d+)/.exec(pdf.toString("latin1"))[1]);
 
 describe("jobsheetPdf.js", () => {
@@ -46,6 +46,25 @@ describe("jobsheetPdf.js", () => {
     const pdf = await render({type: "PROJECT"}, rows(3, {title: "W".repeat(300), comments: "word ".repeat(2000)}));
     assert.ok(pages(pdf) >= 2);
   });
+  describe("invoice figures", () => {
+    const costed = (n) => rows(n, {materials: [{id: "a", text: "Screws Māori", checked: true, cost: 12.5}, {id: "b", text: "Glue", checked: true}]});
+    it("renders task, week and project sheets with a rate, with costs alone, and with both", async () => {
+      for (const [request, r, rate] of [[{type: "TASK"}, rows(1), 85], [{type: "TASK"}, costed(1)], [{type: "WEEK", weekStart: "2026-10-12"}, costed(5), 85], [{type: "PROJECT"}, costed(4), 85]]) {
+        const pdf = await render(request, r, project, rate);
+        assert.equal(pdf.subarray(0, 5).toString("latin1"), "%PDF-");
+        assert.equal(pages(pdf), 1);
+      }
+    });
+    it("renders a long invoice project over several pages and an empty one", async () => {
+      assert.ok(pages(await render({type: "PROJECT"}, costed(60), project, 85)) >= 3);
+      assert.equal(pages(await render({type: "PROJECT"}, [], project, 85)), 1);
+    });
+    it("renders contractor information with a rate and long comments together", async () => {
+      const sheet = buildJobSheet({request: {type: "PROJECT"}, rows: costed(10), project, timeZone: NZ, now, contractorInfo: "A Builder\nPh 021 000 000\nGST 12-345-678", hourlyRate: 85});
+      assert.ok(pages(await renderJobSheetPdf(sheet)) >= 1);
+    });
+  });
+
   describe("photos", () => {
     // A tiny but valid baseline JPEG (64 x 48), which the PDF library reads
     const JPEG = "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/yQALCAAwAEABAREA/8wABgAQEAX/2gAIAQEAAD8A0s8g/9k=";

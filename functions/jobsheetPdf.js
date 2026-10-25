@@ -33,6 +33,12 @@ function totalsLine(totals) {
   return `${totals.text} · ${countLine(totals)}`;
 }
 
+// The money of an entry, section or sheet as one line: "Labour $35.42 · Materials $2.50 · Total $37.92", leaving out the
+// parts that mean nothing (no rate, no costed material).
+function moneyLine(money) {
+  return [money.labour ? `Labour ${money.labour}` : "", money.materials ? `Materials ${money.materials}` : "", `Total ${money.total}`].filter(Boolean).join(" · ");
+}
+
 function draw(doc, sheet) {
   doc.registerFont("Sans", REGULAR);
   doc.registerFont("Bold", BOLD);
@@ -89,6 +95,7 @@ function draw(doc, sheet) {
   doc.font("Bold").fontSize(14).fillColor(INK).text(sheet.heading || "", left, doc.y, {width});
   if (sheet.projectName) doc.font("Sans").fontSize(10).fillColor(MUTED).text(`Project: ${sheet.projectName}`, left, doc.y + 2, {width});
   if (sheet.period) doc.font("Sans").fontSize(10).fillColor(MUTED).text(sheet.period, left, doc.y + 2, {width});
+  if (sheet.invoice && sheet.rateText) doc.font("Sans").fontSize(10).fillColor(MUTED).text(`Hourly rate ${sheet.rateText}`, left, doc.y + 2, {width});
   doc.font("Sans").fontSize(8.5).fillColor(MUTED).text(`Prepared ${sheet.generatedText} · Times in ${sheet.timeZone}`, left, doc.y + 4, {width});
   doc.moveDown(0.6);
   rule(INK);
@@ -99,6 +106,14 @@ function draw(doc, sheet) {
     doc.font("Sans").fontSize(8.5).fillColor(MUTED).text("TOTAL TIME", left, doc.y, {width});
     doc.font("Bold").fontSize(13).fillColor(INK).text(sheet.totals.text, left, doc.y + 1, {width});
     doc.font("Sans").fontSize(9).fillColor(MUTED).text(countLine(sheet.totals), left, doc.y + 1, {width});
+    if (sheet.totals.money) {
+      doc.y += 8;
+      doc.font("Sans").fontSize(8.5).fillColor(MUTED).text("TOTAL AMOUNT", left, doc.y, {width});
+      doc.font("Bold").fontSize(13).fillColor(INK).text(sheet.totals.money.total, left, doc.y + 1, {width});
+      if (sheet.totals.money.labour || sheet.totals.money.materials) {
+        doc.font("Sans").fontSize(9).fillColor(MUTED).text([sheet.totals.money.labour ? `Labour ${sheet.totals.money.labour}` : "", sheet.totals.money.materials ? `Materials ${sheet.totals.money.materials}` : ""].filter(Boolean).join(" · "), left, doc.y + 1, {width});
+      }
+    }
     doc.y += 8;
     if (sheet.truncated) {
       doc.font("Sans").fontSize(8.5).fillColor(MUTED).text("This project has a very large number of completed tasks; only the newest are listed. The totals cover them all.", left, doc.y, {width});
@@ -117,10 +132,10 @@ function draw(doc, sheet) {
 
   for (const section of sheet.sections) {
     if (section.heading) {
-      ensure(60);
+      ensure(70);
       doc.y += 6;
       const y = doc.y;
-      const rightText = totalsLine(section.totals);
+      const rightText = totalsLine(section.totals) + (section.totals.money ? `\n${moneyLine(section.totals.money)}` : "");
       const rightW = Math.min(300, width * 0.62);
       const headW = width - rightW - 8;
       const headH = textHeight(section.heading, "Bold", 11, headW);
@@ -140,7 +155,9 @@ function draw(doc, sheet) {
       const metaH = meta ? textHeight(meta, "Sans", 8.5, width) + 1 : 0;
       const materialsH = materials ? textHeight(materials, "Sans", 8.5, width) + 2 : 0;
       const commentsH = entry.comments ? textHeight(entry.comments, "Sans", 9, width - 12) + 3 : 0;
-      ensure(titleH + metaH + materialsH + commentsH + 12);
+      const money = entry.money ? moneyLine(entry.money) : "";
+      const moneyH = money ? textHeight(money, "Bold", 9, width) + 3 : 0;
+      ensure(titleH + metaH + materialsH + commentsH + moneyH + 12);
 
       const y = doc.y;
       doc.font("Bold").fontSize(10.5).fillColor(INK).text(entry.title, left, y, {width: titleW});
@@ -149,6 +166,7 @@ function draw(doc, sheet) {
       if (meta) doc.font("Sans").fontSize(8.5).fillColor(MUTED).text(meta, left, doc.y + 1, {width});
       if (materials) doc.font("Sans").fontSize(8.5).fillColor(MUTED).text(materials, left, doc.y + 2, {width});
       if (entry.comments) doc.font("Sans").fontSize(9).fillColor(INK).text(entry.comments, left + 12, doc.y + 3, {width: width - 12});
+      if (money) doc.font("Bold").fontSize(9).fillColor(INK).text(money, left, doc.y + 3, {width, align: "right"});
       if (entry.photos && entry.photos.length) {
         doc.y += 6;
         drawPhotos(entry.photos);

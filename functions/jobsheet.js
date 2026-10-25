@@ -5,6 +5,7 @@ const {isArchiveId} = require("./completedEdit");
 const {toIso, weekStartOf, minutesOf, summarizeProjectHours} = require("./completed");
 const {sortPhotos} = require("./photos");
 const {formatJobNumber} = require("./jobNumber");
+const {formatMoney, usableRate, entryFigures, sumFigures, isInvoice, figuresText} = require("./invoice");
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 // Most entries one job sheet lists (the newest); `truncated` says when there were more.
@@ -104,11 +105,22 @@ function weekRangeText(weekStart) {
   return `${short(weekStart)} \u2013 ${dateText(end)}`;
 }
 
-// One completed task as the sheet lists it.
-function sheetEntry(row, timeZone) {
+// One completed task as the sheet lists it. `invoice` is the sheet's mode (see buildJobSheet): with it the entry also
+// carries `money`, and a material that has a cost is listed with it.
+function sheetEntry(row, timeZone, invoice, rate) {
   const tracked = Number.isFinite(row.trackedSeconds) && row.trackedSeconds > 0;
   const text = (v) => (typeof v === "string" ? pdfText(v) : "");
-  const list = (v) => (Array.isArray(v) ? v : []).map((x) => text(typeof x === "string" ? x : x && x.text)).filter(Boolean);
+  const item = (x) => {
+    const name = text(typeof x === "string" ? x : x && x.text);
+    return name && x && typeof x.cost === "number" ? `${name} (${formatMoney(Math.round(x.cost * 100))})` : name;
+  };
+  const list = (v) => (Array.isArray(v) ? v : []).map(item).filter(Boolean);
+  const estimated = !tracked && minutesOf(row) > 0;
+  let money = null;
+  if (invoice) {
+    money = figuresText(entryFigures(row, rate), rate);
+    if (money.labour && estimated) money.labour += " est.";
+  }
   return {
     archiveId: typeof row.archiveId === "string" ? row.archiveId : "",
     jobNumber: formatJobNumber(row.jobNumber),
@@ -116,7 +128,8 @@ function sheetEntry(row, timeZone) {
     started: whenText(timeZone, row.firstStartedAt),
     completed: whenText(timeZone, toIso(row.completedAt)),
     timeText: entryTimeText(row),
-    estimated: !tracked && minutesOf(row) > 0,
+    estimated,
+    money,
     materials: list(row.materials),
     comments: text(row.comments),
   };
@@ -135,6 +148,12 @@ function byCompletion(a, b) {
 //   timeZone: the owner's zone; every date and time is on its clock
 //   now:      the Date of the sheet
 //   contractorInfo: the owner's contractor text (settings.jobSheet.contractorInfo), printed under the "Job sheet" title
+//   hourlyRate: settings.jobSheet.hourlyRate (dollars, null or absent for none)
+// Invoice figures: a sheet is an invoice sheet (`invoice` true, `rateText` the rate as "$85.00", "" without one) when there is a usable
+// hourly rate or any listed task has a material with a cost; otherwise it carries no money at all, as before. Then each entry has
+// `money` {labour, materials, total} (strings; labour is the billed time at the rate ("est." added when the time is an estimate),
+// "" without a rate; materials is "" when the task has no costed material) and `totals`, each section's `totals` and the sheet's
+// `totals` carry the same as `money` (sums of the tasks' own amounts, so the lines add up exactly, whatever the weekly hours round to).
 // Returns {kind, contractorInfo (cleaned by pdfText, "" with none), heading, projectName, period, generatedText, timeZone, totals, sections, truncated, empty}:
 //   `heading`: the title of the completed task, or the project's name; `projectName` is null with none (and for a
 //   PROJECT or WEEK sheet, whose heading is the project's name); `period`: "" for a TASK sheet;
@@ -146,16 +165,19 @@ function byCompletion(a, b) {
 //   materials, comments, archiveId, jobNumber} (`jobNumber` the task's job number as plain digits, "" for a task that has none; `started`: when its timer was first started, "" when it never was; no priority or tags, the
 //   sheet is client-facing); `truncated` is true when only the newest JOB_SHEET_MAX_ENTRIES entries are listed (the totals
 //   still cover everything read); `empty` is true when there is nothing to list.
-function buildJobSheet({request, rows, project, timeZone, now, contractorInfo}) {
+function buildJobSheet({request, rows, project, timeZone, now, contractorInfo, hourlyRate}) {
   const kind = request.type;
   const contractor = typeof contractorInfo === "string" ? pdfText(contractorInfo) : "";
   const generatedText = pdfText(formatLocalNow(timeZone, now));
   const projectName = project && typeof project.name === "string" ? pdfText(project.name) : "";
   const stamped = (Array.isArray(rows) ? rows : []).map((row) => ({row, iso: toIso(row && row.completedAt)})).filter((r) => r.row);
+  const rate = usableRate(hourlyRate);
+  const rateText = rate === null ? "" : formatMoney(Math.round(rate * 100));
 
   if (kind === "TASK") {
-    const entries = stamped.slice(0, 1).map((r) => sheetEntry(r.row, timeZone));
-    return {kind, contractorInfo: contractor, heading: entries.length ? entries[0].title : "", projectName: projectName || null, period: "", generatedText, timeZone, totals: null, sections: entries.length ? [{heading: "", totals: null, entries}] : [], truncated: false, empty: entries.length === 0};
+    const invoice = isInvoice(rate, stamped.slice(0, 1).map((r) => entryFigures(r.row, rate)));
+    const entries = stamped.slice(0, 1).map((r) => sheetEntry(r.row, timeZone, invoice, rate));
+    return {kind, contractorInfo: contractor, heading: entries.length ? entries[0].title : "", projectName: projectName || null, period: "", generatedText, timeZone, invoice, rateText, totals: null, sections: entries.length ? [{heading: "", totals: null, entries}] : [], truncated: false, empty: entries.length === 0};
   }
 
   // Group by local week, then take the project's figures from the same code the Stats page uses
@@ -167,6 +189,13 @@ function buildJobSheet({request, rows, project, timeZone, now, contractorInfo}) 
     weeksOf.get(weekStart).push(r);
   }
   const inScope = [...weeksOf.values()].flat();
+  const figuresOf = new Map(inScope.map((r) => [r, entryFigures(r.row, rate)]));
+  const invoice = isInvoice(rate, [...figuresOf.values()]);
+  // Money for a group of rows, summed over all of them (not only the entries kept when there are very many)
+  const moneyOf = (group) => {
+    const sum = sumFigures(group.map((r) => figuresOf.get(r)));
+    return invoice ? figuresText(sum, rate) : null;
+  };
   const hours = summarizeProjectHours(inScope.map((r) => ({...r.row, projectId: project.id})), [{id: project.id, name: projectName}], timeZone)[0];
   const weekTotals = new Map(((hours && hours.weeks) || []).map((w) => [w.weekStart, w]));
   const figures = (w) => ({count: w ? w.count : 0, minutes: w ? w.minutes : 0, estimatedMinutes: w ? w.estimatedMinutes : 0});
@@ -176,11 +205,11 @@ function buildJobSheet({request, rows, project, timeZone, now, contractorInfo}) 
   const keep = new Set(inScope.slice().sort(byCompletion).slice(-JOB_SHEET_MAX_ENTRIES));
   const sections = [...weeksOf.keys()].sort().map((weekStart) => ({
     heading: weekRangeText(weekStart),
-    totals: withText(figures(weekTotals.get(weekStart))),
-    entries: weeksOf.get(weekStart).filter((r) => keep.has(r)).sort(byCompletion).map((r) => sheetEntry(r.row, timeZone)),
+    totals: {...withText(figures(weekTotals.get(weekStart))), money: moneyOf(weeksOf.get(weekStart))},
+    entries: weeksOf.get(weekStart).filter((r) => keep.has(r)).sort(byCompletion).map((r) => sheetEntry(r.row, timeZone, invoice, rate)),
   })).filter((s) => s.entries.length > 0);
 
-  const totals = withText(hours ? {count: hours.count, minutes: hours.minutes, estimatedMinutes: hours.estimatedMinutes} : figures(null));
+  const totals = {...withText(hours ? {count: hours.count, minutes: hours.minutes, estimatedMinutes: hours.estimatedMinutes} : figures(null)), money: moneyOf(inScope)};
   const today = localDate(timeZone, now);
   return {
     kind,
@@ -190,6 +219,8 @@ function buildJobSheet({request, rows, project, timeZone, now, contractorInfo}) 
     period: kind === "WEEK" ? weekRangeText(request.weekStart) : `All work to ${dateText(today)}`,
     generatedText,
     timeZone,
+    invoice,
+    rateText,
     totals,
     sections,
     truncated: inScope.length > keep.size,
