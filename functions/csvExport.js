@@ -4,11 +4,11 @@
 
 const {toIso} = require("./completed");
 const {localDate} = require("./time");
-const {materialsCents} = require("./invoice");
+const {materialsCents, usableRate, travelTenths, toCents} = require("./invoice");
 
 // The most rows one CSV carries; a range holding more is refused so the file is never silently cut.
 const CSV_MAX_ROWS = 10000;
-const COLUMNS = ["Job number", "Task", "Project", "Client", "Completed", "Tracked hours", "Estimated hours", "Materials", "Materials cost"];
+const COLUMNS = ["Job number", "Task", "Project", "Client", "Completed", "Tracked hours", "Estimated hours", "Materials", "Materials cost", "Travel km", "Travel cost"];
 const BOM = "\uFEFF";
 
 function isRealDate(text) {
@@ -55,8 +55,10 @@ function hours(seconds) {
 //   timeZone:  the zone "Completed" dates are in
 // Oldest first (ties by job number). Columns: job number (plain, no padding), task title, project and client names (empty for
 // none or a deleted project), completion date, tracked hours (empty when none was tracked), estimated hours, the materials'
-// texts joined with "; ", and the materials' cost in dollars when any item has one.
-function buildCompletedCsv({rows, projects, clients, timeZone}) {
+// texts joined with "; ", the materials' cost in dollars when any item has one, the travel distance in km (empty for none) and its
+// cost in dollars at `travelRate` (dollars per km; empty without a distance or a usable rate).
+function buildCompletedCsv({rows, projects, clients, timeZone, travelRate}) {
+  const tRate = usableRate(travelRate);
   const projectList = Array.isArray(projects) ? projects : [];
   const clientList = Array.isArray(clients) ? clients : [];
   const dated = (Array.isArray(rows) ? rows : []).map((row) => ({row, iso: toIso(row.completedAt)}));
@@ -77,6 +79,8 @@ function buildCompletedCsv({rows, projects, clients, timeZone}) {
       Number.isFinite(row.estimatedMinutes) && row.estimatedMinutes > 0 ? (row.estimatedMinutes / 60).toFixed(2) : "",
       textCell(texts.join("; ")),
       costs.hasCosts ? (costs.cents / 100).toFixed(2) : "",
+      travelTenths(row) > 0 ? String(travelTenths(row) / 10) : "",
+      travelTenths(row) > 0 && tRate !== null ? (Math.round(travelTenths(row) * toCents(tRate) / 10) / 100).toFixed(2) : "",
     ].map(csvCell).join(","));
   }
   return BOM + lines.join("\r\n") + "\r\n";

@@ -33,10 +33,10 @@ function totalsLine(totals) {
   return `${totals.text} · ${countLine(totals)}`;
 }
 
-// The money of an entry, section or sheet as one line: "Labour $35.42 · Materials $2.50 · Total $37.92", leaving out the
-// parts that mean nothing (no rate, no costed material).
+// The money of an entry, section or sheet as one line: "Labour $35.42 · Materials $2.50 · Travel $15.00 · Total $52.92", leaving out the
+// parts that mean nothing (no rate, no costed material, no billed travel).
 function moneyLine(money) {
-  return [money.labour ? `Labour ${money.labour}` : "", money.materials ? `Materials ${money.materials}` : "", `Total ${money.total}`].filter(Boolean).join(" · ");
+  return [money.labour ? `Labour ${money.labour}` : "", money.materials ? `Materials ${money.materials}` : "", money.travel ? `Travel ${money.travel}` : "", `Total ${money.total}`].filter(Boolean).join(" · ");
 }
 
 function draw(doc, sheet) {
@@ -100,6 +100,7 @@ function draw(doc, sheet) {
   if (sheet.projectName) doc.font("Sans").fontSize(10).fillColor(MUTED).text(`Project: ${sheet.projectName}`, left, doc.y + 2, {width});
   if (sheet.period) doc.font("Sans").fontSize(10).fillColor(MUTED).text(sheet.period, left, doc.y + 2, {width});
   if (sheet.invoice && sheet.rateText) doc.font("Sans").fontSize(10).fillColor(MUTED).text(`Hourly rate ${sheet.rateText}`, left, doc.y + 2, {width});
+  if (sheet.invoice && sheet.travelRateText) doc.font("Sans").fontSize(10).fillColor(MUTED).text(`Travel rate ${sheet.travelRateText} per km`, left, doc.y + 2, {width});
   doc.font("Sans").fontSize(8.5).fillColor(MUTED).text(`Prepared ${sheet.generatedText} · Times in ${sheet.timeZone}`, left, doc.y + 4, {width});
   doc.moveDown(0.6);
   rule(INK);
@@ -114,8 +115,9 @@ function draw(doc, sheet) {
       doc.y += 8;
       doc.font("Sans").fontSize(8.5).fillColor(MUTED).text("TOTAL AMOUNT", left, doc.y, {width});
       doc.font("Bold").fontSize(13).fillColor(INK).text(sheet.totals.money.total, left, doc.y + 1, {width});
-      if (sheet.totals.money.labour || sheet.totals.money.materials) {
-        doc.font("Sans").fontSize(9).fillColor(MUTED).text([sheet.totals.money.labour ? `Labour ${sheet.totals.money.labour}` : "", sheet.totals.money.materials ? `Materials ${sheet.totals.money.materials}` : ""].filter(Boolean).join(" · "), left, doc.y + 1, {width});
+      if (sheet.totals.money.labour || sheet.totals.money.materials || sheet.totals.money.travel) {
+        const travel = sheet.totals.money.travel ? `Travel ${sheet.totals.money.travel}${sheet.totals.money.travelKm ? ` (${sheet.totals.money.travelKm})` : ""}` : "";
+        doc.font("Sans").fontSize(9).fillColor(MUTED).text([sheet.totals.money.labour ? `Labour ${sheet.totals.money.labour}` : "", sheet.totals.money.materials ? `Materials ${sheet.totals.money.materials}` : "", travel].filter(Boolean).join(" · "), left, doc.y + 1, {width});
       }
     }
     doc.y += 8;
@@ -153,7 +155,7 @@ function draw(doc, sheet) {
 
     for (const entry of section.entries) {
       const titleW = width - TIME_WIDTH - 8;
-      const meta = [entry.jobNumber ? `Job no. ${entry.jobNumber}` : "", entry.started ? `Started ${entry.started}` : "", entry.completed ? `Completed ${entry.completed}` : ""].filter(Boolean).join(" · ");
+      const meta = [entry.jobNumber ? `Job no. ${entry.jobNumber}` : "", entry.started ? `Started ${entry.started}` : "", entry.completed ? `Completed ${entry.completed}` : "", entry.travelText ? `Travel ${entry.travelText}` : ""].filter(Boolean).join(" · ");
       const materials = entry.materials.length ? `Materials: ${entry.materials.join("; ")}` : "";
       const titleH = textHeight(entry.title, "Bold", 10.5, titleW);
       const metaH = meta ? textHeight(meta, "Sans", 8.5, width) + 1 : 0;

@@ -55,6 +55,16 @@ describe("jobsheetPdf.js", () => {
         assert.equal(pages(pdf), 1);
       }
     });
+    it("renders travel: distance on each entry, the travel rate and the totals, billed or not", async () => {
+      const travelling = (n) => rows(n, {travelKm: 12.5});
+      for (const [request, r, rate, travelRate] of [[{type: "TASK"}, travelling(1), 85, 1.2], [{type: "TASK"}, travelling(1), null, 1.2], [{type: "WEEK", weekStart: "2026-10-12"}, travelling(5), 85, 1.2], [{type: "PROJECT"}, travelling(4), null, 1.2], [{type: "PROJECT"}, travelling(4), 85, null]]) {
+        const sheet = buildJobSheet({request, rows: r, project, timeZone: NZ, now, hourlyRate: rate, travelRate});
+        const pdf = await renderJobSheetPdf(sheet);
+        assert.equal(pdf.subarray(0, 5).toString("latin1"), "%PDF-");
+        assert.equal(pages(pdf), 1);
+      }
+      assert.ok(pages(await renderJobSheetPdf(buildJobSheet({request: {type: "PROJECT"}, rows: travelling(60), project, timeZone: NZ, now, hourlyRate: 85, travelRate: 1.2}))) >= 3);
+    });
     it("renders a long invoice project over several pages and an empty one", async () => {
       assert.ok(pages(await render({type: "PROJECT"}, costed(60), project, 85)) >= 3);
       assert.equal(pages(await render({type: "PROJECT"}, [], project, 85)), 1);

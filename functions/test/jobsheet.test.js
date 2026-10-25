@@ -81,23 +81,23 @@ describe("jobsheet.js", () => {
       const s = inv({type: "TASK"}, [row({})], 85);
       assert.equal(s.invoice, true);
       assert.equal(s.rateText, "$85.00");
-      assert.deepEqual(s.sections[0].entries[0].money, {labour: "$35.42", materials: "", total: "$35.42"});
+      assert.deepEqual(s.sections[0].entries[0].money, {labour: "$35.42", materials: "", travel: "", travelKm: "", total: "$35.42"});
     });
     it("adds materials to the total and lists a costed material with its cost", () => {
       const s = inv({type: "TASK"}, [costed({})], 85);
       const e = s.sections[0].entries[0];
-      assert.deepEqual(e.money, {labour: "$35.42", materials: "$2.50", total: "$37.92"});
+      assert.deepEqual(e.money, {labour: "$35.42", materials: "$2.50", travel: "", travelKm: "", total: "$37.92"});
       assert.deepEqual(e.materials, ["Washer ($2.50)", "Tape"]);
     });
     it("prints materials alone when there is no rate but a cost", () => {
       const s = inv({type: "TASK"}, [costed({})], null);
       assert.equal(s.invoice, true);
       assert.equal(s.rateText, "");
-      assert.deepEqual(s.sections[0].entries[0].money, {labour: "", materials: "$2.50", total: "$2.50"});
+      assert.deepEqual(s.sections[0].entries[0].money, {labour: "", materials: "$2.50", travel: "", travelKm: "", total: "$2.50"});
     });
     it("bills an estimate when no time was tracked and marks it est.", () => {
       const e = inv({type: "TASK"}, [row({trackedSeconds: 0, estimatedMinutes: 30})], 90).sections[0].entries[0];
-      assert.deepEqual(e.money, {labour: "$45.00 est.", materials: "", total: "$45.00"});
+      assert.deepEqual(e.money, {labour: "$45.00 est.", materials: "", travel: "", travelKm: "", total: "$45.00"});
     });
     it("bills nothing for a task with neither time nor estimate", () => {
       assert.equal(inv({type: "TASK"}, [row({trackedSeconds: 0, estimatedMinutes: undefined})], 90).sections[0].entries[0].money.total, "$0.00");
@@ -115,9 +115,9 @@ describe("jobsheet.js", () => {
       ];
       const s = inv({type: "PROJECT"}, rows, 85);
       // A 25m = 35.42, B 10m = 14.17, C 20m = 28.33
-      assert.deepEqual(s.sections[1].totals.money, {labour: "$49.59", materials: "$2.50", total: "$52.09"});
-      assert.deepEqual(s.sections[0].totals.money, {labour: "$28.33", materials: "$2.50", total: "$30.83"});
-      assert.deepEqual(s.totals.money, {labour: "$77.92", materials: "$5.00", total: "$82.92"});
+      assert.deepEqual(s.sections[1].totals.money, {labour: "$49.59", materials: "$2.50", travel: "", travelKm: "", total: "$52.09"});
+      assert.deepEqual(s.sections[0].totals.money, {labour: "$28.33", materials: "$2.50", travel: "", travelKm: "", total: "$30.83"});
+      assert.deepEqual(s.totals.money, {labour: "$77.92", materials: "$5.00", travel: "", travelKm: "", total: "$82.92"});
     });
     it("a week sheet totals only its own week", () => {
       const rows = [row({title: "In", completedAt: at("2026-10-20"), trackedSeconds: 3600}), row({title: "Out", completedAt: at("2026-10-13"), trackedSeconds: 3600})];
@@ -137,10 +137,55 @@ describe("jobsheet.js", () => {
       assert.equal(priced.totals.text, plain.totals.text);
       assert.deepEqual(priced.sections.map((x) => x.totals.minutes), plain.sections.map((x) => x.totals.minutes));
     });
+    describe("travel", () => {
+      const inv2 = (request, rows, hourlyRate, travelRate) => buildJobSheet({request, rows, project, timeZone: NZ, now, hourlyRate, travelRate});
+      it("bills the km at the travel rate, shows the distance on the entry and the rate on the sheet", () => {
+        const s = inv2({type: "TASK"}, [row({travelKm: 12.5})], 85, 1.2);
+        const e = s.sections[0].entries[0];
+        assert.equal(s.invoice, true);
+        assert.equal(s.travelRateText, "$1.20");
+        assert.equal(e.travelText, "12.5 km");
+        assert.deepEqual(e.money, {labour: "$35.42", materials: "", travel: "$15.00", travelKm: "12.5 km", total: "$50.42"});
+      });
+      it("is an invoice sheet on travel alone, with no hourly rate and no costs", () => {
+        const s = inv2({type: "TASK"}, [row({travelKm: 10})], null, 1.2);
+        assert.equal(s.invoice, true);
+        assert.equal(s.rateText, "");
+        assert.deepEqual(s.sections[0].entries[0].money, {labour: "", materials: "", travel: "$12.00", travelKm: "10 km", total: "$12.00"});
+      });
+      it("shows the distance but prints no money without a travel rate or a distance", () => {
+        for (const rate of [undefined, null, 0]) {
+          const s = inv2({type: "TASK"}, [row({travelKm: 10})], null, rate);
+          assert.equal(s.invoice, false);
+          assert.equal(s.travelRateText, "");
+          assert.equal(s.sections[0].entries[0].money, null);
+          assert.equal(s.sections[0].entries[0].travelText, "10 km");
+        }
+        const none = inv2({type: "TASK"}, [row({})], 85, 1.2);
+        assert.equal(none.travelRateText, "");
+        assert.equal(none.sections[0].entries[0].money.travel, "");
+        assert.equal(none.sections[0].entries[0].travelText, "");
+      });
+      it("totals travel and distance for each week and the project", () => {
+        const rows = [
+          row({title: "A", completedAt: at("2026-10-20"), trackedSeconds: 1500, travelKm: 12.5}),
+          row({title: "B", completedAt: at("2026-10-21"), trackedSeconds: 600, travelKm: 7.5}),
+          row({title: "C", completedAt: at("2026-10-13"), trackedSeconds: 0, estimatedMinutes: 20, travelKm: 30}),
+        ];
+        const s = inv2({type: "PROJECT"}, rows, 85, 1.2);
+        assert.deepEqual(s.sections[1].totals.money, {labour: "$49.59", materials: "", travel: "$24.00", travelKm: "20 km", total: "$73.59"});
+        assert.deepEqual(s.sections[0].totals.money, {labour: "$28.33", materials: "", travel: "$36.00", travelKm: "30 km", total: "$64.33"});
+        assert.deepEqual(s.totals.money, {labour: "$77.92", materials: "", travel: "$60.00", travelKm: "50 km", total: "$137.92"});
+      });
+      it("a week sheet totals only its own week's travel", () => {
+        const rows = [row({title: "In", completedAt: at("2026-10-20"), travelKm: 10}), row({title: "Out", completedAt: at("2026-10-13"), travelKm: 100})];
+        assert.equal(inv2({type: "WEEK", weekStart: "2026-10-19"}, rows, null, 1).totals.money.travel, "$10.00");
+      });
+    });
     it("works for an empty sheet", () => {
       const s = inv({type: "PROJECT"}, [], 85);
       assert.equal(s.empty, true);
-      assert.deepEqual(s.totals.money, {labour: "$0.00", materials: "", total: "$0.00"});
+      assert.deepEqual(s.totals.money, {labour: "$0.00", materials: "", travel: "", travelKm: "", total: "$0.00"});
     });
   });
 
@@ -155,7 +200,7 @@ describe("jobsheet.js", () => {
       assert.equal(s.empty, false);
       assert.equal(s.sections.length, 1);
       assert.equal(s.sections[0].heading, "");
-      assert.deepEqual(s.sections[0].entries[0], {archiveId: "", jobNumber: "", title: "Fit tap", started: "", completed: "Tue, 20 Oct, 12:00 pm", timeText: "25m", estimated: false, money: null, materials: ["Tap", "PTFE tape"], comments: "Washer replaced"});
+      assert.deepEqual(s.sections[0].entries[0], {archiveId: "", jobNumber: "", title: "Fit tap", started: "", completed: "Tue, 20 Oct, 12:00 pm", timeText: "25m", travelText: "", estimated: false, money: null, materials: ["Tap", "PTFE tape"], comments: "Washer replaced"});
       assert.match(s.generatedText, /24 October 2026/);
       assert.equal(s.timeZone, NZ);
     });

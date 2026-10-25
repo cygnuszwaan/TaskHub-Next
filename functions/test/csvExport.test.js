@@ -51,24 +51,24 @@ describe("csvExport.js buildCompletedCsv", () => {
   it("starts with a BOM and the header, and ends with a line break", () => {
     const csv = buildCompletedCsv({rows: [], projects: [], clients: [], timeZone: ZONE});
     assert.equal(csv, BOM + COLUMNS.join(",") + "\r\n");
-    assert.deepEqual(COLUMNS, ["Job number", "Task", "Project", "Client", "Completed", "Tracked hours", "Estimated hours", "Materials", "Materials cost"]);
+    assert.deepEqual(COLUMNS, ["Job number", "Task", "Project", "Client", "Completed", "Tracked hours", "Estimated hours", "Materials", "Materials cost", "Travel km", "Travel cost"]);
   });
   it("writes one line per task: job number, names, local date, hours, materials and cost", () => {
     const rows = [row({jobNumber: 123, projectId: "p1", materials: [{text: "Tap", cost: 45.5}, {text: "Washer", cost: 2}, {text: "Tape"}]})];
     const lines = parse(buildCompletedCsv({rows, projects: [{id: "p1", name: "Kitchen reno", clientId: "c1"}], clients: [{id: "c1", name: "Jo Smith"}], timeZone: ZONE}));
-    assert.equal(lines[1], "123,Fit tap,Kitchen reno,Jo Smith,2026-10-20,1.50,1.00,Tap; Washer; Tape,47.50");
+    assert.equal(lines[1], "123,Fit tap,Kitchen reno,Jo Smith,2026-10-20,1.50,1.00,Tap; Washer; Tape,47.50,,");
   });
   it("leaves cells empty for no job number, project, client, tracked time, materials or costs", () => {
     const lines = parse(buildCompletedCsv({rows: [row({trackedSeconds: 0, estimatedMinutes: 30, materials: [{text: "Tape"}]})], projects: [], clients: [], timeZone: ZONE}));
-    assert.equal(lines[1], ",Fit tap,,,2026-10-20,,0.50,Tape,");
+    assert.equal(lines[1], ",Fit tap,,,2026-10-20,,0.50,Tape,,,");
     const bare = parse(buildCompletedCsv({rows: [{title: "X", completedAt: "2026-10-20T01:00:00Z"}], projects: [], clients: [], timeZone: ZONE}));
-    assert.equal(bare[1], ",X,,,2026-10-20,,,,");
+    assert.equal(bare[1], ",X,,,2026-10-20,,,,,,");
   });
   it("shows a deleted project and a project with no client as empty names", () => {
     const rows = [row({projectId: "gone"}), row({projectId: "p1", title: "B"})];
     const lines = parse(buildCompletedCsv({rows, projects: [{id: "p1", name: "Solo"}], clients: [], timeZone: ZONE}));
-    assert.ok(lines.includes(",Fit tap,,,2026-10-20,1.50,1.00,,"));
-    assert.ok(lines.includes(",B,Solo,,2026-10-20,1.50,1.00,,"));
+    assert.ok(lines.includes(",Fit tap,,,2026-10-20,1.50,1.00,,,,"));
+    assert.ok(lines.includes(",B,Solo,,2026-10-20,1.50,1.00,,,,"));
   });
   it("dates a completion on the owner's clock, not UTC", () => {
     const lines = parse(buildCompletedCsv({rows: [row({completedAt: "2026-10-19T23:30:00.000Z"})], projects: [], clients: [], timeZone: ZONE}));
@@ -88,11 +88,21 @@ describe("csvExport.js buildCompletedCsv", () => {
   });
   it("quotes titles with commas or quotes and defuses formulas", () => {
     const lines = parse(buildCompletedCsv({rows: [row({title: "Tile, grout \"all\"", materials: [{text: "=1+1"}]})], projects: [], clients: [], timeZone: ZONE}));
-    assert.equal(lines[1], ",\"Tile, grout \"\"all\"\"\",,,2026-10-20,1.50,1.00,'=1+1,");
+    assert.equal(lines[1], ",\"Tile, grout \"\"all\"\"\",,,2026-10-20,1.50,1.00,'=1+1,,,");
   });
   it("adds costs in whole cents so they add up exactly", () => {
     const lines = parse(buildCompletedCsv({rows: [row({materials: [{text: "a", cost: 0.1}, {text: "b", cost: 0.2}]})], projects: [], clients: [], timeZone: ZONE}));
-    assert.ok(lines[1].endsWith(",a; b,0.30"));
+    assert.ok(lines[1].endsWith(",a; b,0.30,,"));
+  });
+  it("writes the travel distance, and its cost at the travel rate when there is one", () => {
+    const rows = [row({travelKm: 12.5}), row({title: "B", travelKm: 40})];
+    const withRate = parse(buildCompletedCsv({rows, projects: [], clients: [], timeZone: ZONE, travelRate: 1.2}));
+    assert.ok(withRate[1].endsWith(",,,12.5,15.00"));
+    assert.ok(withRate[2].endsWith(",,,40,48.00"));
+    const noRate = parse(buildCompletedCsv({rows, projects: [], clients: [], timeZone: ZONE, travelRate: null}));
+    assert.ok(noRate[1].endsWith(",,,12.5,"));
+    const none = parse(buildCompletedCsv({rows: [row({})], projects: [], clients: [], timeZone: ZONE, travelRate: 1.2}));
+    assert.ok(none[1].endsWith(",,,,"));
   });
   it("does not modify its input", () => {
     const rows = [row({materials: [{text: "a", cost: 1}]}), row({title: "Z", completedAt: "2026-10-01T00:00:00Z"})];

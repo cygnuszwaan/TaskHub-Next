@@ -1101,13 +1101,13 @@ exports.exportCompletedCsv = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 6
   try {
     const range = parseCsvRequest(req.body);
     if (range.error) return res.status(400).send({error: range.error});
-    const [{timeZone}, projects, clients] = await Promise.all([readSettings(), readProjects(), readClients()]);
+    const [{timeZone, jobSheet}, projects, clients] = await Promise.all([readSettings(), readProjects(), readClients()]);
     let query = db.collection("completed_tasks");
     if (range.from) query = query.where("completedAt", ">=", localDayStart(timeZone, range.from));
     if (range.to) query = query.where("completedAt", "<", localDayStart(timeZone, addDays(range.to, 1)));
     const snap = await query.orderBy("completedAt", "asc").limit(CSV_MAX_ROWS + 1).get();
     if (snap.size > CSV_MAX_ROWS) return res.status(400).send({error: `That range holds more than ${CSV_MAX_ROWS} completed tasks; choose a shorter one`});
-    const csv = buildCompletedCsv({rows: snap.docs.map((d) => d.data()), projects, clients, timeZone});
+    const csv = buildCompletedCsv({rows: snap.docs.map((d) => d.data()), projects, clients, timeZone, travelRate: jobSheet.travelRate});
     res.status(200).type("text/csv; charset=utf-8").set("Cache-Control", "no-store").send(csv);
   } catch (err) {
     console.error(err);
@@ -1120,7 +1120,7 @@ exports.exportCompletedCsv = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 6
 // {projectId, weekStart} (its Monday-to-Sunday week; any date in the week names it); see parseJobSheetRequest. Responds
 // with the PDF itself (application/pdf): every time and date on the owner's clock, the tracked time (or estimate), comments, tags and
 // materials (with costs) and photos (at most JOB_SHEET_MAX_PHOTOS a sheet) of each completed task, and for a project the hours as the Stats page figures them (see buildJobSheet,
-// renderJobSheetPdf), plus labour at the hourly rate, materials cost and a total when a rate or any cost is set (see invoice.js). 400 for an unusable body, 404 for an unknown task or project. Read-only. A project's rows are
+// renderJobSheetPdf), plus labour at the hourly rate, materials cost, travel (the task's km at the travel rate) and a total when a rate or any cost is set (see invoice.js). 400 for an unusable body, 404 for an unknown task or project. Read-only. A project's rows are
 // read the way the Stats hours are (at most PROJECT_MAX_ROWS), and a sheet lists at most its newest JOB_SHEET_MAX_ENTRIES.
 exports.getJobSheet = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 60, memory: "512MiB"}, ownerOnly(async (req, res) => {
   try {
@@ -1141,7 +1141,7 @@ exports.getJobSheet = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 60, memo
       const snap = await archive.where("projectId", "==", project.id).limit(PROJECT_MAX_ROWS).get();
       rows = snap.docs.map((d) => ({...d.data(), archiveId: d.id}));
     }
-    const sheet = buildJobSheet({request, rows, project, client: project ? clients.find((c) => c.id === project.clientId) || null : null, timeZone, now: new Date(), contractorInfo: jobSheet.contractorInfo, hourlyRate: jobSheet.hourlyRate});
+    const sheet = buildJobSheet({request, rows, project, client: project ? clients.find((c) => c.id === project.clientId) || null : null, timeZone, now: new Date(), contractorInfo: jobSheet.contractorInfo, hourlyRate: jobSheet.hourlyRate, travelRate: jobSheet.travelRate});
     // Each listed task's photos go in the PDF, at most JOB_SHEET_MAX_PHOTOS in all (see gatherPhotos)
     const {byId, omitted} = await gatherPhotos(sheetArchiveIds(sheet), {
       fetchChunk: async (ids) => (await PHOTOS.where("archiveId", "in", ids).get()).docs.map((d) => ({archiveId: d.get("archiveId"), ...serializePhoto(d.id, d.data())})),
