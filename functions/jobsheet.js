@@ -162,7 +162,7 @@ function byCompletion(a, b) {
 // Returns {kind, contractorInfo (cleaned by pdfText, "" with none), heading, projectName, period, generatedText, timeZone, totals, sections, truncated, empty}:
 //   `heading`: the title of the completed task, or the project's name; `projectName` is null with none (and for a
 //   PROJECT or WEEK sheet, whose heading is the project's name); `period`: "" for a TASK sheet;
-//   `totals`: null for a TASK sheet, else {count, minutes, estimatedMinutes, text} (the project's figures as the Stats
+//   `totals`: null for a TASK sheet, else {count, minutes, estimatedMinutes, text} (the project's figures as the History
 //   Project hours section computes them: each week rounded to whole minutes, the total the sum of the weeks; `text` like
 //   "3h 20m (3.33 h)"); `sections`: [{heading, totals, entries}] oldest first with entries oldest first, a TASK sheet one
 //   section without heading or totals, a WEEK sheet one section for the week, a PROJECT sheet one per week with work
@@ -192,7 +192,7 @@ function buildJobSheet({request, rows, project, client, timeZone, now, contracto
     return {kind, contractorInfo: contractor, clientLines: clientText, heading: entries.length ? entries[0].title : "", projectName: projectName || null, period: "", generatedText, timeZone, invoice, rateText, travelRateText, totals: null, sections: entries.length ? [{heading: "", totals: null, entries}] : [], truncated: false, empty: entries.length === 0};
   }
 
-  // Group by local week, then take the project's figures from the same code the Stats page uses
+  // Group by local week, then take the project's figures from the same code the History page uses
   const weeksOf = new Map();
   for (const r of stamped.filter((s) => s.iso)) {
     const weekStart = weekStartOf(localDate(timeZone, new Date(r.iso)));

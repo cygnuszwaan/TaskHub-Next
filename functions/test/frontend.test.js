@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -326,14 +326,14 @@ describe("public/index.html helpers", () => {
       assert.doesNotMatch(html.slice(at(`id="app"`), at(`id="editModal"`)), /signOutUser\(\)/);
       assert.ok(at("<header") - at(`id="app"`) < 40, "the header is the first thing in the app");
       const tabs = [...header.matchAll(/data-tab="(\w+)"/g)].map((m) => m[1]);
-      assert.deepEqual(tabs, ["tasks", "materials", "stats", "settings"]);
-      assert.match(header, /data-tab="stats">Stats</);
+      assert.deepEqual(tabs, ["tasks", "materials", "history", "settings"]);
+      assert.match(header, /data-tab="history">History</);
       assert.ok(header.indexOf(`id="materialsCount"`) > header.indexOf(`data-tab="materials"`));
       assert.ok(header.indexOf(`id="materialsCount"`) < header.indexOf(`data-tab="settings"`));
     });
     it("has one page per tab, with only the Tasks page visible at first", () => {
       const pages = [...html.matchAll(/<main id="(\w+)" data-page="(\w+)"([^>]*)>/g)];
-      assert.deepEqual(pages.map((m) => m[2]), ["tasks", "materials", "stats", "settings"]);
+      assert.deepEqual(pages.map((m) => m[2]), ["tasks", "materials", "history", "settings"]);
       assert.deepEqual(pages.map((m) => /\bhidden\b/.test(m[3])), [false, true, true, true]);
     });
     it("puts add task and the Queue on the Tasks page", () => {
@@ -344,7 +344,7 @@ describe("public/index.html helpers", () => {
         assert.ok(i > tasks && i < end, `${id} is on the Tasks page`);
       }
       assert.ok(at(`id="taskInput"`) < at(`id="queueCard"`));
-      assert.ok(at(`id="pageStats"`) > end, "Recently Completed is not on the Tasks page");
+      assert.ok(at(`id="pageHistory"`) > end, "Recently Completed is not on the Tasks page");
     });
     it("makes Materials a page, not a collapsible card", () => {
       const page = at(`id="pageMaterials"`);
@@ -411,15 +411,15 @@ describe("public/index.html helpers", () => {
       assert.equal(values[5][2], "Daily at 8pm");
       assert.equal(html.slice(at(`<label for="schedInterval">`), at("</label>", at(`<label for="schedInterval">`))).replace(/<[^>]+>/g, ""), "Repeat every");
     });
-    it("makes Recently Completed the Stats page, not a collapsible card, with its list loaded on each visit", () => {
-      const page = at(`id="pageStats"`);
+    it("makes Recently Completed the History page, not a collapsible card, with its list loaded on each visit", () => {
+      const page = at(`id="pageHistory"`);
       const end = at("</main>", page);
       assert.ok(page > at(`id="pageMaterials"`) && end < at(`id="pageSettings"`));
       assert.ok(at(`id="completedList"`) > page && at(`id="completedList"`) < end);
       assert.doesNotMatch(html.slice(page, end), /<details/);
       assert.doesNotMatch(html, /completedDetails|Recently Completed/);
       const show = html.slice(at("function showTab"), at("function showTab") + 700);
-      assert.match(show, /tab === "stats"\) fetchCompleted\(\)/);
+      assert.match(show, /tab === "history"\) fetchCompleted\(\)/);
     });
     it("keeps four tabs on one row by letting them size to their text", () => {
       assert.match(html, /\.tab-btn\s*\{[^}]*flex:\s*1 1 auto;[^}]*font-size:\s*13px/);
@@ -589,7 +589,7 @@ describe("public/index.html helpers", () => {
   describe("tabs", () => {
     it("lists the tabs and falls back to Tasks for an unknown name", () => {
       const {TABS, normalizeTab} = load();
-      assert.deepEqual([...TABS], ["tasks", "materials", "stats", "settings"]);
+      assert.deepEqual([...TABS], ["tasks", "materials", "history", "settings"]);
       for (const name of TABS) assert.equal(normalizeTab(name), name);
       for (const name of ["", "other", undefined, null, "Tasks"]) assert.equal(normalizeTab(name), "tasks");
     });
@@ -1382,7 +1382,7 @@ describe("public/index.html helpers", () => {
     });
   });
 
-  describe("Stats summary", () => {
+  describe("History summary", () => {
     it("fmtMinutes and decimalHours: words and decimal hours", () => {
       const {fmtMinutes, decimalHours} = load();
       assert.equal(fmtMinutes(0), "0m");
@@ -1413,19 +1413,19 @@ describe("public/index.html helpers", () => {
       assert.equal(weekRangeText("2026-12-28"), "28 Dec – 3 Jan");
       assert.equal(weekRangeText("nonsense"), "nonsense");
     });
-    it("pickStatsProject: keeps the current choice while it exists, else the project with the newest week", () => {
-      const {pickStatsProject} = load();
+    it("pickHistoryProject: keeps the current choice while it exists, else the project with the newest week", () => {
+      const {pickHistoryProject} = load();
       const entries = [
         {projectId: "a", weeks: [{weekStart: "2026-10-05"}]},
         {projectId: "b", weeks: [{weekStart: "2026-10-19"}, {weekStart: "2026-10-12"}]},
         {projectId: "c", weeks: [{weekStart: "2026-10-12"}]},
       ];
-      assert.equal(pickStatsProject(entries, "c"), "c");
-      assert.equal(pickStatsProject(entries, "gone"), "b");
-      assert.equal(pickStatsProject(entries, null), "b");
-      assert.equal(pickStatsProject([entries[0], entries[2]], null), "c");
-      assert.equal(pickStatsProject([], "a"), null);
-      assert.equal(pickStatsProject(undefined, null), null);
+      assert.equal(pickHistoryProject(entries, "c"), "c");
+      assert.equal(pickHistoryProject(entries, "gone"), "b");
+      assert.equal(pickHistoryProject(entries, null), "b");
+      assert.equal(pickHistoryProject([entries[0], entries[2]], null), "c");
+      assert.equal(pickHistoryProject([], "a"), null);
+      assert.equal(pickHistoryProject(undefined, null), null);
     });
     it("parseTagList: trims and drops empty entries", () => {
       const {parseTagList} = load();
@@ -1449,11 +1449,11 @@ describe("public/index.html helpers", () => {
         const {completedFormValues} = load();
         assert.deepEqual(completedFormValues(row, NZ), {priority: "LOW", estimatedMinutes: 30, trackedMinutes: 2, tags: "Garden, Outdoor", materials: "", comments: "Front only", travelKm: "", projectId: "p1", date: "2026-10-18", time: "09:30"});
       });
-      it("reopenPrompt: names the task, says it returns with its tracked time and leaves Stats", () => {
+      it("reopenPrompt: names the task, says it returns with its tracked time and leaves History", () => {
         const {reopenPrompt} = load();
         const text = reopenPrompt({title: "Mow lawn", trackedSeconds: 2700});
         assert.match(text, /^Reopen "Mow lawn"\?/);
-        assert.match(text, /returns to the end of the queue with its 45m of tracked time and leaves Stats and Project hours until it is completed again\./);
+        assert.match(text, /returns to the end of the queue with its 45m of tracked time and leaves History and Project hours until it is completed again\./);
         assert.doesNotMatch(text, /repeats/);
       });
       it("reopenPrompt: leaves the time out when there is none, and warns that a repeating task comes back without repeating", () => {

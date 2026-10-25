@@ -43,7 +43,7 @@ describe("jobsheet.js", () => {
   });
 
   describe("time text", () => {
-    it("formats minutes and hours as the Stats page does", () => {
+    it("formats minutes and hours as the History page does", () => {
       assert.equal(fmtMinutes(45), "45m");
       assert.equal(fmtMinutes(65), "1h 5m");
       assert.equal(fmtMinutes(120), "2h");
@@ -246,7 +246,7 @@ describe("jobsheet.js", () => {
       assert.equal(sheet({type: "TASK"}, [row({title: undefined})]).sections[0].entries[0].title, "Untitled task");
     });
 
-    it("lists a project to date by week, oldest first, with entries oldest first and the Stats figures", () => {
+    it("lists a project to date by week, oldest first, with entries oldest first and the History figures", () => {
       const rows = [
         row({title: "B", completedAt: at("2026-10-21"), trackedSeconds: 600}),
         row({title: "A", completedAt: at("2026-10-20"), trackedSeconds: 1800}),

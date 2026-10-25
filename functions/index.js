@@ -784,7 +784,7 @@ exports.getCompletedTemplates = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(asy
 // are priority, estimatedMinutes, trackedSeconds, tags, materials (a plain list of texts), comments, travelKm, projectId and the completion time (completedDate and completedTime
 // together, in the owner's zone); see applyCompletedEdit. Responds {success, task} with the entry as it now is; 400 with the
 // reason for an unusable value, 404 for an unknown id. deleteCompletedTask: body {id}, removes the entry for good.
-// Both change the archive row only, which Stats and Project hours are computed from: the job history already carried by
+// Both change the archive row only, which History and Project hours are computed from: the job history already carried by
 // the live next occurrence of a repeating task, and by later archive rows, is not rewritten.
 exports.updateCompletedTask = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
@@ -1119,9 +1119,9 @@ exports.exportCompletedCsv = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 6
 // Body {archiveId} (one completed task, the `archiveId` getCompletedTasks gives each entry), {projectId} (a project to date) or
 // {projectId, weekStart} (its Monday-to-Sunday week; any date in the week names it); see parseJobSheetRequest. Responds
 // with the PDF itself (application/pdf): every time and date on the owner's clock, the tracked time (or estimate), comments, tags and
-// materials (with costs) and photos (at most JOB_SHEET_MAX_PHOTOS a sheet) of each completed task, and for a project the hours as the Stats page figures them (see buildJobSheet,
+// materials (with costs) and photos (at most JOB_SHEET_MAX_PHOTOS a sheet) of each completed task, and for a project the hours as the History page figures them (see buildJobSheet,
 // renderJobSheetPdf), plus labour at the hourly rate, materials cost, travel (the task's km at the travel rate) and a total when a rate or any cost is set (see invoice.js). 400 for an unusable body, 404 for an unknown task or project. Read-only. A project's rows are
-// read the way the Stats hours are (at most PROJECT_MAX_ROWS), and a sheet lists at most its newest JOB_SHEET_MAX_ENTRIES.
+// read the way the History hours are (at most PROJECT_MAX_ROWS), and a sheet lists at most its newest JOB_SHEET_MAX_ENTRIES.
 exports.getJobSheet = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 60, memory: "512MiB"}, ownerOnly(async (req, res) => {
   try {
     const request = parseJobSheetRequest(req.body);
