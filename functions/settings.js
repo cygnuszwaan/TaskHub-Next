@@ -1,7 +1,7 @@
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
 const {localParts} = require("./time");
-const {normalizeHourlyRate, MAX_HOURLY_RATE} = require("./money");
+const {normalizeHourlyRate, MAX_HOURLY_RATE, normalizeTravelRate, MAX_TRAVEL_RATE} = require("./money");
 const {normalizePushTokens} = require("./push");
 
 const INTERVALS = [15, 30, 60, 120, 240];
@@ -45,7 +45,7 @@ const DEFAULTS = Object.freeze({
   day: Object.freeze({start: "09:00", end: "17:00"}),
   lunch: Object.freeze({enabled: false, time: "12:00", minutes: 30}),
   schedule: Object.freeze({enabled: true, frequency: "DAILY", time: "20:00", intervalMinutes: 60}),
-  jobSheet: Object.freeze({contractorInfo: "", hourlyRate: null}),
+  jobSheet: Object.freeze({contractorInfo: "", hourlyRate: null, travelRate: 1.2}),
   notify: Object.freeze({runFailed: true, weatherMoved: true, taskStarting: true, leadMinutes: 30}),
   lastAutoRunAt: null,
   lastReminderAt: null,
@@ -188,6 +188,14 @@ function checkHourlyRate(v) {
   return rate;
 }
 
+// The travel rate for job sheets, dollars per km: a number from 0.01 to MAX_TRAVEL_RATE rounded to cents, or null (or 0, or
+// empty text) for none. Unset it is the default, the IRD's 2025-26 Tier 1 petrol kilometre rate.
+function checkTravelRate(v) {
+  const rate = normalizeTravelRate(v);
+  if (rate === undefined) throw new Error(`jobSheet.travelRate must be an amount from 0.01 to ${MAX_TRAVEL_RATE}, or empty`);
+  return rate;
+}
+
 function checkNotifyFlag(name) {
   return (v) => {
     if (typeof v !== "boolean") throw new Error(`notify.${name} must be true or false`);
@@ -222,6 +230,7 @@ const EDITABLE = [
   ["schedule", "intervalMinutes", checkInterval],
   ["jobSheet", "contractorInfo", checkContractorInfo],
   ["jobSheet", "hourlyRate", checkHourlyRate],
+  ["jobSheet", "travelRate", checkTravelRate],
   ["notify", "runFailed", checkNotifyFlag("runFailed")],
   ["notify", "weatherMoved", checkNotifyFlag("weatherMoved")],
   ["notify", "taskStarting", checkNotifyFlag("taskStarting")],

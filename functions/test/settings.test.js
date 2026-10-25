@@ -71,9 +71,9 @@ describe("settings.js", () => {
 
   describe("job sheet contractor information", () => {
     it("is empty by default, and a stored value that is not text falls back to empty", () => {
-      assert.deepEqual(mergeSettings(undefined).jobSheet, {contractorInfo: "", hourlyRate: null});
-      assert.deepEqual(mergeSettings({jobSheet: {contractorInfo: 5}}).jobSheet, {contractorInfo: "", hourlyRate: null});
-      assert.deepEqual(mergeSettings({jobSheet: {contractorInfo: "A Builder\n021 000 000"}}).jobSheet, {contractorInfo: "A Builder\n021 000 000", hourlyRate: null});
+      assert.deepEqual(mergeSettings(undefined).jobSheet, {contractorInfo: "", hourlyRate: null, travelRate: 1.2});
+      assert.deepEqual(mergeSettings({jobSheet: {contractorInfo: 5}}).jobSheet, {contractorInfo: "", hourlyRate: null, travelRate: 1.2});
+      assert.deepEqual(mergeSettings({jobSheet: {contractorInfo: "A Builder\n021 000 000"}}).jobSheet, {contractorInfo: "A Builder\n021 000 000", hourlyRate: null, travelRate: 1.2});
     });
     it("is saved with its line breaks, trailing spaces and blank lines at either end removed", () => {
       const r = applySettingsUpdate(base(), {jobSheet: {contractorInfo: "\r\n  A Builder Ltd  \r\nPh 021 000 000   \n\nGST 12-345-678\n\n"}});

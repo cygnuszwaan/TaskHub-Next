@@ -336,6 +336,11 @@
         </div>
       </div>
       <div class="form-group">
+        <label for="manualTravel">Travel (km)</label>
+        <input type="number" id="manualTravel" min="0" max="10000" step="0.1" inputmode="decimal" placeholder="e.g. 12.5" style="max-width: 160px;">
+      </div>
+
+      <div class="form-group">
         <label for="manualComments">Comments</label>
         <textarea id="manualComments" rows="3" maxlength="2000" placeholder="Notes for yourself (never read by the AI)"></textarea>
       </div>
@@ -516,6 +521,11 @@
       <label for="hourlyRate">Hourly rate</label>
       <input type="number" id="hourlyRate" min="0" max="10000" step="0.01" inputmode="decimal" placeholder="e.g. 85.00" style="max-width: 160px;">
       <p class="settings-note" style="margin:6px 0 0;">For the invoice figures on job sheets, with no GST. Leave empty for none.</p>
+    </div>
+    <div class="form-group" style="margin:14px 0 0;">
+      <label for="travelRate">Travel rate per km</label>
+      <input type="number" id="travelRate" min="0" max="100" step="0.01" inputmode="decimal" placeholder="e.g. 1.20" style="max-width: 160px;">
+      <p class="settings-note" style="margin:6px 0 0;">Charged for a task's Travel (km), with no GST. The starting value, $1.20, is the IRD's 2025-26 Tier 1 petrol kilometre rate; change it to suit your vehicle and costs. Leave empty for no travel charge.</p>
     </div>
     <div class="action-row" style="margin-top: 14px;">
       <button type="button" id="saveJobSheetBtn">Save</button>
@@ -700,6 +710,11 @@
         </div>
 
         <div class="form-group">
+          <label for="editTravel">Travel (km)</label>
+          <input type="number" id="editTravel" min="0" max="10000" step="0.1" inputmode="decimal" placeholder="e.g. 12.5" style="max-width: 160px;">
+        </div>
+
+        <div class="form-group">
           <label for="editComments">Comments</label>
           <textarea id="editComments" rows="3" maxlength="2000"></textarea>
         </div>
@@ -788,6 +803,11 @@
         <div class="form-group">
           <label for="ceMaterials">Materials <small style="font-weight:normal; color:var(--text-faint);">(one per line, for the job sheet; add <code>| 12.50</code> after a line for its cost)</small></label>
           <textarea id="ceMaterials" rows="4"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="ceTravel">Travel (km)</label>
+          <input type="number" id="ceTravel" min="0" max="10000" step="0.1" inputmode="decimal" placeholder="e.g. 12.5" style="max-width: 160px;">
         </div>
 
         <div class="form-group">
@@ -1216,15 +1236,35 @@
       };
     }
 
-    // The updateSettings body for the Job Sheets card: the contractor text and, when `rate` is given, the hourly rate
-    // (as typed, trimmed; empty means none), so the Scheduling form is not saved with it. The server validates both.
-    function jobSheetPayload(text, rate) {
+    // The updateSettings body for the Job Sheets card: the contractor text and, when given, the hourly rate and the travel
+    // rate per km (each as typed, trimmed; empty means none), so the Scheduling form is not saved with it. The server
+    // validates them all.
+    function jobSheetPayload(text, rate, travelRate) {
       const jobSheet = { contractorInfo: String(text === undefined || text === null ? "" : text) };
       if (rate !== undefined) {
         const typed = rate === null ? "" : String(rate).trim();
         jobSheet.hourlyRate = typed === "" ? null : typed;
       }
+      if (travelRate !== undefined) {
+        const typed = travelRate === null ? "" : String(travelRate).trim();
+        jobSheet.travelRate = typed === "" ? null : typed;
+      }
       return { jobSheet };
+    }
+
+    // A typed Travel (km) box: null when empty, the distance for a plain number (at most 10000), undefined when unusable.
+    // The server rounds it to one decimal and treats 0 as none.
+    const INVALID_TRAVEL = "Travel must be a distance in km, such as 12.5, or empty.";
+    function parseTravelText(text) {
+      const t = String(text === undefined || text === null ? "" : text).trim();
+      if (t === "") return null;
+      if (!/^\d{1,6}(\.\d{1,6})?$/.test(t)) return undefined;
+      const n = Number(t);
+      return n > 10000 ? undefined : n;
+    }
+    // What a Travel box holds for a stored distance: the number as text, empty for none.
+    function travelBoxText(km) {
+      return typeof km === "number" && Number.isFinite(km) && km > 0 ? String(km) : "";
     }
 
     // A typed money amount: null when empty, the number for a plain amount with at most two decimals, undefined when unusable.
@@ -1271,6 +1311,8 @@
       if (materials) manual.materials = materials;
       const comments = String(form.comments || "").trim();
       if (comments) manual.comments = comments;
+      const travelKm = parseTravelText(form.travelKm);
+      if (typeof travelKm === "number" && travelKm > 0) manual.travelKm = travelKm;
       if (form.history) manual.history = form.history;
       return { manual };
     }
@@ -1743,6 +1785,7 @@
         tags: (Array.isArray(row.tags) ? row.tags : []).join(", "),
         materials: completedMaterialLines(row).join("\n"),
         comments: typeof row.comments === "string" ? row.comments : "",
+        travelKm: travelBoxText(row.travelKm),
         projectId: row.projectId || "",
         date: when.date,
         time: when.time
@@ -1769,6 +1812,9 @@
       }
       const comments = String(form.comments || "").trim();
       if (comments !== before.comments.trim()) fields.comments = comments === "" ? null : comments;
+      const travel = parseTravelText(form.travelKm);
+      if (travel === undefined) return { error: INVALID_TRAVEL };
+      if ((travel || null) !== (parseTravelText(before.travelKm) || null)) fields.travelKm = travel || null;
       if ((form.projectId || "") !== before.projectId) fields.projectId = form.projectId || null;
       if (form.date !== before.date || form.time !== before.time) {
         if (!DATE_ONLY.test(form.date || "") || !/^\d{2}:\d{2}$/.test(form.time || "")) return { error: "Enter the date and time of completion." };
@@ -1970,6 +2016,7 @@
           return item;
         }),
         comments: typeof t.comments === "string" ? t.comments : "",
+        travelKm: travelBoxText(t.travelKm),
         history: historyOf(t)
       };
     }
@@ -2481,6 +2528,7 @@
 
       const badCost = manual ? invalidMaterialCost(manualMaterials) : null;
       if (badCost) { alert(`The cost of "${badCost}" is not an amount. Use a number such as 12.50, or leave it empty.`); return; }
+      if (manual && parseTravelText(document.getElementById("manualTravel").value) === undefined) { alert(INVALID_TRAVEL); return; }
       setLoading(true);
       try {
         const body = manual ? manualTaskBody({
@@ -2497,6 +2545,7 @@
           projectOrder: document.getElementById("manualProjectOrder").value,
           materials: manualMaterials,
           comments: document.getElementById("manualComments").value,
+          travelKm: document.getElementById("manualTravel").value,
           history: historyForTitle(copiedHistory, input)
         }) : freeTextBody(input);
         Object.assign(body, addTaskExtras({ startNow: document.getElementById("startNow").checked }));
@@ -2648,10 +2697,11 @@
       document.getElementById("manualNewMaterialCost").value = "";
       renderManualMaterials();
       document.getElementById("manualComments").value = v.comments;
+      document.getElementById("manualTravel").value = v.travelKm;
       document.getElementById("templateResults").hidden = true; // the form replaces the list
     }
 
-    // Repeats, project, materials and comments belong to one task, so they are cleared after each manual add
+    // Repeats, project, materials, travel and comments belong to one task, so they are cleared after each manual add
     function resetManualExtras() {
       copiedHistory = null;
       document.getElementById("manualRecurFreq").value = "NONE";
@@ -2662,6 +2712,7 @@
       updateProjectOrderField("manual");
       manualMaterials = [];
       document.getElementById("manualComments").value = "";
+      document.getElementById("manualTravel").value = "";
       document.getElementById("manualNewMaterialText").value = "";
       document.getElementById("manualNewMaterialCost").value = "";
       renderManualMaterials();
@@ -3075,6 +3126,7 @@
       document.getElementById("newMaterialText").value = "";
       document.getElementById("newMaterialCost").value = "";
       renderEditMaterials();
+      document.getElementById("editTravel").value = travelBoxText(task.travelKm);
       document.getElementById("editComments").value = typeof task.comments === "string" ? task.comments : "";
 
       showEditTimer();
@@ -3248,9 +3300,11 @@
 
       const badCost = invalidMaterialCost(editMaterials);
       if (badCost) { alert(`The cost of "${badCost}" is not an amount. Use a number such as 12.50, or leave it empty.`); return false; }
+      const travelKm = parseTravelText(document.getElementById("editTravel").value);
+      if (travelKm === undefined) { alert(INVALID_TRAVEL); return false; }
       const tags = tagsRaw.split(",").map(s => s.trim()).filter(Boolean);
       const recurrence = recurrenceFields(document.getElementById("editRecurFreq").value, document.getElementById("editRecurInterval").value);
-      const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence, materials: materialsFields(editMaterials), comments: document.getElementById("editComments").value };
+      const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence, materials: materialsFields(editMaterials), travelKm, comments: document.getElementById("editComments").value };
       // Only a changed task number is sent; the server moves the task there and closes up the rest
       const queueNumber = queueNumberChange(document.getElementById("editNumber").value, taskNumbers.get(taskId), allTasks.length);
       if (queueNumber !== null) updatedFields.queueNumber = queueNumber;
@@ -3401,6 +3455,7 @@
       document.getElementById("ceTags").value = values.tags;
       document.getElementById("ceMaterials").value = values.materials;
       document.getElementById("ceComments").value = values.comments;
+      document.getElementById("ceTravel").value = values.travelKm;
       const projectSelect = document.getElementById("ceProject");
       projectSelect.replaceChildren(new Option("No project", ""), ...allProjects.map(p => new Option(p.name, p.id)));
       // A project that no longer exists stays selectable, so saving leaves the entry's project as it was
@@ -3430,6 +3485,7 @@
         tags: document.getElementById("ceTags").value,
         materials: document.getElementById("ceMaterials").value,
         comments: document.getElementById("ceComments").value,
+        travelKm: document.getElementById("ceTravel").value,
         projectId: document.getElementById("ceProject").value,
         date: document.getElementById("ceDate").value,
         time: document.getElementById("ceTime").value
@@ -4088,6 +4144,7 @@
     // Show settings from the server in the form, and switch every date and time on the page to the configured zone.
     let savedContractorInfo = "";
     let savedHourlyRate = ""; // the rate box as last saved or loaded, to tell unsaved edits from the stored value
+    let savedTravelRate = ""; // the same for the travel rate box
     function applySettings(s) {
       const zoneChanged = s.timeZone !== appTimeZone;
       currentSettings = s;
@@ -4118,6 +4175,10 @@
       const rateBox = document.getElementById("hourlyRate");
       if (rateBox.value === savedHourlyRate) rateBox.value = rate;
       savedHourlyRate = rate;
+      const travel = s.jobSheet && typeof s.jobSheet.travelRate === "number" ? costBoxText(s.jobSheet.travelRate) : "";
+      const travelBox = document.getElementById("travelRate");
+      if (travelBox.value === savedTravelRate) travelBox.value = travel;
+      savedTravelRate = travel;
       renderNotifySettings(s);
       const last = s.lastAutoRunAt ? new Date(s.lastAutoRunAt) : null;
       document.getElementById("settingsLastRun").textContent = last && !isNaN(last)
@@ -4451,10 +4512,10 @@
         const res = await apiFetch(UPDATE_SETTINGS_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ settings: jobSheetPayload(document.getElementById("contractorInfo").value, document.getElementById("hourlyRate").value) })
+          body: JSON.stringify({ settings: jobSheetPayload(document.getElementById("contractorInfo").value, document.getElementById("hourlyRate").value, document.getElementById("travelRate").value) })
         });
         const saved = (await res.json()).settings;
-        if (!saved || !saved.jobSheet || typeof saved.jobSheet.contractorInfo !== "string" || !("hourlyRate" in saved.jobSheet)) {
+        if (!saved || !saved.jobSheet || typeof saved.jobSheet.contractorInfo !== "string" || !("hourlyRate" in saved.jobSheet) || !("travelRate" in saved.jobSheet)) {
           status.textContent = "Saved, but the server ignored part of it. Deploy the latest functions.";
           return;
         }
@@ -4463,6 +4524,8 @@
         document.getElementById("contractorInfo").value = savedContractorInfo;
         savedHourlyRate = typeof saved.jobSheet.hourlyRate === "number" ? costBoxText(saved.jobSheet.hourlyRate) : "";
         document.getElementById("hourlyRate").value = savedHourlyRate;
+        savedTravelRate = typeof saved.jobSheet.travelRate === "number" ? costBoxText(saved.jobSheet.travelRate) : "";
+        document.getElementById("travelRate").value = savedTravelRate;
         status.textContent = "Saved.";
       } catch (err) {
         status.textContent = "Not saved: " + err.message;

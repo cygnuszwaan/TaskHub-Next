@@ -542,7 +542,7 @@ exports.rescheduleTask = onRequest({
 
 // 3. Endpoint: Add / Ingest Task. The model returns only new or changed tasks; they are merged into the
 // stored list inside a transaction, so everything else on the list is preserved. With a `manual` body ({title,
-// priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?, comments?}) no model is
+// priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?, comments?, travelKm?}) no model is
 // called to parse it: the fields are used as entered (validated like the model's) and the task is added at the end of the
 // list. The one exception is a manual entry with no tags, for which the model is asked for tags only (a failure leaves
 // the task untagged). `startNow: true` starts the timer of
@@ -646,7 +646,7 @@ exports.addOrUpdateTask = onRequest({
         entry = created.changes;
         stored = created.projects;
       }
-      const merged = mergeTaskChanges(tasks, entry, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined, comments: body.manual !== undefined, history: body.manual !== undefined, now: new Date().toISOString(), jobCounter});
+      const merged = mergeTaskChanges(tasks, entry, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined, comments: body.manual !== undefined, travelKm: body.manual !== undefined, history: body.manual !== undefined, now: new Date().toISOString(), jobCounter});
       const changed = merged.added + merged.updated > 0;
       let list = merged.tasks;
       if (body.startNow === true) {
@@ -781,7 +781,7 @@ exports.getCompletedTemplates = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(asy
 
 // 6c. Endpoint: Correct or remove a completed task
 // updateCompletedTask: body {id, updatedFields}, `id` the `archiveId` getCompletedTasks gives each entry. The editable fields
-// are priority, estimatedMinutes, trackedSeconds, tags, materials (a plain list of texts), comments, projectId and the completion time (completedDate and completedTime
+// are priority, estimatedMinutes, trackedSeconds, tags, materials (a plain list of texts), comments, travelKm, projectId and the completion time (completedDate and completedTime
 // together, in the owner's zone); see applyCompletedEdit. Responds {success, task} with the entry as it now is; 400 with the
 // reason for an unusable value, 404 for an unknown id. deleteCompletedTask: body {id}, removes the entry for good.
 // Both change the archive row only, which Stats and Project hours are computed from: the job history already carried by

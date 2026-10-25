@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -740,6 +740,70 @@ describe("public/index.html helpers", () => {
       assert.equal(applySettingsUpdate(mergeSettings({jobSheet: {hourlyRate: 85}}), jobSheetPayload("", "")).settings.jobSheet.hourlyRate, null);
       assert.match(applySettingsUpdate(mergeSettings(undefined), jobSheetPayload("", "abc")).error, /hourlyRate/);
     });
+    it("jobSheetPayload adds the travel rate only when given, typed text trimmed, empty as null", () => {
+      const {jobSheetPayload} = load();
+      assert.deepEqual(jobSheetPayload("A", "85", " 1.35 "), {jobSheet: {contractorInfo: "A", hourlyRate: "85", travelRate: "1.35"}});
+      assert.deepEqual(jobSheetPayload("A", undefined, ""), {jobSheet: {contractorInfo: "A", travelRate: null}});
+      assert.equal("travelRate" in jobSheetPayload("A", "85").jobSheet, false);
+    });
+    it("jobSheetPayload takes the travel rate through the server's validation", () => {
+      const {applySettingsUpdate, mergeSettings} = require("../settings");
+      const {jobSheetPayload} = load();
+      assert.equal(applySettingsUpdate(mergeSettings(undefined), jobSheetPayload("", "", "1.35")).settings.jobSheet.travelRate, 1.35);
+      assert.equal(applySettingsUpdate(mergeSettings(undefined), jobSheetPayload("", "", "")).settings.jobSheet.travelRate, null);
+      assert.match(applySettingsUpdate(mergeSettings(undefined), jobSheetPayload("", "", "abc")).error, /travelRate/);
+    });
+    it("parseTravelText: null when empty, the distance for a plain number, undefined otherwise", () => {
+      const {parseTravelText, INVALID_TRAVEL} = load();
+      for (const v of ["", "  ", null, undefined]) assert.equal(parseTravelText(v), null);
+      assert.equal(parseTravelText(" 12.5 "), 12.5);
+      assert.equal(parseTravelText("0"), 0);
+      for (const v of ["abc", "-3", "1e3", "10000.5", "12,5"]) assert.equal(parseTravelText(v), undefined, v);
+      assert.match(INVALID_TRAVEL, /km/);
+    });
+    it("travelBoxText: the stored distance as text, empty for none", () => {
+      const {travelBoxText} = load();
+      assert.equal(travelBoxText(12.5), "12.5");
+      for (const v of [undefined, null, 0, -1, "12", NaN]) assert.equal(travelBoxText(v), "");
+    });
+    it("manualTaskBody sends travelKm only for a distance above 0", () => {
+      const {manualTaskBody} = load();
+      const form = {title: "Fit tap", priority: "LOW", estimatedMinutes: "30"};
+      assert.equal(manualTaskBody({...form, travelKm: "12.5"}).manual.travelKm, 12.5);
+      for (const v of ["", "0", "abc", undefined]) assert.equal("travelKm" in manualTaskBody({...form, travelKm: v}).manual, false, String(v));
+    });
+    it("templateFormValues fills Travel from a completed task", () => {
+      const {templateFormValues} = load();
+      assert.equal(templateFormValues({title: "Fit tap", travelKm: 12.5}).travelKm, "12.5");
+      assert.equal(templateFormValues({title: "Fit tap"}).travelKm, "");
+    });
+    it("completedChanges sends travelKm only when it differs, null to clear and an error for nonsense", () => {
+      const {completedChanges, completedFormValues} = load();
+      const row = {title: "Fit tap", priority: "LOW", estimatedMinutes: 30, trackedSeconds: 0, travelKm: 12.5, completedAt: "2026-10-17T20:30:00.000Z"};
+      const form = () => ({...completedFormValues(row, "Pacific/Auckland")});
+      assert.equal(form().travelKm, "12.5");
+      assert.deepEqual(completedChanges(row, form(), "Pacific/Auckland"), {fields: {}});
+      assert.deepEqual(completedChanges(row, {...form(), travelKm: "20"}, "Pacific/Auckland"), {fields: {travelKm: 20}});
+      for (const v of ["", "0"]) assert.deepEqual(completedChanges(row, {...form(), travelKm: v}, "Pacific/Auckland"), {fields: {travelKm: null}}, v);
+      assert.match(completedChanges(row, {...form(), travelKm: "far"}, "Pacific/Auckland").error, /Travel/);
+      const bare = {...row};
+      delete bare.travelKm;
+      assert.deepEqual(completedChanges(bare, {...completedFormValues(bare, "Pacific/Auckland"), travelKm: "0"}, "Pacific/Auckland"), {fields: {}});
+    });
+    it("has Travel (km) boxes in the Extra fields of both edit modals, in the add form and a Travel rate in Job Sheets", () => {
+      const has = (details, id) => {
+        const start = html.indexOf(`id="${details}"`);
+        const i = html.indexOf(`id="${id}"`);
+        assert.ok(start > 0 && i > start && i < html.indexOf("</details>", start), `${id} is in ${details}`);
+      };
+      has("editExtraFields", "editTravel");
+      has("ceExtraFields", "ceTravel");
+      assert.ok(html.indexOf('id="manualTravel"') > html.indexOf('id="manualMaterials"'));
+      assert.ok(html.indexOf('id="manualTravel"') < html.indexOf('id="manualComments"'));
+      assert.ok(html.indexOf('id="editTravel"') > html.indexOf('id="editMaterials"') && html.indexOf('id="editTravel"') < html.indexOf('id="editComments"'));
+      const jobSheets = html.indexOf("<h3>Job Sheets</h3>");
+      assert.ok(html.indexOf('id="travelRate"') > jobSheets && html.indexOf('id="travelRate"') > html.indexOf('id="hourlyRate"'));
+    });
     it("parseCostText: null when empty, a number for an amount, undefined otherwise", () => {
       const {parseCostText} = load();
       assert.equal(parseCostText(""), null);
@@ -1383,7 +1447,7 @@ describe("public/index.html helpers", () => {
 
       it("completedFormValues: starts the form from the row, with the time in minutes and the completion on the zone's clock", () => {
         const {completedFormValues} = load();
-        assert.deepEqual(completedFormValues(row, NZ), {priority: "LOW", estimatedMinutes: 30, trackedMinutes: 2, tags: "Garden, Outdoor", materials: "", comments: "Front only", projectId: "p1", date: "2026-10-18", time: "09:30"});
+        assert.deepEqual(completedFormValues(row, NZ), {priority: "LOW", estimatedMinutes: 30, trackedMinutes: 2, tags: "Garden, Outdoor", materials: "", comments: "Front only", travelKm: "", projectId: "p1", date: "2026-10-18", time: "09:30"});
       });
       it("reopenPrompt: names the task, says it returns with its tracked time and leaves Stats", () => {
         const {reopenPrompt} = load();
@@ -1840,7 +1904,7 @@ describe("public/index.html helpers", () => {
 
   describe("copying a completed task", () => {
     const templates = [
-      {title: "Mow lawn", priority: "LOW", estimatedMinutes: 45, tags: ["Outdoor", "Garden"], recurrence: {frequency: "WEEKLY", interval: 2}, projectId: "p1", projectOrder: 2, materials: ["Petrol", "Oil"], comments: "Check the blade"},
+      {title: "Mow lawn", priority: "LOW", estimatedMinutes: 45, tags: ["Outdoor", "Garden"], recurrence: {frequency: "WEEKLY", interval: 2}, projectId: "p1", projectOrder: 2, materials: ["Petrol", "Oil"], comments: "Check the blade", travelKm: 18},
       {title: "Mow the verge", priority: "MEDIUM", estimatedMinutes: 20, tags: []},
       {title: "Pay rates", priority: "HIGH", estimatedMinutes: 10, tags: []},
     ];
@@ -1886,7 +1950,7 @@ describe("public/index.html helpers", () => {
     it("fills the form with the old details but no due date, and every material unchecked", () => {
       const {templateFormValues} = load();
       const v = templateFormValues(templates[0], ["p1"]);
-      assert.deepEqual(v, {title: "Mow lawn", priority: "LOW", estimatedMinutes: 45, tags: "Outdoor, Garden", dueDate: "", recurFreq: "WEEKLY", recurInterval: 2, projectId: "p1", projectOrder: 2, materials: [{id: "", text: "Petrol", checked: false}, {id: "", text: "Oil", checked: false}], comments: "Check the blade", history: null});
+      assert.deepEqual(v, {title: "Mow lawn", priority: "LOW", estimatedMinutes: 45, tags: "Outdoor, Garden", dueDate: "", recurFreq: "WEEKLY", recurInterval: 2, projectId: "p1", projectOrder: 2, materials: [{id: "", text: "Petrol", checked: false}, {id: "", text: "Oil", checked: false}], comments: "Check the blade", travelKm: "18", history: null});
     });
     it("drops a project that no longer exists, with its order number", () => {
       const {templateFormValues} = load();
@@ -1919,7 +1983,7 @@ describe("public/index.html helpers", () => {
     });
     it("falls back to the form's defaults for a bare template", () => {
       const {templateFormValues} = load();
-      assert.deepEqual(templateFormValues({title: "x"}), {title: "x", priority: "MEDIUM", estimatedMinutes: 15, tags: "", dueDate: "", recurFreq: "NONE", recurInterval: 1, projectId: "", projectOrder: "", materials: [], comments: "", history: null});
+      assert.deepEqual(templateFormValues({title: "x"}), {title: "x", priority: "MEDIUM", estimatedMinutes: 15, tags: "", dueDate: "", recurFreq: "NONE", recurInterval: 1, projectId: "", projectOrder: "", materials: [], comments: "", travelKm: "", history: null});
     });
     it("posts startNow only when ticked", () => {
       const {addTaskExtras} = load();

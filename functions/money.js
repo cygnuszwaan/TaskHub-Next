@@ -5,6 +5,7 @@
 
 const MAX_HOURLY_RATE = 10000;
 const MAX_MATERIAL_COST = 1000000;
+const MAX_TRAVEL_RATE = 100;
 
 // An amount from the client or the database.
 //   undefined: unusable (not a number, negative, over `max`, more text than a plain decimal), meaning "no change"
@@ -39,4 +40,10 @@ function normalizeMaterialCost(value) {
   return normalizeMoney(value, MAX_MATERIAL_COST);
 }
 
-module.exports = {MAX_HOURLY_RATE, MAX_MATERIAL_COST, normalizeMoney, normalizeHourlyRate, normalizeMaterialCost};
+// The travel rate per kilometre: a number from 0.01 to MAX_TRAVEL_RATE, or null for none (0 counts as none).
+function normalizeTravelRate(value) {
+  const rate = normalizeMoney(value, MAX_TRAVEL_RATE);
+  return rate === 0 ? null : rate;
+}
+
+module.exports = {MAX_HOURLY_RATE, MAX_MATERIAL_COST, MAX_TRAVEL_RATE, normalizeMoney, normalizeHourlyRate, normalizeMaterialCost, normalizeTravelRate};
