@@ -18,6 +18,11 @@ function usableRate(rate) {
   return typeof rate === "number" && Number.isFinite(rate) && rate > 0 ? rate : null;
 }
 
+// The hourly rate a sheet bills labour at: like usableRate, but 0 counts (a client's $0.00 rate, for unpaid work), else null.
+function labourRate(rate) {
+  return typeof rate === "number" && Number.isFinite(rate) && rate >= 0 ? rate : null;
+}
+
 // The minutes a completed task is billed for: the tracked time to the whole minute (as the sheet shows it), else its
 // estimate (marked est. on the sheet), else 0.
 function billedMinutes(row) {
@@ -52,7 +57,7 @@ function materialsCents(row) {
 // usable hourly rate; travel is the row's km at the travel rate (0 without a usable one), `travelTenths` its distance in tenths
 // of a km whatever the rate, `hasTravel` whether travel is billed (a distance and a usable rate).
 function entryFigures(row, rate, travelRate) {
-  const r = usableRate(rate);
+  const r = labourRate(rate);
   const tr = usableRate(travelRate);
   const labour = r === null ? 0 : Math.round(billedMinutes(row) * toCents(r) / 60);
   const mats = materialsCents(row);
@@ -79,7 +84,7 @@ function sumFigures(list) {
 
 // Whether a sheet shows money at all: a usable hourly rate, any material with a cost, or any billed travel.
 function isInvoice(rate, figures) {
-  return usableRate(rate) !== null || figures.some((f) => f.hasCosts || f.hasTravel === true);
+  return labourRate(rate) !== null || figures.some((f) => f.hasCosts || f.hasTravel === true);
 }
 
 // Figures as the sheet prints them: {labour, materials, travel, travelKm, total} strings. `labour` is "" without a rate, `materials`
@@ -87,7 +92,7 @@ function isInvoice(rate, figures) {
 // something; `travelKm` is the distance ("12.5 km", "" for none) whether or not it is billed.
 function figuresText(f, rate) {
   return {
-    labour: usableRate(rate) === null ? "" : formatMoney(f.labour),
+    labour: labourRate(rate) === null ? "" : formatMoney(f.labour),
     materials: f.hasCosts ? formatMoney(f.materials) : "",
     travel: f.hasTravel === true ? formatMoney(f.travel) : "",
     travelKm: travelText(f.travelTenths || 0),
@@ -95,4 +100,4 @@ function figuresText(f, rate) {
   };
 }
 
-module.exports = {toCents, formatMoney, usableRate, billedMinutes, travelTenths, travelText, materialsCents, entryFigures, sumFigures, isInvoice, figuresText};
+module.exports = {toCents, formatMoney, usableRate, labourRate, billedMinutes, travelTenths, travelText, materialsCents, entryFigures, sumFigures, isInvoice, figuresText};

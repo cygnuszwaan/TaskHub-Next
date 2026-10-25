@@ -16,10 +16,13 @@ describe("clients.js", () => {
     it("keeps an hourly rate rounded to cents and leaves the key out for none", () => {
       assert.equal(normalizeClientFields({name: "Jo", hourlyRate: 95}).client.hourlyRate, 95);
       assert.equal(normalizeClientFields({name: "Jo", hourlyRate: "72.456"}).client.hourlyRate, 72.46);
-      for (const hourlyRate of [undefined, null, "", "  ", 0, "0"]) assert.equal("hourlyRate" in normalizeClientFields({name: "Jo", hourlyRate}).client, false, String(hourlyRate));
+      for (const hourlyRate of [undefined, null, "", "  "]) assert.equal("hourlyRate" in normalizeClientFields({name: "Jo", hourlyRate}).client, false, String(hourlyRate));
+    });
+    it("keeps 0 as a real rate, so unpaid work can override the global rate", () => {
+      for (const hourlyRate of [0, "0", "0.00", " 0 "]) assert.equal(normalizeClientFields({name: "Jo", hourlyRate}).client.hourlyRate, 0, String(hourlyRate));
     });
     it("rejects an unusable hourly rate", () => {
-      for (const hourlyRate of [-1, "abc", "1e3", 10000.01, NaN, true, {}, []]) assert.match(normalizeClientFields({name: "Jo", hourlyRate}).error, /hourlyRate must be an amount/, String(hourlyRate));
+      for (const hourlyRate of [-1, "abc", "1e3", 10000.01, NaN, true, {}, []]) assert.match(normalizeClientFields({name: "Jo", hourlyRate}).error, /hourlyRate must be an amount from 0 to/, String(hourlyRate));
     });
     it("needs an object with a name", () => {
       for (const v of [undefined, null, "x", [], 5]) assert.match(normalizeClientFields(v).error, /must be an object/);
@@ -69,6 +72,7 @@ describe("clients.js", () => {
       assert.equal(updateClient(withRate.clients, "c1", {name: "Smith Family", hourlyRate: 100}).client.hourlyRate, 100);
       assert.equal("hourlyRate" in updateClient(withRate.clients, "c1", {name: "Smith Family"}).client, false);
       assert.match(updateClient(list, "c1", {name: "Smith Family", hourlyRate: -3}).error, /hourlyRate/);
+      assert.equal(updateClient(withRate.clients, "c1", {name: "Smith Family", hourlyRate: 0}).client.hourlyRate, 0);
     });
     it("lets a client keep its own name, in other letters", () => {
       assert.equal(updateClient(list, "c1", {name: "SMITH FAMILY"}).client.name, "SMITH FAMILY");
@@ -105,13 +109,14 @@ describe("clients.js", () => {
   describe("clientHourlyRate", () => {
     it("uses the client's rate, else the fallback", () => {
       assert.equal(clientHourlyRate({hourlyRate: 95}, 85), 95);
+      assert.equal(clientHourlyRate({hourlyRate: 0}, 85), 0);
       assert.equal(clientHourlyRate({name: "Jo"}, 85), 85);
       assert.equal(clientHourlyRate(null, 85), 85);
       assert.equal(clientHourlyRate(undefined, null), null);
       assert.equal(clientHourlyRate({name: "Jo"}, null), null);
     });
     it("ignores an unusable stored rate", () => {
-      for (const hourlyRate of [0, -5, "95", NaN, null]) assert.equal(clientHourlyRate({hourlyRate}, 85), 85, String(hourlyRate));
+      for (const hourlyRate of [-5, "95", NaN, null]) assert.equal(clientHourlyRate({hourlyRate}, 85), 85, String(hourlyRate));
     });
   });
 

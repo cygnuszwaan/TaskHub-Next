@@ -3,7 +3,7 @@
 // Clients that projects can belong to: validation, the list helpers and the lines printed on a job sheet.
 // Pure: no I/O.
 
-const {normalizeHourlyRate, MAX_HOURLY_RATE} = require("./money");
+const {normalizeMoney, MAX_HOURLY_RATE} = require("./money");
 
 const MAX_NAME_LENGTH = 100;
 const MAX_ADDRESS_LENGTH = 300;
@@ -25,8 +25,8 @@ function oneLine(value, label, max) {
 // whitespace collapsed); the address may span lines (each line trimmed, blank lines dropped, at most 300 characters in
 // all); the phone is one line of at most 40 characters; the email, when given, must look like an address (at most 100
 // characters). A missing or null optional field is empty. `hourlyRate` (dollars, 0.01..10000, a number or plain decimal text) overrides
-// the global hourly rate on this client's job sheets; null, empty text, 0 or a missing value means none, and then the key is absent from
-// the client. Returns {client: {name, address, phone, email, hourlyRate?}} or {error}.
+// the global hourly rate on this client's job sheets; 0 is a real rate ($0.00, for unpaid work); null, empty text or a missing value means
+// none (the global rate applies), and then the key is absent from the client. Returns {client: {name, address, phone, email, hourlyRate?}} or {error}.
 function normalizeClientFields(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {error: "client must be an object"};
   const name = oneLine(value.name, "name", MAX_NAME_LENGTH);
@@ -45,8 +45,8 @@ function normalizeClientFields(value) {
   if (email.text && !EMAIL_PATTERN.test(email.text)) return {error: "email is not a valid address"};
   const client = {name: name.text, address, phone: phone.text, email: email.text};
   if (value.hourlyRate !== undefined) {
-    const rate = normalizeHourlyRate(value.hourlyRate);
-    if (rate === undefined) return {error: `hourlyRate must be an amount from 0.01 to ${MAX_HOURLY_RATE}, or empty`};
+    const rate = normalizeMoney(value.hourlyRate, MAX_HOURLY_RATE);
+    if (rate === undefined) return {error: `hourlyRate must be an amount from 0 to ${MAX_HOURLY_RATE}, or empty`};
     if (rate !== null) client.hourlyRate = rate;
   }
   return {client};
@@ -115,11 +115,11 @@ function clientLines(client) {
   return lines;
 }
 
-// The hourly rate a job sheet bills a client's work at: the client's own rate when it has a usable one (a number above 0), else
-// `fallback` (the global rate, which may be null for none).
+// The hourly rate a job sheet bills a client's work at: the client's own rate when it has one (a number from 0 up; 0 bills labour at
+// $0.00), else `fallback` (the global rate, which may be null for none).
 function clientHourlyRate(client, fallback) {
   const own = client && typeof client === "object" ? client.hourlyRate : null;
-  return typeof own === "number" && Number.isFinite(own) && own > 0 ? own : fallback;
+  return typeof own === "number" && Number.isFinite(own) && own >= 0 ? own : fallback;
 }
 
 module.exports = {clientHourlyRate, MAX_NAME_LENGTH, MAX_ADDRESS_LENGTH, MAX_PHONE_LENGTH, MAX_EMAIL_LENGTH, normalizeClientFields, sortClients, addClient, updateClient, removeClientFromProjects, setProjectClient, clientLines};

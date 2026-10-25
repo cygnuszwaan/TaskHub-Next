@@ -48,7 +48,16 @@ describe("invoice.js", () => {
     assert.equal(isInvoice(85, []), true);
     assert.equal(isInvoice(null, [{hasCosts: false}, {hasCosts: true}]), true);
     assert.equal(isInvoice(null, [{hasCosts: false}]), false);
-    assert.equal(isInvoice(0, []), false);
+    assert.equal(isInvoice(0, []), true);
+    assert.equal(isInvoice(-1, []), false);
+  });
+  it("bills labour at a rate of 0 as $0.00 (a client's unpaid work)", () => {
+    const row = {trackedSeconds: 3600, materials: [{text: "Paint", cost: 12.5}]};
+    const f = entryFigures(row, 0, null);
+    assert.equal(f.labour, 0);
+    assert.equal(f.total, 1250);
+    assert.equal(figuresText(f, 0).labour, "$0.00");
+    assert.equal(figuresText(f, null).labour, "");
   });
   it("prints only the lines that mean something", () => {
     const f = {labour: 8000, materials: 0, total: 8000, hasCosts: false};

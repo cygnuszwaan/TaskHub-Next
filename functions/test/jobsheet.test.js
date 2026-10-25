@@ -405,6 +405,24 @@ describe("jobsheet.js", () => {
         assert.equal(s.sections[0].entries[0].money.labour, "$100.00", request.type);
       }
     });
+    it("bills a client's rate of 0 as $0.00 labour, not the global rate", () => {
+      const c = {name: "Jo", hourlyRate: 0};
+      for (const request of [{type: "PROJECT"}, {type: "WEEK", weekStart: "2026-10-19"}, {type: "TASK"}]) {
+        const s = buildJobSheet({request, rows: [row({trackedSeconds: 3600})], project, client: c, timeZone: NZ, now, hourlyRate: 85});
+        assert.equal(s.invoice, true, request.type);
+        assert.equal(s.rateText, "$0.00", request.type);
+        assert.equal(s.sections[0].entries[0].money.labour, "$0.00", request.type);
+        assert.equal(s.sections[0].entries[0].money.total, "$0.00", request.type);
+      }
+    });
+    it("still adds materials to a $0.00 labour client's sheet", () => {
+      const s = buildJobSheet({request: {type: "PROJECT"}, rows: [row({trackedSeconds: 3600, materials: [{id: "m", text: "Paint", checked: true, cost: 20}]})], project, client: {name: "Jo", hourlyRate: 0}, timeZone: NZ, now, hourlyRate: 85});
+      assert.equal(s.totals.money.labour, "$0.00");
+      assert.equal(s.totals.money.total, "$20.00");
+    });
+    it("ignores a global rate of 0 but not a client's", () => {
+      assert.equal(buildJobSheet({request: {type: "PROJECT"}, rows: [row()], project, client: {name: "Jo"}, timeZone: NZ, now, hourlyRate: 0}).invoice, false);
+    });
     it("leaves a sheet with no rate anywhere without money", () => {
       assert.equal(buildJobSheet({request: {type: "PROJECT"}, rows: [row()], project, client: {name: "Jo"}, timeZone: NZ, now}).invoice, false);
     });

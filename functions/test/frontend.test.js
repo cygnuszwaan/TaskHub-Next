@@ -2168,7 +2168,8 @@ describe("public/index.html helpers", () => {
       const {clientSummary} = load();
       assert.equal(clientSummary({name: "Jo", phone: "021", hourlyRate: 95}), "021 · $95.00/h");
       assert.equal(clientSummary({name: "Jo", hourlyRate: 72.5}), "$72.50/h");
-      for (const hourlyRate of [undefined, null, 0, "95", NaN]) assert.equal(clientSummary({name: "Jo", hourlyRate}), "");
+      assert.equal(clientSummary({name: "Jo", hourlyRate: 0}), "$0.00/h");
+      for (const hourlyRate of [undefined, null, -1, "95", NaN]) assert.equal(clientSummary({name: "Jo", hourlyRate}), "");
     });
     it("builds the form body, trimming the name only", () => {
       const {clientFormBody} = load();

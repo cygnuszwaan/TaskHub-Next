@@ -553,7 +553,7 @@
     </div>
     <div class="form-group" style="margin:10px 0 0;">
       <label for="clientHourlyRate">Hourly rate</label>
-      <input type="number" id="clientHourlyRate" min="0" max="10000" step="0.01" inputmode="decimal" placeholder="Default rate" style="max-width: 160px;">
+      <input type="number" id="clientHourlyRate" min="0" max="10000" step="0.01" inputmode="decimal" placeholder="Default rate (0 for free)" style="max-width: 160px;">
     </div>
     <!-- <p class="settings-note" style="margin:6px 0 0;">A project can belong to a client, chosen in the Projects section of the Tasks page. Deleting a client leaves its projects in place.</p> -->
     <div class="action-row" style="margin-top: 14px;">
@@ -1425,7 +1425,7 @@
     function clientSummary(client) {
       const text = (v) => (typeof v === "string" ? v.trim() : "");
       const address = text(client && client.address).split(/\n+/).map(l => l.trim()).filter(Boolean).join(", ");
-      const rate = client && typeof client.hourlyRate === "number" && Number.isFinite(client.hourlyRate) && client.hourlyRate > 0 ? "$" + client.hourlyRate.toFixed(2) + "/h" : "";
+      const rate = client && typeof client.hourlyRate === "number" && Number.isFinite(client.hourlyRate) && client.hourlyRate >= 0 ? "$" + client.hourlyRate.toFixed(2) + "/h" : "";
       return [address, text(client && client.phone), text(client && client.email), rate].filter(Boolean).join(" · ");
     }
     // The updateClient `client` object for the Clients form's fields; `hourlyRate` is the box as typed (trimmed), "" for none, which
