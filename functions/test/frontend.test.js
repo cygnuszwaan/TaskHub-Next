@@ -790,6 +790,16 @@ describe("public/index.html helpers", () => {
       delete bare.travelKm;
       assert.deepEqual(completedChanges(bare, {...completedFormValues(bare, "Pacific/Auckland"), travelKm: "0"}, "Pacific/Auckland"), {fields: {}});
     });
+    it("puts Priority and Time spent on one line of the completed task form, with no estimate box or hint", () => {
+      const start = html.indexOf(`id="cePriority"`);
+      const tracked = html.indexOf(`id="ceTracked"`);
+      assert.ok(start > 0 && tracked > start, "Priority comes before Time spent");
+      const between = html.slice(start, tracked);
+      assert.doesNotMatch(between, /<\/div>\s*<\/div>/, "Time spent sits in the same flex row as Priority");
+      assert.match(html.slice(tracked, tracked + 300), /<\/div>\s*<\/div>/, "the row closes right after Time spent");
+      assert.doesNotMatch(html, /ceEstimate|means none was tracked/);
+      assert.match(html, /<label for="ceTracked">Time spent \(minutes\)<\/label>/);
+    });
     it("has Travel (km) boxes in the Extra fields of both edit modals, in the add form and a Travel rate in Job Sheets", () => {
       const has = (details, id) => {
         const start = html.indexOf(`id="${details}"`);
@@ -1447,7 +1457,7 @@ describe("public/index.html helpers", () => {
 
       it("completedFormValues: starts the form from the row, with the time in minutes and the completion on the zone's clock", () => {
         const {completedFormValues} = load();
-        assert.deepEqual(completedFormValues(row, NZ), {priority: "LOW", estimatedMinutes: 30, trackedMinutes: 2, tags: "Garden, Outdoor", materials: "", comments: "Front only", travelKm: "", projectId: "p1", date: "2026-10-18", time: "09:30"});
+        assert.deepEqual(completedFormValues(row, NZ), {priority: "LOW", trackedMinutes: 2, tags: "Garden, Outdoor", materials: "", comments: "Front only", travelKm: "", projectId: "p1", date: "2026-10-18", time: "09:30"});
       });
       it("reopenPrompt: names the task, says it returns with its tracked time and leaves History", () => {
         const {reopenPrompt} = load();
@@ -1477,7 +1487,13 @@ describe("public/index.html helpers", () => {
       it("completedFormValues: falls back for a row missing fields", () => {
         const {completedFormValues} = load();
         const v = completedFormValues({completedAt: "2026-10-17T20:30:00.000Z"}, NZ);
-        assert.deepEqual([v.priority, v.estimatedMinutes, v.trackedMinutes, v.tags, v.comments, v.projectId], ["MEDIUM", 15, 0, "", "", ""]);
+        assert.deepEqual([v.priority, v.trackedMinutes, v.tags, v.comments, v.projectId], ["MEDIUM", 0, "", "", ""]);
+      });
+      it("completedChanges: has no estimate in the form and never sends one", () => {
+        const api = load();
+        assert.equal("estimatedMinutes" in same(api), false);
+        assert.deepEqual(api.completedChanges(row, {...same(api), estimatedMinutes: "99"}, NZ), {fields: {}});
+        assert.deepEqual(api.completedChanges({...row, estimatedMinutes: undefined}, same(api), NZ), {fields: {}});
       });
       it("completedChanges: sends nothing for an untouched form, so a tracked time is not rounded just by saving", () => {
         const api = load();
@@ -1511,10 +1527,8 @@ describe("public/index.html helpers", () => {
         assert.deepEqual(api.completedChanges(row, {...same(api), projectId: "p2"}, NZ), {fields: {projectId: "p2"}});
         assert.deepEqual(api.completedChanges({...row, projectId: undefined}, {...same(api), projectId: ""}, NZ), {fields: {}});
       });
-      it("completedChanges: reports an unusable estimate, time, date or time of day", () => {
+      it("completedChanges: reports an unusable time, date or time of day", () => {
         const api = load();
-        assert.match(api.completedChanges(row, {...same(api), estimatedMinutes: "0"}, NZ).error, /estimate/);
-        assert.match(api.completedChanges(row, {...same(api), estimatedMinutes: ""}, NZ).error, /estimate/);
         assert.match(api.completedChanges(row, {...same(api), trackedMinutes: "-5"}, NZ).error, /time spent/);
         assert.match(api.completedChanges(row, {...same(api), trackedMinutes: "abc"}, NZ).error, /time spent/);
         assert.match(api.completedChanges(row, {...same(api), date: ""}, NZ).error, /date and time/);

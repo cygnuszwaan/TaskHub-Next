@@ -782,14 +782,9 @@
           </select>
         </div>
         <div class="form-group" style="flex: 1;">
-          <label>Est. Minutes</label>
-          <input type="number" id="ceEstimate" min="1" step="1">
+          <label for="ceTracked">Time spent (minutes)</label>
+          <input type="number" id="ceTracked" min="0" step="1">
         </div>
-      </div>
-
-      <div class="form-group">
-        <label>Time spent (minutes) <small style="font-weight:normal; color:var(--text-faint);">(0 means none was tracked, so the estimate counts)</small></label>
-        <input type="number" id="ceTracked" min="0" step="1">
       </div>
 
       <div class="form-group">
@@ -1782,12 +1777,12 @@
       }).filter(Boolean);
     }
     // What the edit form for a completed task starts with (see completedChanges). `trackedMinutes` is 0 when no time
-    // was tracked.
+    // was tracked (the estimate counts then). The form has no estimate box: a repeating job's estimate comes from the
+    // average of its tracked times.
     function completedFormValues(row, timeZone) {
       const when = zonedDateTime(row.completedAt, timeZone);
       return {
         priority: ["HIGH", "MEDIUM", "LOW"].includes(row.priority) ? row.priority : "MEDIUM",
-        estimatedMinutes: row.estimatedMinutes > 0 ? Math.round(row.estimatedMinutes) : 15,
         trackedMinutes: Number.isFinite(row.trackedSeconds) && row.trackedSeconds > 0 ? Math.round(row.trackedSeconds / 60) : 0,
         tags: (Array.isArray(row.tags) ? row.tags : []).join(", "),
         materials: completedMaterialLines(row).join("\n"),
@@ -1805,9 +1800,6 @@
       const before = completedFormValues(row, timeZone);
       const fields = {};
       if (form.priority !== before.priority) fields.priority = form.priority;
-      const estimate = Number(form.estimatedMinutes);
-      if (!Number.isFinite(estimate) || estimate < 1) return { error: "Enter an estimate of at least 1 minute." };
-      if (Math.round(estimate) !== before.estimatedMinutes) fields.estimatedMinutes = Math.round(estimate);
       const tracked = String(form.trackedMinutes).trim() === "" ? 0 : Number(form.trackedMinutes);
       if (!Number.isFinite(tracked) || tracked < 0) return { error: "Enter the time spent in minutes (0 or more)." };
       if (Math.round(tracked) !== before.trackedMinutes) fields.trackedSeconds = Math.round(tracked) * 60;
@@ -3457,7 +3449,6 @@
       document.getElementById("ceTitle").textContent = row.title || "";
       showJobNumber("ceJobNumber", row.jobNumber);
       document.getElementById("cePriority").value = values.priority;
-      document.getElementById("ceEstimate").value = values.estimatedMinutes;
       document.getElementById("ceTracked").value = values.trackedMinutes;
       document.getElementById("ceTags").value = values.tags;
       document.getElementById("ceMaterials").value = values.materials;
@@ -3487,7 +3478,6 @@
     function readCompletedForm(row) {
       return completedChanges(row, {
         priority: document.getElementById("cePriority").value,
-        estimatedMinutes: document.getElementById("ceEstimate").value,
         trackedMinutes: document.getElementById("ceTracked").value,
         tags: document.getElementById("ceTags").value,
         materials: document.getElementById("ceMaterials").value,
