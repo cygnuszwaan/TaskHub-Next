@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {withoutProjectFields, MAX_INTERVAL, normalizeRecurrence, applyDirectUpdate, completeInList, mergeTaskChanges, applyScheduleResults} = require("../tasks");
+const {withoutProjectFields, MAX_INTERVAL, normalizeRecurrence, applyDirectUpdate, moveToQueueNumber, completeInList, mergeTaskChanges, applyScheduleResults} = require("../tasks");
 
 function makeIdGenerator() {
   let n = 0;
@@ -869,5 +869,47 @@ describe("withoutProjectFields", () => {
     const b = r.tasks.find((t) => t.id === "b");
     assert.equal(b.projectId, "p1");
     assert.equal(b.projectOrder, 2);
+  });
+});
+
+describe("moveToQueueNumber", () => {
+  const list = () => [
+    {id: "a", order: 1}, {id: "b", order: 2}, {id: "c", order: 4}, {id: "d", order: 7}, // gaps from removed tasks
+  ];
+  const ids = (tasks) => tasks.map((t) => t.id);
+
+  it("moves a task to the top and renumbers every rank 1..n", () => {
+    const out = moveToQueueNumber(list(), "d", 1);
+    assert.deepEqual(ids(out), ["d", "a", "b", "c"]);
+    assert.deepEqual(out.map((t) => t.order), [1, 2, 3, 4]);
+  });
+
+  it("moves a task down, the others closing up", () => {
+    assert.deepEqual(ids(moveToQueueNumber(list(), "a", 3)), ["b", "c", "a", "d"]);
+  });
+
+  it("clamps the number to 1..n", () => {
+    assert.deepEqual(ids(moveToQueueNumber(list(), "b", 99)), ["a", "c", "d", "b"]);
+    assert.deepEqual(ids(moveToQueueNumber(list(), "c", 0)), ["c", "a", "b", "d"]);
+  });
+
+  it("reads the queue in rank order whatever the list order, and does not modify the input", () => {
+    const input = [{id: "x", order: 3}, {id: "y", order: 1}, {id: "z", order: 2}];
+    const copy = JSON.parse(JSON.stringify(input));
+    assert.deepEqual(ids(moveToQueueNumber(input, "x", 1)), ["x", "y", "z"]);
+    assert.deepEqual(input, copy);
+  });
+
+  it("returns null for an unknown task or a number that is not whole", () => {
+    assert.equal(moveToQueueNumber(list(), "nope", 1), null);
+    assert.equal(moveToQueueNumber(list(), "a", 1.5), null);
+    assert.equal(moveToQueueNumber(list(), "a", "2"), null);
+  });
+
+  it("is never set through an ordinary edit", () => {
+    const next = applyDirectUpdate({id: "a", order: 2, title: "A"}, {title: "B", order: 1, queueNumber: 1});
+    assert.equal(next.order, 2);
+    assert.equal(next.title, "B");
+    assert.equal("queueNumber" in next, false);
   });
 });

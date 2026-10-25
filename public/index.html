@@ -104,6 +104,7 @@
     .time-chip { font-size: 11px; background: var(--time-bg); color: var(--time-fg); padding: 2px 8px; border-radius: 10px; font-weight: 600; }
     .timer-chip { background: var(--time-bg); color: var(--time-fg); font-weight: 600; }
     .sched-chip { background: var(--sched-bg); color: var(--sched-fg); font-weight: 600; }
+    .number-chip { font-weight: 700; }
     .lock-chip { background: var(--lock-bg); color: var(--lock-fg); font-weight: 600; }
     .held-chip { background: var(--held-bg); color: var(--held-fg); font-weight: 600; }
     .material-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
@@ -501,6 +502,14 @@
       </div>
 
       <div class="form-group">
+        <label for="editNumber">Task number (place in the queue)</label>
+        <div style="display:flex; gap:6px;">
+          <input type="number" id="editNumber" min="1" step="1" inputmode="numeric" style="min-width:0;">
+          <button type="button" class="btn-secondary" title="Move to the top of the queue" onclick="document.getElementById('editNumber').value = 1">Top</button>
+        </div>
+      </div>
+
+      <div class="form-group">
         <label>Tags (comma separated)</label>
         <input type="text" id="editTags" placeholder="e.g. Outdoor, Physical">
       </div>
@@ -865,6 +874,7 @@
     let tasksLoaded = false; // set once the list has been drawn
     let selectedTagFilter = null; // null = show all
     let selectedProjectFilter = null; // a project id, null = show all
+    let taskNumbers = new Map(); // task id -> task number, refreshed on every redraw of the list (queueNumbers)
     let sortKey = "scheduled"; // the Queue's "Sort by" choice (see SORT_OPTIONS)
     let sortDescending = false;
     let editMaterials = []; // the materials list being edited in the modal: [{id, text, checked}]
@@ -1240,6 +1250,7 @@
       ["added", "Date added"],
       ["due", "Due date"],
       ["scheduled", "Scheduled date"],
+      ["number", "Task number"],
       ["name", "Name"]
     ];
     const PRIORITY_RANK = ["HIGH", "MEDIUM", "LOW"];
@@ -1264,6 +1275,7 @@
         const due = DATE_ONLY.test(task.dueDate || "") ? Date.parse(`${task.dueDate}T00:00:00Z`) : NaN;
         return isNaN(due) ? Infinity : due;
       }
+      if (key === "number") return Number.isFinite(task.order) ? task.order : Infinity;
       if (key === "scheduled") {
         const start = task.scheduledStart || "";
         if (DATE_ONLY.test(start)) {
@@ -1276,6 +1288,24 @@
         return Date.parse(`${fmt.key.format(when)}T00:00:00Z`) + ((h % 24) * 60 + m) * 60000;
       }
       return Infinity;
+    }
+    // A task's task number: its place in the queue, 1..n by the server's rank (`order`, ties in list order). It is worked
+    // out here from the whole list, so removing tasks never leaves a gap. Returns a Map of task id to number.
+    function queueNumbers(tasks) {
+      const ranked = tasks.map((t, i) => [t, i]).sort((a, b) => (a[0].order || 0) - (b[0].order || 0) || a[1] - b[1]);
+      return new Map(ranked.map(([t], i) => [t.id, i + 1]));
+    }
+    // The number chip's text, "#3"; "" for a task the map does not know.
+    function numberChipText(numbers, id) {
+      return numbers.has(id) ? `#${numbers.get(id)}` : "";
+    }
+    // The Task number field of the edit form as the `queueNumber` to send: a whole number from 1 to `count` that
+    // differs from the task's current one, else null (nothing to move).
+    function queueNumberChange(value, current, count) {
+      const n = Number(String(value).trim());
+      if (String(value).trim() === "" || !Number.isInteger(n) || n < 1) return null;
+      const target = Math.min(n, count);
+      return target === current ? null : target;
     }
     // The tasks in the order of the "Sort by" choice `key` (Scheduled date by default), reversed when `descending`
     // (which applies to every key, so missing dates move to the front). Each key sorts by its own value alone, with ties
@@ -2395,6 +2425,7 @@
           <div style="flex:1; min-width:0;">
             <strong>${esc(t.title)}</strong>
             <div class="task-meta">
+              ${numberChipText(taskNumbers, t.id) ? `<span class="chip number-chip" title="Place in the queue">${esc(numberChipText(taskNumbers, t.id))}</span>` : ''}
               <span class="badge ${PRIORITIES.includes(t.priority) ? t.priority : ''}">${esc(t.priority)}</span>
               <span class="time-chip">⏱️ ${esc(t.estimatedMinutes || 15)}m</span>
               ${timerChipIcon(t) ? `<span class="chip timer-chip" title="${isTimerRunning(t) ? 'Timer running' : 'Timer paused'}" aria-label="${isTimerRunning(t) ? 'Timer running' : 'Timer paused'}">${timerChipIcon(t)}</span>` : ''}
@@ -2451,6 +2482,7 @@
 
     function renderTaskRows() {
       tasksLoaded = true;
+      taskNumbers = queueNumbers(allTasks);
       renderProjects();
       renderMaterialsCard();
       const listContainer = document.getElementById("taskList");
@@ -2558,6 +2590,8 @@
       document.getElementById("editTitle").value = task.title || "";
       document.getElementById("editPriority").value = task.priority || "MEDIUM";
       document.getElementById("editDuration").value = task.estimatedMinutes || 15;
+      document.getElementById("editNumber").max = allTasks.length;
+      document.getElementById("editNumber").value = taskNumbers.get(task.id) || "";
       document.getElementById("editTags").value = (task.tags || []).join(", ");
       document.getElementById("editDueDate").value = task.dueDate || "";
       const recurrence = task.recurrence;
@@ -2750,6 +2784,9 @@
       const tags = tagsRaw.split(",").map(s => s.trim()).filter(Boolean);
       const recurrence = recurrenceFields(document.getElementById("editRecurFreq").value, document.getElementById("editRecurInterval").value);
       const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence, materials: materialsFields(editMaterials), comments: document.getElementById("editComments").value };
+      // Only a changed task number is sent; the server moves the task there and closes up the rest
+      const queueNumber = queueNumberChange(document.getElementById("editNumber").value, taskNumbers.get(taskId), allTasks.length);
+      if (queueNumber !== null) updatedFields.queueNumber = queueNumber;
       // Without the project list the form cannot show the task's project, so it must not send one
       if (projectsLoaded) {
         Object.assign(updatedFields, projectFields(document.getElementById("editProject").value, document.getElementById("editProjectOrder").value));

@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -1431,9 +1431,9 @@ describe("public/index.html helpers", () => {
       {id: "t4", order: 4, priority: "HIGH", dueDate: "2026-10-25", addedAt: "2026-10-21T01:00:00.000Z", scheduledStart: "2026-10-27"},
     ];
 
-    it("offers Priority, Date added, Due date, Scheduled date and Name (no task number), and falls back to Scheduled date", () => {
+    it("offers Priority, Date added, Due date, Scheduled date, Task number and Name, and falls back to Scheduled date", () => {
       const {SORT_OPTIONS, normalizeSortKey} = load();
-      assert.deepEqual(SORT_OPTIONS.map((o) => o[1]), ["Priority", "Date added", "Due date", "Scheduled date", "Name"]);
+      assert.deepEqual(SORT_OPTIONS.map((o) => o[1]), ["Priority", "Date added", "Due date", "Scheduled date", "Task number", "Name"]);
       assert.equal(normalizeSortKey("due"), "due");
       assert.equal(normalizeSortKey("order"), "scheduled");
       assert.equal(normalizeSortKey("nonsense"), "scheduled");
@@ -1755,6 +1755,54 @@ describe("public/index.html helpers", () => {
       const card = html.slice(html.indexOf("function completedRowHtml"), html.indexOf("// Draw the search box"));
       assert.ok(!card.includes("<button"));
       assert.ok(!html.includes("data-photo-toggle"));
+    });
+  });
+
+  describe("task numbers", () => {
+    const queue = () => [
+      {id: "a", order: 2}, {id: "b", order: 5}, {id: "c", order: 9}, // stored ranks have gaps
+    ];
+
+    it("numbers the queue 1..n in rank order, however the stored ranks run", () => {
+      const {queueNumbers} = load();
+      assert.deepEqual([...queueNumbers(queue())], [["a", 1], ["b", 2], ["c", 3]]);
+      assert.deepEqual([...queueNumbers([{id: "x", order: 3}, {id: "y", order: 1}])].sort(), [["x", 2], ["y", 1]]);
+    });
+
+    it("breaks ties in list order and tolerates a missing rank", () => {
+      const {queueNumbers} = load();
+      const numbers = queueNumbers([{id: "p", order: 1}, {id: "q", order: 1}, {id: "r"}]);
+      assert.equal(numbers.get("r"), 1);
+      assert.equal(numbers.get("p"), 2);
+      assert.equal(numbers.get("q"), 3);
+    });
+
+    it("writes the chip as #n, empty for an unknown task", () => {
+      const {queueNumbers, numberChipText} = load();
+      const numbers = queueNumbers(queue());
+      assert.equal(numberChipText(numbers, "c"), "#3");
+      assert.equal(numberChipText(numbers, "zzz"), "");
+    });
+
+    it("offers Task number as a sort that follows the queue, reversible", () => {
+      const {SORT_OPTIONS, normalizeSortKey, sortTasks} = load();
+      assert.ok(SORT_OPTIONS.some((o) => o[0] === "number" && o[1] === "Task number"));
+      assert.equal(normalizeSortKey("number"), "number");
+      const tasks = [{id: "c", order: 9}, {id: "a", order: 2}, {id: "b", order: 5}];
+      assert.deepEqual(sortTasks(tasks, "number", false).map((t) => t.id), ["a", "b", "c"]);
+      assert.deepEqual(sortTasks(tasks, "number", true).map((t) => t.id), ["c", "b", "a"]);
+    });
+
+    it("sends a task number only when the field holds a different whole number, clamped to the queue length", () => {
+      const {queueNumberChange} = load();
+      assert.equal(queueNumberChange("1", 3, 5), 1);
+      assert.equal(queueNumberChange("3", 3, 5), null);
+      assert.equal(queueNumberChange("99", 3, 5), 5);
+      assert.equal(queueNumberChange("5", 5, 5), null);
+      assert.equal(queueNumberChange("", 3, 5), null);
+      assert.equal(queueNumberChange("0", 3, 5), null);
+      assert.equal(queueNumberChange("2.5", 3, 5), null);
+      assert.equal(queueNumberChange("abc", 3, 5), null);
     });
   });
 });

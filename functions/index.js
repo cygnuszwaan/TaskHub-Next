@@ -14,7 +14,7 @@ const {repairSchedule, buildFixedSlots, matchLockedEvents} = require("./schedule
 const {planSchedule} = require("./planner");
 const {lunchWindows, padWindows} = require("./breaks");
 const {setTimerInList, pauseTimer} = require("./timer");
-const {withoutProjectFields, needsTagFill, cleanTags, newTaskIds, applyDirectUpdate, completeInList, removalRecord, isUndoable, undoInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
+const {withoutProjectFields, needsTagFill, cleanTags, newTaskIds, applyDirectUpdate, moveToQueueNumber, completeInList, removalRecord, isUndoable, undoInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {withNewProject, normalizeProjectName} = require("./projects");
 const {findDuplicateTasks} = require("./duplicates");
 const {PROJECTS_COLLECTION, makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
@@ -862,7 +862,10 @@ exports.updateTaskDirect = onRequest({
         return {tasks: remaining, current: remaining, removedTask};
       }
       if (action === "UPDATE" && tasks.some((t) => t.id === taskId)) {
-        const next = tasks.map((t) => (t.id === taskId ? applyDirectUpdate(t, updatedFields, projects.map((p) => p.id)) : t));
+        let next = tasks.map((t) => (t.id === taskId ? applyDirectUpdate(t, updatedFields, projects.map((p) => p.id)) : t));
+        // `queueNumber` moves the task to that place in the queue, the others closing up around it
+        const moved = updatedFields && Number.isInteger(updatedFields.queueNumber) ? moveToQueueNumber(next, taskId, updatedFields.queueNumber) : null;
+        if (moved) next = moved;
         return {tasks: next, current: next};
       }
       return {current: tasks};

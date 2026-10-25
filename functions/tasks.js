@@ -35,7 +35,7 @@ function normalizeRecurrence(value) {
 // validated by normalizeMaterials (null or an empty list removes it, an unusable value leaves it as it was; new
 // items get ids from `makeId`); and `snoozedUntil`, validated by normalizeSnooze (null or an empty string removes it, an
 // unusable value leaves it as it was); and `comments`, validated by normalizeComments (null or empty text removes it, a
-// non-string leaves it as it was). `addedAt`, `trackedSeconds`, `firstStartedAt`, `timerStartedAt` and `active` are never changed by an edit.
+// non-string leaves it as it was). `addedAt`, `trackedSeconds`, `firstStartedAt`, `timerStartedAt`, `active` and `order` are never changed by an edit.
 // Pure apart from `makeId`: the input is not modified.
 function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   const rest = {...fields};
@@ -51,6 +51,8 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   delete rest.timerStartedAt;
   delete rest.firstStartedAt;
   delete rest.active;
+  delete rest.order; // the queue position changes only through moveToQueueNumber
+  delete rest.queueNumber;
   const next = {...task, ...rest};
   if (fields && "recurrence" in fields) {
     const recurrence = normalizeRecurrence(fields.recurrence);
@@ -74,6 +76,17 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
     else if (comments === null) delete next.comments;
   }
   return applyProjectFields(next, fields, projectIds);
+}
+
+// The tasks in queue order (`order`, ties in list order) with the task `taskId` moved to the 1-based queue number
+// `number` (clamped to 1..n) and every rank renumbered 1..n, so no number is ever missing. Returns null when no task
+// has that id or `number` is not a whole number. Pure: the input is not modified.
+function moveToQueueNumber(tasks, taskId, number) {
+  if (!Number.isInteger(number)) return null;
+  const list = tasks.map((t, i) => [t, i]).sort((a, b) => (a[0].order || 0) - (b[0].order || 0) || a[1] - b[1]).map((pair) => pair[0]);
+  const task = list.find((t) => t.id === taskId);
+  if (!task) return null;
+  return placeAtRank(list, task, number).map((t, i) => ({...t, order: i + 1}));
 }
 
 // Fields the model may set. Everything else on a task (id, status, order, calendar and schedule fields, locked,
@@ -365,4 +378,4 @@ function applyScheduleResults({tasks, knownIds, locked, scheduled, createdEvents
   return {tasks: updatedTasks, orphanEventIds};
 }
 
-module.exports = {withoutProjectFields, needsTagFill, cleanTags, newTaskIds, FREQUENCIES, MAX_INTERVAL, UNDO_WINDOW_MS, normalizeRecurrence, manualTaskChange, applyDirectUpdate, completeInList, removalRecord, isUndoable, undoInList, mergeTaskChanges, applyScheduleResults};
+module.exports = {withoutProjectFields, needsTagFill, cleanTags, newTaskIds, FREQUENCIES, MAX_INTERVAL, UNDO_WINDOW_MS, normalizeRecurrence, manualTaskChange, applyDirectUpdate, moveToQueueNumber, completeInList, removalRecord, isUndoable, undoInList, mergeTaskChanges, applyScheduleResults};
