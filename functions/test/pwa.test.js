@@ -44,6 +44,14 @@ describe("web app manifest", () => {
     assert.ok(purposes.has("512x512 any"));
     assert.ok(purposes.has("512x512 maskable"));
   });
+  it("accepts shared text as a GET to the page, with title, text and url", () => {
+    const t = manifest.share_target;
+    assert.equal(t.method, "GET");
+    assert.equal(t.action, "/");
+    assert.deepEqual(t.params, {title: "title", text: "text", url: "url"});
+    const rewrites = firebase.hosting.rewrites || [];
+    assert.ok(rewrites.some((r) => r.source === "**" && r.destination === "/index.html"), "the page answers the share address");
+  });
   it("has an Apple touch icon", () => {
     assert.deepEqual(pngSize(path.join(pub, "icons", "apple-touch-icon.png")), [180, 180]);
   });

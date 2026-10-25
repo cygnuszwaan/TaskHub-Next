@@ -905,6 +905,7 @@
         lib.onAuthStateChanged(firebaseAuth, user => {
           if (user) {
             showApp();
+            applyPendingShare();
             fetchTasks();
             loadProjects();
             loadClients();
@@ -2058,7 +2059,48 @@
       if (t) return `completed-work-to-${t}.csv`;
       return DATE_ONLY.test(today || "") ? `completed-work-${today}.csv` : "completed-work.csv";
     }
+    // The text another app shared to TaskHub, as one line for the add field: the shared text (else the title), then the link
+    // unless the text already holds it (Chrome puts the link in the text). `params` has title, text and url; anything missing
+    // or not text counts as empty. At most 2000 characters; "" when nothing usable was shared.
+    function sharedText(params) {
+      const clean = v => (typeof v === "string" ? v.replace(/\s+/g, " ").trim() : "");
+      const p = params || {};
+      const text = clean(p.text) || clean(p.title);
+      const url = clean(p.url);
+      return (url && !text.includes(url) ? `${text} ${url}` : text).trim().slice(0, 2000);
+    }
+    // The shared text in a page address's query string (the manifest's share target sends title, text and url as a GET),
+    // and whether the query holds any of the three at all.
+    function shareFromSearch(search) {
+      const q = new URLSearchParams(search || "");
+      return { text: sharedText({ title: q.get("title"), text: q.get("text"), url: q.get("url") }), shared: ["title", "text", "url"].some(k => q.has(k)) };
+    }
     // </pure-helpers>
+
+    // Share to TaskHub: text shared from another app arrives as /?title=&text=&url=. It is kept in sessionStorage (it survives a
+    // redirect sign-in), the address is cleaned so a reload does not repeat it, and once signed in it is put in the add field
+    // for the owner to review: nothing is added automatically.
+    const SHARE_KEY = "taskhub-share";
+    (function captureShare() {
+      try {
+        const { text, shared } = shareFromSearch(location.search);
+        if (text) sessionStorage.setItem(SHARE_KEY, text);
+        if (shared) history.replaceState(null, "", location.pathname + location.hash);
+      } catch (e) { /* storage or history unavailable: the share is dropped */ }
+    })();
+    function applyPendingShare() {
+      let text = "";
+      try {
+        text = sessionStorage.getItem(SHARE_KEY) || "";
+        sessionStorage.removeItem(SHARE_KEY);
+      } catch (e) { /* none */ }
+      if (!text) return;
+      showTab("tasks");
+      const input = document.getElementById("taskInput");
+      input.value = text;
+      input.dispatchEvent(new Event("input"));
+      input.focus();
+    }
 
     // Dark mode: a data-theme attribute on <html> overrides the device setting (see the stylesheet), the theme-color
     // metas follow it, and the Settings toggle shows the page's actual state.
