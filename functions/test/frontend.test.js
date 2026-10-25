@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -2393,6 +2393,98 @@ describe("public/index.html helpers", () => {
       assert.match(fn, /notifyPayload\(/);
       assert.match(fn, /catch \(err\) \{\s*renderNotifySettings\(currentSettings\)/);
       for (const id of ["notifyRunFailed", "notifyWeather", "notifyStarting", "notifyLead"]) assert.ok(html.includes(`"${id}"`), id);
+    });
+  });
+  describe("Multi-Select", () => {
+    it("keeps the selection to tasks still on the list and toggles one id at a time without touching the original", () => {
+      const {pruneSelection, toggledSelection} = load();
+      const picked = new Set(["a", "b", "gone"]);
+      assert.deepEqual([...pruneSelection(picked, [{id: "a"}, {id: "b"}, {id: "c"}])], ["a", "b"]);
+      assert.deepEqual([...pruneSelection(null, [{id: "a"}])], []);
+      const on = toggledSelection(new Set(["a"]), "b");
+      assert.deepEqual([...on], ["a", "b"]);
+      assert.deepEqual([...toggledSelection(on, "a")], ["b"]);
+      assert.deepEqual([...picked], ["a", "b", "gone"]);
+    });
+    it("words the count line, saying how many selected tasks the search and filters hide", () => {
+      const {batchCountText, taskCountText} = load();
+      assert.equal(batchCountText(0, 0), "Tap tasks to select them");
+      assert.equal(batchCountText(3, 0), "3 selected");
+      assert.equal(batchCountText(3, 2), "3 selected (2 hidden by the search or filters)");
+      assert.equal(taskCountText(1), "1 task");
+      assert.equal(taskCountText(4), "4 tasks");
+    });
+    it("asks before a batch complete or delete, mentions repeating tasks on complete and says there is no Undo", () => {
+      const {batchRemovePrompt} = load();
+      const tasks = [{title: "A"}, {title: "B", recurrence: {frequency: "WEEKLY", interval: 1}}, {title: "C", recurrence: {frequency: "DAILY", interval: 1}}];
+      const complete = batchRemovePrompt("COMPLETE", tasks);
+      assert.match(complete, /^Complete 3 tasks\?/);
+      assert.match(complete, /2 repeat, so their next occurrences will be added\./);
+      assert.match(complete, /Undo is not available for a batch\./);
+      assert.match(batchRemovePrompt("COMPLETE", [tasks[1]]), /1 repeats, so its next occurrence will be added\./);
+      const del = batchRemovePrompt("DELETE", tasks);
+      assert.match(del, /^Delete 3 tasks\?/);
+      assert.doesNotMatch(del, /repeat/);
+      assert.match(batchRemovePrompt("DELETE", [tasks[0]]), /^Delete 1 task\?/);
+    });
+    it("reports a batch complete or delete, naming the failures", () => {
+      const {batchRemoveResultText} = load();
+      assert.equal(batchRemoveResultText("COMPLETE", 4, 0, ""), "Completed 4 tasks.");
+      assert.equal(batchRemoveResultText("DELETE", 1, 0, ""), "Deleted 1 task.");
+      assert.equal(batchRemoveResultText("DELETE", 4, 1, "Request failed (500)"), "Deleted 3 of 4 tasks. 1 failed (Request failed (500)); it is still selected.");
+      assert.equal(batchRemoveResultText("COMPLETE", 4, 2, "x"), "Completed 2 of 4 tasks. 2 failed (x); they are still selected.");
+    });
+    it("builds the batchUpdateTasks body from the selection and words a snooze result", () => {
+      const {batchBody, batchSnoozeText} = load();
+      assert.deepEqual(batchBody("SNOOZE", new Set(["a", "b"]), {snoozedUntil: "2026-11-02"}), {action: "SNOOZE", taskIds: ["a", "b"], snoozedUntil: "2026-11-02"});
+      assert.deepEqual(batchBody("MOVE_TO_TOP", ["a"]), {action: "MOVE_TO_TOP", taskIds: ["a"]});
+      assert.equal(batchSnoozeText(2, "2026-11-02", ""), "Snoozed 2 tasks until 2026-11-02.");
+      assert.equal(batchSnoozeText(1, null, ""), "Unsnoozed 1 task.");
+      assert.match(batchSnoozeText(2, "2026-11-02", "boom"), /could not be moved yet \(boom\)/);
+    });
+    it("has a Select button, a bar with the six actions and a dialog for the three that need a choice", () => {
+      for (const id of ["selectModeBtn", "batchStatus", "batchBar", "batchCount", "batchAllBtn", "batchNoneBtn", "batchModal", "batchSnoozePane", "batchDuePane", "batchProjectPane", "batchProject", "batchNewProject", "batchProjectSetBtn", "batchDueClearBtn", "batchUnsnoozeBtn"]) assert.ok(html.includes(`id="${id}"`), id);
+      for (const action of ["COMPLETE", "DELETE", "SNOOZE", "TOP", "PROJECT", "DUE"]) assert.ok(html.includes(`data-batch="${action}"`), action);
+      assert.ok(html.indexOf("id=\"selectModeBtn\"") > html.indexOf("id=\"sortDirBtn\""));
+      assert.ok(html.indexOf("id=\"batchBar\"") > html.indexOf("id=\"taskList\""));
+      assert.match(html, /new Option\("＋ New project…", NEW_PROJECT\)/);
+      assert.match(html, /\{ newProject: name \}/);
+    });
+    it("makes a queued card take only taps while selecting, and never makes the Active task selectable", () => {
+      const down = html.slice(html.indexOf("const onTaskRowDown"), html.indexOf("const onTaskRowMove"));
+      assert.match(down, /if \(selectMode && !item\.closest\("#activeTaskBox"\)\) \{ swipe = null; return; \}/);
+      assert.ok(down.indexOf("selectMode") < down.indexOf("setTimeout"), "no long press while selecting");
+      const click = html.slice(html.indexOf("const onTaskRowClick"), html.indexOf("for (const id of [\"taskList\""));
+      assert.match(click, /selectMode && !item\.closest\("#activeTaskBox"\)\) return toggleSelected\(item\.dataset\.id\)/);
+      assert.ok(click.indexOf("toggleSelected") < click.indexOf("openEditModal"));
+      const row = html.slice(html.indexOf("function swipeRowHtml"), html.indexOf("// The active task's tracked time ticks"));
+      assert.match(row, /if \(selectMode && !isActive\) return `<div class="swipe-row">\$\{taskItemHtml\(t\)\}<\/div>`/);
+      const render = html.slice(html.indexOf("function renderTaskRows"), html.indexOf("function renderMaterialRows"));
+      assert.match(render, /selectedIds = pruneSelection\(selectedIds, rest\)/, "the Active task is left out of `rest`");
+      assert.match(render, /shownIds = new Set\(filtered\.map/);
+    });
+    it("completes and deletes through the single-task calls with no Undo footnote, in queue order, keeping failures selected", () => {
+      const fn = html.slice(html.indexOf("async function batchRemove"), html.indexOf("// One call to batchUpdateTasks"));
+      assert.match(fn, /hideUndoNote\(\)/);
+      assert.match(fn, /selectedTasks\(\)/);
+      assert.match(fn, /noUndo: true/);
+      assert.match(fn, /COMPLETE_TASK_URL : DIRECT_UPDATE_URL/);
+      assert.match(fn, /selectedIds = new Set\(failedIds\)/);
+      assert.match(html, /function selectedTasks\(\) \{\s*return sortTasks\(allTasks\.filter\(t => selectedIds\.has\(t\.id\)\), "number", false\);/);
+      const remove = html.slice(html.indexOf("function removeTask("), html.indexOf("async function completeTask("));
+      assert.match(remove, /if \(!opts\.noUndo\) \{\s*undoNoteTaskId = taskId;\s*showUndoNote/);
+      assert.match(remove, /if \(opts\.onError\) opts\.onError\(err, taskId\);\s*else alert/);
+    });
+    it("sends the other actions to batchUpdateTasks, leaves Multi-Select on success and keeps the selection on a failure", () => {
+      assert.match(html, /const BATCH_UPDATE_URL = endpoint\("batchUpdateTasks"\);/);
+      const fn = html.slice(html.indexOf("async function batchSend"), html.indexOf("// The dialog for the batch actions"));
+      assert.match(fn, /apiFetch\(BATCH_UPDATE_URL/);
+      assert.match(fn, /if \(data\.projects\) allProjects = data\.projects;/);
+      assert.match(fn, /setSelectMode\(false\)/);
+      assert.match(fn, /catch \(err\) \{[^}]*alert\(/);
+      assert.ok(fn.indexOf("catch") > fn.indexOf("setSelectMode(false)"));
+      assert.equal(fn.slice(fn.indexOf("catch")).includes("setSelectMode"), false);
+      for (const action of ["MOVE_TO_TOP", "SNOOZE", "SET_DUE", "SET_PROJECT"]) assert.ok(html.includes(`batchBody("${action}"`), action);
     });
   });
 });

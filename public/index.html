@@ -83,6 +83,19 @@
     .sort-row { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
     .sort-row label { font-size: 13px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
     .sort-row select { flex: 1; min-width: 0; }
+    .select-row { margin-top: 10px; }
+    .select-row button { width: 100%; }
+    .batch-status { font-size: 13px; margin-top: 8px; color: var(--text-strong); }
+    .batch-status:empty { display: none; }
+    .select-mark { flex: none; font-size: 20px; line-height: 1.1; margin-right: 10px; color: var(--primary); }
+    .swipe-row .task-item.selected, .swipe-row .task-item.selected:hover { background: var(--flash); box-shadow: inset 0 0 0 2px var(--primary); }
+    .batch-bar { position: sticky; bottom: 0; z-index: 5; margin-top: 12px; padding: 10px 0 4px; background: var(--surface); border-top: 1px solid var(--header-border); }
+    .batch-bar[hidden] { display: none; }
+    .batch-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 13px; font-weight: 600; color: var(--text-strong); }
+    .batch-links { display: flex; gap: 6px; }
+    .batch-links button { padding: 6px 10px; font-size: 12px; }
+    .batch-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+    .batch-actions button { flex: 1 1 30%; padding: 10px 6px; }
     .search-box { flex: 1; min-width: 0; }
     .search-box::-webkit-search-cancel-button { -webkit-appearance: none; } /* the Clear button replaces it, as phones show none */
     .filter-section { margin-top: 12px; }
@@ -209,8 +222,8 @@
     .tab-btn.active { color: var(--link); border-bottom-color: var(--link); background: var(--surface); }
     input, select { background: var(--surface); color: var(--text); }
     .snooze-chip { background: var(--snooze-bg); color: var(--snooze-fg); font-weight: 600; }
-    .snooze-choices { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-    .snooze-choices button { flex: 1 1 auto; }
+    .snooze-choices, .batch-choices { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .snooze-choices button, .batch-choices button { flex: 1 1 auto; }
     .task-comments { margin-top: 6px; font-size: 13px; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     .active-task-box { margin-bottom: 14px; border: 2px solid var(--primary); border-radius: 8px; padding: 6px 6px 2px; }
     .active-task-box > .summary-label { margin: 2px 6px 0; }
@@ -368,6 +381,10 @@
         <select id="sortBy" aria-label="Sort by"></select>
         <button type="button" class="btn-secondary" id="sortDirBtn"></button>
       </div>
+      <div class="select-row">
+        <button type="button" class="btn-secondary" id="selectModeBtn" aria-pressed="false">☑️ Select tasks</button>
+      </div>
+      <div class="batch-status" id="batchStatus" role="status"></div>
       <details class="filter-section" id="tagsDetails">
         <summary>Tags <small id="tagsActive"></small></summary>
         <div class="tag-filter-bar" id="tagFilterBar"></div>
@@ -398,6 +415,23 @@
         <div id="projectsStatus" class="settings-status"></div>
       </details>
       <div id="taskList" style="margin-top: 15px;">Loading tasks...</div>
+      <div class="batch-bar" id="batchBar" hidden>
+        <div class="batch-top">
+          <span id="batchCount"></span>
+          <span class="batch-links">
+            <button type="button" class="btn-secondary" id="batchAllBtn">All shown</button>
+            <button type="button" class="btn-secondary" id="batchNoneBtn">None</button>
+          </span>
+        </div>
+        <div class="batch-actions">
+          <button type="button" data-batch="COMPLETE">✅ Complete</button>
+          <button type="button" class="btn-danger" data-batch="DELETE">🗑️ Delete</button>
+          <button type="button" data-batch="SNOOZE">😴 Snooze</button>
+          <button type="button" data-batch="TOP">⬆️ To top</button>
+          <button type="button" data-batch="PROJECT">📁 Project</button>
+          <button type="button" data-batch="DUE">📅 Due date</button>
+        </div>
+      </div>
   </div>
 
   </main>
@@ -875,6 +909,54 @@
     </div>
   </div>
 
+  <div id="batchModal" class="modal-overlay" onclick="closeBatchOnOverlay(event)">
+    <div class="modal-card">
+      <h3 id="batchModalTitle"></h3>
+      <p id="batchModalSub" class="settings-current"></p>
+      <div id="batchSnoozePane" hidden>
+        <div class="batch-choices">
+          <button type="button" class="btn-secondary" data-batch-snooze="tomorrow">Until tomorrow</button>
+          <button type="button" class="btn-secondary" data-batch-snooze="monday">Until next Monday</button>
+        </div>
+        <div class="form-group">
+          <label for="batchSnoozeDate">Or pick a day</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="date" id="batchSnoozeDate" style="flex: 1;">
+            <button type="button" id="batchSnoozeSetBtn">Snooze</button>
+          </div>
+        </div>
+        <p class="settings-note">The tasks are not scheduled before that day. Their due dates do not change.</p>
+        <button type="button" class="btn-secondary" id="batchUnsnoozeBtn">Unsnooze them</button>
+      </div>
+      <div id="batchDuePane" hidden>
+        <div class="form-group">
+          <label for="batchDueDate">Due date</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="date" id="batchDueDate" style="flex: 1;">
+            <button type="button" id="batchDueSetBtn">Set</button>
+          </div>
+        </div>
+        <button type="button" class="btn-secondary" id="batchDueClearBtn">Clear their due dates</button>
+      </div>
+      <div id="batchProjectPane" hidden>
+        <div class="form-group">
+          <label for="batchProject">Project</label>
+          <select id="batchProject"></select>
+        </div>
+        <div class="form-group" id="batchNewProjectBox" hidden>
+          <label for="batchNewProject">New project name</label>
+          <input type="text" id="batchNewProject" maxlength="100" placeholder="e.g. Kitchen reno">
+        </div>
+        <p class="settings-note">A task already in the chosen project keeps its order number; the others join it with none.</p>
+        <button type="button" id="batchProjectSetBtn">Add to project</button>
+      </div>
+      <div class="modal-actions">
+        <span></span>
+        <button type="button" class="btn-secondary" onclick="closeBatchModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <div id="proposalModal" class="modal-overlay" onclick="closeProposalOnOverlay(event)">
     <div class="modal-card">
       <h3>Make this a project?</h3>
@@ -902,6 +984,7 @@
     const TEMPLATES_URL = endpoint("getCompletedTemplates");
     const GET_TASKS_URL = endpoint("getTasks");
     const DIRECT_UPDATE_URL = endpoint("updateTaskDirect");
+    const BATCH_UPDATE_URL = endpoint("batchUpdateTasks");
     const COMPLETE_TASK_URL = endpoint("completeTask");
     const UNDO_URL = endpoint("undoRemove");
     const SCHEDULE_URL = endpoint("generateWeeklySchedule");
@@ -1057,6 +1140,11 @@
     }
     let tasksLoaded = false; // set once the list has been drawn
     let selectedTagFilter = null; // null = show all
+    // Multi-Select mode on the Queue: queued cards are tapped to toggle membership of `selectedIds`; the Active task is never selectable.
+    let selectMode = false;
+    let selectedIds = new Set();
+    let shownIds = new Set(); // the queued tasks the search and filters currently show
+    let batchBusy = false; // true while a batch is being sent
     let selectedProjectFilter = null; // a project id, null = show all
     let taskNumbers = new Map(); // task id -> task number, refreshed on every redraw of the list (queueNumbers)
     let sortKey = "scheduled"; // the Queue's "Sort by" choice (see SORT_OPTIONS)
@@ -2214,6 +2302,51 @@
       const q = new URLSearchParams(search || "");
       return { text: sharedText({ title: q.get("title"), text: q.get("text"), url: q.get("url") }), shared: ["title", "text", "url"].some(k => q.has(k)) };
     }
+    // Multi-Select (the Queue's batch mode): the selection and the texts around a batch.
+    // The selection kept to tasks that are still in `tasks` (a Set of ids).
+    function pruneSelection(selected, tasks) {
+      const present = new Set((tasks || []).map(t => t.id));
+      return new Set([...(selected || [])].filter(id => present.has(id)));
+    }
+    // A copy of the selection with `id` added, or taken out when it was in.
+    function toggledSelection(selected, id) {
+      const next = new Set(selected || []);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    }
+    function taskCountText(count) {
+      return `${count} ${count === 1 ? "task" : "tasks"}`;
+    }
+    // The bar's count line; `hidden` is how many selected tasks the search and filters are hiding.
+    function batchCountText(selected, hidden) {
+      if (!selected) return "Tap tasks to select them";
+      return `${selected} selected` + (hidden > 0 ? ` (${hidden} hidden by the search or filters)` : "");
+    }
+    // The confirmation before a batch complete or delete. The server keeps one undo step, so a batch has no Undo.
+    function batchRemovePrompt(kind, tasks) {
+      const list = tasks || [];
+      const lines = [`${kind === "COMPLETE" ? "Complete" : "Delete"} ${taskCountText(list.length)}?`];
+      const repeating = kind === "COMPLETE" ? list.filter(t => t.recurrence).length : 0;
+      if (repeating > 0) lines.push(`${repeating === 1 ? "1 repeats" : `${repeating} repeat`}, so ${repeating === 1 ? "its next occurrence" : "their next occurrences"} will be added.`);
+      lines.push("Undo is not available for a batch.");
+      return lines.join("\n\n");
+    }
+    // The status line after a batch complete or delete: all done, or how many failed and why.
+    function batchRemoveResultText(kind, total, failed, message) {
+      const verb = kind === "COMPLETE" ? "Completed" : "Deleted";
+      if (failed === 0) return `${verb} ${taskCountText(total)}.`;
+      return `${verb} ${total - failed} of ${taskCountText(total)}. ${failed} failed (${message}); ${failed === 1 ? "it is" : "they are"} still selected.`;
+    }
+    // The body posted to batchUpdateTasks.
+    function batchBody(action, taskIds, extra) {
+      return { action, taskIds: [...taskIds], ...(extra || {}) };
+    }
+    // The status line after a batch snooze, with a note when the calendar could not be updated at once.
+    function batchSnoozeText(count, date, rescheduleError) {
+      const text = date ? `Snoozed ${taskCountText(count)} until ${date}.` : `Unsnoozed ${taskCountText(count)}.`;
+      return rescheduleError ? `${text} Their calendar events could not be moved yet (${rescheduleError}); the next run will do it.` : text;
+    }
     // </pure-helpers>
 
     // Share to TaskHub: text shared from another app arrives as /?title=&text=&url=. It is kept in sessionStorage (it survives a
@@ -2384,6 +2517,7 @@
         if (!item || (e.pointerType === "mouse" && e.button !== 0)) return;
         pressFired = false;
         swiped = false;
+        if (selectMode && !item.closest("#activeTaskBox")) { swipe = null; return; } // Multi-Select: a queued card only takes taps
         cancelPress();
         pressStart = { x: e.clientX, y: e.clientY };
         const taskId = item.dataset.id;
@@ -2445,6 +2579,7 @@
         if (!item) return;
         if (swiped) { swiped = false; return; }
         if (pressFired) { pressFired = false; return; }
+        if (selectMode && !item.closest("#activeTaskBox")) return toggleSelected(item.dataset.id);
         openEditModal(item.dataset.id);
       };
       for (const id of ["taskList", "activeTaskBox"]) {
@@ -2763,7 +2898,8 @@
     // time and in order. The server's list then replaces the page's (a repeating task's next occurrence arrives with
     // it); if the call fails the task goes back where it was and an alert says so.
     let removalChain = Promise.resolve();
-    function removeTask(taskId, kind, url, body) {
+    // `opts.noUndo` leaves the Undo footnote alone (a batch has none) and `opts.onError(err, taskId)` takes over from the alert.
+    function removeTask(taskId, kind, url, body, opts = {}) {
       const index = allTasks.findIndex(t => t.id === taskId);
       if (index < 0) return removalChain;
       const task = allTasks[index];
@@ -2771,8 +2907,10 @@
       allTasks = withoutTasks(allTasks, pendingRemovals);
       renderFilterBar();
       renderTasks();
-      undoNoteTaskId = taskId;
-      showUndoNote(kind, task.title);
+      if (!opts.noUndo) {
+        undoNoteTaskId = taskId;
+        showUndoNote(kind, task.title);
+      }
       const run = async () => {
         try {
           const res = await apiFetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -2788,7 +2926,8 @@
           if (undoNoteTaskId === taskId) hideUndoNote();
           renderFilterBar();
           renderTasks();
-          alert((kind === "COMPLETE" ? "Error completing task: " : "Error deleting task: ") + err.message);
+          if (opts.onError) opts.onError(err, taskId);
+          else alert((kind === "COMPLETE" ? "Error completing task: " : "Error deleting task: ") + err.message);
         }
       };
       removalChain = removalChain.then(run);
@@ -2896,7 +3035,11 @@
 
     // One task as a list row. The active task, shown above the search box, also carries its tracked time.
     function taskItemHtml(t, isActive = false) {
-      return `        <div class="${["task-item", isActive ? "" : dueClass(t)].filter(Boolean).join(" ")}" data-id="${esc(t.id)}">
+      const picking = selectMode && !isActive; // Multi-Select: a queued card shows a tick box and takes taps to toggle
+      const picked = picking && selectedIds.has(t.id);
+      const classes = ["task-item", isActive ? "" : dueClass(t), picking ? "selecting" : "", picked ? "selected" : ""].filter(Boolean).join(" ");
+      return `        <div class="${classes}" data-id="${esc(t.id)}"${picking ? ` role="checkbox" aria-checked="${picked}"` : ""}>
+          ${picking ? `<span class="select-mark" aria-hidden="true">${picked ? "☑" : "☐"}</span>` : ""}
           <div style="flex:1; min-width:0;">
             <strong>${esc(t.title)}</strong>
             <div class="task-meta">
@@ -2923,6 +3066,7 @@
     // A task's row: the card inside a wrapper that shows the action under it while it is dragged sideways (Snooze and
     // Delete for a queued task, Complete and Abort for the Active task)
     function swipeRowHtml(t, isActive = false) {
+      if (selectMode && !isActive) return `<div class="swipe-row">${taskItemHtml(t)}</div>`; // no swiping while selecting
       const right = isActive ? `<div class="swipe-bg swipe-complete" aria-hidden="true">✅ Complete</div>` : `<div class="swipe-bg swipe-snooze" aria-hidden="true">😴 Snooze</div>`;
       const left = isActive ? `<div class="swipe-bg swipe-abort" aria-hidden="true">↩️ Abort</div>` : `<div class="swipe-bg swipe-del" aria-hidden="true">🗑️ Delete</div>`;
       return `<div class="swipe-row">${right}${left}${taskItemHtml(t, isActive)}</div>`;
@@ -3002,7 +3146,10 @@
       }
 
       const rest = allTasks.filter(t => t !== active);
+      selectedIds = pruneSelection(selectedIds, rest);
       let filtered = filterTasks(rest, selectedTagFilter, selectedProjectFilter, document.getElementById("taskSearch").value);
+      shownIds = new Set(filtered.map(t => t.id));
+      updateBatchBar();
 
       if (filtered.length === 0) {
         listContainer.innerHTML = rest.length === 0 ?
@@ -3373,6 +3520,156 @@
 
     async function deleteTask(taskId) {
       await removeTask(taskId, "DELETE", DIRECT_UPDATE_URL, { taskId, action: "DELETE" });
+    }
+
+    // Multi-Select. The selected tasks, in queue order (the Active task is never in the selection).
+    function selectedTasks() {
+      return sortTasks(allTasks.filter(t => selectedIds.has(t.id)), "number", false);
+    }
+    function setBatchStatus(text) {
+      document.getElementById("batchStatus").textContent = text || "";
+    }
+    function setSelectMode(on) {
+      selectMode = on;
+      selectedIds = new Set();
+      batchBusy = false;
+      const btn = document.getElementById("selectModeBtn");
+      btn.textContent = on ? "✕ Cancel selection" : "☑️ Select tasks";
+      btn.setAttribute("aria-pressed", String(on));
+      document.getElementById("batchBar").hidden = !on;
+      if (on) setBatchStatus("");
+      renderTasks();
+    }
+    function updateBatchBar() {
+      if (!selectMode) return;
+      const hidden = [...selectedIds].filter(id => !shownIds.has(id)).length;
+      document.getElementById("batchCount").textContent = batchCountText(selectedIds.size, hidden);
+      for (const btn of document.querySelectorAll("#batchBar [data-batch]")) btn.disabled = batchBusy || selectedIds.size === 0;
+      document.getElementById("batchAllBtn").disabled = batchBusy;
+      document.getElementById("batchNoneBtn").disabled = batchBusy;
+    }
+    function toggleSelected(id) {
+      if (!selectMode || batchBusy || !shownIds.has(id)) return;
+      selectedIds = toggledSelection(selectedIds, id);
+      const picked = selectedIds.has(id);
+      const item = [...document.querySelectorAll("#taskList .task-item")].find(el => el.dataset.id === id);
+      if (item) {
+        item.classList.toggle("selected", picked);
+        item.setAttribute("aria-checked", String(picked));
+        const mark = item.querySelector(".select-mark");
+        if (mark) mark.textContent = picked ? "☑" : "☐";
+      }
+      updateBatchBar();
+    }
+    function onBatchAction(kind) {
+      if (!selectMode || batchBusy || selectedIds.size === 0) return;
+      if (kind === "COMPLETE" || kind === "DELETE") return batchRemove(kind);
+      if (kind === "TOP") return batchSend(batchBody("MOVE_TO_TOP", selectedIds), count => `Moved ${taskCountText(count)} to the top.`);
+      openBatchModal(kind);
+    }
+
+    // Complete or delete every selected task through the single-task calls, in queue order. They leave the list at once, the
+    // calls follow one at a time, and a task whose call fails goes back and stays selected.
+    async function batchRemove(kind) {
+      const tasks = selectedTasks();
+      if (tasks.length === 0) return;
+      if (!confirm(batchRemovePrompt(kind, tasks))) return;
+      batchBusy = true;
+      setBatchStatus("");
+      hideUndoNote(); // the server keeps one undo step, which a batch would leave pointing at its last task only
+      const failedIds = [];
+      let message = "";
+      const url = kind === "COMPLETE" ? COMPLETE_TASK_URL : DIRECT_UPDATE_URL;
+      const waiting = tasks.map(t => removeTask(t.id, kind, url, kind === "COMPLETE" ? { taskId: t.id } : { taskId: t.id, action: "DELETE" }, {
+        noUndo: true,
+        onError: (err, id) => { failedIds.push(id); message = err.message; }
+      }));
+      updateBatchBar();
+      await Promise.all(waiting);
+      batchBusy = false;
+      if (failedIds.length === 0) {
+        setSelectMode(false);
+      } else {
+        selectedIds = new Set(failedIds);
+        renderTasks();
+      }
+      setBatchStatus(batchRemoveResultText(kind, tasks.length, failedIds.length, message));
+    }
+
+    // One call to batchUpdateTasks for the selected tasks; `doneText(count, data)` words the result. A failure alerts and keeps the selection.
+    async function batchSend(body, doneText) {
+      closeBatchModal();
+      batchBusy = true;
+      updateBatchBar();
+      setBatchStatus("Working…");
+      try {
+        const res = await apiFetch(BATCH_UPDATE_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const data = await res.json();
+        if (data.projects) allProjects = data.projects; // a project made with the batch
+        setTasks(data.tasks || allTasks);
+        batchBusy = false;
+        setSelectMode(false);
+        renderFilterBar();
+        renderTasks();
+        setBatchStatus(doneText(data.count, data));
+      } catch (err) {
+        batchBusy = false;
+        setBatchStatus("");
+        updateBatchBar();
+        alert("Could not change the selected tasks: " + err.message);
+      }
+    }
+
+    // The dialog for the batch actions that need a choice: Snooze, Due date and Project
+    let batchModalKind = null;
+    function openBatchModal(kind) {
+      const today = todayKey();
+      batchModalKind = kind;
+      document.getElementById("batchModalTitle").textContent = kind === "SNOOZE" ? "Snooze" : kind === "DUE" ? "Set due date" : "Add to project";
+      document.getElementById("batchModalSub").textContent = `${taskCountText(selectedIds.size)} selected`;
+      document.getElementById("batchSnoozePane").hidden = kind !== "SNOOZE";
+      document.getElementById("batchDuePane").hidden = kind !== "DUE";
+      document.getElementById("batchProjectPane").hidden = kind !== "PROJECT";
+      if (kind === "SNOOZE") {
+        const input = document.getElementById("batchSnoozeDate");
+        input.min = addDaysTo(today, 1);
+        input.value = "";
+      } else if (kind === "DUE") {
+        document.getElementById("batchDueDate").value = "";
+      } else {
+        const select = document.getElementById("batchProject");
+        select.replaceChildren(new Option("Choose a project…", ""), ...allProjects.map(p => new Option(p.name, p.id)), new Option("＋ New project…", NEW_PROJECT));
+        select.value = "";
+        document.getElementById("batchNewProject").value = "";
+        document.getElementById("batchNewProjectBox").hidden = true;
+      }
+      document.getElementById("batchModal").style.display = "flex";
+      document.body.classList.add("modal-open");
+    }
+    function closeBatchModal() {
+      document.getElementById("batchModal").style.display = "none";
+      document.body.classList.remove("modal-open");
+      batchModalKind = null;
+    }
+    function closeBatchOnOverlay(e) {
+      if (e.target.id === "batchModal") closeBatchModal();
+    }
+    function batchSnooze(date) {
+      batchSend(batchBody("SNOOZE", selectedIds, { snoozedUntil: date }), (count, data) => batchSnoozeText(count, date, data.rescheduleError));
+    }
+    function batchSetDue(date) {
+      batchSend(batchBody("SET_DUE", selectedIds, { dueDate: date }), count => date ? `Set the due date of ${taskCountText(count)} to ${date}.` : `Cleared the due date of ${taskCountText(count)}.`);
+    }
+    function batchSetProject() {
+      const choice = document.getElementById("batchProject").value;
+      if (!choice) return alert("Choose a project, or ＋ New project….");
+      if (choice === NEW_PROJECT) {
+        const name = document.getElementById("batchNewProject").value.trim();
+        if (!name) { document.getElementById("batchNewProject").focus(); return alert("Enter a name for the new project."); }
+        return batchSend(batchBody("SET_PROJECT", selectedIds, { newProject: name }), count => `Added ${taskCountText(count)} to “${name}”.`);
+      }
+      const project = allProjects.find(p => p.id === choice);
+      batchSend(batchBody("SET_PROJECT", selectedIds, { projectId: choice }), count => `Added ${taskCountText(count)} to “${project ? project.name : "the project"}”.`);
     }
 
     // Completion totals from getCompletedTasks: the streak, per week, by priority, by tag and by project
@@ -4632,6 +4929,35 @@
       snoozeTask(document.getElementById("snoozeTaskId").value, date);
     });
     document.getElementById("unsnoozeBtn").addEventListener("click", () => snoozeTask(document.getElementById("snoozeTaskId").value, null));
+
+    document.getElementById("selectModeBtn").addEventListener("click", () => setSelectMode(!selectMode));
+    document.getElementById("batchAllBtn").addEventListener("click", () => { selectedIds = new Set([...selectedIds, ...shownIds]); renderTasks(); });
+    document.getElementById("batchNoneBtn").addEventListener("click", () => { selectedIds = new Set(); renderTasks(); });
+    document.getElementById("batchBar").addEventListener("click", e => {
+      const btn = e.target.closest("[data-batch]");
+      if (btn) onBatchAction(btn.dataset.batch);
+    });
+    document.querySelector(".batch-choices").addEventListener("click", e => {
+      const btn = e.target.closest("[data-batch-snooze]");
+      const date = btn ? snoozeDateFor(btn.dataset.batchSnooze, todayKey()) : null;
+      if (date) batchSnooze(date);
+    });
+    document.getElementById("batchSnoozeSetBtn").addEventListener("click", () => {
+      const date = snoozeDateFromInput(document.getElementById("batchSnoozeDate").value, todayKey());
+      if (!date) return alert("Pick a day after today.");
+      batchSnooze(date);
+    });
+    document.getElementById("batchUnsnoozeBtn").addEventListener("click", () => batchSnooze(null));
+    document.getElementById("batchDueSetBtn").addEventListener("click", () => {
+      const date = document.getElementById("batchDueDate").value;
+      if (!DATE_ONLY.test(date)) return alert("Pick a due date.");
+      batchSetDue(date);
+    });
+    document.getElementById("batchDueClearBtn").addEventListener("click", () => batchSetDue(null));
+    document.getElementById("batchProject").addEventListener("change", e => {
+      document.getElementById("batchNewProjectBox").hidden = e.target.value !== NEW_PROJECT;
+    });
+    document.getElementById("batchProjectSetBtn").addEventListener("click", batchSetProject);
 
     function setLoading(isLoading) {
       document.getElementById("addBtn").disabled = isLoading;

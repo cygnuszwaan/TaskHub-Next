@@ -15,7 +15,8 @@ const {planSchedule} = require("./planner");
 const {lunchWindows, padWindows} = require("./breaks");
 const {setTimerInList, pauseTimer} = require("./timer");
 const {withoutProjectFields, needsTagFill, cleanTags, newTaskIds, applyDirectUpdate, moveToQueueNumber, completeInList, removalRecord, isUndoable, undoInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
-const {withNewProject, normalizeProjectName} = require("./projects");
+const {withNewProject, addProject, normalizeProjectName} = require("./projects");
+const {applyBatch, needsReschedule} = require("./batch");
 const {findDuplicateTasks} = require("./duplicates");
 const {PROJECTS_COLLECTION, makeTaskStore, makeProjectStore, makeClientStore, makeTemplateStore, makeSettingsStore} = require("./store");
 const {startFromTemplate} = require("./projectTemplates");
@@ -959,6 +960,67 @@ exports.updateTaskDirect = onRequest({
     await removeTaskCalendarEvent(result.removedTask);
 
     res.status(200).send({success: true, tasks: result.current});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 7-batch. Endpoint: change several queued tasks at once (the Queue's Multi-Select mode; see batch.js)
+// Body {action, taskIds, ...}, `action` being one of:
+//   MOVE_TO_TOP  the tasks go to the top of the queue, keeping their order among themselves
+//   SET_PROJECT  `projectId`, or `newProject` (a name): the project is created in the same commit as the change
+//   SET_DUE      `dueDate` (YYYY-MM-DD; null or "" clears it)
+//   SNOOZE       `snoozedUntil` (YYYY-MM-DD; null or "" unsnoozes), followed by one engine run for the tasks that have a calendar
+//                event, so their events move at once; a failure there leaves the snooze saved and comes back as `rescheduleError`
+// Everything commits in one transaction, so a batch is all or nothing. Completing and deleting are not here: the page does those
+// one task at a time (`completeTask`, `updateTaskDirect`). 400 with the reason for an unusable request or project name, 404 when no
+// task matches. Responds {success, tasks, count, rescheduled, rescheduleError?} plus `project` and `projects` when one was created.
+exports.batchUpdateTasks = onRequest({
+  secrets: [{name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"}],
+  cors: ALLOWED_ORIGINS,
+  timeoutSeconds: 120,
+  memory: "512MiB",
+}, ownerOnly(async (req, res) => {
+  try {
+    const body = req.body || {};
+    const result = await updateTaskList((tasks, tx, {projects}) => {
+      let known = projects;
+      let created = null;
+      if (body.action === "SET_PROJECT" && body.newProject !== undefined) {
+        created = addProject(known, body.newProject, randomUUID);
+        if (created.error) return {error: created.error, current: tasks};
+        known = created.projects;
+      }
+      const request = created ? {...body, projectId: created.project.id} : body;
+      const done = applyBatch(tasks, request, known.map((p) => p.id));
+      if (done.error) return {error: done.error, notFound: done.notFound === true, current: tasks};
+      if (created) tx.set(db.collection(PROJECTS_COLLECTION).doc(created.project.id), created.project);
+      const hit = new Set(done.ids);
+      const rescheduleIds = body.action === "SNOOZE" ? done.tasks.filter((t) => hit.has(t.id) && needsReschedule(t)).map((t) => t.id) : [];
+      return {tasks: done.tasks, current: done.tasks, count: done.count, rescheduleIds, project: created ? created.project : null, projects: created ? created.projects : null};
+    }, {withProjects: true});
+    if (result.error) return res.status(result.notFound ? 404 : 400).send({error: result.error});
+
+    let current = result.current;
+    let rescheduleError = null;
+    if (result.rescheduleIds.length > 0) {
+      try {
+        await runScheduleEngine({taskIds: result.rescheduleIds});
+        current = await readTaskList();
+      } catch (err) {
+        console.error("Reschedule after a batch snooze failed", err);
+        rescheduleError = err.message;
+      }
+    }
+    res.status(200).send({
+      success: true,
+      tasks: current,
+      count: result.count,
+      rescheduled: result.rescheduleIds.length,
+      ...(rescheduleError ? {rescheduleError} : {}),
+      ...(result.project ? {project: result.project, projects: result.projects} : {}),
+    });
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});
