@@ -286,6 +286,27 @@ describe("settings.js", () => {
   });
 });
 
+describe("settings.js: scheduleOrder", () => {
+  it("defaults to urgency", () => {
+    assert.equal(DEFAULTS.scheduleOrder, "URGENCY");
+    assert.equal(mergeSettings(undefined).scheduleOrder, "URGENCY");
+  });
+  it("keeps a stored NUMBER and falls back to urgency for anything else", () => {
+    assert.equal(mergeSettings({scheduleOrder: "NUMBER"}).scheduleOrder, "NUMBER");
+    assert.equal(mergeSettings({scheduleOrder: "number"}).scheduleOrder, "URGENCY");
+    assert.equal(mergeSettings({scheduleOrder: 3}).scheduleOrder, "URGENCY");
+  });
+  it("updates alone, leaving other fields and the run state untouched, and rejects an unknown value", () => {
+    const current = {...mergeSettings({gapMinutes: 10}), lastAutoRunAt: "2026-10-22T08:00:00.000Z", lastRunFingerprint: "abc"};
+    const r = applySettingsUpdate(current, {scheduleOrder: "NUMBER"});
+    assert.equal(r.settings.scheduleOrder, "NUMBER");
+    assert.equal(r.settings.gapMinutes, 10);
+    assert.equal(r.settings.lastRunFingerprint, "abc");
+    assert.match(applySettingsUpdate(current, {scheduleOrder: "RANDOM"}).error, /scheduleOrder must be one of URGENCY, NUMBER/);
+    assert.equal(applySettingsUpdate(current, {scheduleOrder: "RANDOM"}).settings, undefined);
+  });
+});
+
 describe("settings.js: gap between tasks and lunch break", () => {
   const {MIN_GAP_MINUTES, MAX_GAP_MINUTES, MIN_LUNCH_MINUTES, MAX_LUNCH_MINUTES} = require("../settings");
   it("defaults to no gap and no lunch break (12:00 for 30 minutes once switched on)", () => {

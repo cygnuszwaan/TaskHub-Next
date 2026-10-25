@@ -154,6 +154,8 @@ describe("fingerprint.js: daily window", () => {
 
 describe("fingerprint.js: gap setting", () => {
   it("changes with the gap between tasks and treats a missing gap as 0", () => {
+    assert.notEqual(fp({settings: {...settings, scheduleOrder: "NUMBER"}}), fp());
+    assert.equal(fp({settings: {...settings, scheduleOrder: "URGENCY"}}), fp());
     assert.notEqual(fp({settings: {...settings, gapMinutes: 15}}), fp());
     assert.equal(fp({settings: {...settings, gapMinutes: 0}}), fp());
     const withoutGap = {...settings};

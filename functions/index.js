@@ -199,8 +199,8 @@ async function getWeather(location, timeZone) {
 // Place the tasks with the deterministic planner and check the result against the slot rules (repairSchedule).
 // Returns {slots, items, dropped}. An empty result is a real one (nothing fits), so it is not an error; slots that fail
 // validation would be a planner bug, so those stop the run with the calendar untouched.
-function planValidSchedule(toSchedule, validation) {
-  const plan = planSchedule({tasks: toSchedule, ...validation});
+function planValidSchedule(toSchedule, validation, scheduleOrder = "URGENCY") {
+  const plan = planSchedule({tasks: toSchedule, ...validation, scheduleOrder});
   const repaired = repairSchedule({items: plan.items, tasks: toSchedule, ...validation});
   if (repaired.dropped.length > 0 || repaired.errors.length > 0) {
     console.error("Planner output failed validation:", JSON.stringify({dropped: repaired.dropped, errors: repaired.errors}));
@@ -303,7 +303,7 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
     // Outdoor and Garden tasks stay inside the forecast window and off rainy days (enforced by the slot validation)
     const weatherRules = weatherWindow({today: localDate(timeZone, now), forecast: weather.forecast, current: weather.key});
     const validation = {busy: busySlots, now, horizon, timeZone, weather: weatherRules, allTasks: currentTasks, fixed, gapMinutes: gap, dayStartMin, dayEndMin};
-    const result = planValidSchedule(toSchedule, validation);
+    const result = planValidSchedule(toSchedule, validation, settings.scheduleOrder);
     scheduledList = result.items;
     slots = result.slots;
     unscheduled = result.dropped;
@@ -1054,7 +1054,7 @@ exports.getSettings = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, r
 }));
 
 // 9. Endpoint: Update Settings
-// Body: {settings: {location?, timeZone?, scheduleDays?, gapMinutes?, day?, lunch?, schedule?, jobSheet?}}, any subset of the editable fields. 400 with the reason
+// Body: {settings: {location?, timeZone?, scheduleDays?, gapMinutes?, scheduleOrder?, day?, lunch?, schedule?, jobSheet?}}, any subset of the editable fields. 400 with the reason
 // when a field is invalid (nothing is saved); run state cannot be set.
 exports.updateSettings = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {

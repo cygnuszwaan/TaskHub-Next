@@ -47,10 +47,19 @@ function sortByUrgency(tasks, today) {
       .map(({task}) => task);
 }
 
-// The urgency order, adjusted so that a task never comes before a lower-numbered member of its own project that is
-// also in the run: project order wins over due dates and priority.
-function orderTasks(tasks, today) {
-  const remaining = sortByUrgency(tasks, today);
+// Queue order: by task number (`order`), ties in list order. Pure: the input is not modified.
+function sortByNumber(tasks) {
+  return tasks
+      .map((task, index) => ({task, index}))
+      .sort((a, b) => ((a.task.order || 0) - (b.task.order || 0)) || (a.index - b.index))
+      .map(({task}) => task);
+}
+
+// The order tasks are placed in (urgency by default, or queue order with `byNumber`), adjusted so that a task never
+// comes before a lower-numbered member of its own project that is also in the run: project order wins over due dates,
+// priority and task number.
+function orderTasks(tasks, today, byNumber = false) {
+  const remaining = byNumber ? sortByNumber(tasks) : sortByUrgency(tasks, today);
   const done = new Set();
   const out = [];
   const blocked = (t) => tierOf(t) !== null && remaining.some((o) => o !== t && !done.has(o.id) && o.projectId === t.projectId && tierOf(o) !== null && tierOf(o) < tierOf(t));
@@ -78,7 +87,8 @@ function firstFit(win, durMs, busy, minStartMs, maxEndMs) {
   return cursor + durMs <= limit ? cursor : null;
 }
 
-function reasonFor(task, today) {
+function reasonFor(task, today, byNumber = false) {
+  if (byNumber) return "Earliest open gap, in task number order.";
   const days = daysUntilDue(task, today);
   if (days === null) return "Earliest open gap, by priority.";
   if (days < 0) return `Overdue (due ${task.dueDate}); earliest open gap.`;
@@ -98,13 +108,14 @@ function reasonFor(task, today) {
 //   gapMinutes: free minutes kept between the tasks the run places (default 0): each placed task also blocks that long
 //             before and after itself for the tasks that follow. Busy windows are not padded here: the engine widens
 //             them by the gap before they arrive.
-// Tasks are taken most urgent first (see sortByUrgency) and each goes in the earliest gap that fits, so a short task can
+// Tasks are taken most urgent first (see sortByUrgency), or in task number order when `scheduleOrder` is "NUMBER" (see sortByNumber), and each goes in the earliest gap that fits, so a short task can
 // fill a gap a longer, more urgent one did not fit. Within a project, a task starts only after every lower-numbered
 // member has ended (and ends before any fixed higher-numbered member starts); a task whose lower-numbered member has no
 // slot is left out. A task with a snooze date (`snoozedUntil`) goes on that local date or later. A task longer than the working day becomes an all-day reminder on the earliest day allowed.
 // Returns {items, unplaced}: `items` in the shape of Gemini's scheduledTasks, `unplaced` [{taskId, reason}] for every
 // task that got no slot.
-function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = [], gapMinutes = 0, dayStartMin = DAY_START_MIN, dayEndMin = DAY_END_MIN}) {
+function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = [], gapMinutes = 0, dayStartMin = DAY_START_MIN, dayEndMin = DAY_END_MIN, scheduleOrder = "URGENCY"}) {
+  const byNumber = scheduleOrder === "NUMBER";
   const dayMinutes = dayEndMin - dayStartMin;
   const gapMs = Number.isFinite(gapMinutes) && gapMinutes > 0 ? Math.round(gapMinutes) * 60000 : 0;
   const today = localDate(timeZone, now);
@@ -142,7 +153,7 @@ function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = 
   const items = [];
   const unplaced = [];
 
-  for (const task of orderTasks(tasks, today)) {
+  for (const task of orderTasks(tasks, today, byNumber)) {
     // Project order: start after every lower-numbered member, end before any fixed higher-numbered one
     let minStartMs = -Infinity;
     let maxEndMs = Infinity;
@@ -169,7 +180,7 @@ function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = 
     const snoozeNote = notBefore ? ` (snoozed until ${notBefore})` : "";
     const allowed = days.filter((d) => !(notBefore && d.date < notBefore) && !(sensitive && weather && (d.date > weather.lastDate || (weather.rainyDates || []).includes(d.date))));
     const minutes = durationMinutes(task);
-    const base = {taskId: task.id, title: task.title, reasoning: reasonFor(task, today)};
+    const base = {taskId: task.id, title: task.title, reasoning: reasonFor(task, today, byNumber)};
 
     if (minutes > dayMinutes) {
       const day = allowed.find((d) => localDayStart(timeZone, d.date).getTime() >= minStartMs && localDayStart(timeZone, addDays(d.date, 1)).getTime() <= maxEndMs);
@@ -210,4 +221,4 @@ function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = 
   return {items, unplaced};
 }
 
-module.exports = {SNAP_MINUTES, QUICK_MINUTES, DEFAULT_MINUTES, planSchedule, sortByUrgency};
+module.exports = {SNAP_MINUTES, QUICK_MINUTES, DEFAULT_MINUTES, planSchedule, sortByUrgency, sortByNumber};

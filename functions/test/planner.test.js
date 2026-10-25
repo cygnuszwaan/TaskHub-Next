@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {planSchedule, sortByUrgency, SNAP_MINUTES, QUICK_MINUTES, DEFAULT_MINUTES} = require("../planner");
+const {planSchedule, sortByUrgency, sortByNumber, SNAP_MINUTES, QUICK_MINUTES, DEFAULT_MINUTES} = require("../planner");
 const {validateSchedule, repairSchedule} = require("../schedule");
 const {weatherWindow} = require("../weather");
 
@@ -289,6 +289,45 @@ describe("planner.js", () => {
       assert.deepEqual(plan([outdoor("a")], {weather}).items, []);
       const dry = weatherWindow({today: "2026-10-22", forecast: [{date: "2026-10-22", rainy: true}, {date: "2026-10-23", rainy: false}], current: "DRY"});
       assert.equal(times(plan([outdoor("a")], {weather: dry}), "a")[0], "2026-10-23T08:00:00+13:00");
+    });
+  });
+
+  describe("task number order", () => {
+    const tasks = () => [
+      task("n3", {order: 3, priority: "HIGH", dueDate: "2026-10-22"}),
+      task("n1", {order: 1, priority: "LOW"}),
+      task("n2", {order: 2, priority: "MEDIUM", dueDate: "2026-10-18"}),
+    ];
+    const byStart = (result) => [...result.items].sort((a, b) => (a.startISO < b.startISO ? -1 : 1)).map((i) => i.taskId);
+    it("sorts by task number, ties in list order, without modifying the list", () => {
+      const list = [task("b", {order: 2}), task("c", {order: 1}), task("a", {order: 1}), task("z", {order: undefined})];
+      assert.deepEqual(sortByNumber(list).map((t) => t.id), ["z", "c", "a", "b"]);
+      assert.deepEqual(list.map((t) => t.id), ["b", "c", "a", "z"]);
+    });
+    it("places tasks in queue order, whatever their due date or priority", () => {
+      assert.deepEqual(byStart(plan(tasks(), {scheduleOrder: "NUMBER"})), ["n1", "n2", "n3"]);
+    });
+    it("keeps the urgency order by default and when asked for it", () => {
+      assert.deepEqual(byStart(plan(tasks())), ["n2", "n3", "n1"]);
+      assert.deepEqual(byStart(plan(tasks(), {scheduleOrder: "URGENCY"})), ["n2", "n3", "n1"]);
+      assert.deepEqual(byStart(plan(tasks(), {scheduleOrder: "bogus"})), ["n2", "n3", "n1"]);
+    });
+    it("lets a later task fill a gap an earlier one did not fit", () => {
+      const result = plan([task("big", {order: 1, estimatedMinutes: 120}), task("small", {order: 2, estimatedMinutes: 30})], {scheduleOrder: "NUMBER", busy: [win("2026-10-22T08:30:00+13:00", "2026-10-22T09:00:00+13:00")]});
+      assert.deepEqual(times(result, "small"), ["2026-10-22T08:00:00+13:00", "2026-10-22T08:30:00+13:00"]);
+    });
+    it("still puts a project's steps in project order ahead of task number", () => {
+      const list = [
+        task("second", {order: 1, projectId: "p1", projectOrder: 2}),
+        task("first", {order: 3, projectId: "p1", projectOrder: 1}),
+        task("other", {order: 2}),
+      ];
+      const result = plan(list, {scheduleOrder: "NUMBER"});
+      assert.ok(slotOf(result, "first").startISO < slotOf(result, "second").startISO);
+      assert.deepEqual(byStart(result), ["other", "first", "second"]); // "second" waits for "first", so "other" goes first
+    });
+    it("words the reasoning by task number", () => {
+      assert.match(slotOf(plan(tasks(), {scheduleOrder: "NUMBER"}), "n1").reasoning, /task number/);
     });
   });
 

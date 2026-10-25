@@ -32,6 +32,7 @@ const DEFAULTS = Object.freeze({
   timeZone: "Pacific/Auckland",
   scheduleDays: 7,
   gapMinutes: 0,
+  scheduleOrder: "URGENCY",
   day: Object.freeze({start: "09:00", end: "17:00"}),
   lunch: Object.freeze({enabled: false, time: "12:00", minutes: 30}),
   schedule: Object.freeze({enabled: true, frequency: "DAILY", time: "20:00", intervalMinutes: 60}),
@@ -84,6 +85,13 @@ function checkGapMinutes(v) {
   if (!Number.isInteger(v) || v < MIN_GAP_MINUTES || v > MAX_GAP_MINUTES) {
     throw new Error(`gapMinutes must be a whole number from ${MIN_GAP_MINUTES} to ${MAX_GAP_MINUTES}`);
   }
+  return v;
+}
+
+const SCHEDULE_ORDERS = ["URGENCY", "NUMBER"];
+
+function checkScheduleOrder(v) {
+  if (!SCHEDULE_ORDERS.includes(v)) throw new Error(`scheduleOrder must be one of ${SCHEDULE_ORDERS.join(", ")}`);
   return v;
 }
 
@@ -161,6 +169,7 @@ const EDITABLE = [
   ["timeZone", null, checkTimeZone],
   ["scheduleDays", null, checkScheduleDays],
   ["gapMinutes", null, checkGapMinutes],
+  ["scheduleOrder", null, checkScheduleOrder],
   ["day", "start", checkDayStart],
   ["day", "end", checkDayEnd],
   ["lunch", "enabled", checkLunchEnabled],
@@ -190,7 +199,7 @@ function isoOrNull(v) {
 // Full settings from whatever is stored (possibly nothing). A missing or unusable stored field falls back to
 // its default, so a hand-edited document can never break the app. Pure: returns a new object.
 function mergeSettings(stored) {
-  const out = {location: {...DEFAULTS.location}, timeZone: DEFAULTS.timeZone, scheduleDays: DEFAULTS.scheduleDays, gapMinutes: DEFAULTS.gapMinutes, day: {...DEFAULTS.day}, lunch: {...DEFAULTS.lunch}, schedule: {...DEFAULTS.schedule}, jobSheet: {...DEFAULTS.jobSheet}};
+  const out = {location: {...DEFAULTS.location}, timeZone: DEFAULTS.timeZone, scheduleDays: DEFAULTS.scheduleDays, gapMinutes: DEFAULTS.gapMinutes, scheduleOrder: DEFAULTS.scheduleOrder, day: {...DEFAULTS.day}, lunch: {...DEFAULTS.lunch}, schedule: {...DEFAULTS.schedule}, jobSheet: {...DEFAULTS.jobSheet}};
   for (const [group, key, check] of EDITABLE) {
     const value = readField(stored, group, key);
     if (value === undefined) continue;

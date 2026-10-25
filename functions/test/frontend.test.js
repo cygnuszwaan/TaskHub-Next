@@ -699,7 +699,7 @@ describe("public/index.html helpers", () => {
   });
 
   describe("settingsPayload", () => {
-    const form = {location: {name: "Oslo", latitude: 59.9, longitude: 10.7, extra: "dropped"}, timeZone: "Europe/Oslo", scheduleDays: "14", gapMinutes: "10", dayStart: "08:30", dayEnd: "16:00", lunchEnabled: 1, lunchTime: "12:30", lunchMinutes: "45", enabled: 1, frequency: "INTERVAL", time: "06:30", intervalMinutes: "30"};
+    const form = {location: {name: "Oslo", latitude: 59.9, longitude: 10.7, extra: "dropped"}, timeZone: "Europe/Oslo", scheduleDays: "14", gapMinutes: "10", scheduleOrder: "NUMBER", dayStart: "08:30", dayEnd: "16:00", lunchEnabled: 1, lunchTime: "12:30", lunchMinutes: "45", enabled: 1, frequency: "INTERVAL", time: "06:30", intervalMinutes: "30"};
     it("builds the updateSettings body from the form", () => {
       const h = load();
       assert.deepEqual(h.settingsPayload(form), {
@@ -707,10 +707,16 @@ describe("public/index.html helpers", () => {
         timeZone: "Europe/Oslo",
         scheduleDays: 14,
         gapMinutes: 10,
+        scheduleOrder: "NUMBER",
         day: {start: "08:30", end: "16:00"},
         lunch: {enabled: true, time: "12:30", minutes: 45},
         schedule: {enabled: true, frequency: "INTERVAL", time: "06:30", intervalMinutes: 30},
       });
+    });
+    it("sends URGENCY for anything but NUMBER", () => {
+      const h = load();
+      assert.equal(h.settingsPayload({...form, scheduleOrder: undefined}).scheduleOrder, "URGENCY");
+      assert.equal(h.settingsPayload({...form, scheduleOrder: "bogus"}).scheduleOrder, "URGENCY");
     });
     it("is accepted by the server-side validation", () => {
       const h = load();
@@ -721,6 +727,7 @@ describe("public/index.html helpers", () => {
       assert.equal(r.settings.schedule.intervalMinutes, 30);
       assert.equal(r.settings.scheduleDays, 14);
       assert.equal(r.settings.gapMinutes, 10);
+      assert.equal(r.settings.scheduleOrder, "NUMBER");
       assert.deepEqual(r.settings.day, {start: "08:30", end: "16:00"});
       assert.deepEqual(r.settings.lunch, {enabled: true, time: "12:30", minutes: 45});
       assert.equal(r.settings.location.name, "Oslo");

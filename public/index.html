@@ -391,6 +391,13 @@
             <input type="number" id="gapMinutes" min="0" max="60" step="5" inputmode="numeric">
           </div>
         </div>
+        <div class="form-group">
+          <label for="scheduleOrder">Schedule tasks by</label>
+          <select id="scheduleOrder">
+            <option value="URGENCY">Urgency (overdue, due date, priority)</option>
+            <option value="NUMBER">Task number (queue order)</option>
+          </select>
+        </div>
         <div class="form-group" style="display: flex; gap: 10px;">
           <div style="flex: 1;">
             <label for="dayStart">Day starts</label>
@@ -1027,6 +1034,7 @@
         timeZone: form.timeZone,
         scheduleDays: Number(form.scheduleDays),
         gapMinutes: Number(form.gapMinutes),
+        scheduleOrder: form.scheduleOrder === "NUMBER" ? "NUMBER" : "URGENCY",
         day: { start: form.dayStart, end: form.dayEnd },
         lunch: { enabled: !!form.lunchEnabled, time: form.lunchTime, minutes: Number(form.lunchMinutes) },
         schedule: {
@@ -3380,6 +3388,7 @@
       const day = s.day || {};
       return document.getElementById("scheduleDays").value !== String(s.scheduleDays)
         || document.getElementById("gapMinutes").value !== String(s.gapMinutes)
+        || document.getElementById("scheduleOrder").value !== (s.scheduleOrder === "NUMBER" ? "NUMBER" : "URGENCY")
         || document.getElementById("dayStart").value !== String(day.start)
         || document.getElementById("dayEnd").value !== String(day.end)
         || document.getElementById("lunchEnabled").checked !== !!lunch.enabled
@@ -3402,6 +3411,7 @@
       renderLocation();
       document.getElementById("scheduleDays").value = typeof s.scheduleDays === "number" ? String(s.scheduleDays) : "";
       document.getElementById("gapMinutes").value = typeof s.gapMinutes === "number" ? String(s.gapMinutes) : "";
+      document.getElementById("scheduleOrder").value = s.scheduleOrder === "NUMBER" ? "NUMBER" : "URGENCY";
       const day = s.day || {};
       document.getElementById("dayStart").value = day.start || "";
       document.getElementById("dayEnd").value = day.end || "";
@@ -3603,6 +3613,7 @@
             timeZone: place.timeZone,
             scheduleDays: document.getElementById("scheduleDays").value,
             gapMinutes: document.getElementById("gapMinutes").value,
+            scheduleOrder: document.getElementById("scheduleOrder").value,
             dayStart: document.getElementById("dayStart").value,
             dayEnd: document.getElementById("dayEnd").value,
             lunchEnabled: document.getElementById("lunchEnabled").checked,
@@ -3614,9 +3625,9 @@
         });
         const saved = (await res.json()).settings;
         applySettings(saved);
-        if (typeof saved.scheduleDays !== "number" || typeof saved.gapMinutes !== "number" || !saved.day || !saved.lunch) {
+        if (typeof saved.scheduleDays !== "number" || typeof saved.gapMinutes !== "number" || typeof saved.scheduleOrder !== "string" || !saved.day || !saved.lunch) {
           // An older deployed backend drops fields it does not know, so a setting would silently keep its old value
-          setSettingsStatus("Saved, but the server ignored the days, gap, day or lunch setting. Deploy the latest functions.");
+          setSettingsStatus("Saved, but the server ignored the days, gap, order, day or lunch setting. Deploy the latest functions.");
           return false;
         }
         setSettingsStatus("Saved.");
