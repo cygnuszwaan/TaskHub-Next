@@ -45,6 +45,8 @@ gcloud storage buckets add-iam-policy-binding gs://$BUCKET --member serviceAccou
 
 `SA` is the account the functions run as (the default compute account) unless you changed it. Put `BACKUP_BUCKET=taskhub-next-backups` in `functions/.env` and deploy the functions. To try it at once, run the job from Cloud Scheduler in the Google Cloud console (`firebase-schedule-weeklyBackup-australia-southeast1`), then `gcloud storage ls gs://$BUCKET/backups/`. An error in `npm run logs` (`Weekly backup failed` or `skipped`) means a missing role or bucket name.
 
+`BACKUP_BUCKET` is read when the functions are deployed, so after changing it in `functions/.env` or `functions/.env.taskhub-next` run `firebase deploy --only functions --project taskhub-next` again; running the Cloud Scheduler job before that still uses the old value. The export itself takes a few minutes: check it with `gcloud firestore operations list --project taskhub-next`, and `gcloud storage ls gs://$BUCKET/backups/` lists nothing until it has started writing.
+
 Restore (replaces documents with the same ids; take care, and consider importing into a spare project first):
 
 ```sh
