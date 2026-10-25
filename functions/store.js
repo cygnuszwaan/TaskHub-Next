@@ -4,11 +4,13 @@ const {isDeepStrictEqual} = require("node:util");
 const {mergeSettings, applySettingsUpdate, claimRun} = require("./settings");
 const {lastIssued} = require("./jobNumber");
 const {sortProjects, addProject, renameProject, removeProjectFromTasks} = require("./projects");
+const {buildTemplateSteps, sortTemplates, addTemplate, renameTemplate} = require("./projectTemplates");
 const {sortClients, addClient, updateClient, removeClientFromProjects, setProjectClient} = require("./clients");
 
 const COLLECTION = "tasks";
 const PROJECTS_COLLECTION = "projects";
 const CLIENTS_COLLECTION = "clients";
+const TEMPLATES_COLLECTION = "project_templates";
 const SETTINGS_DOC = "settings/app";
 const JOB_COUNTER_DOC = "settings/jobCounter";
 
@@ -189,6 +191,60 @@ function makeClientStore(db) {
   return {getClients, createClient, updateClient: updateClientById, deleteClient};
 }
 
+// Project templates in `project_templates/{id}` ({id, name, steps}, the doc id being the template's id). `db` is a Firestore instance.
+//   getTemplates()                          -> all templates, sorted by name
+//   saveTemplate(projectId, name, makeId)   -> {templates, template}, {notFound: true} (project) or {error}: in one transaction
+//                                              reads the project's queued tasks and stores their steps (see buildTemplateSteps);
+//                                              `name` empty or missing means the project's own name
+//   renameTemplate(id, name)                -> {templates, template}, {notFound: true} or {error}
+//   deleteTemplate(id)                      -> {templates} or {notFound: true}
+// Names are unique ignoring case; the check and the write share one transaction.
+function makeTemplateStore(db) {
+  const templatesRef = db.collection(TEMPLATES_COLLECTION);
+  const projectsRef = db.collection(PROJECTS_COLLECTION);
+  const tasksRef = db.collection(COLLECTION);
+  const templatesFrom = (snap) => sortTemplates(snap.docs.map((d) => ({...d.data(), id: d.id})));
+
+  async function getTemplates() {
+    return templatesFrom(await templatesRef.get());
+  }
+
+  async function saveTemplate(projectId, rawName, makeId) {
+    return db.runTransaction(async (tx) => {
+      const projects = (await tx.get(projectsRef)).docs.map((d) => ({...d.data(), id: d.id}));
+      const project = projects.find((p) => p.id === projectId);
+      if (!project) return {notFound: true};
+      const tasks = sortTasks((await tx.get(tasksRef)).docs.map((d) => ({...d.data(), id: d.id})));
+      const templates = templatesFrom(await tx.get(templatesRef));
+      const built = buildTemplateSteps(tasks, projectId);
+      if (built.error) return {error: built.error};
+      const name = typeof rawName === "string" && rawName.trim() ? rawName : project.name;
+      const result = addTemplate(templates, name, built.steps, makeId);
+      if (result.template) tx.set(templatesRef.doc(result.template.id), result.template);
+      return result;
+    });
+  }
+
+  async function renameTemplateById(templateId, name) {
+    return db.runTransaction(async (tx) => {
+      const result = renameTemplate(templatesFrom(await tx.get(templatesRef)), templateId, name);
+      if (result.template) tx.set(templatesRef.doc(templateId), result.template);
+      return result;
+    });
+  }
+
+  async function deleteTemplate(templateId) {
+    return db.runTransaction(async (tx) => {
+      const templates = templatesFrom(await tx.get(templatesRef));
+      if (!templates.some((t) => t.id === templateId)) return {notFound: true};
+      tx.delete(templatesRef.doc(templateId));
+      return {templates: templates.filter((t) => t.id !== templateId)};
+    });
+  }
+
+  return {getTemplates, saveTemplate, renameTemplate: renameTemplateById, deleteTemplate};
+}
+
 // Runtime settings in the single document `settings/app`. `db` is a Firestore instance.
 //   getSettings()          -> full settings (defaults fill anything missing; see settings.js)
 //   updateSettings(patch)  -> {settings} after a transactional merge of the editable fields in `patch`, or {error}
@@ -233,4 +289,4 @@ function makeSettingsStore(db) {
   return {getSettings, updateSettings, claimAutoRun, setRunFingerprint};
 }
 
-module.exports = {COLLECTION, PROJECTS_COLLECTION, CLIENTS_COLLECTION, SETTINGS_DOC, JOB_COUNTER_DOC, checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeSettingsStore};
+module.exports = {COLLECTION, PROJECTS_COLLECTION, CLIENTS_COLLECTION, TEMPLATES_COLLECTION, SETTINGS_DOC, JOB_COUNTER_DOC, checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeTemplateStore, makeSettingsStore};

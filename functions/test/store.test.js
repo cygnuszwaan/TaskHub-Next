@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeSettingsStore} = require("../store");
+const {checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeTemplateStore, makeSettingsStore} = require("../store");
 
 const task = (id, order, extra = {}) => ({id, title: `Task ${id}`, priority: "MEDIUM", dueDate: "", estimatedMinutes: 15, tags: [], status: "PENDING", order, ...extra});
 
@@ -509,5 +509,60 @@ describe("clients in the stores", () => {
     assert.deepEqual(await store.setProjectClient("zzz", "c1"), {notFound: true});
     assert.deepEqual(await store.setProjectClient("p1", "zzz"), {error: "Client not found"});
     assert.deepEqual(db.log, []);
+  });
+});
+
+describe("store.js makeTemplateStore", () => {
+  function seeded() {
+    const db = fakeDb({
+      t1: task("t1", 2, {projectId: "p1", projectOrder: 2, materials: [{id: "m", text: "Paint", checked: true, cost: 10}]}),
+      t2: task("t2", 1, {projectId: "p1", projectOrder: 1, trackedSeconds: 300, jobNumber: 7}),
+      t3: task("t3", 3),
+    }, {p1: {name: "Kitchen"}, p2: {name: "Empty"}});
+    db.data.project_templates = new Map();
+    return db;
+  }
+  let n = 0;
+  const makeId = () => `tpl${++n}`;
+
+  it("saves a project's tasks as a template, in order, without history, named after the project when no name is given", async () => {
+    const db = seeded();
+    const r = await makeTemplateStore(db).saveTemplate("p1", undefined, makeId);
+    assert.equal(r.template.name, "Kitchen");
+    assert.deepEqual(r.template.steps.map((s) => s.title), ["Task t2", "Task t1"]);
+    assert.deepEqual(r.template.steps[1].materials, [{text: "Paint", cost: 10}]);
+    assert.equal(r.template.steps[0].trackedSeconds, undefined);
+    assert.deepEqual(db.log, [`set project_templates/${r.template.id}`]);
+    assert.deepEqual((await makeTemplateStore(db).getTemplates()).map((t) => t.name), ["Kitchen"]);
+  });
+  it("uses the name given, and refuses a taken one with nothing written", async () => {
+    const db = seeded();
+    const store = makeTemplateStore(db);
+    assert.equal((await store.saveTemplate("p1", " Reno ", makeId)).template.name, "Reno");
+    db.log.length = 0;
+    assert.match((await store.saveTemplate("p1", "reno", makeId)).error, /already exists/);
+    assert.deepEqual(db.log, []);
+  });
+  it("reports an unknown project and a project with no tasks, writing nothing", async () => {
+    const db = seeded();
+    const store = makeTemplateStore(db);
+    assert.deepEqual(await store.saveTemplate("nope", "X", makeId), {notFound: true});
+    assert.match((await store.saveTemplate("p2", "X", makeId)).error, /no tasks/);
+    assert.deepEqual(db.log, []);
+  });
+  it("renames and deletes", async () => {
+    const db = seeded();
+    const store = makeTemplateStore(db);
+    const {template} = await store.saveTemplate("p1", "Reno", makeId);
+    const other = (await store.saveTemplate("p1", "Alpha", makeId)).template;
+    assert.match((await store.renameTemplate(template.id, "alpha")).error, /already exists/);
+    assert.deepEqual(await store.renameTemplate("nope", "Z"), {notFound: true});
+    const renamed = await store.renameTemplate(template.id, "Zed");
+    assert.deepEqual(renamed.templates.map((t) => t.name), ["Alpha", "Zed"]);
+    assert.equal(renamed.template.steps.length, 2);
+    assert.deepEqual(await store.deleteTemplate("nope"), {notFound: true});
+    const left = await store.deleteTemplate(other.id);
+    assert.deepEqual(left.templates.map((t) => t.id), [template.id]);
+    assert.deepEqual((await store.getTemplates()).map((t) => t.id), [template.id]);
   });
 });

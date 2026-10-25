@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -399,7 +399,6 @@ describe("public/index.html helpers", () => {
       const page = at(`id="pageSettings"`);
       const end = at("</main>", page);
       assert.ok(page > at(`id="pageMaterials"`) && end < at(`id="editModal"`));
-      assert.doesNotMatch(html.slice(page, end), /<details/);
       assert.doesNotMatch(html, /id="settingsDetails"/);
       const save = at(`id="saveSettingsBtn"`);
       const row = html.slice(html.lastIndexOf(`<div class="action-row"`, save), at(`id="settingsStatus"`));
@@ -1019,6 +1018,23 @@ describe("public/index.html helpers", () => {
     it("copes with a task without a usable title", () => {
       assert.equal(find("x", {id: "b"}), false);
       assert.equal(find("x", {id: "b", title: 5}), false);
+    });
+  });
+  describe("Settings: collapsible cards", () => {
+    const page = html.slice(html.indexOf("id=\"pageSettings\""), html.indexOf("</main>", html.indexOf("id=\"pageSettings\"")));
+    it("makes every card a details element, collapsed by default, with its title as the summary", () => {
+      const cards = [...page.matchAll(/<details class="card settings-card"([^>]*)>\s*<summary><h3>([^<]+)<\/h3><\/summary>/g)];
+      assert.deepEqual(cards.map((m) => m[2]), ["Scheduling", "Job Sheets", "Clients", "Appearance", "Backup", "Tidy up"]);
+      assert.ok(cards.every((m) => !/\bopen\b/.test(m[1])), "no card starts open");
+    });
+    it("leaves no plain card on the Settings page and balances the tags", () => {
+      assert.doesNotMatch(page, /<div class="card"/);
+      assert.equal((page.match(/<details\b/g) || []).length, 6);
+      assert.equal((page.match(/<\/details>/g) || []).length, 6);
+    });
+    it("styles the summary with a marker that turns when the card opens", () => {
+      assert.match(html, /\.settings-card\[open\] > summary::after \{ transform: rotate\(90deg\)/);
+      assert.match(html, /\.settings-card > summary::-webkit-details-marker \{ display: none/);
     });
   });
   describe("Settings: delete duplicate tasks", () => {
@@ -2065,6 +2081,72 @@ describe("public/index.html helpers", () => {
       assert.equal(deleteClientPrompt("Jo", 0), "Delete client \"Jo\"?");
       assert.match(deleteClientPrompt("Jo", 1), /Its project stays on the list, with no client/);
       assert.match(deleteClientPrompt("Jo", 3), /Its 3 projects stay/);
+    });
+  });
+
+  describe("project templates", () => {
+    it("templateStepsText: singular and plural", () => {
+      const {templateStepsText: t} = load();
+      assert.equal(t(1), "1 step");
+      assert.equal(t(0), "0 steps");
+      assert.equal(t(7), "7 steps");
+    });
+    it("defaultProjectName: the template's name unless a project has it, else numbered, ignoring case", () => {
+      const {defaultProjectName: d} = load();
+      assert.equal(d("Deck", []), "Deck");
+      assert.equal(d("Deck", undefined), "Deck");
+      assert.equal(d("Deck", [{name: "Other"}]), "Deck");
+      assert.equal(d("Deck", [{name: "deck"}]), "Deck 2");
+      assert.equal(d("Deck", [{name: "DECK"}, {name: "Deck 2"}, {name: "deck 3"}]), "Deck 4");
+    });
+    it("builds the bodies updateProjectTemplate takes", () => {
+      const h = load();
+      assert.deepEqual(h.saveTemplateBody("p1", "Reno"), {action: "SAVE", projectId: "p1", name: "Reno"});
+      assert.deepEqual(h.startTemplateBody("t1", "Back deck"), {action: "START", templateId: "t1", name: "Back deck"});
+    });
+    it("words the delete confirmation and the started message", () => {
+      const h = load();
+      assert.match(h.deleteTemplatePrompt("Deck"), /Delete template "Deck"\?.*not affected/);
+      assert.equal(h.startedText("Back deck", 1), "Started \"Back deck\" with 1 task.");
+      assert.equal(h.startedText("Back deck", 5), "Started \"Back deck\" with 5 tasks.");
+    });
+    it("has the Start from template controls in the Projects section and Save as template on the chosen project", () => {
+      const section = html.slice(html.indexOf("id=\"projectsDetails\""), html.indexOf("id=\"taskList\""));
+      for (const id of ["templateSelect", "templateProjectName", "startTemplateBtn", "renameTemplateBtn", "deleteTemplateBtn", "templateEmpty"]) assert.match(section, new RegExp(`id="${id}"`));
+      assert.match(html, /data-action="saveTemplate"/);
+      assert.match(html, /endpoint\("getProjectTemplates"\)/);
+      assert.match(html, /endpoint\("updateProjectTemplate"\)/);
+    });
+    it("loads the templates after sign-in", () => {
+      const from = html.indexOf("lib.onAuthStateChanged");
+      const signedIn = html.slice(from, html.indexOf("showGate(", from));
+      assert.match(signedIn, /loadTemplates\(\);/);
+    });
+  });
+
+  describe("completed work CSV", () => {
+    it("csvRequestBody: keeps real-looking dates and turns anything else into no limit", () => {
+      const {csvRequestBody: b} = load();
+      assert.deepEqual(b("2026-10-01", "2026-10-31"), {from: "2026-10-01", to: "2026-10-31"});
+      assert.deepEqual(b("", "2026-10-31"), {from: "", to: "2026-10-31"});
+      assert.deepEqual(b(undefined, "junk"), {from: "", to: ""});
+    });
+    it("csvFilename: names the range, one open side, or today", () => {
+      const {csvFilename: f} = load();
+      assert.equal(f("2026-10-01", "2026-10-31", "2026-10-25"), "completed-work-2026-10-01-to-2026-10-31.csv");
+      assert.equal(f("2026-10-01", "", "2026-10-25"), "completed-work-from-2026-10-01.csv");
+      assert.equal(f("", "2026-10-31", "2026-10-25"), "completed-work-to-2026-10-31.csv");
+      assert.equal(f("", "", "2026-10-25"), "completed-work-2026-10-25.csv");
+      assert.equal(f("", "", ""), "completed-work.csv");
+    });
+    it("has the date range and Download button in the Backup card, posting through apiFetch", () => {
+      const backup = html.slice(html.indexOf("<summary><h3>Backup</h3></summary>"), html.indexOf("<summary><h3>Tidy up</h3></summary>"));
+      for (const id of ["csvFrom", "csvTo", "csvBtn", "csvStatus"]) assert.match(backup, new RegExp(`id="${id}"`));
+      assert.match(backup, /type="date" id="csvFrom"/);
+      assert.match(html, /endpoint\("exportCompletedCsv"\)/);
+      const fn = html.slice(html.indexOf("async function downloadCsv"), html.indexOf("async function downloadExport"));
+      assert.match(fn, /apiFetch\(EXPORT_CSV_URL/);
+      assert.match(fn, /csvRequestBody\(from, to\)/);
     });
   });
 });

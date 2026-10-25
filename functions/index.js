@@ -8,7 +8,7 @@ const admin = require("firebase-admin");
 const {GoogleGenAI, Type} = require("@google/genai");
 const {calendar: createCalendarClient} = require("@googleapis/calendar");
 const {JWT} = require("google-auth-library");
-const {localDate, startOfLocalDay} = require("./time");
+const {localDate, startOfLocalDay, localDayStart, addDays} = require("./time");
 const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
 const {repairSchedule, buildFixedSlots, matchLockedEvents} = require("./schedule");
 const {planSchedule} = require("./planner");
@@ -17,7 +17,8 @@ const {setTimerInList, pauseTimer} = require("./timer");
 const {withoutProjectFields, needsTagFill, cleanTags, newTaskIds, applyDirectUpdate, moveToQueueNumber, completeInList, removalRecord, isUndoable, undoInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {withNewProject, normalizeProjectName} = require("./projects");
 const {findDuplicateTasks} = require("./duplicates");
-const {PROJECTS_COLLECTION, makeTaskStore, makeProjectStore, makeClientStore, makeSettingsStore} = require("./store");
+const {PROJECTS_COLLECTION, makeTaskStore, makeProjectStore, makeClientStore, makeTemplateStore, makeSettingsStore} = require("./store");
+const {startFromTemplate} = require("./projectTemplates");
 const {UNAVAILABLE, weatherUrl, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
 const {buildTaskPrompt, buildTagPrompt} = require("./prompts");
@@ -29,6 +30,7 @@ const {isArchiveId, applyCompletedEdit} = require("./completedEdit");
 const {reopenTask} = require("./reopen");
 const {normalizePhoto, photoOwner, canAddPhoto, serializePhoto, sortPhotos} = require("./photos");
 const {EXPORT_MAX_ROWS, buildExport} = require("./export");
+const {CSV_MAX_ROWS, parseCsvRequest, buildCompletedCsv} = require("./csvExport");
 const {parseJobSheetRequest, buildJobSheet, sheetArchiveIds, gatherPhotos, withPhotos} = require("./jobsheet");
 const {renderJobSheetPdf} = require("./jobsheetPdf");
 const {makeOwnerOnly} = require("./auth");
@@ -54,6 +56,8 @@ const PHOTOS = db.collection("completed_photos");
 const {getProjects: readProjects, createProject, renameProject, setProjectClient, deleteProject} = makeProjectStore(db);
 // Clients that projects can belong to, in `clients/{id}`; see clients.js and store.js.
 const {getClients: readClients, createClient, updateClient, deleteClient} = makeClientStore(db);
+// Project templates (a project's steps saved for reuse), in `project_templates/{id}`; see projectTemplates.js and store.js.
+const {getTemplates: readTemplates, saveTemplate, renameTemplate, deleteTemplate} = makeTemplateStore(db);
 // Runtime settings (location, time zone, auto-run schedule) in `settings/app`; see settings.js.
 const {getSettings: readSettings, updateSettings: writeSettings, claimAutoRun, setRunFingerprint} = makeSettingsStore(db);
 
@@ -1028,16 +1032,40 @@ exports.undoRemove = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, re
 // another without a shared snapshot, which is fine for a single user's backup.
 exports.exportData = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
-    const [tasks, projects, clients, settings, counterSnap, archiveSnap] = await Promise.all([
+    const [tasks, projects, clients, projectTemplates, settings, counterSnap, archiveSnap] = await Promise.all([
       readTaskList(),
       readProjects(),
       readClients(),
+      readTemplates(),
       readSettings(),
       db.doc("settings/jobCounter").get(),
       db.collection("completed_tasks").orderBy("completedAt", "desc").limit(EXPORT_MAX_ROWS).get(),
     ]);
-    const payload = buildExport({tasks, projects, clients, settings, completed: archiveSnap.docs.map((d) => d.data()), now: new Date(), jobCounter: lastIssued(counterSnap.exists ? counterSnap.data() : undefined)});
+    const payload = buildExport({tasks, projects, clients, projectTemplates, settings, completed: archiveSnap.docs.map((d) => d.data()), now: new Date(), jobCounter: lastIssued(counterSnap.exists ? counterSnap.data() : undefined)});
     res.status(200).type("application/json").send(JSON.stringify(payload, null, 2));
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 7c. Endpoint: Completed work as a spreadsheet (CSV)
+// Body {from?, to?}: local dates YYYY-MM-DD in the configured zone, both inclusive, either one empty for no limit. Responds with the
+// CSV itself (text/csv, UTF-8 with a byte order mark), one line per completed task in the range, oldest first (see buildCompletedCsv).
+// 400 for an unusable date or an upside-down range, and for a range holding more than CSV_MAX_ROWS tasks (so a file is never silently
+// cut). Read-only; the range is on `completedAt`, so it needs no index.
+exports.exportCompletedCsv = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 60, memory: "512MiB"}, ownerOnly(async (req, res) => {
+  try {
+    const range = parseCsvRequest(req.body);
+    if (range.error) return res.status(400).send({error: range.error});
+    const [{timeZone}, projects, clients] = await Promise.all([readSettings(), readProjects(), readClients()]);
+    let query = db.collection("completed_tasks");
+    if (range.from) query = query.where("completedAt", ">=", localDayStart(timeZone, range.from));
+    if (range.to) query = query.where("completedAt", "<", localDayStart(timeZone, addDays(range.to, 1)));
+    const snap = await query.orderBy("completedAt", "asc").limit(CSV_MAX_ROWS + 1).get();
+    if (snap.size > CSV_MAX_ROWS) return res.status(400).send({error: `That range holds more than ${CSV_MAX_ROWS} completed tasks; choose a shorter one`});
+    const csv = buildCompletedCsv({rows: snap.docs.map((d) => d.data()), projects, clients, timeZone});
+    res.status(200).type("text/csv; charset=utf-8").set("Cache-Control", "no-store").send(csv);
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});
@@ -1164,6 +1192,56 @@ exports.updateClient = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, 
     else if (action === "DELETE") result = await deleteClient(clientId);
     else return res.status(400).send({error: "action must be CREATE, UPDATE or DELETE"});
     if (result.notFound) return res.status(404).send({error: "Client not found"});
+    if (result.error) return res.status(400).send({error: result.error});
+    res.status(200).send({success: true, ...result});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 14. Endpoint: Read Project Templates
+exports.getProjectTemplates = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    res.status(200).send({success: true, templates: await readTemplates()});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 15. Endpoint: Save / Rename / Delete / Start from a Project Template
+// Body: {action: "SAVE", projectId, name?} (stores the project's queued tasks as steps; no name means the project's name) |
+// {action: "RENAME", templateId, name} | {action: "DELETE", templateId} |
+// {action: "START", templateId, name, startNow?} (creates the project `name` and one new task per step, each with the next job
+// number, in one transaction; `startNow: true` starts the first task's timer). 400 with the reason for an unusable or taken name,
+// a project with no tasks or an unknown action, 404 for an unknown projectId or templateId. SAVE, RENAME and DELETE respond with
+// `templates`; START with `tasks`, `added`, `project` and `projects`. No calendar changes.
+exports.updateProjectTemplate = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const {action, projectId, templateId, name} = req.body || {};
+    let result;
+    if (action === "SAVE") result = await saveTemplate(projectId, name, randomUUID);
+    else if (action === "RENAME") result = await renameTemplate(templateId, name);
+    else if (action === "DELETE") result = await deleteTemplate(templateId);
+    else if (action === "START") {
+      const template = (await readTemplates()).find((t) => t.id === templateId);
+      if (!template) return res.status(404).send({error: "Template not found"});
+      const started = await updateTaskList((tasks, tx, {projects: stored, jobCounter}) => {
+        const done = startFromTemplate(tasks, stored, template, name, randomUUID, new Date().toISOString(), jobCounter);
+        if (done.error) return {error: done.error, current: tasks};
+        let list = done.tasks;
+        if (req.body.startNow === true) {
+          const [firstNew] = newTaskIds(tasks, list);
+          if (firstNew) list = setTimerInList(list, firstNew, "START", Date.now()).tasks;
+        }
+        tx.set(db.collection(PROJECTS_COLLECTION).doc(done.project.id), done.project);
+        return {tasks: list, current: list, project: done.project, projects: done.projects, added: done.added, jobCounter: done.jobCounter};
+      }, {withProjects: true, withJobCounter: true});
+      if (started.error) return res.status(400).send({error: started.error});
+      return res.status(200).send({success: true, tasks: started.current, added: started.added, project: started.project, projects: started.projects});
+    } else return res.status(400).send({error: "action must be SAVE, RENAME, DELETE or START"});
+    if (result.notFound) return res.status(404).send({error: action === "SAVE" ? "Project not found" : "Template not found"});
     if (result.error) return res.status(400).send({error: result.error});
     res.status(200).send({success: true, ...result});
   } catch (err) {

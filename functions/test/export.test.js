@@ -26,6 +26,11 @@ describe("export.js buildExport", () => {
     assert.deepEqual(buildExport({tasks, projects, clients, settings, completed: [], now}).clients, clients);
     for (const c of [undefined, null, "x"]) assert.deepEqual(buildExport({tasks, projects, clients: c, settings, completed: [], now}).clients, []);
   });
+  it("includes the project templates, an empty list when none are given", () => {
+    const projectTemplates = [{id: "pt1", name: "Deck", steps: [{title: "Dig", priority: "MEDIUM", estimatedMinutes: 60, tags: []}]}];
+    assert.deepEqual(buildExport({tasks, projects, projectTemplates, settings, completed: [], now}).projectTemplates, projectTemplates);
+    for (const v of [undefined, null, "x"]) assert.deepEqual(buildExport({tasks, projects, projectTemplates: v, settings, completed: [], now}).projectTemplates, []);
+  });
   it("includes tasks, projects and settings as given", () => {
     const out = buildExport({tasks, projects, settings, completed: [], now});
     assert.deepEqual(out.tasks, tasks);
