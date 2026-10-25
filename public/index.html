@@ -330,7 +330,7 @@
         <label>Materials</label>
         <div id="manualMaterials"></div>
         <div class="input-row" style="margin-top: 6px;">
-          <input type="text" id="manualNewMaterialText" maxlength="100" placeholder="Add a material, e.g. 2 litres of paint">
+          <input type="text" id="manualNewMaterialText" maxlength="100" placeholder="Add a material">
           <input type="number" id="manualNewMaterialCost" class="cost-input" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="Cost" aria-label="Cost of the new material">
           <button type="button" class="btn-secondary" id="addManualMaterialBtn">Add</button>
         </div>
@@ -342,7 +342,7 @@
 
       <div class="form-group">
         <label for="manualComments">Comments</label>
-        <textarea id="manualComments" rows="3" maxlength="2000" placeholder="Notes for yourself (never read by the AI)"></textarea>
+        <textarea id="manualComments" rows="3" maxlength="2000" placeholder="Notes for yourself"></textarea>
       </div>
     </div>
   </div>
@@ -454,7 +454,7 @@
         <div class="form-group">
           <label for="timerWarnHours">Warn when a timer has run for (hours)</label>
           <input type="number" id="timerWarnHours" min="1" max="48" step="1" inputmode="numeric">
-          <p class="settings-note">The Active task says so and offers to pause it, keeping only that many hours.</p>
+          <!-- <p class="settings-note">The Active task says so and offers to pause it, keeping only that many hours.</p> -->
         </div>
         <div class="form-group">
           <label for="scheduleOrder">Schedule tasks by</label>
@@ -515,17 +515,17 @@
     <div class="form-group" style="margin-bottom:0;">
       <label for="contractorInfo">Contractor information</label>
       <textarea id="contractorInfo" rows="5" maxlength="1000" placeholder="Name, company, phone, email, licence or GST number"></textarea>
-      <p class="settings-note" style="margin:6px 0 0;">Printed at the top of every job sheet, under the \"Job sheet\" title. Up to 1000 characters.</p>
+      <!-- <p class="settings-note" style="margin:6px 0 0;">Printed at the top of every job sheet, under the \"Job sheet\" title. Up to 1000 characters.</p> -->
     </div>
     <div class="form-group" style="margin:14px 0 0;">
       <label for="hourlyRate">Hourly rate</label>
       <input type="number" id="hourlyRate" min="0" max="10000" step="0.01" inputmode="decimal" placeholder="e.g. 85.00" style="max-width: 160px;">
-      <p class="settings-note" style="margin:6px 0 0;">For the invoice figures on job sheets, with no GST. Leave empty for none.</p>
+      <!-- <p class="settings-note" style="margin:6px 0 0;">For the invoice figures on job sheets, with no GST. Leave empty for none.</p> -->
     </div>
     <div class="form-group" style="margin:14px 0 0;">
       <label for="travelRate">Travel rate per km</label>
       <input type="number" id="travelRate" min="0" max="100" step="0.01" inputmode="decimal" placeholder="e.g. 1.20" style="max-width: 160px;">
-      <p class="settings-note" style="margin:6px 0 0;">Charged for a task's Travel (km), with no GST. The starting value, $1.20, is the IRD's 2025-26 Tier 1 petrol kilometre rate; change it to suit your vehicle and costs. Leave empty for no travel charge.</p>
+      <!-- <p class="settings-note" style="margin:6px 0 0;">Charged for a task's Travel (km), with no GST. The starting value, $1.20, is the IRD's 2025-26 Tier 1 petrol kilometre rate; change it to suit your vehicle and costs. Leave empty for no travel charge.</p> -->
     </div>
     <div class="action-row" style="margin-top: 14px;">
       <button type="button" id="saveJobSheetBtn">Save</button>
@@ -551,7 +551,7 @@
       <label for="clientEmail">Email</label>
       <input type="email" id="clientEmail" maxlength="100">
     </div>
-    <p class="settings-note" style="margin:6px 0 0;">A project can belong to a client, chosen in the Projects section of the Tasks page. Deleting a client leaves its projects in place.</p>
+    <!-- <p class="settings-note" style="margin:6px 0 0;">A project can belong to a client, chosen in the Projects section of the Tasks page. Deleting a client leaves its projects in place.</p> -->
     <div class="action-row" style="margin-top: 14px;">
       <button type="button" id="saveClientBtn">Add client</button>
       <button type="button" id="cancelClientBtn" class="btn-secondary" hidden>Cancel</button>
@@ -562,7 +562,7 @@
     <summary><h3>Appearance</h3></summary>
     <div class="form-group" style="margin-bottom:0;">
       <label><input type="checkbox" id="darkMode"> Dark mode</label>
-      <p class="settings-note" style="margin:6px 0 0;">Applies at once and is remembered on this device only. Until you change it, the page follows the device's own setting.</p>
+      <!-- <p class="settings-note" style="margin:6px 0 0;">Applies at once and is remembered on this device only. Until you change it, the page follows the device's own setting.</p> -->
     </div>
   </details>
   <details class="card settings-card">
@@ -574,7 +574,7 @@
         <button type="button" id="pushTestBtn" class="btn-secondary">Send a test</button>
         <button type="button" id="pushOffBtn" class="btn-secondary">Turn off</button>
       </div>
-      <p class="settings-note" style="margin:6px 0 0;">Each device is switched on separately and keeps its own choice. Turning it on asks the browser for permission.</p>
+      <!-- <p class="settings-note" style="margin:6px 0 0;">Each device is switched on separately and keeps its own choice. Turning it on asks the browser for permission.</p> -->
       <div id="pushStatus" class="settings-status"></div>
     </div>
     <div class="form-group" style="margin:18px 0 0;">
@@ -590,7 +590,7 @@
           <option value="120">2 hours before</option>
         </select>
       </div>
-      <p class="settings-note" style="margin:6px 0 0;">Saved as you change them and sent to every device that has notifications on. Start reminders are checked every 15 minutes, so one can arrive up to 15 minutes earlier than chosen.</p>
+      <!-- <p class="settings-note" style="margin:6px 0 0;">Saved as you change them and sent to every device that has notifications on. Start reminders are checked every 15 minutes, so one can arrive up to 15 minutes earlier than chosen.</p> -->
       <div id="notifyStatus" class="settings-status"></div>
     </div>
   </details>
@@ -703,7 +703,7 @@
           <label>Materials <small style="font-weight:normal; color:var(--text-faint);">(the task is not scheduled until all are checked)</small></label>
           <div id="editMaterials"></div>
           <div class="input-row" style="margin-top: 6px;">
-            <input type="text" id="newMaterialText" maxlength="100" placeholder="Add a material, e.g. 2 litres of paint">
+            <input type="text" id="newMaterialText" maxlength="100" placeholder="Add a material">
             <input type="number" id="newMaterialCost" class="cost-input" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="Cost" aria-label="Cost of the new material">
             <button type="button" class="btn-secondary" id="addMaterialBtn">Add</button>
           </div>
@@ -831,10 +831,10 @@
 
       <div class="form-group">
         <button type="button" class="btn-secondary" onclick="downloadTaskSheet(document.getElementById('ceId').value, this)">📄 Download job sheet (PDF)</button>
-        <p class="settings-note">The sheet shows this entry as last saved.</p>
+        <!-- <p class="settings-note">The sheet shows this entry as last saved.</p> -->
       </div>
 
-      <p style="font-size: 12px; color: var(--text-faint); margin: 0;">Corrections change Stats and Project hours. They do not rewrite the history (count, average time) already carried by the task's next occurrence.</p>
+      <!-- <p style="font-size: 12px; color: var(--text-faint); margin: 0;">Corrections change Stats and Project hours. They do not rewrite the history (count, average time) already carried by the task's next occurrence.</p> -->
 
       <div class="modal-actions">
         <div style="display: flex; gap: 6px;">
