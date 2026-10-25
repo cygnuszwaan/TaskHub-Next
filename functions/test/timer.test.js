@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {clearActive, isRunning, elapsedSeconds, pauseTimer, abortTimer, startTimer, setTimerInList, settleTimer} = require("../timer");
+const {clearActive, isRunning, elapsedSeconds, runningSeconds, pauseTimer, abortTimer, startTimer, setTimerInList, settleTimer} = require("../timer");
 
 const T0 = Date.parse("2026-10-24T09:00:00.000Z");
 
@@ -53,6 +53,36 @@ describe("timer.js", () => {
     });
   });
 
+  describe("capped pause", () => {
+    const task = {id: "a", trackedSeconds: 600, timerStartedAt: new Date(T0).toISOString(), active: true};
+    const later = T0 + 10 * 3600 * 1000; // left running for 10 hours
+    it("reports the running stretch alone", () => {
+      assert.equal(runningSeconds(task, T0 + 90000), 90);
+      assert.equal(runningSeconds({trackedSeconds: 500}, later), 0);
+      assert.equal(runningSeconds(task, T0 - 5000), 0);
+      assert.equal(runningSeconds(task, NaN), 0);
+    });
+    it("counts at most the cap of the stretch, on top of the time saved before it", () => {
+      const paused = pauseTimer(task, later, 6 * 3600);
+      assert.equal(paused.trackedSeconds, 600 + 6 * 3600);
+      assert.equal("timerStartedAt" in paused, false);
+      assert.equal(paused.active, true);
+    });
+    it("a cap above the stretch, or no usable cap, counts the whole stretch", () => {
+      assert.equal(pauseTimer(task, later, 20 * 3600).trackedSeconds, 600 + 36000);
+      for (const cap of [undefined, null, -1, 1.5, "60", NaN]) assert.equal(pauseTimer(task, later, cap).trackedSeconds, 600 + 36000);
+    });
+    it("a cap of 0 throws the whole stretch away", () => {
+      assert.equal(pauseTimer(task, later, 0).trackedSeconds, 600);
+    });
+    it("setTimerInList passes the cap to a PAUSE only", () => {
+      const list = [task, {id: "b"}];
+      assert.equal(setTimerInList(list, "a", "PAUSE", later, {capSeconds: 3600}).task.trackedSeconds, 600 + 3600);
+      assert.equal(setTimerInList(list, "a", "PAUSE", later).task.trackedSeconds, 600 + 36000);
+      const started = setTimerInList(list, "b", "START", later, {capSeconds: 1});
+      assert.equal(started.tasks.find((t) => t.id === "a").trackedSeconds, 600 + 36000);
+    });
+  });
   describe("firstStartedAt", () => {
     it("is set by the first start and kept by every later start and pause", () => {
       const first = startTimer({id: "a"}, T0);

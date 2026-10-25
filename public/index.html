@@ -26,6 +26,7 @@
       --held-bg: #ffedd5; --held-fg: #9a3412; --project-bg: #ccfbf1; --project-fg: #115e59; --repeat-bg: #ede9fe; --repeat-fg: #5b21b6;
       --overdue-bg: #fee2e2; --overdue-fg: #991b1b; --snooze-bg: #e0e7ff; --snooze-fg: #3730a3;
       --timer-run-bg: #a8eec0; --timer-pause-bg: #fcdc7c;
+      --card-soon-bg: #fdeaa8; --card-overdue-bg: #fecaca;
       --coach-bg: #eff6ff; --coach-border: #2563eb;
       --swipe-del: #dc2626; --swipe-snooze: #4f46e5; --swipe-complete: #16a34a; --swipe-abort: #d97706;
     }
@@ -40,6 +41,7 @@
         --held-bg: #47260f; --held-fg: #fdba74; --project-bg: #0f3b38; --project-fg: #5eead4; --repeat-bg: #2f2759; --repeat-fg: #c4b5fd;
         --overdue-bg: #4a1d1d; --overdue-fg: #fca5a5; --snooze-bg: #26295a; --snooze-fg: #a5b4fc;
         --timer-run-bg: #14382a; --timer-pause-bg: #46380f;
+        --card-soon-bg: #54410f; --card-overdue-bg: #5e2222;
         --coach-bg: #172a4d; --coach-border: #3b82f6;
         --swipe-del: #991b1b; --swipe-snooze: #3730a3; --swipe-complete: #166534; --swipe-abort: #92400e;
       }
@@ -56,6 +58,7 @@
       --held-bg: #47260f; --held-fg: #fdba74; --project-bg: #0f3b38; --project-fg: #5eead4; --repeat-bg: #2f2759; --repeat-fg: #c4b5fd;
       --overdue-bg: #4a1d1d; --overdue-fg: #fca5a5; --snooze-bg: #26295a; --snooze-fg: #a5b4fc;
       --timer-run-bg: #14382a; --timer-pause-bg: #46380f;
+      --card-soon-bg: #54410f; --card-overdue-bg: #5e2222;
       --coach-bg: #172a4d; --coach-border: #3b82f6;
       --swipe-del: #991b1b; --swipe-snooze: #3730a3; --swipe-complete: #166534; --swipe-abort: #92400e;
     }
@@ -94,7 +97,7 @@
     .task-item { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     .task-item:hover { background: var(--hover); }
     .task-item.flash { animation: card-flash 600ms ease-out; }
-    @keyframes card-flash { from { background: var(--flash); } to { background: transparent; } }
+    @keyframes card-flash { from { background: var(--flash); } }
     .task-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
     .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: bold; text-transform: uppercase; }
     .HIGH { background: var(--high-bg); color: var(--high-fg); }
@@ -199,6 +202,13 @@
     .swipe-row .task-item:hover { background: var(--hover); }
     .active-task-box .swipe-row .task-item:hover { background: transparent; }
     .swipe-row.swiping .task-item, .active-task-box .swipe-row.swiping .task-item:hover { transition: none; background: var(--surface); }
+    .task-item.due-soon { background: var(--card-soon-bg); }
+    .task-item.due-overdue { background: var(--card-overdue-bg); }
+    .swipe-row .task-item.due-soon, .swipe-row .task-item.due-soon:hover, .swipe-row.swiping .task-item.due-soon { background: var(--card-soon-bg); }
+    .swipe-row .task-item.due-overdue, .swipe-row .task-item.due-overdue:hover, .swipe-row.swiping .task-item.due-overdue { background: var(--card-overdue-bg); }
+    .task-item.due-soon:hover, .task-item.due-overdue:hover { filter: brightness(0.97); }
+    .timer-warning { margin: 6px 6px 8px; padding: 8px 10px; border: 1px solid var(--danger); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; cursor: default; }
+    .timer-warning-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
     .swipe-bg { display: none; position: absolute; inset: 0; align-items: center; padding: 0 20px; color: white; font-weight: 700; font-size: 14px; opacity: 0.75; }
     .active-task-box.timer-running .swipe-row.swiping .task-item { background: var(--timer-run-bg); }
     .active-task-box.timer-paused .swipe-row.swiping .task-item { background: var(--timer-pause-bg); }
@@ -313,6 +323,13 @@
       <div class="active-task-box" id="activeTaskBox" hidden>
         <div class="summary-label">Active task</div>
         <div id="activeTask"></div>
+        <div class="timer-warning" id="timerWarning" hidden>
+          <div id="timerWarningText"></div>
+          <div class="timer-warning-actions">
+            <button type="button" class="btn-secondary" id="timerKeepAllBtn" onclick="pauseLongTimer(false)"></button>
+            <button type="button" class="btn-secondary" id="timerCapBtn" onclick="pauseLongTimer(true)"></button>
+          </div>
+        </div>
       </div>
       <div class="search-row">
         <input type="search" id="taskSearch" class="search-box" placeholder="Search tasks" autocomplete="off" enterkeyhint="search" aria-label="Search tasks">
@@ -390,6 +407,11 @@
             <label for="gapMinutes">Gap between tasks</label>
             <input type="number" id="gapMinutes" min="0" max="60" step="5" inputmode="numeric">
           </div>
+        </div>
+        <div class="form-group">
+          <label for="timerWarnHours">Warn when a timer has run for (hours)</label>
+          <input type="number" id="timerWarnHours" min="1" max="48" step="1" inputmode="numeric">
+          <p class="settings-note">The Active task says so and offers to pause it, keeping only that many hours.</p>
         </div>
         <div class="form-group">
           <label for="scheduleOrder">Schedule tasks by</label>
@@ -977,6 +999,15 @@
       return isNaN(due) ? null : Math.round((due - today) / 86400000);
     }
 
+    // A queued card's due-date colour: "due-overdue" once past due, "due-soon" when due within DUE_SOON_DAYS days (today
+    // included), else "" (no due date, or further off).
+    const DUE_SOON_DAYS = 2;
+    function dueClass(t, now = new Date()) {
+      const d = daysUntilDue(t, now);
+      if (d === null) return "";
+      return d < 0 ? "due-overdue" : d <= DUE_SOON_DAYS ? "due-soon" : "";
+    }
+
     // "Thu, 22 Oct, 9:00 am" for an instant, in the configured zone.
     function formatInstant(date) {
       return `${fmt.day.format(date)}, ${fmt.time.format(date)}`;
@@ -1036,6 +1067,8 @@
         timeZone: form.timeZone,
         scheduleDays: Number(form.scheduleDays),
         gapMinutes: Number(form.gapMinutes),
+        // an empty field leaves the saved value alone
+        ...(form.timerWarnHours === undefined || String(form.timerWarnHours).trim() === "" ? {} : { timerWarnHours: Number(form.timerWarnHours) }),
         scheduleOrder: form.scheduleOrder === "NUMBER" ? "NUMBER" : "URGENCY",
         day: { start: form.dayStart, end: form.dayEnd },
         lunch: { enabled: !!form.lunchEnabled, time: form.lunchTime, minutes: Number(form.lunchMinutes) },
@@ -1175,10 +1208,20 @@
       return counts;
     }
 
+    // A search's words split into job numbers and plain words: a word of the form hash-then-digits is a job number (leading
+    // zeros ignored), a bare hash is dropped, the rest are lower-cased text words. {numbers, words}.
+    function jobNumberWords(query) {
+      const all = String(query || "").toLowerCase().split(/\s+/).filter(Boolean);
+      const isNumber = w => /^#\d+$/.test(w);
+      return { numbers: all.filter(isNumber).map(w => Number(w.slice(1))), words: all.filter(w => w !== "#" && !isNumber(w)) };
+    }
     // Whether a task's title matches a search: every word of `query` (case-insensitive, any order, part of a word is
-    // enough) must appear in the title. Tags and projects have their own filters. An empty query matches everything.
-    function matchesSearch(task, query) {
-      const words = String(query || "").toLowerCase().split(/\s+/).filter(Boolean);
+    // enough) must appear in the title, and a job-number word (hash and digits) must equal the task's job number exactly. Tags and
+    // projects have their own filters. An empty query matches everything. `jobNumbers` false reads every word as text
+    // (the template search, whose entries have no job number).
+    function matchesSearch(task, query, jobNumbers = true) {
+      const { numbers, words } = jobNumbers ? jobNumberWords(query) : { numbers: [], words: String(query || "").toLowerCase().split(/\s+/).filter(Boolean) };
+      if (numbers.some(n => n !== task.jobNumber)) return false;
       if (words.length === 0) return true;
       const title = typeof task.title === "string" ? task.title.toLowerCase() : "";
       return words.every(w => title.includes(w));
@@ -1355,6 +1398,19 @@
       const start = Date.parse(task && task.timerStartedAt);
       return saved + (isNaN(start) || !(nowMs > start) ? 0 : Math.round((nowMs - start) / 1000));
     }
+    // Seconds the task's timer has been running since it was last started (0 when it is paused).
+    function runningSeconds(task, nowMs = Date.now()) {
+      const start = Date.parse(task && task.timerStartedAt);
+      return isNaN(start) || !(nowMs > start) ? 0 : Math.round((nowMs - start) / 1000);
+    }
+    // The long-running timer warning: {stretch, cap} (seconds the timer has run since it started, and the most a capped
+    // pause would keep) once that passes `hours`; null otherwise.
+    const DEFAULT_TIMER_WARN_HOURS = 6;
+    function longTimerWarning(task, nowMs, hours) {
+      const limit = Number.isFinite(hours) && hours > 0 ? hours * 3600 : DEFAULT_TIMER_WARN_HOURS * 3600;
+      const stretch = runningSeconds(task, nowMs);
+      return stretch > limit ? { stretch, cap: limit } : null;
+    }
     // The task the Queue shows at the very top: the one whose timer is running, else the one marked `active` (the last
     // task a timer was started on, kept after a pause until another is started). Null when there is none.
     function activeTaskOf(tasks) {
@@ -1510,10 +1566,8 @@
     // Whether a completed task matches a search: every word of `query` (case-insensitive, any order, part of a word is
     // enough) must appear somewhere in its title, tags, materials, comments or project name. Empty matches everything.
     function matchesCompletedSearch(row, query, projectName) {
-      const words = String(query || "").toLowerCase().split(/\s+/).filter(Boolean);
-      // A word like hash-then-digits is a job number, matched exactly (so 12 does not find 123); a bare hash restricts nothing.
-      const numbers = words.filter(w => /^#\d+$/.test(w)).map(w => Number(w.slice(1)));
-      const rest = words.filter(w => w !== "#" && !/^#\d+$/.test(w));
+      // A job-number word is matched exactly (so 12 does not find 123); a bare hash restricts nothing.
+      const { numbers, words: rest } = jobNumberWords(query);
       if (numbers.some(n => n !== row.jobNumber)) return false;
       if (rest.length === 0) return true;
       const text = (v) => (typeof v === "string" ? v : "");
@@ -1616,7 +1670,7 @@
     function templateMatches(templates, query, limit = 6) {
       if (String(query || "").trim().length < 2) return [];
       const count = t => (Number.isInteger(t.completedCount) && t.completedCount > 0 ? t.completedCount : 0);
-      return (templates || []).filter(t => matchesSearch(t, query)).sort((a, b) => count(b) - count(a)).slice(0, limit);
+      return (templates || []).filter(t => matchesSearch(t, query, false)).sort((a, b) => count(b) - count(a)).slice(0, limit);
     }
 
     // The second line of a template in the results: "HIGH · 45 min · Outdoor, Garden" (the tags are left out when it has none)
@@ -1919,6 +1973,7 @@
       const cancelPress = () => { if (pressTimer !== null) clearTimeout(pressTimer); pressTimer = null; pressStart = null; };
       // The card a pointer event is about; anywhere in the active task box counts as that box's card
       const cardOf = e => {
+        if (e.target.closest(".timer-warning")) return null; // its buttons are not part of the card
         const item = e.target.closest(".task-item");
         if (item) return item;
         return e.currentTarget.id === "activeTaskBox" ? e.currentTarget.querySelector(".task-item") : null;
@@ -2439,7 +2494,7 @@
 
     // One task as a list row. The active task, shown above the search box, also carries its tracked time.
     function taskItemHtml(t, isActive = false) {
-      return `        <div class="task-item" data-id="${esc(t.id)}">
+      return `        <div class="${["task-item", isActive ? "" : dueClass(t)].filter(Boolean).join(" ")}" data-id="${esc(t.id)}">
           <div style="flex:1; min-width:0;">
             <strong>${esc(t.title)}</strong>
             <div class="task-meta">
@@ -2493,6 +2548,27 @@
       }
     }
 
+    // The hours a timer may run before the Active task box warns about it (a Scheduling setting)
+    function timerWarnHours() {
+      return currentSettings && Number.isInteger(currentSettings.timerWarnHours) ? currentSettings.timerWarnHours : DEFAULT_TIMER_WARN_HOURS;
+    }
+    // Shows or hides the long-running timer warning under the Active task
+    function updateTimerWarning(task) {
+      const warning = task ? longTimerWarning(task, Date.now(), timerWarnHours()) : null;
+      document.getElementById("timerWarning").hidden = !warning;
+      if (!warning) return;
+      document.getElementById("timerWarningText").textContent = `⚠️ This timer has been running for ${formatElapsed(warning.stretch)} without a pause. Did you forget it?`;
+      document.getElementById("timerKeepAllBtn").textContent = `Pause, keep all ${formatElapsed(warning.stretch)}`;
+      document.getElementById("timerCapBtn").textContent = `Pause, keep ${formatElapsed(warning.cap)}`;
+    }
+    // The warning's two buttons: pause the running timer counting its whole current stretch, or only the first `cap` seconds of it
+    function pauseLongTimer(capIt) {
+      const task = activeTaskOf(allTasks);
+      if (!task || !isTimerRunning(task)) return;
+      const warning = longTimerWarning(task, Date.now(), timerWarnHours());
+      return sendTimerAction(task.id, "PAUSE", capIt && warning ? { capSeconds: warning.cap } : {});
+    }
+
     function renderTasks() {
       renderTaskRows();
       applyFlash();
@@ -2513,8 +2589,13 @@
       activeBox.classList.toggle("timer-running", !!active && isTimerRunning(active));
       activeBox.classList.toggle("timer-paused", !!active && !isTimerRunning(active));
       document.getElementById("activeTask").innerHTML = active ? swipeRowHtml(active, true) : "";
+      updateTimerWarning(active);
       if (active && isTimerRunning(active)) {
-        const show = () => { const el = document.getElementById("activeElapsed"); if (el) el.textContent = `Tracked ${formatElapsed(elapsedSecondsOf(active))}`; };
+        const show = () => {
+          const el = document.getElementById("activeElapsed");
+          if (el) el.textContent = `Tracked ${formatElapsed(elapsedSecondsOf(active))}`;
+          updateTimerWarning(active);
+        };
         activeTicker = setInterval(show, 1000);
       }
 
@@ -2715,14 +2796,14 @@
     function abortTask(taskId) {
       return sendTimerAction(taskId, "ABORT");
     }
-    async function sendTimerAction(taskId, action) {
+    async function sendTimerAction(taskId, action, extra = {}) {
       if (!allTasks.some(t => t.id === taskId) || timerBusy) return;
       timerBusy = true;
       try {
         const res = await apiFetch(TIMER_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ taskId, action })
+          body: JSON.stringify({ taskId, action, ...extra })
         });
         const data = await res.json();
         setTasks(data.tasks || allTasks);
@@ -3430,6 +3511,7 @@
       renderLocation();
       document.getElementById("scheduleDays").value = typeof s.scheduleDays === "number" ? String(s.scheduleDays) : "";
       document.getElementById("gapMinutes").value = typeof s.gapMinutes === "number" ? String(s.gapMinutes) : "";
+      document.getElementById("timerWarnHours").value = typeof s.timerWarnHours === "number" ? String(s.timerWarnHours) : "";
       document.getElementById("scheduleOrder").value = s.scheduleOrder === "NUMBER" ? "NUMBER" : "URGENCY";
       const day = s.day || {};
       document.getElementById("dayStart").value = day.start || "";
@@ -3632,6 +3714,7 @@
             timeZone: place.timeZone,
             scheduleDays: document.getElementById("scheduleDays").value,
             gapMinutes: document.getElementById("gapMinutes").value,
+            timerWarnHours: document.getElementById("timerWarnHours").value,
             scheduleOrder: document.getElementById("scheduleOrder").value,
             dayStart: document.getElementById("dayStart").value,
             dayEnd: document.getElementById("dayEnd").value,
@@ -3644,9 +3727,9 @@
         });
         const saved = (await res.json()).settings;
         applySettings(saved);
-        if (typeof saved.scheduleDays !== "number" || typeof saved.gapMinutes !== "number" || typeof saved.scheduleOrder !== "string" || !saved.day || !saved.lunch) {
+        if (typeof saved.scheduleDays !== "number" || typeof saved.gapMinutes !== "number" || typeof saved.timerWarnHours !== "number" || typeof saved.scheduleOrder !== "string" || !saved.day || !saved.lunch) {
           // An older deployed backend drops fields it does not know, so a setting would silently keep its old value
-          setSettingsStatus("Saved, but the server ignored the days, gap, order, day or lunch setting. Deploy the latest functions.");
+          setSettingsStatus("Saved, but the server ignored the days, gap, timer warning, order, day or lunch setting. Deploy the latest functions.");
           return false;
         }
         setSettingsStatus("Saved.");

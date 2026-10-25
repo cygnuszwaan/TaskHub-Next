@@ -27,16 +27,23 @@ function isRunning(task) {
 // Seconds the task has accrued at `nowMs`, the running stretch included. A start in the future (clock skew) or an
 // unusable `nowMs` adds nothing.
 function elapsedSeconds(task, nowMs) {
+  return savedSeconds(task) + runningSeconds(task, nowMs);
+}
+
+// Seconds the timer has run since it was last started (0 when paused, or for a start in the future or an unusable `nowMs`).
+function runningSeconds(task, nowMs) {
   const start = startedMs(task);
-  const running = start !== null && Number.isFinite(nowMs) && nowMs > start ? Math.round((nowMs - start) / 1000) : 0;
-  return savedSeconds(task) + running;
+  return start !== null && Number.isFinite(nowMs) && nowMs > start ? Math.round((nowMs - start) / 1000) : 0;
 }
 
 // The task with its timer paused: the running stretch is added to `trackedSeconds` and `timerStartedAt` removed.
-// A task whose timer is not running is returned as it is.
-function pauseTimer(task, nowMs) {
+// With `capSeconds` (a whole number >= 0) only that much of the stretch is counted, for a timer left running by mistake;
+// a cap above the stretch changes nothing. A task whose timer is not running is returned as it is.
+function pauseTimer(task, nowMs, capSeconds) {
   if (!isRunning(task)) return task;
-  const next = {...task, trackedSeconds: elapsedSeconds(task, nowMs)};
+  const stretch = runningSeconds(task, nowMs);
+  const counted = Number.isInteger(capSeconds) && capSeconds >= 0 ? Math.min(stretch, capSeconds) : stretch;
+  const next = {...task, trackedSeconds: savedSeconds(task) + counted};
   delete next.timerStartedAt;
   return next;
 }
@@ -75,14 +82,15 @@ function startTimer(task, nowMs) {
 // pause keeps the mark). Pure: the input is not modified; tasks not touched are returned as they were.
 //   action: "START", "PAUSE" or "ABORT" (case-insensitive; ABORT wipes that task's timing, see abortTimer, and touches
 //           no other task); anything else, or an unknown task id, returns null
+//   options: {capSeconds} limits the running stretch a PAUSE counts (see pauseTimer); ignored by START and ABORT
 // Returns {tasks, task} (the changed task).
-function setTimerInList(tasks, taskId, action, nowMs) {
+function setTimerInList(tasks, taskId, action, nowMs, options = {}) {
   const verb = typeof action === "string" ? action.trim().toUpperCase() : "";
   if ((verb !== "START" && verb !== "PAUSE" && verb !== "ABORT") || !tasks.some((t) => t.id === taskId)) return null;
   let changed = null;
   const next = tasks.map((t) => {
     if (t.id === taskId) {
-      changed = verb === "START" ? startTimer(t, nowMs) : verb === "ABORT" ? abortTimer(t) : pauseTimer(t, nowMs);
+      changed = verb === "START" ? startTimer(t, nowMs) : verb === "ABORT" ? abortTimer(t) : pauseTimer(t, nowMs, options.capSeconds);
       return changed;
     }
     return verb === "START" ? clearActive(pauseTimer(t, nowMs)) : t;
@@ -97,4 +105,4 @@ function settleTimer(task, nowMs) {
   return {...clearActive(paused), trackedSeconds: savedSeconds(paused)};
 }
 
-module.exports = {clearActive, isRunning, elapsedSeconds, pauseTimer, abortTimer, startTimer, setTimerInList, settleTimer};
+module.exports = {clearActive, isRunning, elapsedSeconds, runningSeconds, pauseTimer, abortTimer, startTimer, setTimerInList, settleTimer};

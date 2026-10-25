@@ -922,17 +922,19 @@ exports.removeDuplicateTasks = onRequest({
 }));
 
 // 7a. Endpoint: Start, pause or abort a task's timer
-// Body {taskId, action: "START"|"PAUSE"|"ABORT"}. The server's clock is used. Starting also pauses any other running timer
+// Body {taskId, action: "START"|"PAUSE"|"ABORT", capSeconds?}. The server's clock is used. `capSeconds` (a whole number >= 0, PAUSE only)
+// counts at most that much of the running stretch, for a timer left running by mistake (400 when it is not a whole number >= 0). Starting also pauses any other running timer
 // (one runs at a time). Starting a running timer or pausing a paused one changes nothing. ABORT stops the task's timer
 // and erases its tracked time, first-started time and active mark, returning it to the plain queue as if never timed. 400 for an unusable action, 404
 // for an unknown task. Responds {success, tasks}.
 exports.toggleTimer = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
-    const {taskId, action} = req.body || {};
+    const {taskId, action, capSeconds} = req.body || {};
     const verb = typeof action === "string" ? action.trim().toUpperCase() : "";
     if (verb !== "START" && verb !== "PAUSE" && verb !== "ABORT") return res.status(400).send({error: "action must be START, PAUSE or ABORT"});
+    if (capSeconds !== undefined && capSeconds !== null && !(Number.isInteger(capSeconds) && capSeconds >= 0)) return res.status(400).send({error: "capSeconds must be a whole number of seconds, 0 or more"});
     const result = await updateTaskList((tasks) => {
-      const done = setTimerInList(tasks, taskId, verb, Date.now());
+      const done = setTimerInList(tasks, taskId, verb, Date.now(), {capSeconds: capSeconds === null ? undefined : capSeconds});
       if (!done) return {current: tasks, unknown: true};
       return {tasks: done.tasks, current: done.tasks};
     });
@@ -1056,7 +1058,7 @@ exports.getSettings = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, r
 }));
 
 // 9. Endpoint: Update Settings
-// Body: {settings: {location?, timeZone?, scheduleDays?, gapMinutes?, scheduleOrder?, day?, lunch?, schedule?, jobSheet?}}, any subset of the editable fields. 400 with the reason
+// Body: {settings: {location?, timeZone?, scheduleDays?, gapMinutes?, timerWarnHours?, scheduleOrder?, day?, lunch?, schedule?, jobSheet?}}, any subset of the editable fields. 400 with the reason
 // when a field is invalid (nothing is saved); run state cannot be set.
 exports.updateSettings = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {

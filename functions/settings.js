@@ -18,6 +18,8 @@ const MAX_SCHEDULE_DAYS = 28;
 // Gap left between scheduled tasks (minutes), and the lunch break's length range (minutes).
 const MIN_GAP_MINUTES = 0;
 const MAX_GAP_MINUTES = 60;
+const MIN_TIMER_WARN_HOURS = 1;
+const MAX_TIMER_WARN_HOURS = 48;
 const MIN_LUNCH_MINUTES = 5;
 const MAX_LUNCH_MINUTES = 180;
 
@@ -32,6 +34,7 @@ const DEFAULTS = Object.freeze({
   timeZone: "Pacific/Auckland",
   scheduleDays: 7,
   gapMinutes: 0,
+  timerWarnHours: 6,
   scheduleOrder: "URGENCY",
   day: Object.freeze({start: "09:00", end: "17:00"}),
   lunch: Object.freeze({enabled: false, time: "12:00", minutes: 30}),
@@ -84,6 +87,14 @@ function checkTime(v) {
 function checkGapMinutes(v) {
   if (!Number.isInteger(v) || v < MIN_GAP_MINUTES || v > MAX_GAP_MINUTES) {
     throw new Error(`gapMinutes must be a whole number from ${MIN_GAP_MINUTES} to ${MAX_GAP_MINUTES}`);
+  }
+  return v;
+}
+
+// Hours a timer may run before the page warns that it may have been left on.
+function checkTimerWarnHours(v) {
+  if (!Number.isInteger(v) || v < MIN_TIMER_WARN_HOURS || v > MAX_TIMER_WARN_HOURS) {
+    throw new Error(`timerWarnHours must be a whole number from ${MIN_TIMER_WARN_HOURS} to ${MAX_TIMER_WARN_HOURS}`);
   }
   return v;
 }
@@ -169,6 +180,7 @@ const EDITABLE = [
   ["timeZone", null, checkTimeZone],
   ["scheduleDays", null, checkScheduleDays],
   ["gapMinutes", null, checkGapMinutes],
+  ["timerWarnHours", null, checkTimerWarnHours],
   ["scheduleOrder", null, checkScheduleOrder],
   ["day", "start", checkDayStart],
   ["day", "end", checkDayEnd],
@@ -199,7 +211,7 @@ function isoOrNull(v) {
 // Full settings from whatever is stored (possibly nothing). A missing or unusable stored field falls back to
 // its default, so a hand-edited document can never break the app. Pure: returns a new object.
 function mergeSettings(stored) {
-  const out = {location: {...DEFAULTS.location}, timeZone: DEFAULTS.timeZone, scheduleDays: DEFAULTS.scheduleDays, gapMinutes: DEFAULTS.gapMinutes, scheduleOrder: DEFAULTS.scheduleOrder, day: {...DEFAULTS.day}, lunch: {...DEFAULTS.lunch}, schedule: {...DEFAULTS.schedule}, jobSheet: {...DEFAULTS.jobSheet}};
+  const out = {location: {...DEFAULTS.location}, timeZone: DEFAULTS.timeZone, scheduleDays: DEFAULTS.scheduleDays, gapMinutes: DEFAULTS.gapMinutes, timerWarnHours: DEFAULTS.timerWarnHours, scheduleOrder: DEFAULTS.scheduleOrder, day: {...DEFAULTS.day}, lunch: {...DEFAULTS.lunch}, schedule: {...DEFAULTS.schedule}, jobSheet: {...DEFAULTS.jobSheet}};
   for (const [group, key, check] of EDITABLE) {
     const value = readField(stored, group, key);
     if (value === undefined) continue;

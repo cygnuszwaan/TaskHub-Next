@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -137,7 +137,7 @@ describe("public/index.html helpers", () => {
     });
     it("sends ABORT through the same guarded timer call as START and PAUSE", () => {
       assert.match(html, /function abortTask\(taskId\) \{\s*return sendTimerAction\(taskId, "ABORT"\);/);
-      assert.match(html, /body: JSON\.stringify\(\{ taskId, action \}\)/);
+      assert.match(html, /body: JSON\.stringify\(\{ taskId, action, \.\.\.extra \}\)/);
       assert.match(html, /isTimerRunning\(task\) \? "PAUSE" : "START"/);
     });
     it("takes removals off the list before the server answers and keeps later lists from bringing them back", () => {
@@ -698,8 +698,91 @@ describe("public/index.html helpers", () => {
     });
   });
 
+  describe("due-date card colours", () => {
+    const day = (offset) => new Date(Date.UTC(2026, 9, 25 + offset)).toISOString().slice(0, 10);
+    const now = new Date("2026-10-25T01:00:00Z"); // 14:00 on 25 Oct in Auckland
+    it("colours a card pale red when overdue and amber when due within 2 days, today included", () => {
+      const {dueClass, DUE_SOON_DAYS} = load();
+      assert.equal(DUE_SOON_DAYS, 2);
+      assert.equal(dueClass({dueDate: day(-1)}, now), "due-overdue");
+      assert.equal(dueClass({dueDate: day(-30)}, now), "due-overdue");
+      assert.equal(dueClass({dueDate: day(0)}, now), "due-soon");
+      assert.equal(dueClass({dueDate: day(1)}, now), "due-soon");
+      assert.equal(dueClass({dueDate: day(2)}, now), "due-soon");
+      assert.equal(dueClass({dueDate: day(3)}, now), "");
+    });
+    it("leaves a task with no usable due date plain", () => {
+      const {dueClass} = load();
+      for (const t of [{}, {dueDate: ""}, {dueDate: "soon"}, {dueDate: null}]) assert.equal(dueClass(t, now), "");
+    });
+    it("applies to queued cards only: the Active task keeps its timer tint", () => {
+      assert.match(html, /isActive \? "" : dueClass\(t\)/);
+    });
+    it("has both colours as variables with identical dark values in both dark blocks", () => {
+      assert.equal((html.match(/--card-soon-bg:/g) || []).length, 3);
+      assert.equal((html.match(/--card-overdue-bg:/g) || []).length, 3);
+      assert.match(html, /\.swipe-row\.swiping \.task-item\.due-soon/);
+      assert.match(html, /\.swipe-row\.swiping \.task-item\.due-overdue/);
+    });
+  });
+  describe("long-running timer warning", () => {
+    const at = (iso) => Date.parse(iso);
+    const running = {id: "a", timerStartedAt: "2026-10-25T00:00:00.000Z", trackedSeconds: 7200};
+    it("counts only the current stretch, not the time saved before", () => {
+      const {runningSeconds} = load();
+      assert.equal(runningSeconds(running, at("2026-10-25T00:10:00.000Z")), 600);
+      assert.equal(runningSeconds({id: "a", trackedSeconds: 9999}, at("2026-10-25T00:10:00.000Z")), 0);
+      assert.equal(runningSeconds(running, at("2026-10-24T00:00:00.000Z")), 0);
+      assert.equal(runningSeconds(null, 5), 0);
+    });
+    it("warns only once the stretch passes the threshold, offering a cap of the threshold", () => {
+      const {longTimerWarning} = load();
+      assert.equal(longTimerWarning(running, at("2026-10-25T06:00:00.000Z"), 6), null);
+      assert.deepEqual(longTimerWarning(running, at("2026-10-25T07:12:00.000Z"), 6), {stretch: 7 * 3600 + 720, cap: 21600});
+      assert.deepEqual(longTimerWarning(running, at("2026-10-25T03:00:01.000Z"), 2), {stretch: 10801, cap: 7200});
+    });
+    it("never warns for a paused timer, and falls back to 6 hours for an unusable threshold", () => {
+      const {longTimerWarning, DEFAULT_TIMER_WARN_HOURS} = load();
+      assert.equal(DEFAULT_TIMER_WARN_HOURS, 6);
+      assert.equal(longTimerWarning({id: "a", trackedSeconds: 99999}, at("2026-10-25T09:00:00.000Z"), 6), null);
+      assert.equal(longTimerWarning(running, at("2026-10-25T05:00:00.000Z"), undefined), null);
+      assert.equal(longTimerWarning(running, at("2026-10-25T06:30:00.000Z"), 0).cap, 21600);
+    });
+    it("keeps the warning's buttons out of the card gestures and sends the cap with PAUSE", () => {
+      assert.match(html, /e\.target\.closest\("\.timer-warning"\)\) return null/);
+      assert.match(html, /sendTimerAction\(task\.id, "PAUSE", capIt && warning \? \{ capSeconds: warning\.cap \} : \{\}\)/);
+    });
+    it("has a Warn when a timer has run for field in the Scheduling settings", () => {
+      assert.match(html, /<label for="timerWarnHours">Warn when a timer has run for \(hours\)<\/label>/);
+    });
+  });
+  describe("job number search words", () => {
+    it("splits hash-and-digits words from plain words, ignoring leading zeros and a bare hash", () => {
+      const {jobNumberWords} = load();
+      assert.deepEqual(jobNumberWords("#123 Fit tap #0007 #"), {numbers: [123, 7], words: ["fit", "tap"]});
+      assert.deepEqual(jobNumberWords(""), {numbers: [], words: []});
+      assert.deepEqual(jobNumberWords(undefined), {numbers: [], words: []});
+      assert.deepEqual(jobNumberWords("#5a a#5"), {numbers: [], words: ["#5a", "a#5"]});
+    });
+    it("matchesSearch: a job number word finds that task only, alone or with title words", () => {
+      const {matchesSearch: m} = load();
+      const t = {title: "Fit tap", jobNumber: 123};
+      assert.equal(m(t, "#123"), true);
+      assert.equal(m(t, "#12"), false);
+      assert.equal(m(t, "#1234"), false);
+      assert.equal(m(t, "#123 tap"), true);
+      assert.equal(m(t, "#123 basin"), false);
+      assert.equal(m({title: "Fit tap"}, "#123"), false);
+      assert.equal(m(t, "#"), true);
+    });
+    it("templateMatches still reads a hash word as text, since templates have no job number", () => {
+      const {templateMatches} = load();
+      const templates = [{title: "Bin day #3", completedCount: 2}, {title: "Other", completedCount: 1}];
+      assert.deepEqual(templateMatches(templates, "#3").map((x) => x.title), ["Bin day #3"]);
+    });
+  });
   describe("settingsPayload", () => {
-    const form = {location: {name: "Oslo", latitude: 59.9, longitude: 10.7, extra: "dropped"}, timeZone: "Europe/Oslo", scheduleDays: "14", gapMinutes: "10", scheduleOrder: "NUMBER", dayStart: "08:30", dayEnd: "16:00", lunchEnabled: 1, lunchTime: "12:30", lunchMinutes: "45", enabled: 1, frequency: "INTERVAL", time: "06:30", intervalMinutes: "30"};
+    const form = {location: {name: "Oslo", latitude: 59.9, longitude: 10.7, extra: "dropped"}, timeZone: "Europe/Oslo", scheduleDays: "14", gapMinutes: "10", timerWarnHours: "8", scheduleOrder: "NUMBER", dayStart: "08:30", dayEnd: "16:00", lunchEnabled: 1, lunchTime: "12:30", lunchMinutes: "45", enabled: 1, frequency: "INTERVAL", time: "06:30", intervalMinutes: "30"};
     it("builds the updateSettings body from the form", () => {
       const h = load();
       assert.deepEqual(h.settingsPayload(form), {
@@ -707,11 +790,17 @@ describe("public/index.html helpers", () => {
         timeZone: "Europe/Oslo",
         scheduleDays: 14,
         gapMinutes: 10,
+        timerWarnHours: 8,
         scheduleOrder: "NUMBER",
         day: {start: "08:30", end: "16:00"},
         lunch: {enabled: true, time: "12:30", minutes: 45},
         schedule: {enabled: true, frequency: "INTERVAL", time: "06:30", intervalMinutes: 30},
       });
+    });
+    it("leaves the timer warning out when its field is empty, so the saved value stays", () => {
+      const h = load();
+      assert.equal("timerWarnHours" in h.settingsPayload({...form, timerWarnHours: ""}), false);
+      assert.equal("timerWarnHours" in h.settingsPayload({...form, timerWarnHours: undefined}), false);
     });
     it("sends URGENCY for anything but NUMBER", () => {
       const h = load();

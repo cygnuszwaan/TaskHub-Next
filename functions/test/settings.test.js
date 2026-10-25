@@ -405,3 +405,26 @@ describe("settings.js: daily window", () => {
     assert.equal(isRunDue(s, new Date("2026-10-22T08:15:00+13:00")), true);
   });
 });
+
+describe("settings.js: timerWarnHours", () => {
+  const current = mergeSettings(undefined);
+  it("defaults to 6 hours, also for a stored value that is unusable", () => {
+    assert.equal(DEFAULTS.timerWarnHours, 6);
+    assert.equal(mergeSettings(undefined).timerWarnHours, 6);
+    for (const v of [0, 49, 1.5, "8", null, NaN]) assert.equal(mergeSettings({timerWarnHours: v}).timerWarnHours, 6);
+    assert.equal(mergeSettings({timerWarnHours: 12}).timerWarnHours, 12);
+  });
+  it("accepts a whole number of hours from 1 to 48 and leaves the other settings alone", () => {
+    for (const v of [1, 6, 48]) assert.equal(applySettingsUpdate(current, {timerWarnHours: v}).settings.timerWarnHours, v);
+    const r = applySettingsUpdate(current, {timerWarnHours: 9});
+    assert.equal(r.settings.gapMinutes, current.gapMinutes);
+    assert.equal(applySettingsUpdate(current, {gapMinutes: 5}).settings.timerWarnHours, 6);
+  });
+  it("rejects anything else, saving nothing", () => {
+    for (const v of [0, 49, 2.5, "6", null]) {
+      const r = applySettingsUpdate(current, {timerWarnHours: v});
+      assert.match(r.error, /timerWarnHours must be a whole number from 1 to 48/);
+      assert.equal(r.settings, undefined);
+    }
+  });
+});
