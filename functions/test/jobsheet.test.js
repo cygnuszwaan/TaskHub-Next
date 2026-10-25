@@ -79,9 +79,9 @@ describe("jobsheet.js", () => {
       assert.match(s.generatedText, /24 October 2026/);
       assert.equal(s.timeZone, NZ);
     });
-    it("gives each entry its job number as 6 or more digits, and nothing for a task that has none or an unusable one", () => {
+    it("gives each entry its job number as plain digits, and nothing for a task that has none or an unusable one", () => {
       const s = sheet({type: "PROJECT"}, [row({jobNumber: 42, completedAt: at("2026-10-20")}), row({jobNumber: 1234567, completedAt: at("2026-10-21")}), row({completedAt: at("2026-10-22")}), row({jobNumber: "7", completedAt: at("2026-10-23")})]);
-      assert.deepEqual(s.sections.flatMap((x) => x.entries).map((e) => e.jobNumber), ["000042", "1234567", "", ""]);
+      assert.deepEqual(s.sections.flatMap((x) => x.entries).map((e) => e.jobNumber), ["42", "1234567", "", ""]);
     });
     it("gives the time the timer was first started on the owner's clock, and nothing for a bad value", () => {
       const entry = (extra) => sheet({type: "TASK"}, [row(extra)]).sections[0].entries[0];

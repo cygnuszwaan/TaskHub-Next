@@ -1241,6 +1241,23 @@ describe("public/index.html helpers", () => {
         assert.equal(m(row, "kitchen", ""), false);
         assert.equal(m(row, "tap bathroom", "Kitchen reno"), false);
       });
+      it("matchesCompletedSearch: #123 finds job number 123 exactly, alone or with other words", () => {
+        const {matchesCompletedSearch: m} = load();
+        const row = {title: "Fit tap", jobNumber: 123, projectId: "p1"};
+        assert.equal(m(row, "#123", ""), true);
+        assert.equal(m(row, "#0123", ""), true);
+        assert.equal(m(row, "#12", ""), false);
+        assert.equal(m(row, "#1234", ""), false);
+        assert.equal(m(row, "#124", ""), false);
+        assert.equal(m(row, "#123 tap", ""), true);
+        assert.equal(m(row, "#123 basin", ""), false);
+        assert.equal(m(row, "#123 kitchen", "Kitchen reno"), true);
+        assert.equal(m({title: "Fit tap"}, "#123", ""), false);
+        assert.equal(m({title: "Fit tap", jobNumber: "123"}, "#123", ""), false);
+        assert.equal(m(row, "#", ""), true);
+        assert.equal(m(row, "# tap", ""), true);
+        assert.equal(m({title: "Item #5a"}, "#5a", ""), true);
+      });
       it("matchesCompletedSearch: copes with rows missing fields and with odd types", () => {
         const {matchesCompletedSearch: m} = load();
         assert.equal(m({}, "x", ""), false);

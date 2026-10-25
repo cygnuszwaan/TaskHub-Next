@@ -1505,10 +1505,14 @@
     // enough) must appear somewhere in its title, tags, materials, comments or project name. Empty matches everything.
     function matchesCompletedSearch(row, query, projectName) {
       const words = String(query || "").toLowerCase().split(/\s+/).filter(Boolean);
-      if (words.length === 0) return true;
+      // A word like hash-then-digits is a job number, matched exactly (so 12 does not find 123); a bare hash restricts nothing.
+      const numbers = words.filter(w => /^#\d+$/.test(w)).map(w => Number(w.slice(1)));
+      const rest = words.filter(w => w !== "#" && !/^#\d+$/.test(w));
+      if (numbers.some(n => n !== row.jobNumber)) return false;
+      if (rest.length === 0) return true;
       const text = (v) => (typeof v === "string" ? v : "");
       const hay = [text(row.title), ...(Array.isArray(row.tags) ? row.tags : []).map(text), ...completedMaterialTexts(row), text(row.comments), text(projectName)].join("\n").toLowerCase();
-      return words.every(w => hay.includes(w));
+      return rest.every(w => hay.includes(w));
     }
     // One page of the completed tasks that match a search (the list is newest first and keeps that order). `page` is
     // counted from 1 and clamped to the pages there are; `projectNameOf` gives a project's name for its id.
