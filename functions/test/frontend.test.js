@@ -798,11 +798,11 @@ describe("public/index.html helpers", () => {
       };
       has("editExtraFields", "editTravel");
       has("ceExtraFields", "ceTravel");
-      assert.ok(html.indexOf('id="manualTravel"') > html.indexOf('id="manualMaterials"'));
-      assert.ok(html.indexOf('id="manualTravel"') < html.indexOf('id="manualComments"'));
-      assert.ok(html.indexOf('id="editTravel"') > html.indexOf('id="editMaterials"') && html.indexOf('id="editTravel"') < html.indexOf('id="editComments"'));
+      assert.ok(html.indexOf("id=\"manualTravel\"") > html.indexOf("id=\"manualMaterials\""));
+      assert.ok(html.indexOf("id=\"manualTravel\"") < html.indexOf("id=\"manualComments\""));
+      assert.ok(html.indexOf("id=\"editTravel\"") > html.indexOf("id=\"editMaterials\"") && html.indexOf("id=\"editTravel\"") < html.indexOf("id=\"editComments\""));
       const jobSheets = html.indexOf("<h3>Job Sheets</h3>");
-      assert.ok(html.indexOf('id="travelRate"') > jobSheets && html.indexOf('id="travelRate"') > html.indexOf('id="hourlyRate"'));
+      assert.ok(html.indexOf("id=\"travelRate\"") > jobSheets && html.indexOf("id=\"travelRate\"") > html.indexOf("id=\"hourlyRate\""));
     });
     it("parseCostText: null when empty, a number for an amount, undefined otherwise", () => {
       const {parseCostText} = load();
