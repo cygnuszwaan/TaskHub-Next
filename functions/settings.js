@@ -28,6 +28,10 @@ const MAX_LUNCH_MINUTES = 180;
 // The contractor information printed on every job sheet: free text, line breaks kept, at most this many characters.
 const MAX_CONTRACTOR_INFO = 1000;
 
+// How long before a scheduled task starts its reminder is due (minutes). All longer than the 15-minute dispatcher tick,
+// so a reminder can never arrive after the start (see alerts.js).
+const REMINDER_LEADS = [30, 60, 120];
+
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const ZONE_PATTERN = /^(UTC|[A-Za-z_]+(\/[A-Za-z0-9_+-]+)+)$/;
 
@@ -42,7 +46,9 @@ const DEFAULTS = Object.freeze({
   lunch: Object.freeze({enabled: false, time: "12:00", minutes: 30}),
   schedule: Object.freeze({enabled: true, frequency: "DAILY", time: "20:00", intervalMinutes: 60}),
   jobSheet: Object.freeze({contractorInfo: "", hourlyRate: null}),
+  notify: Object.freeze({runFailed: true, weatherMoved: true, taskStarting: true, leadMinutes: 30}),
   lastAutoRunAt: null,
+  lastReminderAt: null,
   lastRunFingerprint: null,
   pushTokens: Object.freeze([]),
 });
@@ -182,6 +188,18 @@ function checkHourlyRate(v) {
   return rate;
 }
 
+function checkNotifyFlag(name) {
+  return (v) => {
+    if (typeof v !== "boolean") throw new Error(`notify.${name} must be true or false`);
+    return v;
+  };
+}
+
+function checkReminderLead(v) {
+  if (!REMINDER_LEADS.includes(v)) throw new Error(`notify.leadMinutes must be one of ${REMINDER_LEADS.join(", ")}`);
+  return v;
+}
+
 // Editable fields and their checks, addressed by path. Anything not listed (the run state in particular) can
 // never be set through an update.
 const EDITABLE = [
@@ -204,6 +222,10 @@ const EDITABLE = [
   ["schedule", "intervalMinutes", checkInterval],
   ["jobSheet", "contractorInfo", checkContractorInfo],
   ["jobSheet", "hourlyRate", checkHourlyRate],
+  ["notify", "runFailed", checkNotifyFlag("runFailed")],
+  ["notify", "weatherMoved", checkNotifyFlag("weatherMoved")],
+  ["notify", "taskStarting", checkNotifyFlag("taskStarting")],
+  ["notify", "leadMinutes", checkReminderLead],
 ];
 
 function readField(source, group, key) {
@@ -223,7 +245,7 @@ function isoOrNull(v) {
 // Full settings from whatever is stored (possibly nothing). A missing or unusable stored field falls back to
 // its default, so a hand-edited document can never break the app. Pure: returns a new object.
 function mergeSettings(stored) {
-  const out = {location: {...DEFAULTS.location}, timeZone: DEFAULTS.timeZone, scheduleDays: DEFAULTS.scheduleDays, gapMinutes: DEFAULTS.gapMinutes, timerWarnHours: DEFAULTS.timerWarnHours, scheduleOrder: DEFAULTS.scheduleOrder, day: {...DEFAULTS.day}, lunch: {...DEFAULTS.lunch}, schedule: {...DEFAULTS.schedule}, jobSheet: {...DEFAULTS.jobSheet}};
+  const out = {location: {...DEFAULTS.location}, timeZone: DEFAULTS.timeZone, scheduleDays: DEFAULTS.scheduleDays, gapMinutes: DEFAULTS.gapMinutes, timerWarnHours: DEFAULTS.timerWarnHours, scheduleOrder: DEFAULTS.scheduleOrder, day: {...DEFAULTS.day}, lunch: {...DEFAULTS.lunch}, schedule: {...DEFAULTS.schedule}, jobSheet: {...DEFAULTS.jobSheet}, notify: {...DEFAULTS.notify}};
   for (const [group, key, check] of EDITABLE) {
     const value = readField(stored, group, key);
     if (value === undefined) continue;
@@ -241,6 +263,7 @@ function mergeSettings(stored) {
   }
   out.lastAutoRunAt = isoOrNull(stored && stored.lastAutoRunAt);
   out.lastRunFingerprint = typeof (stored && stored.lastRunFingerprint) === "string" ? stored.lastRunFingerprint : null;
+  out.lastReminderAt = isoOrNull(stored && stored.lastReminderAt);
   out.pushTokens = normalizePushTokens(stored && stored.pushTokens);
   return out;
 }
@@ -250,7 +273,7 @@ function mergeSettings(stored) {
 // tokens (never editable here, see push.js) are carried over.
 function applySettingsUpdate(current, patch) {
   if (!isPlainObject(patch)) return {error: "Settings update must be an object"};
-  for (const group of ["location", "day", "lunch", "schedule", "jobSheet"]) {
+  for (const group of ["location", "day", "lunch", "schedule", "jobSheet", "notify"]) {
     if (patch[group] !== undefined && !isPlainObject(patch[group])) return {error: `${group} must be an object`};
   }
   const next = mergeSettings(current);
@@ -265,6 +288,7 @@ function applySettingsUpdate(current, patch) {
   }
   next.lastAutoRunAt = current.lastAutoRunAt || null;
   next.lastRunFingerprint = current.lastRunFingerprint || null;
+  next.lastReminderAt = current.lastReminderAt || null;
   return {settings: next};
 }
 
@@ -305,4 +329,4 @@ function claimRun(settings, now = new Date()) {
   return {due: true, settings: {...settings, lastAutoRunAt: now.toISOString()}};
 }
 
-module.exports = {MAX_CONTRACTOR_INFO, MIN_DAY_MINUTES, dayWindowMinutes, MIN_SCHEDULE_DAYS, MAX_SCHEDULE_DAYS, MIN_GAP_MINUTES, MAX_GAP_MINUTES, MIN_LUNCH_MINUTES, MAX_LUNCH_MINUTES, INTERVALS, FREQUENCIES, TICK_GRACE_MS, DEFAULTS, mergeSettings, applySettingsUpdate, isRunDue, claimRun};
+module.exports = {REMINDER_LEADS, MAX_CONTRACTOR_INFO, MIN_DAY_MINUTES, dayWindowMinutes, MIN_SCHEDULE_DAYS, MAX_SCHEDULE_DAYS, MIN_GAP_MINUTES, MAX_GAP_MINUTES, MIN_LUNCH_MINUTES, MAX_LUNCH_MINUTES, INTERVALS, FREQUENCIES, TICK_GRACE_MS, DEFAULTS, mergeSettings, applySettingsUpdate, isRunDue, claimRun};

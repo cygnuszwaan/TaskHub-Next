@@ -3,6 +3,7 @@
 const {isDeepStrictEqual} = require("node:util");
 const {mergeSettings, applySettingsUpdate, claimRun} = require("./settings");
 const {addPushToken, removePushTokens} = require("./push");
+const {reminderWindow} = require("./alerts");
 const {lastIssued} = require("./jobNumber");
 const {sortProjects, addProject, renameProject, removeProjectFromTasks} = require("./projects");
 const {buildTemplateSteps, sortTemplates, addTemplate, renameTemplate} = require("./projectTemplates");
@@ -310,7 +311,19 @@ function makeSettingsStore(db) {
     });
   }
 
-  return {getSettings, updateSettings, claimAutoRun, setRunFingerprint, addDeviceToken, removeDeviceTokens};
+  // One reminder check: reads the settings, works out the stretch since the last check (`reminderWindow`), records `now` as
+  // the last check and returns {settings, window}. The transaction keeps a duplicate tick from covering the same stretch.
+  async function claimReminderWindow(now = new Date()) {
+    return db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const settings = mergeSettings(snap.exists ? snap.data() : undefined);
+      const window = reminderWindow({lastAt: settings.lastReminderAt, now});
+      tx.set(ref, {...settings, lastReminderAt: now.toISOString()});
+      return {settings, window};
+    });
+  }
+
+  return {getSettings, updateSettings, claimAutoRun, setRunFingerprint, addDeviceToken, removeDeviceTokens, claimReminderWindow};
 }
 
 module.exports = {COLLECTION, PROJECTS_COLLECTION, CLIENTS_COLLECTION, TEMPLATES_COLLECTION, SETTINGS_DOC, JOB_COUNTER_DOC, checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeTemplateStore, makeSettingsStore};

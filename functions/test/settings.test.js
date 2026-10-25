@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {MAX_CONTRACTOR_INFO, DEFAULTS, INTERVALS, mergeSettings, applySettingsUpdate, isRunDue, claimRun} = require("../settings");
+const {REMINDER_LEADS, MAX_CONTRACTOR_INFO, DEFAULTS, INTERVALS, mergeSettings, applySettingsUpdate, isRunDue, claimRun} = require("../settings");
 
 const base = (extra = {}) => ({...mergeSettings(undefined), ...extra});
 const sched = (schedule, extra = {}) => base({schedule: {...DEFAULTS.schedule, ...schedule}, ...extra});
@@ -91,6 +91,43 @@ describe("settings.js", () => {
       assert.match(applySettingsUpdate(base(), {jobSheet: {contractorInfo: 7}}).error, /must be text/);
       assert.match(applySettingsUpdate(base(), {jobSheet: "A Builder"}).error, /jobSheet must be an object/);
       assert.match(applySettingsUpdate(base(), {gapMinutes: 5, jobSheet: {contractorInfo: null}}).error, /must be text/);
+    });
+  });
+
+  describe("notify settings", () => {
+    it("default to every alert on with a 30-minute reminder", () => {
+      assert.deepEqual(mergeSettings(undefined).notify, {runFailed: true, weatherMoved: true, taskStarting: true, leadMinutes: 30});
+      assert.deepEqual(DEFAULTS.notify, {runFailed: true, weatherMoved: true, taskStarting: true, leadMinutes: 30});
+    });
+    it("keep valid stored choices and fall back per field for unusable ones", () => {
+      assert.deepEqual(mergeSettings({notify: {runFailed: false, leadMinutes: 60}}).notify, {runFailed: false, weatherMoved: true, taskStarting: true, leadMinutes: 60});
+      assert.deepEqual(mergeSettings({notify: {runFailed: "no", leadMinutes: 7}}).notify, {runFailed: true, weatherMoved: true, taskStarting: true, leadMinutes: 30});
+      assert.deepEqual(mergeSettings({notify: "junk"}).notify, DEFAULTS.notify);
+    });
+    it("accept each switch and the three leads in an update", () => {
+      for (const leadMinutes of REMINDER_LEADS) assert.equal(applySettingsUpdate(base(), {notify: {leadMinutes}}).settings.notify.leadMinutes, leadMinutes);
+      const r = applySettingsUpdate(base(), {notify: {weatherMoved: false}});
+      assert.deepEqual(r.settings.notify, {...DEFAULTS.notify, weatherMoved: false});
+    });
+    it("reject a lead that is not offered, a switch that is not a boolean and a non-object group, saving nothing", () => {
+      assert.match(applySettingsUpdate(base(), {notify: {leadMinutes: 15}}).error, /notify\.leadMinutes/);
+      assert.match(applySettingsUpdate(base(), {notify: {taskStarting: "yes"}}).error, /notify\.taskStarting/);
+      assert.match(applySettingsUpdate(base(), {notify: {runFailed: 1}}).error, /notify\.runFailed/);
+      assert.match(applySettingsUpdate(base(), {notify: "on"}).error, /notify must be an object/);
+    });
+    it("keep the reminder leads longer than the 15-minute tick", () => {
+      assert.deepEqual(REMINDER_LEADS, [30, 60, 120]);
+    });
+  });
+
+  describe("lastReminderAt", () => {
+    it("is run state: read when valid, null otherwise, and never set by an update", () => {
+      assert.equal(mergeSettings({lastReminderAt: "2026-10-27T08:45:00.000Z"}).lastReminderAt, "2026-10-27T08:45:00.000Z");
+      assert.equal(mergeSettings({lastReminderAt: "junk"}).lastReminderAt, null);
+      assert.equal(mergeSettings(undefined).lastReminderAt, null);
+      const current = base({lastReminderAt: "2026-10-27T08:45:00.000Z"});
+      const r = applySettingsUpdate(current, {lastReminderAt: "2030-01-01T00:00:00.000Z", gapMinutes: 5});
+      assert.equal(r.settings.lastReminderAt, "2026-10-27T08:45:00.000Z");
     });
   });
 

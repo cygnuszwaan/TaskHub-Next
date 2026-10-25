@@ -555,6 +555,22 @@
       <p class="settings-note" style="margin:6px 0 0;">Each device is switched on separately and keeps its own choice. Turning it on asks the browser for permission.</p>
       <div id="pushStatus" class="settings-status"></div>
     </div>
+    <div class="form-group" style="margin:18px 0 0;">
+      <label>Tell me when</label>
+      <div><label><input type="checkbox" id="notifyRunFailed"> An automatic schedule run fails</label></div>
+      <div><label><input type="checkbox" id="notifyWeather"> Rain moves an Outdoor or Garden task to another day</label></div>
+      <div><label><input type="checkbox" id="notifyStarting"> A scheduled task is about to start</label></div>
+      <div style="margin-top:8px;">
+        <label for="notifyLead" class="settings-note" style="display:block; margin:0 0 4px;">Remind me about</label>
+        <select id="notifyLead" style="max-width: 200px;">
+          <option value="30">30 minutes before</option>
+          <option value="60">1 hour before</option>
+          <option value="120">2 hours before</option>
+        </select>
+      </div>
+      <p class="settings-note" style="margin:6px 0 0;">Saved as you change them and sent to every device that has notifications on. Start reminders are checked every 15 minutes, so one can arrive up to 15 minutes earlier than chosen.</p>
+      <div id="notifyStatus" class="settings-status"></div>
+    </div>
   </details>
   <details class="card settings-card">
     <summary><h3>Backup</h3></summary>
@@ -1845,6 +1861,21 @@
       if (permission === "denied") return { state: "DENIED", text: "Notifications are blocked for this site. Allow them in the browser's site settings, then come back.", canEnable: false, canDisable: !!enabled, canTest: false };
       if (enabled && permission === "granted") return { state: "ON", text: "Notifications are on for this device.", canEnable: false, canDisable: true, canTest: true };
       return { state: "OFF", text: "Notifications are off on this device.", canEnable: true, canDisable: !!enabled, canTest: false };
+    }
+    // The Notifications card's alert choices from the settings (`notify`), with the server's defaults for anything missing.
+    function notifyFormValues(settings) {
+      const n = (settings && settings.notify) || {};
+      return {
+        runFailed: n.runFailed !== false,
+        weatherMoved: n.weatherMoved !== false,
+        taskStarting: n.taskStarting !== false,
+        leadMinutes: Number.isInteger(n.leadMinutes) ? n.leadMinutes : 30
+      };
+    }
+    // The updateSettings body for those choices; only `notify` is sent, so unsaved Scheduling edits are untouched.
+    function notifyPayload(values) {
+      const v = values || {};
+      return { notify: { runFailed: !!v.runFailed, weatherMoved: !!v.weatherMoved, taskStarting: !!v.taskStarting, leadMinutes: Number(v.leadMinutes) } };
     }
     // Body for updatePushToken.
     function pushTokenBody(action, token) {
@@ -4066,6 +4097,7 @@
       const rateBox = document.getElementById("hourlyRate");
       if (rateBox.value === savedHourlyRate) rateBox.value = rate;
       savedHourlyRate = rate;
+      renderNotifySettings(s);
       const last = s.lastAutoRunAt ? new Date(s.lastAutoRunAt) : null;
       document.getElementById("settingsLastRun").textContent = last && !isNaN(last)
         ? `Last automatic run: ${formatInstant(last)} (${appTimeZone}).`
@@ -4349,6 +4381,43 @@
       } catch (err) { /* leave the saved token; the next load tries again */ }
     }
 
+    // Show the alert choices from the settings; the reminder lead only matters while start reminders are on.
+    function renderNotifySettings(s) {
+      const v = notifyFormValues(s);
+      document.getElementById("notifyRunFailed").checked = v.runFailed;
+      document.getElementById("notifyWeather").checked = v.weatherMoved;
+      document.getElementById("notifyStarting").checked = v.taskStarting;
+      document.getElementById("notifyLead").value = String(v.leadMinutes);
+      document.getElementById("notifyLead").disabled = !v.taskStarting;
+    }
+    // Saved as soon as one changes. Only `notify` is sent; a failure puts the controls back as they were saved.
+    async function saveNotifySettings() {
+      const status = document.getElementById("notifyStatus");
+      if (!currentSettings) { status.textContent = "Settings are not loaded yet."; renderNotifySettings(null); return; }
+      document.getElementById("notifyLead").disabled = !document.getElementById("notifyStarting").checked;
+      status.textContent = "Saving...";
+      try {
+        const res = await apiFetch(UPDATE_SETTINGS_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ settings: notifyPayload({
+            runFailed: document.getElementById("notifyRunFailed").checked,
+            weatherMoved: document.getElementById("notifyWeather").checked,
+            taskStarting: document.getElementById("notifyStarting").checked,
+            leadMinutes: document.getElementById("notifyLead").value
+          }) })
+        });
+        const saved = (await res.json()).settings;
+        if (!saved || !saved.notify) { status.textContent = "Saved, but the server ignored it. Deploy the latest functions."; return; }
+        currentSettings = { ...currentSettings, notify: saved.notify };
+        renderNotifySettings(currentSettings);
+        status.textContent = "Saved.";
+      } catch (err) {
+        renderNotifySettings(currentSettings);
+        status.textContent = "Not saved: " + err.message;
+      }
+    }
+
     // Save the contractor information alone. Only the job sheet group is sent and applySettings is not called, so
     // unsaved edits in the Scheduling form stay as they are.
     async function saveJobSheetSettings() {
@@ -4456,6 +4525,7 @@
     document.getElementById("pushOnBtn").addEventListener("click", enablePush);
     document.getElementById("pushOffBtn").addEventListener("click", disablePush);
     document.getElementById("pushTestBtn").addEventListener("click", sendPushTest);
+    for (const id of ["notifyRunFailed", "notifyWeather", "notifyStarting", "notifyLead"]) document.getElementById(id).addEventListener("change", saveNotifySettings);
     document.getElementById("exportBtn").addEventListener("click", downloadExport);
     document.getElementById("dedupBtn").addEventListener("click", removeDuplicateTasks);
     document.querySelector(".snooze-choices").addEventListener("click", e => {

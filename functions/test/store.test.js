@@ -263,6 +263,34 @@ describe("makeSettingsStore", () => {
     });
   });
 
+  describe("claimReminderWindow", () => {
+    const now = new Date("2026-10-27T09:00:00+13:00");
+    it("returns the stretch since the last check and records now", async () => {
+      const db = fakeDocDb({lastReminderAt: "2026-10-27T08:45:00+13:00"});
+      const {window, settings} = await makeSettingsStore(db).claimReminderWindow(now);
+      assert.deepEqual(window, {from: Date.parse("2026-10-27T08:45:00+13:00"), to: now.getTime()});
+      assert.equal(settings.notify.leadMinutes, 30);
+      assert.equal(db.state.value.lastReminderAt, now.toISOString());
+      assert.equal(db.state.writes, 1);
+    });
+    it("works with no document and looks back one tick", async () => {
+      const db = fakeDocDb();
+      const {window} = await makeSettingsStore(db).claimReminderWindow(now);
+      assert.equal(window.to - window.from, 15 * 60 * 1000);
+      assert.equal(db.state.value.lastReminderAt, now.toISOString());
+    });
+    it("a second claim at the same moment covers nothing new, and the rest of the document is kept", async () => {
+      const db = fakeDocDb({timeZone: "Australia/Sydney", pushTokens: ["token-001:APA91b-abcdefghijklmnop_1"]});
+      const store = makeSettingsStore(db);
+      await store.claimReminderWindow(now);
+      const again = await store.claimReminderWindow(now);
+      assert.equal(again.window.from, now.getTime());
+      assert.equal(again.window.to, now.getTime());
+      assert.equal(db.state.value.timeZone, "Australia/Sydney");
+      assert.deepEqual(db.state.value.pushTokens, ["token-001:APA91b-abcdefghijklmnop_1"]);
+    });
+  });
+
   describe("setRunFingerprint", () => {
     it("records the fingerprint and keeps everything else", async () => {
       const db = fakeDocDb({timeZone: "Australia/Sydney", lastAutoRunAt: "2026-10-22T07:00:00.000Z"});

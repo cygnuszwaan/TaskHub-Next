@@ -40,6 +40,7 @@ const {randomUUID} = require("crypto");
 const {v1: firestoreV1} = require("@google-cloud/firestore");
 const {BACKUP_ROOT, normalizeBucketName, runBackup} = require("./backup");
 const {normalizePushToken, sendToTokens, testPayload, publicSettings} = require("./push");
+const {weatherMoves, weatherMoveMessage, runFailedMessage, dueReminders, reminderMessage} = require("./alerts");
 
 admin.initializeApp();
 // Every function runs in Sydney, next to the Firestore database (australia-southeast1).
@@ -60,7 +61,7 @@ const {getClients: readClients, createClient, updateClient, deleteClient} = make
 // Project templates (a project's steps saved for reuse), in `project_templates/{id}`; see projectTemplates.js and store.js.
 const {getTemplates: readTemplates, saveTemplate, renameTemplate, deleteTemplate} = makeTemplateStore(db);
 // Runtime settings (location, time zone, auto-run schedule) in `settings/app`; see settings.js.
-const {getSettings: readSettings, updateSettings: writeSettings, claimAutoRun, setRunFingerprint, addDeviceToken, removeDeviceTokens} = makeSettingsStore(db);
+const {getSettings: readSettings, updateSettings: writeSettings, claimAutoRun, setRunFingerprint, addDeviceToken, removeDeviceTokens, claimReminderWindow} = makeSettingsStore(db);
 
 const MODEL_NAME = "gemini-3.5-flash-lite";
 
@@ -209,6 +210,35 @@ async function getWeather(location, timeZone) {
   }
 }
 
+// Push a message to the owner's devices when the alert kind (`runFailed`, `weatherMoved` or `taskStarting`) is switched on
+// in `settings` and a device is registered. `ttlSeconds` is how long the push service may hold it for a device that is
+// off. A failure only logs: an alert must never fail the work that raised it. Devices the push service reports as gone
+// are dropped.
+async function notifyOwner(settings, kind, message, ttlSeconds) {
+  if (!message || !settings.notify[kind] || !settings.pushTokens.length) return;
+  try {
+    const summary = await sendToTokens(admin.messaging(), settings.pushTokens, {...message, ttlSeconds});
+    if (summary.dead.length) await removeDeviceTokens(summary.dead);
+    if (!summary.sent) console.warn(`Notification (${kind}) was not delivered: ${summary.errors.join(", ")}`);
+  } catch (err) {
+    console.warn(`Notification (${kind}) failed:`, err.message);
+  }
+}
+
+// Reminders for tasks about to start: each 15-minute tick covers the stretch since the previous check (claimed in a
+// transaction, so a duplicate tick covers nothing twice) and messages the tasks whose reminder moment fell in it.
+async function sendStartReminders(now = new Date()) {
+  try {
+    const before = await readSettings();
+    if (!before.notify.taskStarting || !before.pushTokens.length) return;
+    const {settings, window} = await claimReminderWindow(now);
+    const due = dueReminders({tasks: await readTaskList(), from: window.from, to: window.to, leadMinutes: settings.notify.leadMinutes});
+    await notifyOwner(settings, "taskStarting", reminderMessage(due, settings.timeZone), 1200);
+  } catch (err) {
+    console.warn("Reminder check failed:", err.message);
+  }
+}
+
 // Place the tasks with the deterministic planner and check the result against the slot rules (repairSchedule).
 // Returns {slots, items, dropped}. An empty result is a real one (nothing fits), so it is not an error; slots that fail
 // validation would be a planner bug, so those stop the run with the calendar untouched.
@@ -229,6 +259,7 @@ function planValidSchedule(toSchedule, validation, scheduleOrder = "URGENCY") {
 // event stays and counts as busy, and the other tasks' schedule fields are left alone.
 // With `skipIfUnchanged` (automatic runs), a full run whose fingerprint equals the last successful full run's is
 // skipped before the planner runs; see fingerprint.js. A full run that succeeds records its fingerprint.
+// The result lists `weatherMoves` (alerts.js): Outdoor or Garden tasks the run took off a rainy day.
 async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
   const subset = Array.isArray(taskIds) ? new Set(taskIds) : null;
   const currentTasks = await readTaskList();
@@ -301,6 +332,7 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
   let slots = [];
   let unscheduled = []; // tasks that got no slot with the reason, [{taskId, reason}]
   let fingerprint = null;
+  let weatherRules = null;
   if (toSchedule.length > 0) {
     const weather = await getWeather(settings.location, timeZone);
     if (!subset) {
@@ -314,7 +346,7 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
     const fixed = buildFixedSlots({tasks: currentTasks, inScopeIds: subset ? new Set(inScope.map((t) => t.id)) : null, lockedWindows: lockedByTask, timeZone});
     console.log(`Scheduling ${toSchedule.length} tasks over ${settings.scheduleDays} days (${busySlots.length} busy windows, gap ${gap} min, day ${settings.day.start}-${settings.day.end}, lunch ${settings.lunch.enabled ? "on" : "off"}, to ${horizon.toISOString()})`);
     // Outdoor and Garden tasks stay inside the forecast window and off rainy days (enforced by the slot validation)
-    const weatherRules = weatherWindow({today: localDate(timeZone, now), forecast: weather.forecast, current: weather.key});
+    weatherRules = weatherWindow({today: localDate(timeZone, now), forecast: weather.forecast, current: weather.key});
     const validation = {busy: busySlots, now, horizon, timeZone, weather: weatherRules, allTasks: currentTasks, fixed, gapMinutes: gap, dayStartMin, dayEndMin};
     const result = planValidSchedule(toSchedule, validation, settings.scheduleOrder);
     scheduledList = result.items;
@@ -373,6 +405,8 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
   for (const id of orphanEventIds) {
     await deleteCalendarEvent(calendar, calendarId, id);
   }
+  // Weather-dependent tasks this run took off a rainy day (their old slot is in `toSchedule`, the new one in `scheduled`)
+  const moved = weatherRules ? weatherMoves({before: toSchedule, scheduled, rainyDates: weatherRules.rainyDates, today: localDate(timeZone, now), timeZone}) : [];
 
   // Remember what this schedule was built from. A failure to save it only means the next automatic run goes ahead.
   if (fingerprint) {
@@ -392,12 +426,14 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
     lastScheduledDate: slots.length ? slots.map((s) => (s.allDay ? s.date : localDate(timeZone, new Date(s.endMs)))).sort().pop() : null,
     unscheduledCount: toSchedule.length - slots.length,
     dropped: unscheduled,
+    weatherMoves: moved,
     schedule: scheduledList,
   };
 }
 
 // 1. Scheduled Function: dispatcher for the automatic schedule update
-// Ticks every 15 minutes (the Cloud Scheduler cron is fixed at deploy; 15 minutes is the finest interval offered).
+// Ticks every 15 minutes (the Cloud Scheduler cron is fixed at deploy; 15 minutes is the finest interval offered). Every tick
+// first sends any start-of-task reminders that fell due (sendStartReminders).
 // Each tick asks the runtime settings whether a run is due (daily at a set local time, or every N minutes in the
 // 8:00-20:00 local window) and claims it atomically, so a duplicate tick cannot start a second run. The claim
 // records the attempt even if the run then fails, which keeps a failing run from retrying on every tick.
@@ -409,14 +445,20 @@ exports.autoScheduleDaily = onSchedule({
     {name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"},
   ],
 }, async (event) => {
+  await sendStartReminders();
+  let settings = null;
   try {
-    const {due} = await claimAutoRun();
-    if (!due) return;
+    const claim = await claimAutoRun();
+    settings = claim.settings;
+    if (!claim.due) return;
     console.log("Starting automated schedule update...");
     const result = await runScheduleEngine({skipIfUnchanged: true});
     console.log("Automated schedule completed:", JSON.stringify(result));
+    await notifyOwner(settings, "weatherMoved", weatherMoveMessage(result.weatherMoves), 6 * 3600);
   } catch (err) {
     console.error("Automated schedule failed:", err);
+    const current = settings || await readSettings().catch(() => null);
+    if (current) await notifyOwner(current, "runFailed", runFailedMessage(err), 3600);
   }
 });
 
