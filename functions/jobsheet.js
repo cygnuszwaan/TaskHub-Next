@@ -4,6 +4,7 @@ const {localDate, formatLocalNow, addDays} = require("./time");
 const {isArchiveId} = require("./completedEdit");
 const {toIso, weekStartOf, minutesOf, summarizeProjectHours} = require("./completed");
 const {sortPhotos} = require("./photos");
+const {formatJobNumber} = require("./jobNumber");
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 // Most entries one job sheet lists (the newest); `truncated` says when there were more.
@@ -110,6 +111,7 @@ function sheetEntry(row, timeZone) {
   const list = (v) => (Array.isArray(v) ? v : []).map((x) => text(typeof x === "string" ? x : x && x.text)).filter(Boolean);
   return {
     archiveId: typeof row.archiveId === "string" ? row.archiveId : "",
+    jobNumber: formatJobNumber(row.jobNumber),
     title: text(row.title) || "Untitled task",
     started: whenText(timeZone, row.firstStartedAt),
     completed: whenText(timeZone, toIso(row.completedAt)),
@@ -141,7 +143,7 @@ function byCompletion(a, b) {
 //   "3h 20m (3.33 h)"); `sections`: [{heading, totals, entries}] oldest first with entries oldest first, a TASK sheet one
 //   section without heading or totals, a WEEK sheet one section for the week, a PROJECT sheet one per week with work
 //   (heading the week's range, totals its figures); an entry is {title, started, completed, timeText, estimated,
-//   materials, comments, archiveId} (`started`: when its timer was first started, "" when it never was; no priority or tags, the
+//   materials, comments, archiveId, jobNumber} (`jobNumber` the task's job number as 6 or more digits, "" for a task that has none; `started`: when its timer was first started, "" when it never was; no priority or tags, the
 //   sheet is client-facing); `truncated` is true when only the newest JOB_SHEET_MAX_ENTRIES entries are listed (the totals
 //   still cover everything read); `empty` is true when there is nothing to list.
 function buildJobSheet({request, rows, project, timeZone, now, contractorInfo}) {

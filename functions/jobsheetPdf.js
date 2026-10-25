@@ -134,7 +134,7 @@ function draw(doc, sheet) {
 
     for (const entry of section.entries) {
       const titleW = width - TIME_WIDTH - 8;
-      const meta = [entry.started ? `Started ${entry.started}` : "", entry.completed ? `Completed ${entry.completed}` : ""].filter(Boolean).join(" · ");
+      const meta = [entry.jobNumber ? `Job no. ${entry.jobNumber}` : "", entry.started ? `Started ${entry.started}` : "", entry.completed ? `Completed ${entry.completed}` : ""].filter(Boolean).join(" · ");
       const materials = entry.materials.length ? `Materials: ${entry.materials.join("; ")}` : "";
       const titleH = textHeight(entry.title, "Bold", 10.5, titleW);
       const metaH = meta ? textHeight(meta, "Sans", 8.5, width) + 1 : 0;

@@ -2,11 +2,13 @@
 /* eslint-disable require-jsdoc */
 const {isDeepStrictEqual} = require("node:util");
 const {mergeSettings, applySettingsUpdate, claimRun} = require("./settings");
+const {lastIssued} = require("./jobNumber");
 const {sortProjects, addProject, renameProject, removeProjectFromTasks} = require("./projects");
 
 const COLLECTION = "tasks";
 const PROJECTS_COLLECTION = "projects";
 const SETTINGS_DOC = "settings/app";
+const JOB_COUNTER_DOC = "settings/jobCounter";
 
 // Doc ids are task ids: non-empty strings, no "/" and not "." or ".." (Firestore rules), and unique within a list.
 function checkTaskIds(tasks) {
@@ -44,15 +46,22 @@ function diffTasks(before, after) {
 // Reads happen first, and only the tasks that changed are written, all in one transaction. The transaction may retry, so mutate must not perform side effects other than tx writes.
 // With `{withProjects: true}` the transaction also reads the `projects` collection and passes `{projects}` (sorted by name)
 // to mutate as a third argument, so a task can be checked against the projects that exist at commit time.
+// With `{withJobCounter: true}` it also reads the job number counter (`settings/jobCounter`) and passes `{jobCounter}`, the last number
+// issued (0 at the start); when the result carries a larger `jobCounter` it is stored in the same transaction (see jobNumber.js).
 function makeTaskStore(db) {
   const collection = db.collection(COLLECTION);
   const fromSnapshot = (snap) => sortTasks(snap.docs.map((d) => ({...d.data(), id: d.id})));
 
-  async function updateTaskList(mutate, {withProjects = false} = {}) {
+  async function updateTaskList(mutate, {withProjects = false, withJobCounter = false} = {}) {
     return db.runTransaction(async (tx) => {
       const before = fromSnapshot(await tx.get(collection));
       const projects = withProjects ? sortProjects((await tx.get(db.collection(PROJECTS_COLLECTION))).docs.map((d) => ({...d.data(), id: d.id}))) : undefined;
-      const result = mutate(before, tx, {projects});
+      const counterRef = withJobCounter ? db.doc(JOB_COUNTER_DOC) : null;
+      const counterSnap = counterRef ? await tx.get(counterRef) : null;
+      const jobCounter = counterSnap ? lastIssued(counterSnap.exists ? counterSnap.data() : undefined) : undefined;
+      const result = mutate(before, tx, {projects, jobCounter});
+      // The counter only ever moves forward, in the same commit as the tasks that use the numbers
+      if (counterRef && Number.isSafeInteger(result.jobCounter) && result.jobCounter > jobCounter) tx.set(counterRef, {last: result.jobCounter});
       if (result.tasks) {
         const {upserts, deletes} = diffTasks(before, result.tasks);
         for (const task of upserts) tx.set(collection.doc(task.id), task);
@@ -161,4 +170,4 @@ function makeSettingsStore(db) {
   return {getSettings, updateSettings, claimAutoRun, setRunFingerprint};
 }
 
-module.exports = {COLLECTION, PROJECTS_COLLECTION, SETTINGS_DOC, checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeSettingsStore};
+module.exports = {COLLECTION, PROJECTS_COLLECTION, SETTINGS_DOC, JOB_COUNTER_DOC, checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeSettingsStore};

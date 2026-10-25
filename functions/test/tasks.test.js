@@ -18,6 +18,65 @@ function existingTasks() {
 }
 
 describe("tasks.js", () => {
+  describe("job numbers", () => {
+    const weekly = {frequency: "WEEKLY", interval: 1};
+    it("numbers new tasks one after the other in the order the changes are listed, whatever rank they ask for", () => {
+      const r = mergeTaskChanges(existingTasks(), [{title: "Late", order: 4}, {title: "Early", order: 1}, {title: "None"}], makeIdGenerator(), [], {jobCounter: 10});
+      const byTitle = Object.fromEntries(r.tasks.map((t) => [t.title, t.jobNumber]));
+      assert.deepEqual([byTitle.Late, byTitle.Early, byTitle.None], [11, 12, 13]);
+      assert.equal(r.jobCounter, 13);
+      assert.equal(r.added, 3);
+    });
+    it("leaves existing tasks, updated ones included, without a number change", () => {
+      const list = existingTasks();
+      list[1].jobNumber = 5;
+      const r = mergeTaskChanges(list, [{id: "b", title: "B2"}, {id: "c", title: "C2"}], makeIdGenerator(), [], {jobCounter: 10});
+      assert.equal(r.tasks.find((t) => t.id === "b").jobNumber, 5);
+      assert.equal("jobNumber" in r.tasks.find((t) => t.id === "c"), false);
+      assert.equal(r.jobCounter, 10);
+    });
+    it("does not number tasks, or report a counter, without one; a change cannot set its own number", () => {
+      const r = mergeTaskChanges(existingTasks(), [{title: "N", jobNumber: 99}], makeIdGenerator());
+      assert.equal("jobNumber" in r.tasks[3], false);
+      assert.equal("jobCounter" in r, false);
+      const r2 = mergeTaskChanges(existingTasks(), [{title: "N", jobNumber: 99}], makeIdGenerator(), [], {jobCounter: 0});
+      assert.equal(r2.tasks[3].jobNumber, 1);
+    });
+    it("numbers a manual entry too, and skips an unusable change without using a number", () => {
+      const r = mergeTaskChanges(existingTasks(), [null, {title: "  "}, {title: "Real"}], makeIdGenerator(), [], {jobCounter: 7});
+      assert.equal(r.tasks.find((t) => t.title === "Real").jobNumber, 8);
+      assert.equal(r.jobCounter, 8);
+    });
+    it("is never changed by an edit", () => {
+      const next = applyDirectUpdate({id: "a", title: "A", jobNumber: 3}, {title: "B", jobNumber: 99});
+      assert.equal(next.jobNumber, 3);
+      assert.equal(next.title, "B");
+    });
+    it("gives the next occurrence of a repeating task a new number and the completed task keeps its own", () => {
+      const list = [{id: "r", title: "Mow", priority: "LOW", dueDate: "2026-10-20", estimatedMinutes: 30, tags: [], status: "PENDING", recurrence: weekly, order: 1, jobNumber: 4}];
+      const r = completeInList(list, "r", "2026-10-23", makeIdGenerator(), "2026-10-23T01:00:00.000Z", 20);
+      assert.equal(r.completedTask.jobNumber, 4);
+      assert.equal(r.spawned.jobNumber, 21);
+      assert.equal(r.jobCounter, 21);
+    });
+    it("uses no number for a task that does not repeat, and reports the counter unchanged", () => {
+      const r = completeInList(existingTasks(), "b", "2026-10-23", makeIdGenerator(), "2026-10-23T01:00:00.000Z", 20);
+      assert.equal(r.spawned, null);
+      assert.equal(r.jobCounter, 20);
+    });
+    it("numbers nothing and reports no counter when none is given", () => {
+      const list = [{id: "r", title: "Mow", priority: "LOW", dueDate: "2026-10-20", estimatedMinutes: 30, tags: [], status: "PENDING", recurrence: weekly, order: 1}];
+      const r = completeInList(list, "r", "2026-10-23", makeIdGenerator(), "2026-10-23T01:00:00.000Z");
+      assert.equal("jobNumber" in r.spawned, false);
+      assert.equal("jobCounter" in r, false);
+    });
+    it("keeps its number when a completed task is reopened", () => {
+      const {reopenTask} = require("../reopen");
+      const done = reopenTask([], {id: "x", title: "Fit tap", jobNumber: 12, completedAt: new Date(), completedCount: 1}, {makeId: makeIdGenerator()});
+      assert.equal(done.task.jobNumber, 12);
+    });
+  });
+
   describe("completeInList", () => {
     const today = "2026-10-23";
     const weekly = {frequency: "WEEKLY", interval: 1};

@@ -35,7 +35,7 @@ function normalizeRecurrence(value) {
 // validated by normalizeMaterials (null or an empty list removes it, an unusable value leaves it as it was; new
 // items get ids from `makeId`); and `snoozedUntil`, validated by normalizeSnooze (null or an empty string removes it, an
 // unusable value leaves it as it was); and `comments`, validated by normalizeComments (null or empty text removes it, a
-// non-string leaves it as it was). `addedAt`, `trackedSeconds`, `firstStartedAt`, `timerStartedAt`, `active` and `order` are never changed by an edit.
+// non-string leaves it as it was). `addedAt`, `trackedSeconds`, `firstStartedAt`, `timerStartedAt`, `active`, `order` and `jobNumber` are never changed by an edit.
 // Pure apart from `makeId`: the input is not modified.
 function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   const rest = {...fields};
@@ -51,6 +51,7 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   delete rest.timerStartedAt;
   delete rest.firstStartedAt;
   delete rest.active;
+  delete rest.jobNumber;
   delete rest.order; // the queue position changes only through moveToQueueNumber
   delete rest.queueNumber;
   const next = {...task, ...rest};
@@ -188,7 +189,8 @@ function placeAtRank(list, task, rank) {
 //   makeId:   () => new task id
 //   projectIds: ids of the projects that exist (none when omitted). The model's projectId and projectOrder are applied
 //             through applyProjectFields (see changeProjectFields for what counts).
-//   options:  {history: true} lets a new task take the change's `history` (validated by normalizeHistory), {materials: true} lets a new task take the change's `materials` (validated by normalizeMaterials) and
+//   options:  {jobCounter: n} numbers each new task (`jobNumber`) from n + 1 on, in the order the changes are listed, and returns the
+//             last number issued as `jobCounter`; without it new tasks are not numbered. {history: true} lets a new task take the change's `history` (validated by normalizeHistory), {materials: true} lets a new task take the change's `materials` (validated by normalizeMaterials) and
 //             {comments: true} its `comments` (validated by normalizeComments); only a manual entry sets them. Without
 //             the option, and for an update, the field is never read.
 // Untouched tasks, and every server-owned field of updated tasks, are preserved. A change naming an id that is
@@ -198,6 +200,7 @@ function placeAtRank(list, task, rank) {
 function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = {}) {
   let list = [...existing].sort((a, b) => (a.order || 0) - (b.order || 0));
   const created = []; // new tasks with the rank asked for, inserted after the loop
+  let counter = Number.isSafeInteger(options.jobCounter) ? options.jobCounter : null; // last job number issued, when numbering
   let added = 0;
   let updated = 0;
   let skipped = 0;
@@ -227,6 +230,7 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
         tags: fields.tags || [],
         status: "PENDING",
       };
+      if (counter !== null) base.jobNumber = ++counter;
       if (fields.recurrence) base.recurrence = fields.recurrence;
       if (typeof options.now === "string" && options.now) base.addedAt = options.now;
       const task = applyProjectFields(base, changeProjectFields(change, projectIds), projectIds);
@@ -254,7 +258,9 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
   const ranked = created.filter((c) => Number.isInteger(c.rank)).sort((a, b) => a.rank - b.rank);
   for (const {task, rank} of [...ranked, ...created.filter((c) => !Number.isInteger(c.rank))]) list = placeAtRank(list, task, rank);
 
-  return {tasks: list.map((t, i) => ({...t, order: i + 1})), added, updated, skipped};
+  const out = {tasks: list.map((t, i) => ({...t, order: i + 1})), added, updated, skipped};
+  if (counter !== null) out.jobCounter = counter;
+  return out;
 }
 
 // Remove a completed task from the list and, if it repeats, create its next occurrence. Pure: no I/O.
@@ -273,16 +279,19 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
 // caller stores on the archive row (`completedTask` itself keeps the history it had, so an undo restores it) and which the next
 // occurrence carries; the next occurrence's estimate becomes the rolling average of the tracked times, rounded to 5 minutes
 // (the completed task's estimate while no instance has any tracked time).
+// With `jobCounter` (the last job number issued) the next occurrence is a new task and takes the next job number; the result then
+// carries `jobCounter`, the last number issued afterwards. The completed task keeps its own number.
 // Other tasks are left exactly as they were. Returns null when no task has that id, otherwise
 // {tasks, completedTask, spawned, history} with spawned null for a task that does not repeat.
-function completeInList(tasks, taskId, today, makeId, now) {
+function completeInList(tasks, taskId, today, makeId, now, jobCounter) {
   const index = tasks.findIndex((t) => t.id === taskId);
   if (index === -1) return null;
   const completedTask = settleTimer(tasks[index], Date.parse(now));
   const history = recordCompletion(completedTask);
   const recurrence = normalizeRecurrence(completedTask.recurrence);
   const rest = tasks.filter((t) => t.id !== taskId);
-  if (!recurrence) return {tasks: rest, completedTask, spawned: null, history};
+  const counting = Number.isSafeInteger(jobCounter);
+  if (!recurrence) return {tasks: rest, completedTask, spawned: null, history, ...(counting ? {jobCounter} : {})};
   const spawned = {
     id: makeId(),
     title: completedTask.title,
@@ -302,7 +311,8 @@ function completeInList(tasks, taskId, today, makeId, now) {
     spawned.materials = completedTask.materials.map((m) => ({id: makeId(), text: m.text, checked: false}));
   }
   if (typeof completedTask.comments === "string" && completedTask.comments !== "") spawned.comments = completedTask.comments;
-  return {tasks: [...rest, spawned], completedTask, spawned, history};
+  if (counting) spawned.jobNumber = jobCounter + 1;
+  return {tasks: [...rest, spawned], completedTask, spawned, history, ...(counting ? {jobCounter: jobCounter + 1} : {})};
 }
 
 // How long after a delete or completion it can still be undone.

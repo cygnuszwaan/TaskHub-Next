@@ -20,6 +20,13 @@ describe("jobsheetPdf.js", () => {
     assert.match(pdf.subarray(-16).toString("latin1"), /%%EOF/);
     assert.equal(pages(pdf), 1);
   });
+  it("renders a sheet whose entries carry job numbers, with and without", async () => {
+    const numbered = rows(4).map((r, i) => (i === 2 ? r : {...r, jobNumber: i + 1}));
+    const pdf = await render({type: "PROJECT"}, numbered);
+    assert.equal(pdf.subarray(0, 5).toString("latin1"), "%PDF-");
+    assert.equal(pages(pdf), 1);
+    assert.equal(pages(await render({type: "TASK"}, rows(1, {jobNumber: 123456}))), 1);
+  });
   it("renders a project to date over several pages", async () => {
     assert.ok(pages(await render({type: "PROJECT"}, rows(60))) >= 3);
   });

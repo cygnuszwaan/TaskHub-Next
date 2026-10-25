@@ -119,6 +119,14 @@ describe("proposal.js", () => {
     ];
     const NOW = "2026-10-24T10:00:00.000Z";
 
+    it("numbers the steps from the next job number on and reports the last one issued, only when given a counter", () => {
+      const withCounter = acceptProposalInList(existing, projects, raw(), makeId, NOW, 40);
+      assert.deepEqual(withCounter.tasks.slice(2).map((t) => t.jobNumber), [41, 42, 43, 44]);
+      assert.equal(withCounter.jobCounter, 44);
+      const without = acceptProposalInList(existing, projects, raw(), makeId, NOW);
+      assert.equal(without.tasks.some((t) => "jobNumber" in t), false);
+      assert.equal("jobCounter" in without, false);
+    });
     it("adds the project and its steps at the end of the list, with project fields and addedAt", () => {
       const r = acceptProposalInList(existing, projects, raw(), makeId, NOW);
       assert.equal(r.error, undefined);

@@ -33,6 +33,7 @@ const {parseJobSheetRequest, buildJobSheet, sheetArchiveIds, gatherPhotos, withP
 const {renderJobSheetPdf} = require("./jobsheetPdf");
 const {makeOwnerOnly} = require("./auth");
 const {dayWindowMinutes} = require("./settings");
+const {lastIssued} = require("./jobNumber");
 const {randomUUID} = require("crypto");
 
 admin.initializeApp();
@@ -476,8 +477,8 @@ exports.addOrUpdateTask = onRequest({
     const body = req.body || {};
     // The owner accepted a suggested project: it is checked again and committed with its steps, no model call
     if (body.acceptProposal !== undefined) {
-      const accepted = await updateTaskList((tasks, tx, {projects: stored}) => {
-        const done = acceptProposalInList(tasks, stored, body.acceptProposal, randomUUID, new Date().toISOString());
+      const accepted = await updateTaskList((tasks, tx, {projects: stored, jobCounter}) => {
+        const done = acceptProposalInList(tasks, stored, body.acceptProposal, randomUUID, new Date().toISOString(), jobCounter);
         if (done.error) return {error: done.error, current: tasks};
         let list = done.tasks;
         if (body.startNow === true) {
@@ -485,8 +486,8 @@ exports.addOrUpdateTask = onRequest({
           if (firstNew) list = setTimerInList(list, firstNew, "START", Date.now()).tasks;
         }
         tx.set(db.collection(PROJECTS_COLLECTION).doc(done.project.id), done.project);
-        return {tasks: list, current: list, project: done.project, projects: done.projects, added: done.added};
-      }, {withProjects: true});
+        return {tasks: list, current: list, project: done.project, projects: done.projects, added: done.added, jobCounter: done.jobCounter};
+      }, {withProjects: true, withJobCounter: true});
       if (accepted.error) return res.status(400).send({error: accepted.error});
       return res.status(200).send({success: true, tasks: accepted.current, added: accepted.added, updated: 0, skipped: 0, project: accepted.project, projects: accepted.projects});
     }
@@ -551,7 +552,7 @@ exports.addOrUpdateTask = onRequest({
 
     // Merge into the list as it is now, not as it was when the model was asked. The projects are read in the same
     // transaction, so a task only joins a project that still exists at commit time.
-    const result = await updateTaskList((tasks, tx, {projects: stored}) => {
+    const result = await updateTaskList((tasks, tx, {projects: stored, jobCounter}) => {
       // A manual entry's new project is created in the same commit as the task, so nothing is left behind if the add fails
       let entry = changes;
       let created = null;
@@ -561,7 +562,7 @@ exports.addOrUpdateTask = onRequest({
         entry = created.changes;
         stored = created.projects;
       }
-      const merged = mergeTaskChanges(tasks, entry, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined, comments: body.manual !== undefined, history: body.manual !== undefined, now: new Date().toISOString()});
+      const merged = mergeTaskChanges(tasks, entry, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined, comments: body.manual !== undefined, history: body.manual !== undefined, now: new Date().toISOString(), jobCounter});
       const changed = merged.added + merged.updated > 0;
       let list = merged.tasks;
       if (body.startNow === true) {
@@ -570,7 +571,7 @@ exports.addOrUpdateTask = onRequest({
       }
       if (created && changed) tx.set(db.collection(PROJECTS_COLLECTION).doc(created.project.id), created.project);
       return {...merged, tasks: changed ? list : null, current: changed ? list : tasks, project: changed && created ? created.project : null, projects: changed && created ? created.projects : null};
-    }, {withProjects: true});
+    }, {withProjects: true, withJobCounter: true});
     if (result.error) return res.status(400).send({error: result.error});
     // A request that adds this many tasks at once is unusual: leave a trace of how it came about
     if (result.added > 3) console.warn(`addOrUpdateTask added ${result.added} tasks (${body.manual !== undefined ? "manual" : body.apply !== undefined ? "apply" : "free text"}, ${changes.length} change(s), ${result.updated} updated, ${result.skipped} skipped)`);
@@ -603,8 +604,8 @@ exports.completeTask = onRequest({
     // The task's photos move to its archive row in the same commit (read here: the transaction callback is synchronous)
     const photoRefs = (await PHOTOS.where("taskId", "==", taskId).get()).docs.map((d) => d.ref);
     // Archive, removal and the next occurrence of a recurring task commit together; calendar cleanup follows once they have
-    const result = await updateTaskList((tasks, tx) => {
-      const done = completeInList(tasks, taskId, today, randomUUID, new Date().toISOString());
+    const result = await updateTaskList((tasks, tx, {jobCounter}) => {
+      const done = completeInList(tasks, taskId, today, randomUUID, new Date().toISOString(), jobCounter);
       if (!done) return {current: tasks};
       const archiveRef = db.collection("completed_tasks").doc();
       tx.create(archiveRef, {
@@ -615,8 +616,8 @@ exports.completeTask = onRequest({
       for (const ref of photoRefs) tx.update(ref, {archiveId: archiveRef.id, taskId: admin.firestore.FieldValue.delete()});
       // Kept for undoRemove, in the same commit
       tx.set(LAST_REMOVED_REF, removalRecord("COMPLETE", done.completedTask, archiveRef.id, done.spawned, Date.now()));
-      return {tasks: done.tasks, current: done.tasks, completedTask: done.completedTask, spawned: done.spawned, archiveId: archiveRef.id};
-    });
+      return {tasks: done.tasks, current: done.tasks, completedTask: done.completedTask, spawned: done.spawned, archiveId: archiveRef.id, jobCounter: done.jobCounter};
+    }, {withJobCounter: true});
     await removeTaskCalendarEvent(result.completedTask);
     // A photo added while the task was being completed is moved too
     if (result.completedTask && result.archiveId) {
@@ -988,13 +989,14 @@ exports.undoRemove = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, re
 // another without a shared snapshot, which is fine for a single user's backup.
 exports.exportData = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
-    const [tasks, projects, settings, archiveSnap] = await Promise.all([
+    const [tasks, projects, settings, counterSnap, archiveSnap] = await Promise.all([
       readTaskList(),
       readProjects(),
       readSettings(),
+      db.doc("settings/jobCounter").get(),
       db.collection("completed_tasks").orderBy("completedAt", "desc").limit(EXPORT_MAX_ROWS).get(),
     ]);
-    const payload = buildExport({tasks, projects, settings, completed: archiveSnap.docs.map((d) => d.data()), now: new Date()});
+    const payload = buildExport({tasks, projects, settings, completed: archiveSnap.docs.map((d) => d.data()), now: new Date(), jobCounter: lastIssued(counterSnap.exists ? counterSnap.data() : undefined)});
     res.status(200).type("application/json").send(JSON.stringify(payload, null, 2));
   } catch (err) {
     console.error(err);

@@ -75,9 +75,13 @@ describe("jobsheet.js", () => {
       assert.equal(s.empty, false);
       assert.equal(s.sections.length, 1);
       assert.equal(s.sections[0].heading, "");
-      assert.deepEqual(s.sections[0].entries[0], {archiveId: "", title: "Fit tap", started: "", completed: "Tue, 20 Oct, 12:00 pm", timeText: "25m", estimated: false, materials: ["Tap", "PTFE tape"], comments: "Washer replaced"});
+      assert.deepEqual(s.sections[0].entries[0], {archiveId: "", jobNumber: "", title: "Fit tap", started: "", completed: "Tue, 20 Oct, 12:00 pm", timeText: "25m", estimated: false, materials: ["Tap", "PTFE tape"], comments: "Washer replaced"});
       assert.match(s.generatedText, /24 October 2026/);
       assert.equal(s.timeZone, NZ);
+    });
+    it("gives each entry its job number as 6 or more digits, and nothing for a task that has none or an unusable one", () => {
+      const s = sheet({type: "PROJECT"}, [row({jobNumber: 42, completedAt: at("2026-10-20")}), row({jobNumber: 1234567, completedAt: at("2026-10-21")}), row({completedAt: at("2026-10-22")}), row({jobNumber: "7", completedAt: at("2026-10-23")})]);
+      assert.deepEqual(s.sections.flatMap((x) => x.entries).map((e) => e.jobNumber), ["000042", "1234567", "", ""]);
     });
     it("gives the time the timer was first started on the owner's clock, and nothing for a bad value", () => {
       const entry = (extra) => sheet({type: "TASK"}, [row(extra)]).sections[0].entries[0];

@@ -17,6 +17,10 @@ describe("export.js buildExport", () => {
     assert.equal(out.version, EXPORT_VERSION);
     assert.equal(out.exportedAt, "2026-10-24T01:02:03.000Z");
   });
+  it("carries the job number counter, 0 when none is given or it is unusable", () => {
+    assert.equal(buildExport({tasks, projects, settings, completed: [], now, jobCounter: 57}).jobCounter, 57);
+    for (const jobCounter of [undefined, -1, 2.5, "9", null]) assert.equal(buildExport({tasks, projects, settings, completed: [], now, jobCounter}).jobCounter, 0);
+  });
   it("includes tasks, projects and settings as given", () => {
     const out = buildExport({tasks, projects, settings, completed: [], now});
     assert.deepEqual(out.tasks, tasks);

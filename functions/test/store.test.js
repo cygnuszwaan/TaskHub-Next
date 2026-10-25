@@ -9,17 +9,22 @@ const task = (id, order, extra = {}) => ({id, title: `Task ${id}`, priority: "ME
 // Minimal in-memory stand-in for the parts of Firestore the store uses. Writes apply only when the transaction
 // function resolves, as in a real transaction; `log` records them in order.
 function fakeDb(initial = {}, projects = {}) {
-  const data = {tasks: new Map(Object.entries(initial).map(([k, v]) => [k, structuredClone(v)])), other: new Map(), projects: new Map(Object.entries(projects).map(([k, v]) => [k, structuredClone(v)]))};
+  const data = {tasks: new Map(Object.entries(initial).map(([k, v]) => [k, structuredClone(v)])), other: new Map(), settings: new Map(), projects: new Map(Object.entries(projects).map(([k, v]) => [k, structuredClone(v)]))};
   const log = [];
   const collection = (name) => ({
     name,
     doc: (id = `auto-${data[name].size}`) => ({collection: name, id}),
     get: async () => ({docs: [...data[name].entries()].map(([id, v]) => ({id, data: () => structuredClone(v)}))}),
   });
+  const doc = (path) => {
+    const [name, id] = path.split("/");
+    return {collection: name, id, get: async () => ({exists: data[name].has(id), data: () => structuredClone(data[name].get(id))})};
+  };
   return {
     data,
     log,
     collection,
+    doc,
     async runTransaction(fn) {
       const writes = [];
       const tx = {
@@ -327,6 +332,46 @@ describe("makeTaskStore: withProjects", () => {
       return {};
     }, {withProjects: true});
     assert.deepEqual(seen, []);
+  });
+});
+
+describe("makeTaskStore: withJobCounter", () => {
+  it("passes the last number issued (0 at the start) and passes none unless asked", async () => {
+    const db = fakeDb({a: task("a", 1)});
+    let seen = "unset";
+    await makeTaskStore(db).updateTaskList((tasks, tx, extra) => {
+      seen = extra.jobCounter;
+      return {};
+    }, {withJobCounter: true});
+    assert.equal(seen, 0);
+    db.data.settings.set("jobCounter", {last: 41});
+    await makeTaskStore(db).updateTaskList((tasks, tx, extra) => {
+      seen = extra.jobCounter;
+      return {};
+    }, {withJobCounter: true});
+    assert.equal(seen, 41);
+    await makeTaskStore(db).updateTaskList((tasks, tx, extra) => {
+      seen = extra.jobCounter;
+      return {};
+    });
+    assert.equal(seen, undefined);
+  });
+  it("stores a larger counter in the same commit as the tasks, and never moves it back or writes it unchanged", async () => {
+    const db = fakeDb({a: task("a", 1)});
+    const store = makeTaskStore(db);
+    await store.updateTaskList((tasks) => ({tasks: [...tasks, task("b", 2, {jobNumber: 1})], jobCounter: 1}), {withJobCounter: true});
+    assert.deepEqual(db.data.settings.get("jobCounter"), {last: 1});
+    assert.deepEqual([...db.log].sort(), ["set settings/jobCounter", "set tasks/b"]); // one transaction: the order within it does not matter
+    db.log.length = 0;
+    await store.updateTaskList((tasks) => ({tasks, jobCounter: 1}), {withJobCounter: true});
+    await store.updateTaskList((tasks) => ({tasks, jobCounter: 0}), {withJobCounter: true});
+    assert.deepEqual(db.log, []);
+    assert.deepEqual(db.data.settings.get("jobCounter"), {last: 1});
+  });
+  it("ignores a counter in the result when the counter was not asked for", async () => {
+    const db = fakeDb({a: task("a", 1)});
+    await makeTaskStore(db).updateTaskList((tasks) => ({tasks, jobCounter: 9}));
+    assert.equal(db.data.settings.has("jobCounter"), false);
   });
 });
 

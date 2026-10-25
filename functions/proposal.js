@@ -96,14 +96,14 @@ function proposalChanges(proposal, projectId) {
 //   makeId, now:     () => new id, and the ISO text for the new tasks' `addedAt`
 // Returns {tasks, project, projects, added} (`projects` sorted by name, the new one included), or {error} with the reason
 // nothing was added.
-function acceptProposalInList(tasks, projects, raw, makeId, now) {
+function acceptProposalInList(tasks, projects, raw, makeId, now, jobCounter) {
   const stored = Array.isArray(projects) ? projects : [];
   const proposal = normalizeProposal(raw, {projects: stored});
   if (!proposal) return {error: `The project suggestion cannot be used: it needs a name no project has, and ${MIN_STEPS} to ${MAX_STEPS} steps with titles`};
   const created = addProject(stored, proposal.name, makeId);
   if (created.error) return {error: created.error};
-  const merged = mergeTaskChanges(tasks, proposalChanges(proposal, created.project.id), makeId, [created.project.id], {comments: true, now});
-  return {tasks: merged.tasks, project: created.project, projects: created.projects, added: merged.added};
+  const merged = mergeTaskChanges(tasks, proposalChanges(proposal, created.project.id), makeId, [created.project.id], {comments: true, now, jobCounter});
+  return {tasks: merged.tasks, project: created.project, projects: created.projects, added: merged.added, ...(merged.jobCounter !== undefined ? {jobCounter: merged.jobCounter} : {})};
 }
 
 // The changes of a declined suggestion (`{apply: {changes}}`), which go through mergeTaskChanges like the model's own
