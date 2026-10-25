@@ -357,6 +357,35 @@ describe("public/index.html helpers", () => {
       assert.doesNotMatch(html, /id="materialsDetails"/);
       assert.ok(html.indexOf(`id="editMaterials"`) > html.indexOf(`id="editModal"`));
     });
+    it("keeps Materials and Comments in a collapsed Extra fields section in both edit modals", () => {
+      for (const [details, fields, modal] of [["editExtraFields", ["editMaterials", "editComments"], "editModal"], ["ceExtraFields", ["ceMaterials", "ceComments"], "completedEditModal"]]) {
+        const start = at(`id="${details}"`);
+        const end = at("</details>", start);
+        assert.ok(start > at(`id="${modal}"`), `${details} is in ${modal}`);
+        assert.doesNotMatch(html.slice(start - 20, start + 40), /\sopen[\s>]/, `${details} starts collapsed`);
+        assert.match(html.slice(start, start + 120), /<summary>Extra fields<\/summary>/);
+        for (const id of fields) {
+          const i = at(`id="${id}"`);
+          assert.ok(i > start && i < end, `${id} is inside ${details}`);
+        }
+      }
+      assert.match(html, /getElementById\("editExtraFields"\)\.open = false/);
+      assert.match(html, /getElementById\("ceExtraFields"\)\.open = false/);
+    });
+    it("sizes a material's cost box small inside forms so the row stays within the modal", () => {
+      assert.match(html, /\.form-group \.cost-input[^{]*\{[^}]*width:\s*84px/);
+      assert.match(html, /\.form-group \.material-row input\[type="number"\][^{]*\{[^}]*width:\s*84px/);
+    });
+    it("puts the task number and tags fields on one line, with short labels", () => {
+      const pair = at(`class="field-pair"`);
+      assert.ok(pair > at(`id="editModal"`));
+      const num = at(`id="editNumber"`);
+      const tags = at(`id="editTags"`);
+      const next = at(`<label>Due Date</label>`);
+      assert.ok(pair < num && num < tags && tags < next);
+      assert.match(html, /<label for="editNumber">Task number<\/label>/);
+      assert.match(html, /<label for="editTags">Tags<\/label>/);
+    });
     it("shows days to schedule and the gap side by side with short labels", () => {
       const days = at(`id="scheduleDays"`);
       const gap = at(`id="gapMinutes"`);

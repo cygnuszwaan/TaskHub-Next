@@ -124,6 +124,18 @@
     .material-row input[type="checkbox"] { width: auto; flex: none; }
     .material-row button { padding: 4px 9px; font-size: 13px; flex: none; }
     .material-row input[type="number"], .cost-input { width: 84px; flex: none; }
+    .form-group .material-row input[type="text"] { width: auto; flex: 1; min-width: 0; }
+    .form-group .material-row input[type="number"], .form-group .cost-input { width: 84px; flex: none; }
+    .form-group .material-row input[type="checkbox"] { margin-right: 0; }
+    .extra-fields { margin-bottom: 12px; }
+    .extra-fields > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-muted); list-style: none; display: flex; align-items: center; gap: 6px; -webkit-tap-highlight-color: transparent; }
+    .extra-fields > summary::-webkit-details-marker { display: none; }
+    .extra-fields > summary::before { content: "▸"; font-size: 14px; transition: transform 0.15s ease; }
+    .extra-fields[open] > summary::before { transform: rotate(90deg); }
+    .extra-fields[open] > summary { margin-bottom: 10px; }
+    .field-pair { display: flex; gap: 10px; align-items: flex-start; }
+    .field-pair > .form-group { margin-bottom: 12px; }
+    .field-with-btn { display: flex; gap: 6px; }
     .material-group { padding: 8px 0; border-bottom: 1px solid var(--divider); }
     .material-group-title { font-weight: 600; font-size: 14px; cursor: pointer; }
     .summary { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--divider); }
@@ -627,17 +639,18 @@
         </div>
       </div>
 
-      <div class="form-group">
-        <label for="editNumber">Task number (place in the queue)</label>
-        <div style="display:flex; gap:6px;">
-          <input type="number" id="editNumber" min="1" step="1" inputmode="numeric" style="min-width:0;">
-          <button type="button" class="btn-secondary" title="Move to the top of the queue" onclick="document.getElementById('editNumber').value = 1">Top</button>
+      <div class="field-pair">
+        <div class="form-group" style="flex: 0 0 140px;">
+          <label for="editNumber">Task number</label>
+          <div class="field-with-btn">
+            <input type="number" id="editNumber" min="1" step="1" inputmode="numeric" style="min-width:0;" title="Place in the queue">
+            <button type="button" class="btn-secondary" title="Move to the top of the queue" onclick="document.getElementById('editNumber').value = 1">Top</button>
+          </div>
         </div>
-      </div>
-
-      <div class="form-group">
-        <label>Tags (comma separated)</label>
-        <input type="text" id="editTags" placeholder="e.g. Outdoor, Physical">
+        <div class="form-group" style="flex: 1; min-width: 0;">
+          <label for="editTags">Tags</label>
+          <input type="text" id="editTags" placeholder="e.g. Outdoor, Physical" title="Comma separated">
+        </div>
       </div>
 
       <div class="form-group">
@@ -674,20 +687,23 @@
         </div>
       </div>
 
-      <div class="form-group">
-        <label>Materials <small style="font-weight:normal; color:var(--text-faint);">(the task is not scheduled until all are checked)</small></label>
-        <div id="editMaterials"></div>
-        <div class="input-row" style="margin-top: 6px;">
-          <input type="text" id="newMaterialText" maxlength="100" placeholder="Add a material, e.g. 2 litres of paint">
-          <input type="number" id="newMaterialCost" class="cost-input" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="Cost" aria-label="Cost of the new material">
-          <button type="button" class="btn-secondary" id="addMaterialBtn">Add</button>
+      <details class="extra-fields" id="editExtraFields">
+        <summary>Extra fields</summary>
+        <div class="form-group">
+          <label>Materials <small style="font-weight:normal; color:var(--text-faint);">(the task is not scheduled until all are checked)</small></label>
+          <div id="editMaterials"></div>
+          <div class="input-row" style="margin-top: 6px;">
+            <input type="text" id="newMaterialText" maxlength="100" placeholder="Add a material, e.g. 2 litres of paint">
+            <input type="number" id="newMaterialCost" class="cost-input" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="Cost" aria-label="Cost of the new material">
+            <button type="button" class="btn-secondary" id="addMaterialBtn">Add</button>
+          </div>
         </div>
-      </div>
 
-      <div class="form-group">
-        <label for="editComments">Comments</label>
-        <textarea id="editComments" rows="3" maxlength="2000"></textarea>
-      </div>
+        <div class="form-group">
+          <label for="editComments">Comments</label>
+          <textarea id="editComments" rows="3" maxlength="2000"></textarea>
+        </div>
+      </details>
 
       <div class="form-group">
         <label>Photos <small style="font-weight:normal; color:var(--text-faint);">(added at once, not on Save)</small></label>
@@ -767,15 +783,18 @@
         <select id="ceProject" style="width: 100%;"></select>
       </div>
 
-      <div class="form-group">
-        <label for="ceMaterials">Materials <small style="font-weight:normal; color:var(--text-faint);">(one per line, for the job sheet; add <code>| 12.50</code> after a line for its cost)</small></label>
-        <textarea id="ceMaterials" rows="4"></textarea>
-      </div>
+      <details class="extra-fields" id="ceExtraFields">
+        <summary>Extra fields</summary>
+        <div class="form-group">
+          <label for="ceMaterials">Materials <small style="font-weight:normal; color:var(--text-faint);">(one per line, for the job sheet; add <code>| 12.50</code> after a line for its cost)</small></label>
+          <textarea id="ceMaterials" rows="4"></textarea>
+        </div>
 
-      <div class="form-group">
-        <label for="ceComments">Comments</label>
-        <textarea id="ceComments" rows="3" maxlength="2000"></textarea>
-      </div>
+        <div class="form-group">
+          <label for="ceComments">Comments</label>
+          <textarea id="ceComments" rows="3" maxlength="2000"></textarea>
+        </div>
+      </details>
 
       <div class="form-group">
         <label>Completed</label>
@@ -3029,6 +3048,7 @@
       const task = allTasks.find(t => t.id === taskId);
       if (!task) return;
 
+      document.getElementById("editExtraFields").open = false; // Extra fields start collapsed
       document.getElementById("editTaskId").value = task.id;
       document.getElementById("editTitle").value = task.title || "";
       showJobNumber("editJobNumber", task.jobNumber);
@@ -3371,6 +3391,7 @@
       const row = completedRows.get(id);
       if (!row) return;
       const values = completedFormValues(row, appTimeZone);
+      document.getElementById("ceExtraFields").open = false; // Extra fields start collapsed
       document.getElementById("ceId").value = id;
       document.getElementById("ceTitle").textContent = row.title || "";
       showJobNumber("ceJobNumber", row.jobNumber);
