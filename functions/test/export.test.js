@@ -21,6 +21,11 @@ describe("export.js buildExport", () => {
     assert.equal(buildExport({tasks, projects, settings, completed: [], now, jobCounter: 57}).jobCounter, 57);
     for (const jobCounter of [undefined, -1, 2.5, "9", null]) assert.equal(buildExport({tasks, projects, settings, completed: [], now, jobCounter}).jobCounter, 0);
   });
+  it("includes the clients, an empty list when none are given", () => {
+    const clients = [{id: "c1", name: "Smith"}];
+    assert.deepEqual(buildExport({tasks, projects, clients, settings, completed: [], now}).clients, clients);
+    for (const c of [undefined, null, "x"]) assert.deepEqual(buildExport({tasks, projects, clients: c, settings, completed: [], now}).clients, []);
+  });
   it("includes tasks, projects and settings as given", () => {
     const out = buildExport({tasks, projects, settings, completed: [], now});
     assert.deepEqual(out.tasks, tasks);

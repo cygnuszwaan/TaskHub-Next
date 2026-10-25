@@ -5,6 +5,7 @@ const {isArchiveId} = require("./completedEdit");
 const {toIso, weekStartOf, minutesOf, summarizeProjectHours} = require("./completed");
 const {sortPhotos} = require("./photos");
 const {formatJobNumber} = require("./jobNumber");
+const {clientLines} = require("./clients");
 const {formatMoney, usableRate, entryFigures, sumFigures, isInvoice, figuresText} = require("./invoice");
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -148,6 +149,8 @@ function byCompletion(a, b) {
 //   timeZone: the owner's zone; every date and time is on its clock
 //   now:      the Date of the sheet
 //   contractorInfo: the owner's contractor text (settings.jobSheet.contractorInfo), printed under the "Job sheet" title
+//   client:   the project's client {name, address, phone, email}, or null/absent for none; its lines (`clientLines`, cleaned by pdfText,
+//             [] with none) are printed under the contractor information
 //   hourlyRate: settings.jobSheet.hourlyRate (dollars, null or absent for none)
 // Invoice figures: a sheet is an invoice sheet (`invoice` true, `rateText` the rate as "$85.00", "" without one) when there is a usable
 // hourly rate or any listed task has a material with a cost; otherwise it carries no money at all, as before. Then each entry has
@@ -165,9 +168,10 @@ function byCompletion(a, b) {
 //   materials, comments, archiveId, jobNumber} (`jobNumber` the task's job number as plain digits, "" for a task that has none; `started`: when its timer was first started, "" when it never was; no priority or tags, the
 //   sheet is client-facing); `truncated` is true when only the newest JOB_SHEET_MAX_ENTRIES entries are listed (the totals
 //   still cover everything read); `empty` is true when there is nothing to list.
-function buildJobSheet({request, rows, project, timeZone, now, contractorInfo, hourlyRate}) {
+function buildJobSheet({request, rows, project, client, timeZone, now, contractorInfo, hourlyRate}) {
   const kind = request.type;
   const contractor = typeof contractorInfo === "string" ? pdfText(contractorInfo) : "";
+  const clientText = clientLines(client).map((l) => pdfText(l)).filter(Boolean);
   const generatedText = pdfText(formatLocalNow(timeZone, now));
   const projectName = project && typeof project.name === "string" ? pdfText(project.name) : "";
   const stamped = (Array.isArray(rows) ? rows : []).map((row) => ({row, iso: toIso(row && row.completedAt)})).filter((r) => r.row);
@@ -177,7 +181,7 @@ function buildJobSheet({request, rows, project, timeZone, now, contractorInfo, h
   if (kind === "TASK") {
     const invoice = isInvoice(rate, stamped.slice(0, 1).map((r) => entryFigures(r.row, rate)));
     const entries = stamped.slice(0, 1).map((r) => sheetEntry(r.row, timeZone, invoice, rate));
-    return {kind, contractorInfo: contractor, heading: entries.length ? entries[0].title : "", projectName: projectName || null, period: "", generatedText, timeZone, invoice, rateText, totals: null, sections: entries.length ? [{heading: "", totals: null, entries}] : [], truncated: false, empty: entries.length === 0};
+    return {kind, contractorInfo: contractor, clientLines: clientText, heading: entries.length ? entries[0].title : "", projectName: projectName || null, period: "", generatedText, timeZone, invoice, rateText, totals: null, sections: entries.length ? [{heading: "", totals: null, entries}] : [], truncated: false, empty: entries.length === 0};
   }
 
   // Group by local week, then take the project's figures from the same code the Stats page uses
@@ -214,6 +218,7 @@ function buildJobSheet({request, rows, project, timeZone, now, contractorInfo, h
   return {
     kind,
     contractorInfo: contractor,
+    clientLines: clientText,
     heading: projectName || "Project",
     projectName: null,
     period: kind === "WEEK" ? weekRangeText(request.weekStart) : `All work to ${dateText(today)}`,

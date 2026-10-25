@@ -336,4 +336,21 @@ describe("jobsheet.js", () => {
       assert.equal(withPhotos(s, new Map(), undefined).photosOmitted, 0);
     });
   });
+
+  describe("client details", () => {
+    const client = {id: "c1", name: "Jo Smith", address: "1 Beach Rd\nWhangaparāoa", phone: "021 000 000", email: "jo@example.co.nz"};
+    const withClient = (request, c) => buildJobSheet({request, rows: [row()], project, client: c, timeZone: NZ, now});
+    it("carries the client's lines on project, week and task sheets", () => {
+      for (const request of [{type: "PROJECT"}, {type: "WEEK", weekStart: "2026-10-19"}, {type: "TASK"}]) {
+        assert.deepEqual(withClient(request, client).clientLines, ["Jo Smith", "1 Beach Rd", "Whangaparāoa", "021 000 000", "jo@example.co.nz"]);
+      }
+    });
+    it("cleans the lines for the PDF font", () => {
+      assert.deepEqual(withClient({type: "PROJECT"}, {name: "Jo 🌿 Smith"}).clientLines, ["Jo Smith"]);
+    });
+    it("has no lines without a client", () => {
+      assert.deepEqual(withClient({type: "PROJECT"}, null).clientLines, []);
+      assert.deepEqual(buildJobSheet({request: {type: "PROJECT"}, rows: [row()], project, timeZone: NZ, now}).clientLines, []);
+    });
+  });
 });

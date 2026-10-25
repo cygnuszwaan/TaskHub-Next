@@ -91,6 +91,10 @@ function draw(doc, sheet) {
     doc.fillColor(INK).text(sheet.contractorInfo, left, doc.y + 4 + line, {width});
     doc.y += 4 + line;
   }
+  if (Array.isArray(sheet.clientLines) && sheet.clientLines.length) {
+    doc.font("Bold").fontSize(8.5).fillColor(MUTED).text("CLIENT", left, doc.y + 8, {width});
+    doc.font("Sans").fontSize(9.5).fillColor(INK).text(sheet.clientLines.join("\n"), left, doc.y + 1, {width});
+  }
   doc.moveDown(0.3);
   doc.font("Bold").fontSize(14).fillColor(INK).text(sheet.heading || "", left, doc.y, {width});
   if (sheet.projectName) doc.font("Sans").fontSize(10).fillColor(MUTED).text(`Project: ${sheet.projectName}`, left, doc.y + 2, {width});

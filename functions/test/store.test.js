@@ -2,14 +2,14 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeSettingsStore} = require("../store");
+const {checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeSettingsStore} = require("../store");
 
 const task = (id, order, extra = {}) => ({id, title: `Task ${id}`, priority: "MEDIUM", dueDate: "", estimatedMinutes: 15, tags: [], status: "PENDING", order, ...extra});
 
 // Minimal in-memory stand-in for the parts of Firestore the store uses. Writes apply only when the transaction
 // function resolves, as in a real transaction; `log` records them in order.
-function fakeDb(initial = {}, projects = {}) {
-  const data = {tasks: new Map(Object.entries(initial).map(([k, v]) => [k, structuredClone(v)])), other: new Map(), settings: new Map(), projects: new Map(Object.entries(projects).map(([k, v]) => [k, structuredClone(v)]))};
+function fakeDb(initial = {}, projects = {}, clients = {}) {
+  const data = {tasks: new Map(Object.entries(initial).map(([k, v]) => [k, structuredClone(v)])), other: new Map(), settings: new Map(), projects: new Map(Object.entries(projects).map(([k, v]) => [k, structuredClone(v)])), clients: new Map(Object.entries(clients).map(([k, v]) => [k, structuredClone(v)]))};
   const log = [];
   const collection = (name) => ({
     name,
@@ -436,6 +436,78 @@ describe("makeProjectStore", () => {
   it("deleteProject reports an unknown id and writes nothing", async () => {
     const db = seeded();
     assert.deepEqual(await makeProjectStore(db).deleteProject("zzz"), {notFound: true});
+    assert.deepEqual(db.log, []);
+  });
+});
+
+describe("clients in the stores", () => {
+  const smith = {id: "c1", name: "Smith", address: "1 Beach Rd", phone: "", email: ""};
+  const seeded = () => fakeDb({}, {p1: {id: "p1", name: "Alpha", clientId: "c1"}, p2: {id: "p2", name: "Beta", clientId: "c1"}, p3: {id: "p3", name: "Gamma"}}, {c1: smith, c2: {id: "c2", name: "acme", address: "", phone: "", email: ""}});
+
+  it("getClients returns the clients sorted by name with their ids", async () => {
+    assert.deepEqual((await makeClientStore(seeded()).getClients()).map((c) => c.id), ["c2", "c1"]);
+    assert.deepEqual(await makeClientStore(fakeDb()).getClients(), []);
+  });
+  it("createClient stores the cleaned client under the generated id", async () => {
+    const db = seeded();
+    const r = await makeClientStore(db).createClient({name: " Jo  Bloggs ", email: "jo@x.nz"}, () => "c9");
+    assert.deepEqual(r.client, {id: "c9", name: "Jo Bloggs", address: "", phone: "", email: "jo@x.nz"});
+    assert.deepEqual(db.data.clients.get("c9"), r.client);
+    assert.deepEqual(db.log, ["set clients/c9"]);
+  });
+  it("createClient writes nothing for a taken or unusable client", async () => {
+    const db = seeded();
+    const store = makeClientStore(db);
+    assert.match((await store.createClient({name: "SMITH"}, () => "x")).error, /already exists/);
+    assert.match((await store.createClient({name: "x", email: "bad"}, () => "x")).error, /not a valid/);
+    assert.deepEqual(db.log, []);
+  });
+  it("updateClient replaces the stored fields; an unknown id or taken name writes nothing", async () => {
+    const db = seeded();
+    const store = makeClientStore(db);
+    await store.updateClient("c1", {name: "Smith", phone: "021"});
+    assert.equal(db.data.clients.get("c1").phone, "021");
+    assert.equal(db.data.clients.get("c1").address, "");
+    assert.deepEqual(db.log, ["set clients/c1"]);
+    db.log.length = 0;
+    assert.deepEqual(await store.updateClient("zzz", {name: "x"}), {notFound: true});
+    assert.match((await store.updateClient("c1", {name: "ACME"})).error, /already exists/);
+    assert.deepEqual(db.log, []);
+  });
+  it("deleteClient removes the client and takes it off its projects, in one transaction", async () => {
+    const db = seeded();
+    const r = await makeClientStore(db).deleteClient("c1");
+    assert.deepEqual(r.clients.map((c) => c.id), ["c2"]);
+    assert.deepEqual(r.projects.map((p) => [p.id, p.clientId]), [["p1", undefined], ["p2", undefined], ["p3", undefined]]);
+    assert.deepEqual(db.log.sort(), ["delete clients/c1", "set projects/p1", "set projects/p2"]);
+    assert.equal(db.data.clients.has("c1"), false);
+    assert.equal("clientId" in db.data.projects.get("p1"), false);
+    assert.equal(db.data.projects.get("p1").name, "Alpha");
+  });
+  it("deleteClient of a client with no projects writes only the client delete; an unknown id writes nothing", async () => {
+    const db = seeded();
+    await makeClientStore(db).deleteClient("c2");
+    assert.deepEqual(db.log, ["delete clients/c2"]);
+    db.log.length = 0;
+    assert.deepEqual(await makeClientStore(db).deleteClient("zzz"), {notFound: true});
+    assert.deepEqual(db.log, []);
+  });
+  it("renameProject keeps the project's client", async () => {
+    const db = seeded();
+    const r = await makeProjectStore(db).renameProject("p1", "Delta");
+    assert.deepEqual(r.project, {id: "p1", name: "Delta", clientId: "c1"});
+    assert.deepEqual(db.data.projects.get("p1"), {id: "p1", name: "Delta", clientId: "c1"});
+  });
+  it("setProjectClient stores or clears the client, checking it against the stored clients", async () => {
+    const db = seeded();
+    const store = makeProjectStore(db);
+    assert.equal((await store.setProjectClient("p3", "c2")).project.clientId, "c2");
+    assert.equal(db.data.projects.get("p3").clientId, "c2");
+    assert.equal("clientId" in (await store.setProjectClient("p1", null)).project, false);
+    assert.equal("clientId" in db.data.projects.get("p1"), false);
+    db.log.length = 0;
+    assert.deepEqual(await store.setProjectClient("zzz", "c1"), {notFound: true});
+    assert.deepEqual(await store.setProjectClient("p1", "zzz"), {error: "Client not found"});
     assert.deepEqual(db.log, []);
   });
 });

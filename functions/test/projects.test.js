@@ -160,6 +160,10 @@ describe("projects.js", () => {
 
   describe("renameProject", () => {
     const list = [{id: "p1", name: "One"}, {id: "p2", name: "Two"}];
+    it("keeps the project's other fields, its client included", () => {
+      const withClient = [{id: "p1", name: "One", clientId: "c1"}];
+      assert.deepEqual(renameProject(withClient, "p1", "Uno").project, {id: "p1", name: "Uno", clientId: "c1"});
+    });
     it("renames and re-sorts", () => {
       const r = renameProject(list, "p1", "Zebra");
       assert.deepEqual(r.project, {id: "p1", name: "Zebra"});

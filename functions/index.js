@@ -17,7 +17,7 @@ const {setTimerInList, pauseTimer} = require("./timer");
 const {withoutProjectFields, needsTagFill, cleanTags, newTaskIds, applyDirectUpdate, moveToQueueNumber, completeInList, removalRecord, isUndoable, undoInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {withNewProject, normalizeProjectName} = require("./projects");
 const {findDuplicateTasks} = require("./duplicates");
-const {PROJECTS_COLLECTION, makeTaskStore, makeProjectStore, makeSettingsStore} = require("./store");
+const {PROJECTS_COLLECTION, makeTaskStore, makeProjectStore, makeClientStore, makeSettingsStore} = require("./store");
 const {UNAVAILABLE, weatherUrl, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
 const {buildTaskPrompt, buildTagPrompt} = require("./prompts");
@@ -51,7 +51,9 @@ const LAST_REMOVED_REF = db.doc("settings/lastRemoved");
 // Photos of tasks, one document each in `completed_photos/{auto-id}` {archiveId | taskId, data, bytes, addedAt}; see photos.js.
 const PHOTOS = db.collection("completed_photos");
 // Projects that tasks can belong to, in `projects/{id}`; see projects.js and store.js.
-const {getProjects: readProjects, createProject, renameProject, deleteProject} = makeProjectStore(db);
+const {getProjects: readProjects, createProject, renameProject, setProjectClient, deleteProject} = makeProjectStore(db);
+// Clients that projects can belong to, in `clients/{id}`; see clients.js and store.js.
+const {getClients: readClients, createClient, updateClient, deleteClient} = makeClientStore(db);
 // Runtime settings (location, time zone, auto-run schedule) in `settings/app`; see settings.js.
 const {getSettings: readSettings, updateSettings: writeSettings, claimAutoRun, setRunFingerprint} = makeSettingsStore(db);
 
@@ -1021,19 +1023,20 @@ exports.undoRemove = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, re
 }));
 
 // 7c. Endpoint: Export everything
-// No body. Responds with one pretty-printed JSON document (see export.js): the active tasks, the projects, the
+// No body. Responds with one pretty-printed JSON document (see export.js): the active tasks, the projects, the clients, the
 // settings and the newest EXPORT_MAX_ROWS rows of the completed archive. Read-only; the collections are read one after
 // another without a shared snapshot, which is fine for a single user's backup.
 exports.exportData = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
-    const [tasks, projects, settings, counterSnap, archiveSnap] = await Promise.all([
+    const [tasks, projects, clients, settings, counterSnap, archiveSnap] = await Promise.all([
       readTaskList(),
       readProjects(),
+      readClients(),
       readSettings(),
       db.doc("settings/jobCounter").get(),
       db.collection("completed_tasks").orderBy("completedAt", "desc").limit(EXPORT_MAX_ROWS).get(),
     ]);
-    const payload = buildExport({tasks, projects, settings, completed: archiveSnap.docs.map((d) => d.data()), now: new Date(), jobCounter: lastIssued(counterSnap.exists ? counterSnap.data() : undefined)});
+    const payload = buildExport({tasks, projects, clients, settings, completed: archiveSnap.docs.map((d) => d.data()), now: new Date(), jobCounter: lastIssued(counterSnap.exists ? counterSnap.data() : undefined)});
     res.status(200).type("application/json").send(JSON.stringify(payload, null, 2));
   } catch (err) {
     console.error(err);
@@ -1053,7 +1056,7 @@ exports.getJobSheet = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 60, memo
     const request = parseJobSheetRequest(req.body);
     if (request.error) return res.status(400).send({error: request.error});
     const archive = db.collection("completed_tasks");
-    const [{timeZone, jobSheet}, projects] = await Promise.all([readSettings(), readProjects()]);
+    const [{timeZone, jobSheet}, projects, clients] = await Promise.all([readSettings(), readProjects(), readClients()]);
     let rows;
     let project;
     if (request.type === "TASK") {
@@ -1067,7 +1070,7 @@ exports.getJobSheet = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 60, memo
       const snap = await archive.where("projectId", "==", project.id).limit(PROJECT_MAX_ROWS).get();
       rows = snap.docs.map((d) => ({...d.data(), archiveId: d.id}));
     }
-    const sheet = buildJobSheet({request, rows, project, timeZone, now: new Date(), contractorInfo: jobSheet.contractorInfo, hourlyRate: jobSheet.hourlyRate});
+    const sheet = buildJobSheet({request, rows, project, client: project ? clients.find((c) => c.id === project.clientId) || null : null, timeZone, now: new Date(), contractorInfo: jobSheet.contractorInfo, hourlyRate: jobSheet.hourlyRate});
     // Each listed task's photos go in the PDF, at most JOB_SHEET_MAX_PHOTOS in all (see gatherPhotos)
     const {byId, omitted} = await gatherPhotos(sheetArchiveIds(sheet), {
       fetchChunk: async (ids) => (await PHOTOS.where("archiveId", "in", ids).get()).docs.map((d) => ({archiveId: d.get("archiveId"), ...serializePhoto(d.id, d.data())})),
@@ -1117,7 +1120,7 @@ exports.getProjects = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, r
 }));
 
 // 11. Endpoint: Create / Rename / Delete a Project
-// Body: {action: "CREATE", name} | {action: "UPDATE", projectId, name} (rename) | {action: "DELETE", projectId}.
+// Body: {action: "CREATE", name} | {action: "UPDATE", projectId, name} (rename) | {action: "SET_CLIENT", projectId, clientId} (null or "" takes the client off; 400 for an unknown client) | {action: "DELETE", projectId}.
 // 400 with the reason for an unusable or taken name or an unknown action, 404 for an unknown projectId. DELETE also
 // takes its member tasks out of the project (the tasks stay) and returns the updated `tasks`. No calendar changes.
 exports.updateProject = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
@@ -1126,9 +1129,41 @@ exports.updateProject = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req,
     let result;
     if (action === "CREATE") result = await createProject(name, randomUUID);
     else if (action === "UPDATE") result = await renameProject(projectId, name);
+    else if (action === "SET_CLIENT") result = await setProjectClient(projectId, req.body.clientId);
     else if (action === "DELETE") result = await deleteProject(projectId);
-    else return res.status(400).send({error: "action must be CREATE, UPDATE or DELETE"});
+    else return res.status(400).send({error: "action must be CREATE, UPDATE, SET_CLIENT or DELETE"});
     if (result.notFound) return res.status(404).send({error: "Project not found"});
+    if (result.error) return res.status(400).send({error: result.error});
+    res.status(200).send({success: true, ...result});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 12. Endpoint: Read Clients
+exports.getClients = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    res.status(200).send({success: true, clients: await readClients()});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 13. Endpoint: Create / Update / Delete a Client
+// Body: {action: "CREATE", client: {name, address?, phone?, email?}} | {action: "UPDATE", clientId, client} (replaces the fields) | {action: "DELETE", clientId}.
+// 400 with the reason for an unusable field or a taken name (ignoring case) or an unknown action, 404 for an unknown clientId. DELETE takes the
+// client off its projects (they stay) and returns the updated `projects`. No calendar changes.
+exports.updateClient = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const {action, clientId, client} = req.body || {};
+    let result;
+    if (action === "CREATE") result = await createClient(client, randomUUID);
+    else if (action === "UPDATE") result = await updateClient(clientId, client);
+    else if (action === "DELETE") result = await deleteClient(clientId);
+    else return res.status(400).send({error: "action must be CREATE, UPDATE or DELETE"});
+    if (result.notFound) return res.status(404).send({error: "Client not found"});
     if (result.error) return res.status(400).send({error: result.error});
     res.status(200).send({success: true, ...result});
   } catch (err) {

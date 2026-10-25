@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -2023,6 +2023,48 @@ describe("public/index.html helpers", () => {
       assert.equal(queueNumberChange("0", 3, 5), null);
       assert.equal(queueNumberChange("2.5", 3, 5), null);
       assert.equal(queueNumberChange("abc", 3, 5), null);
+    });
+  });
+
+  describe("clients", () => {
+    const clients = [{id: "c1", name: "Jo Smith", address: "1 Beach Rd\nWhangaparāoa", phone: "021 000", email: "jo@x.nz"}];
+    const projects = [{id: "p1", name: "Deck", clientId: "c1"}, {id: "p2", name: "Fence"}, {id: "p3", name: "Shed", clientId: "gone"}];
+    it("names a project's client, empty with none or an unknown one", () => {
+      const {projectClientName} = load();
+      assert.equal(projectClientName(projects[0], clients), "Jo Smith");
+      assert.equal(projectClientName(projects[1], clients), "");
+      assert.equal(projectClientName(projects[2], clients), "");
+      assert.equal(projectClientName(null, clients), "");
+      assert.equal(projectClientName(projects[0], undefined), "");
+    });
+    it("searches a project's name and its client's name", () => {
+      const {projectSearchText, matchesCompletedSearch, completedBrowse} = load();
+      assert.equal(projectSearchText("p1", projects, clients), "Deck Jo Smith");
+      assert.equal(projectSearchText("p2", projects, clients), "Fence");
+      assert.equal(projectSearchText("zzz", projects, clients), "");
+      assert.equal(matchesCompletedSearch({title: "Fit rail"}, "smith", projectSearchText("p1", projects, clients)), true);
+      assert.equal(matchesCompletedSearch({title: "Fit rail"}, "smith", projectSearchText("p2", projects, clients)), false);
+      const rows = [{title: "A", projectId: "p1"}, {title: "B", projectId: "p2"}, {title: "C"}];
+      const found = completedBrowse(rows, "jo deck", 1, (id) => projectSearchText(id, projects, clients));
+      assert.deepEqual(found.items.map((r) => r.title), ["A"]);
+    });
+    it("summarises a client on one line", () => {
+      const {clientSummary} = load();
+      assert.equal(clientSummary(clients[0]), "1 Beach Rd, Whangaparāoa · 021 000 · jo@x.nz");
+      assert.equal(clientSummary({name: "Jo", address: "", phone: "021"}), "021");
+      assert.equal(clientSummary({name: "Jo"}), "");
+      assert.equal(clientSummary(null), "");
+    });
+    it("builds the form body, trimming the name only", () => {
+      const {clientFormBody} = load();
+      assert.deepEqual(clientFormBody({name: "  Jo ", address: "1 Rd\n", phone: " 1", email: "a@b.nz"}), {name: "Jo", address: "1 Rd\n", phone: " 1", email: "a@b.nz"});
+      assert.deepEqual(clientFormBody(undefined), {name: "", address: "", phone: "", email: ""});
+    });
+    it("asks before deleting, saying what happens to its projects", () => {
+      const {deleteClientPrompt} = load();
+      assert.equal(deleteClientPrompt("Jo", 0), "Delete client \"Jo\"?");
+      assert.match(deleteClientPrompt("Jo", 1), /Its project stays on the list, with no client/);
+      assert.match(deleteClientPrompt("Jo", 3), /Its 3 projects stay/);
     });
   });
 });

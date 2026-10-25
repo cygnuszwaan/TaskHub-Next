@@ -4,9 +4,11 @@ const {isDeepStrictEqual} = require("node:util");
 const {mergeSettings, applySettingsUpdate, claimRun} = require("./settings");
 const {lastIssued} = require("./jobNumber");
 const {sortProjects, addProject, renameProject, removeProjectFromTasks} = require("./projects");
+const {sortClients, addClient, updateClient, removeClientFromProjects, setProjectClient} = require("./clients");
 
 const COLLECTION = "tasks";
 const PROJECTS_COLLECTION = "projects";
+const CLIENTS_COLLECTION = "clients";
 const SETTINGS_DOC = "settings/app";
 const JOB_COUNTER_DOC = "settings/jobCounter";
 
@@ -81,7 +83,9 @@ function makeTaskStore(db) {
 // Projects in `projects/{id}` ({id, name}, the doc id being the project's id). `db` is a Firestore instance.
 //   getProjects()                -> all projects, sorted by name
 //   createProject(name, makeId)  -> {projects, project}, or {error} for an unusable or taken name (nothing is written then)
-//   renameProject(id, name)      -> {projects, project}, {notFound: true} or {error}
+//   renameProject(id, name)      -> {projects, project}, {notFound: true} or {error}; the project's other fields (its client) stay
+//   setProjectClient(id, clientId) -> {projects, project}, {notFound: true} (project) or {error} (client not stored); null or ""
+//                                   takes the client off. The client is checked in the same transaction.
 //   deleteProject(id)            -> {projects, tasks} or {notFound: true}: in one transaction removes the project and
 //                                   takes every member task out of it (projectId and projectOrder removed); the tasks
 //                                   are otherwise untouched. `tasks` is the full list afterwards.
@@ -111,6 +115,16 @@ function makeProjectStore(db) {
     });
   }
 
+  async function setClientOf(projectId, clientId) {
+    return db.runTransaction(async (tx) => {
+      const projects = projectsFrom(await tx.get(projectsRef));
+      const clients = sortClients((await tx.get(db.collection(CLIENTS_COLLECTION))).docs.map((d) => ({...d.data(), id: d.id})));
+      const result = setProjectClient(projects, clients, projectId, clientId);
+      if (result.project) tx.set(projectsRef.doc(projectId), result.project);
+      return result;
+    });
+  }
+
   async function deleteProject(projectId) {
     return db.runTransaction(async (tx) => {
       const projects = projectsFrom(await tx.get(projectsRef));
@@ -123,7 +137,56 @@ function makeProjectStore(db) {
     });
   }
 
-  return {getProjects, createProject, renameProject: renameProjectById, deleteProject};
+  return {getProjects, createProject, renameProject: renameProjectById, setProjectClient: setClientOf, deleteProject};
+}
+
+// Clients in `clients/{id}` ({id, name, address, phone, email}, the doc id being the client's id). `db` is a Firestore instance.
+//   getClients()                  -> all clients, sorted by name
+//   createClient(fields, makeId)  -> {clients, client}, or {error} (nothing is written then)
+//   updateClient(id, fields)      -> {clients, client}, {notFound: true} or {error}
+//   deleteClient(id)              -> {clients, projects} or {notFound: true}: in one transaction removes the client and takes it
+//                                    off every project that had it (the projects stay). `projects` is the full list afterwards.
+// Names are unique ignoring case; the check and the write share one transaction.
+function makeClientStore(db) {
+  const clientsRef = db.collection(CLIENTS_COLLECTION);
+  const projectsRef = db.collection(PROJECTS_COLLECTION);
+  const clientsFrom = (snap) => sortClients(snap.docs.map((d) => ({...d.data(), id: d.id})));
+
+  async function getClients() {
+    return clientsFrom(await clientsRef.get());
+  }
+
+  async function createClient(fields, makeId) {
+    return db.runTransaction(async (tx) => {
+      const result = addClient(clientsFrom(await tx.get(clientsRef)), fields, makeId);
+      if (result.client) tx.set(clientsRef.doc(result.client.id), result.client);
+      return result;
+    });
+  }
+
+  async function updateClientById(clientId, fields) {
+    return db.runTransaction(async (tx) => {
+      const result = updateClient(clientsFrom(await tx.get(clientsRef)), clientId, fields);
+      if (result.client) tx.set(clientsRef.doc(clientId), result.client);
+      return result;
+    });
+  }
+
+  async function deleteClient(clientId) {
+    return db.runTransaction(async (tx) => {
+      const clients = clientsFrom(await tx.get(clientsRef));
+      const projects = sortProjects((await tx.get(projectsRef)).docs.map((d) => ({...d.data(), id: d.id})));
+      if (!clients.some((c) => c.id === clientId)) return {notFound: true};
+      const after = removeClientFromProjects(projects, clientId);
+      after.forEach((p, i) => {
+        if (p !== projects[i]) tx.set(projectsRef.doc(p.id), p);
+      });
+      tx.delete(clientsRef.doc(clientId));
+      return {clients: clients.filter((c) => c.id !== clientId), projects: after};
+    });
+  }
+
+  return {getClients, createClient, updateClient: updateClientById, deleteClient};
 }
 
 // Runtime settings in the single document `settings/app`. `db` is a Firestore instance.
@@ -170,4 +233,4 @@ function makeSettingsStore(db) {
   return {getSettings, updateSettings, claimAutoRun, setRunFingerprint};
 }
 
-module.exports = {COLLECTION, PROJECTS_COLLECTION, SETTINGS_DOC, JOB_COUNTER_DOC, checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeSettingsStore};
+module.exports = {COLLECTION, PROJECTS_COLLECTION, CLIENTS_COLLECTION, SETTINGS_DOC, JOB_COUNTER_DOC, checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeSettingsStore};

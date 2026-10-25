@@ -10,14 +10,15 @@ const EXPORT_MAX_ROWS = 10000;
 // The data export as one plain-JSON object. Pure: no I/O, the inputs are not modified.
 //   tasks:     the active task list
 //   projects:  all projects
+//   clients:   all clients
 //   settings:  the settings as the app reads them (defaults filled in, run state included)
 //   completed: archive documents (a Task plus completedAt as a Timestamp, Date or ISO string), newest first
 //   now:       the Date of the export
 //   jobCounter: the last job number issued (0 when none)
-// Returns {format, version, exportedAt, tasks, projects, settings, jobCounter, completedTasks, completedTruncated}: `completedTasks`
+// Returns {format, version, exportedAt, tasks, projects, clients, settings, jobCounter, completedTasks, completedTruncated}: `completedTasks`
 // has completedAt as an ISO string (see serializeCompleted), and `completedTruncated` is true when `completed` is as
 // long as EXPORT_MAX_ROWS, so the archive may hold older entries that were not read.
-function buildExport({tasks, projects, settings, completed, now, jobCounter}) {
+function buildExport({tasks, projects, clients, settings, completed, now, jobCounter}) {
   const rows = Array.isArray(completed) ? completed : [];
   return {
     format: EXPORT_FORMAT,
@@ -25,6 +26,7 @@ function buildExport({tasks, projects, settings, completed, now, jobCounter}) {
     exportedAt: now.toISOString(),
     tasks: Array.isArray(tasks) ? tasks : [],
     projects: Array.isArray(projects) ? projects : [],
+    clients: Array.isArray(clients) ? clients : [],
     settings: settings || {},
     jobCounter: Number.isSafeInteger(jobCounter) && jobCounter >= 0 ? jobCounter : 0,
     completedTasks: serializeCompleted(rows),

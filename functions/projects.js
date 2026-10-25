@@ -111,7 +111,7 @@ function renameProject(projects, projectId, rawName) {
   const {name, error} = normalizeProjectName(rawName);
   if (error) return {error};
   if (hasName(projects, name, projectId)) return {error: `A project named "${name}" already exists`};
-  const project = {id: projectId, name};
+  const project = {...projects.find((p) => p.id === projectId), name};
   return {projects: sortProjects(projects.map((p) => (p.id === projectId ? project : p))), project};
 }
 
