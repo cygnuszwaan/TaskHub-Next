@@ -628,6 +628,12 @@ describe("tasks.js", () => {
       assert.deepEqual(merged.tasks.find((t) => t.id === "t1").materials, withMaterials().materials);
       assert.equal("materials" in merged.tasks.find((t) => t.title === "New task"), false);
     });
+    it("carries a material's cost to the next occurrence of a repeating task", () => {
+      const task = {...withMaterials(), recurrence: {frequency: "WEEKLY", interval: 1}, dueDate: "2026-10-20", materials: [{id: "m1", text: "Paint", checked: true, cost: 45.5}, {id: "m2", text: "Brush", checked: true}]};
+      const {spawned} = completeInList([task], "t1", "2026-10-22", makeIdGenerator());
+      assert.deepEqual(spawned.materials.map((m) => [m.text, m.checked, m.cost]), [["Paint", false, 45.5], ["Brush", false, undefined]]);
+      assert.equal("cost" in spawned.materials[1], false);
+    });
     it("completing a repeating task gives the next occurrence its materials, all unchecked with new ids", () => {
       const task = {...withMaterials(), recurrence: {frequency: "WEEKLY", interval: 1}, dueDate: "2026-10-20"};
       const {spawned} = completeInList([task], "t1", "2026-10-22", makeIdGenerator());

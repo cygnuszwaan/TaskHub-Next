@@ -80,6 +80,10 @@ describe("completedEdit.js", () => {
         return () => `m${++n}`;
       };
       const mats = (fields, r = row) => edit({materials: fields}, r, {...opts, makeId: ids()});
+      it("keeps a cost on an object item, and takes strings and objects together", () => {
+        const out = mats([{text: " Tap ", cost: 12.5}, "PTFE tape", {text: "Free", cost: 0}, {text: "Bad", cost: -1}, {cost: 5}, {text: ""}]).set.materials;
+        assert.deepEqual(out, [{id: "m1", text: "Tap", checked: true, cost: 12.5}, {id: "m2", text: "PTFE tape", checked: true}, {id: "m3", text: "Free", checked: true, cost: 0}, {id: "m4", text: "Bad", checked: true}]);
+      });
       it("stores a plain list of texts as checked items, trimmed", () => {
         assert.deepEqual(mats(["  Tap ", "PTFE tape", ""]), {set: {materials: [{id: "m1", text: "Tap", checked: true}, {id: "m2", text: "PTFE tape", checked: true}]}, remove: []});
       });

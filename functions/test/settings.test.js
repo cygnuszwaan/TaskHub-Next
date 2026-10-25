@@ -71,9 +71,9 @@ describe("settings.js", () => {
 
   describe("job sheet contractor information", () => {
     it("is empty by default, and a stored value that is not text falls back to empty", () => {
-      assert.deepEqual(mergeSettings(undefined).jobSheet, {contractorInfo: ""});
-      assert.deepEqual(mergeSettings({jobSheet: {contractorInfo: 5}}).jobSheet, {contractorInfo: ""});
-      assert.deepEqual(mergeSettings({jobSheet: {contractorInfo: "A Builder\n021 000 000"}}).jobSheet, {contractorInfo: "A Builder\n021 000 000"});
+      assert.deepEqual(mergeSettings(undefined).jobSheet, {contractorInfo: "", hourlyRate: null});
+      assert.deepEqual(mergeSettings({jobSheet: {contractorInfo: 5}}).jobSheet, {contractorInfo: "", hourlyRate: null});
+      assert.deepEqual(mergeSettings({jobSheet: {contractorInfo: "A Builder\n021 000 000"}}).jobSheet, {contractorInfo: "A Builder\n021 000 000", hourlyRate: null});
     });
     it("is saved with its line breaks, trailing spaces and blank lines at either end removed", () => {
       const r = applySettingsUpdate(base(), {jobSheet: {contractorInfo: "\r\n  A Builder Ltd  \r\nPh 021 000 000   \n\nGST 12-345-678\n\n"}});
@@ -426,5 +426,35 @@ describe("settings.js: timerWarnHours", () => {
       assert.match(r.error, /timerWarnHours must be a whole number from 1 to 48/);
       assert.equal(r.settings, undefined);
     }
+  });
+});
+
+describe("settings.js job sheet hourly rate", () => {
+  const base = () => mergeSettings(undefined);
+  it("is none by default and a stored value that is unusable falls back to none", () => {
+    assert.equal(base().jobSheet.hourlyRate, null);
+    for (const bad of ["abc", -5, 20000, {}, [], true]) assert.equal(mergeSettings({jobSheet: {hourlyRate: bad}}).jobSheet.hourlyRate, null);
+    assert.equal(mergeSettings({jobSheet: {hourlyRate: 85}}).jobSheet.hourlyRate, 85);
+  });
+  it("saves a rate rounded to cents, as a number or plain decimal text", () => {
+    assert.equal(applySettingsUpdate(base(), {jobSheet: {hourlyRate: 85.555}}).settings.jobSheet.hourlyRate, 85.56);
+    assert.equal(applySettingsUpdate(base(), {jobSheet: {hourlyRate: " 92.5 "}}).settings.jobSheet.hourlyRate, 92.5);
+    assert.equal(applySettingsUpdate(base(), {jobSheet: {hourlyRate: 10000}}).error, undefined);
+  });
+  it("clears the rate with null, empty text or 0", () => {
+    const withRate = applySettingsUpdate(base(), {jobSheet: {hourlyRate: 85}}).settings;
+    for (const none of [null, "", "  ", 0]) assert.equal(applySettingsUpdate(withRate, {jobSheet: {hourlyRate: none}}).settings.jobSheet.hourlyRate, null);
+  });
+  it("rejects a negative, too large or non-numeric rate and saves nothing", () => {
+    for (const bad of [-1, 10000.01, "abc", "1e3", NaN, Infinity, true, {}]) {
+      const r = applySettingsUpdate(base(), {gapMinutes: 5, jobSheet: {hourlyRate: bad}});
+      assert.match(r.error, /hourlyRate/);
+      assert.equal(r.settings, undefined);
+    }
+  });
+  it("keeps the rate when only the contractor text is saved, and the text when only the rate is", () => {
+    const s = applySettingsUpdate(base(), {jobSheet: {contractorInfo: "A Builder", hourlyRate: 85}}).settings;
+    assert.equal(applySettingsUpdate(s, {jobSheet: {contractorInfo: "B"}}).settings.jobSheet.hourlyRate, 85);
+    assert.equal(applySettingsUpdate(s, {jobSheet: {hourlyRate: 90}}).settings.jobSheet.contractorInfo, "A Builder");
   });
 });

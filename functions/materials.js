@@ -1,18 +1,21 @@
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
-// Task materials: a manually written checklist per task. A task with an unchecked material is held back from the
+// Task materials: a manually written checklist per task (each item may carry a cost for invoicing). A task with an unchecked material is held back from the
 // schedule until every material is checked. Pure: no I/O.
+
+const {normalizeMaterialCost} = require("./money");
 
 const MAX_MATERIALS = 30;
 const MAX_MATERIAL_LENGTH = 100;
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
-// A materials value from the client as [{id, text, checked}]. Pure: no I/O.
+// A materials value from the client as [{id, text, checked, cost?}]. Pure: no I/O.
 //   undefined: the value is missing or unusable, meaning "no change"
 //   null:      no materials (null, or an array with no usable item); the task's list is removed
 //   array:     the cleaned list
 // An item needs a non-empty text (trimmed, cut to 100 characters); `checked` is true only for a boolean true. A
-// valid, unused string id is kept; any other gets a new one from `makeId`. At most 30 items are kept.
+// valid, unused string id is kept; any other gets a new one from `makeId`. At most 30 items are kept. `cost` (a number
+// or plain decimal text, 0 to 1,000,000, rounded to cents; see money.js) is kept when usable and left out otherwise.
 function normalizeMaterials(value, makeId) {
   if (value === null) return null;
   if (!Array.isArray(value)) return undefined;
@@ -26,7 +29,10 @@ function normalizeMaterials(value, makeId) {
     let id = typeof item.id === "string" && ID_PATTERN.test(item.id) && !used.has(item.id) ? item.id : makeId();
     while (used.has(id)) id = makeId();
     used.add(id);
-    out.push({id, text, checked: item.checked === true});
+    const entry = {id, text, checked: item.checked === true};
+    const cost = normalizeMaterialCost(item.cost);
+    if (typeof cost === "number") entry.cost = cost;
+    out.push(entry);
   }
   return out.length > 0 ? out : null;
 }

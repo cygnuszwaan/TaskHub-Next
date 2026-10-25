@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -695,6 +695,107 @@ describe("public/index.html helpers", () => {
       const {applySettingsUpdate, mergeSettings} = require("../settings");
       const r = applySettingsUpdate(mergeSettings(undefined), load().jobSheetPayload(" Ph 021 \n"));
       assert.equal(r.settings.jobSheet.contractorInfo, " Ph 021");
+    });
+  });
+
+  describe("material costs and the hourly rate", () => {
+    it("jobSheetPayload adds the rate only when given: typed text trimmed, empty as null", () => {
+      const {jobSheetPayload} = load();
+      assert.deepEqual(jobSheetPayload("A"), {jobSheet: {contractorInfo: "A"}});
+      assert.deepEqual(jobSheetPayload("A", " 85.5 "), {jobSheet: {contractorInfo: "A", hourlyRate: "85.5"}});
+      for (const v of ["", "  ", null]) assert.deepEqual(jobSheetPayload("A", v), {jobSheet: {contractorInfo: "A", hourlyRate: null}});
+    });
+    it("jobSheetPayload takes the rate through the server's validation", () => {
+      const {applySettingsUpdate, mergeSettings} = require("../settings");
+      const {jobSheetPayload} = load();
+      assert.equal(applySettingsUpdate(mergeSettings(undefined), jobSheetPayload("", "85.50")).settings.jobSheet.hourlyRate, 85.5);
+      assert.equal(applySettingsUpdate(mergeSettings({jobSheet: {hourlyRate: 85}}), jobSheetPayload("", "")).settings.jobSheet.hourlyRate, null);
+      assert.match(applySettingsUpdate(mergeSettings(undefined), jobSheetPayload("", "abc")).error, /hourlyRate/);
+    });
+    it("parseCostText: null when empty, a number for an amount, undefined otherwise", () => {
+      const {parseCostText} = load();
+      assert.equal(parseCostText(""), null);
+      assert.equal(parseCostText("  "), null);
+      assert.equal(parseCostText(undefined), null);
+      assert.equal(parseCostText("12"), 12);
+      assert.equal(parseCostText(" 12.5 "), 12.5);
+      assert.equal(parseCostText("0.05"), 0.05);
+      for (const bad of ["abc", "-1", "1.234", "1,000", "$5", "1e3", "5."]) assert.equal(parseCostText(bad), undefined, bad);
+    });
+    it("costBoxText shows two decimals, or nothing", () => {
+      const {costBoxText} = load();
+      assert.equal(costBoxText(12.5), "12.50");
+      assert.equal(costBoxText(0), "0.00");
+      for (const v of [undefined, null, "5", -1, NaN]) assert.equal(costBoxText(v), "");
+    });
+    it("materialCostValue shows what is being typed, else the stored cost", () => {
+      const {materialCostValue} = load();
+      assert.equal(materialCostValue({text: "a", cost: 3}), "3.00");
+      assert.equal(materialCostValue({text: "a"}), "");
+      assert.equal(materialCostValue({text: "a", cost: 3, costText: "3.5x"}), "3.5x");
+      assert.equal(materialCostValue({text: "a", cost: 3, costText: ""}), "");
+    });
+    it("invalidMaterialCost names the first material with a cost that is not an amount", () => {
+      const {invalidMaterialCost} = load();
+      assert.equal(invalidMaterialCost([{text: "a", costText: "1.5"}, {text: " b ", costText: "x"}, {text: "c", costText: "y"}]), "b");
+      assert.equal(invalidMaterialCost([{text: "a", costText: ""}, {text: "b"}, {text: "", costText: "x"}]), null);
+      assert.equal(invalidMaterialCost([]), null);
+    });
+    it("materialsFields sends a stored or typed cost and leaves the key out otherwise", () => {
+      const {materialsFields} = load();
+      assert.deepEqual(materialsFields([
+        {id: "a", text: "Paint", checked: false, cost: 45.5},
+        {id: "b", text: "Tape", checked: true, cost: 3, costText: "4"},
+        {id: "c", text: "Free", checked: false, cost: 9, costText: ""},
+        {id: "d", text: "Bad", checked: false, costText: "x"},
+        {id: "e", text: "None", checked: false},
+      ]), [
+        {id: "a", text: "Paint", checked: false, cost: 45.5},
+        {id: "b", text: "Tape", checked: true, cost: 4},
+        {id: "c", text: "Free", checked: false},
+        {id: "d", text: "Bad", checked: false},
+        {id: "e", text: "None", checked: false},
+      ]);
+    });
+    it("parseMaterialItems reads a trailing | amount as a cost and leaves other lines as text", () => {
+      const {parseMaterialItems} = load();
+      assert.deepEqual(parseMaterialItems(" Tap | 12.5 \n\nPTFE tape\nGlue | lots\nA | B | 3\nFree | 0"), [
+        {text: "Tap", cost: 12.5}, {text: "PTFE tape"}, {text: "Glue | lots"}, {text: "A | B", cost: 3}, {text: "Free", cost: 0},
+      ]);
+    });
+    it("completedMaterialLines and parseMaterialItems round trip, costs included", () => {
+      const {completedMaterialLines, parseMaterialItems, materialLine} = load();
+      const row = {materials: [{id: "a", text: "Tap", checked: true, cost: 12.5}, {id: "b", text: "Tape", checked: true}, "Old string", {id: "c", text: " ", checked: true}]};
+      const lines = completedMaterialLines(row);
+      assert.deepEqual(lines, ["Tap | 12.50", "Tape", "Old string"]);
+      assert.deepEqual(parseMaterialItems(lines.join("\n")).map(materialLine), lines);
+    });
+    it("completedChanges: costs show in the form, an untouched form sends nothing, an edited cost sends the list", () => {
+      const api = load();
+      const row = {title: "Fix tap", priority: "MEDIUM", estimatedMinutes: 30, trackedSeconds: 600, tags: [], materials: [{id: "a", text: "Washer", checked: true, cost: 2.5}, {id: "b", text: "Tape", checked: true}], completedAt: "2026-10-19T21:15:00.000Z"};
+      const form = api.completedFormValues(row, "Pacific/Auckland");
+      assert.equal(form.materials, "Washer | 2.50\nTape");
+      assert.deepEqual(api.completedChanges(row, form, "Pacific/Auckland"), {fields: {}});
+      assert.deepEqual(api.completedChanges(row, {...form, materials: "Washer | 3\nTape | 1.25\nGlue"}, "Pacific/Auckland"), {fields: {materials: [{text: "Washer", cost: 3}, {text: "Tape", cost: 1.25}, "Glue"]}});
+      assert.deepEqual(api.completedChanges(row, {...form, materials: "Washer\nTape"}, "Pacific/Auckland"), {fields: {materials: ["Washer", "Tape"]}});
+      assert.deepEqual(api.completedChanges(row, {...form, materials: ""}, "Pacific/Auckland"), {fields: {materials: null}});
+    });
+    it("completed edits with costs go through the server's validation", () => {
+      const {applyCompletedEdit} = require("../completedEdit");
+      const api = load();
+      const row = {title: "Fix tap", priority: "MEDIUM", estimatedMinutes: 30, tags: [], completedAt: "2026-10-19T21:15:00.000Z"};
+      const form = api.completedFormValues(row, "Pacific/Auckland");
+      const {fields} = api.completedChanges(row, {...form, materials: "Washer | 2.5\nTape"}, "Pacific/Auckland");
+      const r = applyCompletedEdit(row, fields, {projectIds: [], timeZone: "Pacific/Auckland", now: new Date("2026-10-25T00:00:00Z"), makeId: (() => {
+        let n = 0;
+        return () => `m${++n}`;
+      })()});
+      assert.deepEqual(r.set.materials, [{id: "m1", text: "Washer", checked: true, cost: 2.5}, {id: "m2", text: "Tape", checked: true}]);
+    });
+    it("templateFormValues turns template materials, strings or {text, cost}, into unchecked rows keeping costs", () => {
+      const {templateFormValues} = load();
+      const v = templateFormValues({title: "Paint", materials: [{text: "Paint", cost: 45.5}, {text: "Brush"}, "Tape"]});
+      assert.deepEqual(v.materials, [{id: "", text: "Paint", checked: false, cost: 45.5}, {id: "", text: "Brush", checked: false}, {id: "", text: "Tape", checked: false}]);
     });
   });
 

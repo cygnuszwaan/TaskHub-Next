@@ -114,6 +114,7 @@
     .material-row input[type="text"] { flex: 1; min-width: 0; }
     .material-row input[type="checkbox"] { width: auto; flex: none; }
     .material-row button { padding: 4px 9px; font-size: 13px; flex: none; }
+    .material-row input[type="number"], .cost-input { width: 84px; flex: none; }
     .material-group { padding: 8px 0; border-bottom: 1px solid var(--divider); }
     .material-group-title { font-weight: 600; font-size: 14px; cursor: pointer; }
     .summary { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--divider); }
@@ -309,6 +310,7 @@
         <div id="manualMaterials"></div>
         <div class="input-row" style="margin-top: 6px;">
           <input type="text" id="manualNewMaterialText" maxlength="100" placeholder="Add a material, e.g. 2 litres of paint">
+          <input type="number" id="manualNewMaterialCost" class="cost-input" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="Cost" aria-label="Cost of the new material">
           <button type="button" class="btn-secondary" id="addManualMaterialBtn">Add</button>
         </div>
       </div>
@@ -474,6 +476,11 @@
       <textarea id="contractorInfo" rows="5" maxlength="1000" placeholder="Name, company, phone, email, licence or GST number"></textarea>
       <p class="settings-note" style="margin:6px 0 0;">Printed at the top of every job sheet, under the \"Job sheet\" title. Up to 1000 characters.</p>
     </div>
+    <div class="form-group" style="margin:14px 0 0;">
+      <label for="hourlyRate">Hourly rate</label>
+      <input type="number" id="hourlyRate" min="0" max="10000" step="0.01" inputmode="decimal" placeholder="e.g. 85.00" style="max-width: 160px;">
+      <p class="settings-note" style="margin:6px 0 0;">For the invoice figures on job sheets, with no GST. Leave empty for none.</p>
+    </div>
     <div class="action-row" style="margin-top: 14px;">
       <button type="button" id="saveJobSheetBtn">Save</button>
     </div>
@@ -583,6 +590,7 @@
         <div id="editMaterials"></div>
         <div class="input-row" style="margin-top: 6px;">
           <input type="text" id="newMaterialText" maxlength="100" placeholder="Add a material, e.g. 2 litres of paint">
+          <input type="number" id="newMaterialCost" class="cost-input" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="Cost" aria-label="Cost of the new material">
           <button type="button" class="btn-secondary" id="addMaterialBtn">Add</button>
         </div>
       </div>
@@ -671,7 +679,7 @@
       </div>
 
       <div class="form-group">
-        <label for="ceMaterials">Materials <small style="font-weight:normal; color:var(--text-faint);">(one per line, for the job sheet)</small></label>
+        <label for="ceMaterials">Materials <small style="font-weight:normal; color:var(--text-faint);">(one per line, for the job sheet; add <code>| 12.50</code> after a line for its cost)</small></label>
         <textarea id="ceMaterials" rows="4"></textarea>
       </div>
 
@@ -1081,9 +1089,35 @@
       };
     }
 
-    // The updateSettings body for the Job Sheets card: the contractor text alone, so the Scheduling form is not saved with it.
-    function jobSheetPayload(text) {
-      return { jobSheet: { contractorInfo: String(text === undefined || text === null ? "" : text) } };
+    // The updateSettings body for the Job Sheets card: the contractor text and, when `rate` is given, the hourly rate
+    // (as typed, trimmed; empty means none), so the Scheduling form is not saved with it. The server validates both.
+    function jobSheetPayload(text, rate) {
+      const jobSheet = { contractorInfo: String(text === undefined || text === null ? "" : text) };
+      if (rate !== undefined) {
+        const typed = rate === null ? "" : String(rate).trim();
+        jobSheet.hourlyRate = typed === "" ? null : typed;
+      }
+      return { jobSheet };
+    }
+
+    // A typed money amount: null when empty, the number for a plain amount with at most two decimals, undefined when unusable.
+    function parseCostText(text) {
+      const t = String(text === undefined || text === null ? "" : text).trim();
+      if (t === "") return null;
+      return /^\d{1,7}(\.\d{1,2})?$/.test(t) ? Number(t) : undefined;
+    }
+    // A cost as shown in a box: "12.50", "" for none.
+    function costBoxText(cost) {
+      return typeof cost === "number" && Number.isFinite(cost) && cost >= 0 ? cost.toFixed(2) : "";
+    }
+    // What a material row's cost box holds: the text being typed, else the stored cost.
+    function materialCostValue(m) {
+      return m && m.costText !== undefined ? m.costText : costBoxText(m && m.cost);
+    }
+    // The first material (its text) whose cost box holds something that is not an amount, or null when all are fine.
+    function invalidMaterialCost(list) {
+      const bad = list.find(m => m && String(m.text ?? "").trim() !== "" && m.costText !== undefined && parseCostText(m.costText) === undefined);
+      return bad ? String(bad.text).trim() : null;
     }
 
     // The addOrUpdateTask body for a task entered by hand (no AI): the title and the fields of the manual form. The
@@ -1173,7 +1207,12 @@
     // (no materials). The server stays the validator.
     function materialsFields(list) {
       const items = list
-        .map(m => ({ id: m.id, text: String(m.text ?? "").trim(), checked: m.checked === true }))
+        .map(m => {
+          const item = { id: m.id, text: String(m.text ?? "").trim(), checked: m.checked === true };
+          const cost = m.costText !== undefined ? parseCostText(m.costText) : m.cost;
+          if (typeof cost === "number" && Number.isFinite(cost) && cost >= 0) item.cost = cost;
+          return item;
+        })
         .filter(m => m.text !== "")
         .slice(0, MAX_MATERIALS);
       return items.length > 0 ? items : null;
@@ -1518,6 +1557,26 @@
     function parseMaterialLines(text) {
       return String(text || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean);
     }
+    // One material as a textarea line: "Tap", or "Tap | 12.50" with a cost.
+    function materialLine(m) {
+      return m.cost === undefined ? m.text : `${m.text} | ${costBoxText(m.cost)}`;
+    }
+    // The textarea lines as items: a line ending in "| 12.50" (an amount with at most two decimals) carries that
+    // cost, any other line is text alone.
+    function parseMaterialItems(text) {
+      return parseMaterialLines(text).map(line => {
+        const m = /^(.*\S)\s*\|\s*(\d{1,7}(?:\.\d{1,2})?)$/.exec(line);
+        return m ? { text: m[1], cost: Number(m[2]) } : { text: line };
+      });
+    }
+    // A completed task's materials as the edit form lists them: its texts, each with " | cost" when it has one.
+    function completedMaterialLines(row) {
+      return (Array.isArray(row.materials) ? row.materials : []).map(m => {
+        const text = String(m && typeof m === "object" ? m.text : m || "").trim();
+        const cost = m && typeof m === "object" && typeof m.cost === "number" ? m.cost : undefined;
+        return text ? materialLine({ text, cost }) : "";
+      }).filter(Boolean);
+    }
     // What the edit form for a completed task starts with (see completedChanges). `trackedMinutes` is 0 when no time
     // was tracked.
     function completedFormValues(row, timeZone) {
@@ -1527,7 +1586,7 @@
         estimatedMinutes: row.estimatedMinutes > 0 ? Math.round(row.estimatedMinutes) : 15,
         trackedMinutes: Number.isFinite(row.trackedSeconds) && row.trackedSeconds > 0 ? Math.round(row.trackedSeconds / 60) : 0,
         tags: (Array.isArray(row.tags) ? row.tags : []).join(", "),
-        materials: completedMaterialTexts(row).join("\n"),
+        materials: completedMaterialLines(row).join("\n"),
         comments: typeof row.comments === "string" ? row.comments : "",
         projectId: row.projectId || "",
         date: when.date,
@@ -1549,8 +1608,10 @@
       if (Math.round(tracked) !== before.trackedMinutes) fields.trackedSeconds = Math.round(tracked) * 60;
       const tags = parseTagList(form.tags);
       if (tags.join("\n") !== parseTagList(before.tags).join("\n")) fields.tags = tags;
-      const materials = parseMaterialLines(form.materials);
-      if (materials.join("\n") !== parseMaterialLines(before.materials).join("\n")) fields.materials = materials.length ? materials : null;
+      const materials = parseMaterialItems(form.materials);
+      if (materials.map(materialLine).join("\n") !== parseMaterialItems(before.materials).map(materialLine).join("\n")) {
+        fields.materials = materials.length ? materials.map(m => (m.cost === undefined ? m.text : m)) : null;
+      }
       const comments = String(form.comments || "").trim();
       if (comments !== before.comments.trim()) fields.comments = comments === "" ? null : comments;
       if ((form.projectId || "") !== before.projectId) fields.projectId = form.projectId || null;
@@ -1713,7 +1774,11 @@
         recurInterval: recurrence && recurrence.interval > 0 ? recurrence.interval : 1,
         projectId: inProject ? t.projectId : "",
         projectOrder: inProject && Number.isInteger(t.projectOrder) ? t.projectOrder : "",
-        materials: (Array.isArray(t.materials) ? t.materials : []).slice(0, MAX_MATERIALS).map(text => ({ id: "", text: String(text), checked: false })),
+        materials: (Array.isArray(t.materials) ? t.materials : []).slice(0, MAX_MATERIALS).map(m => {
+          const item = { id: "", text: String(m && typeof m === "object" ? m.text : m), checked: false };
+          if (m && typeof m === "object" && typeof m.cost === "number") item.cost = m.cost;
+          return item;
+        }),
         comments: typeof t.comments === "string" ? t.comments : "",
         history: historyOf(t)
       };
@@ -2068,14 +2133,16 @@
       }
 
       // The materials lists of the edit modal and of the add form share their behaviour
-      for (const [boxId, getList, render, addBtnId, textId, add] of [
-        ["editMaterials", () => editMaterials, renderEditMaterials, "addMaterialBtn", "newMaterialText", addEditMaterial],
-        ["manualMaterials", () => manualMaterials, renderManualMaterials, "addManualMaterialBtn", "manualNewMaterialText", addManualMaterial]
+      for (const [boxId, getList, render, addBtnId, textId, costId, add] of [
+        ["editMaterials", () => editMaterials, renderEditMaterials, "addMaterialBtn", "newMaterialText", "newMaterialCost", addEditMaterial],
+        ["manualMaterials", () => manualMaterials, renderManualMaterials, "addManualMaterialBtn", "manualNewMaterialText", "manualNewMaterialCost", addManualMaterial]
       ]) {
         const box = document.getElementById(boxId);
         box.addEventListener("input", e => {
           const row = e.target.closest(".material-row");
-          if (row && e.target.matches('input[type="text"]')) getList()[Number(row.dataset.index)].text = e.target.value;
+          if (!row) return;
+          if (e.target.matches('input[type="text"]')) getList()[Number(row.dataset.index)].text = e.target.value;
+          else if (e.target.matches('input[type="number"]')) getList()[Number(row.dataset.index)].costText = e.target.value;
         });
         box.addEventListener("change", e => {
           const row = e.target.closest(".material-row");
@@ -2089,9 +2156,11 @@
           render();
         });
         document.getElementById(addBtnId).addEventListener("click", add);
-        document.getElementById(textId).addEventListener("keydown", e => {
-          if (e.key === "Enter") { e.preventDefault(); add(); }
-        });
+        for (const id of [textId, costId]) {
+          document.getElementById(id).addEventListener("keydown", e => {
+            if (e.key === "Enter") { e.preventDefault(); add(); }
+          });
+        }
       }
 
       document.getElementById("materialsList").addEventListener("click", e => {
@@ -2134,6 +2203,8 @@
         return;
       }
 
+      const badCost = manual ? invalidMaterialCost(manualMaterials) : null;
+      if (badCost) { alert(`The cost of "${badCost}" is not an amount. Use a number such as 12.50, or leave it empty.`); return; }
       setLoading(true);
       try {
         const body = manual ? manualTaskBody({
@@ -2298,6 +2369,7 @@
       manualMaterials = v.materials;
       copiedHistory = { title: v.title, history: v.history };
       document.getElementById("manualNewMaterialText").value = "";
+      document.getElementById("manualNewMaterialCost").value = "";
       renderManualMaterials();
       document.getElementById("manualComments").value = v.comments;
       document.getElementById("templateResults").hidden = true; // the form replaces the list
@@ -2315,6 +2387,7 @@
       manualMaterials = [];
       document.getElementById("manualComments").value = "";
       document.getElementById("manualNewMaterialText").value = "";
+      document.getElementById("manualNewMaterialCost").value = "";
       renderManualMaterials();
     }
 
@@ -2619,24 +2692,31 @@
         <div class="material-row" data-index="${i}">
           <input type="checkbox" ${m.checked ? "checked" : ""} aria-label="Got it">
           <input type="text" maxlength="100" value="${esc(m.text)}">
+          <input type="number" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="Cost" aria-label="Cost" value="${esc(materialCostValue(m))}">
           <button type="button" class="btn-secondary" data-action="remove-material" title="Remove">✕</button>
         </div>`).join("");
     }
 
-    function addMaterialTo(list, inputId) {
+    function addMaterialTo(list, inputId, costId) {
       const input = document.getElementById(inputId);
+      const costInput = document.getElementById(costId);
       const text = input.value.trim();
       if (!text) return false;
       if (list.length >= MAX_MATERIALS) { alert(`A task can have at most ${MAX_MATERIALS} materials.`); return false; }
-      list.push({ id: "", text, checked: false });
+      const cost = parseCostText(costInput.value);
+      if (cost === undefined) { alert("Enter the cost as an amount such as 12.50, or leave it empty."); return false; }
+      const item = { id: "", text, checked: false };
+      if (cost !== null) item.cost = cost;
+      list.push(item);
       input.value = "";
+      costInput.value = "";
       return true;
     }
 
     function renderEditMaterials() { renderMaterialRows("editMaterials", editMaterials); }
     function renderManualMaterials() { renderMaterialRows("manualMaterials", manualMaterials); }
-    function addEditMaterial() { if (addMaterialTo(editMaterials, "newMaterialText")) renderEditMaterials(); }
-    function addManualMaterial() { if (addMaterialTo(manualMaterials, "manualNewMaterialText")) renderManualMaterials(); }
+    function addEditMaterial() { if (addMaterialTo(editMaterials, "newMaterialText", "newMaterialCost")) renderEditMaterials(); }
+    function addManualMaterial() { if (addMaterialTo(manualMaterials, "manualNewMaterialText", "manualNewMaterialCost")) renderManualMaterials(); }
 
     // The Materials card: every unchecked material of every task, grouped by task, so nothing holding a task back
     // is out of sight. Checking one saves it and removes it from the card.
@@ -2714,8 +2794,9 @@
       document.getElementById("editProjectOrder").value = Number.isInteger(task.projectOrder) ? task.projectOrder : "";
       updateProjectOrderField();
 
-      editMaterials = (Array.isArray(task.materials) ? task.materials : []).map(m => ({ id: m.id, text: m.text, checked: m.checked === true }));
+      editMaterials = (Array.isArray(task.materials) ? task.materials : []).map(m => ({ id: m.id, text: m.text, checked: m.checked === true, ...(typeof m.cost === "number" ? { cost: m.cost } : {}) }));
       document.getElementById("newMaterialText").value = "";
+      document.getElementById("newMaterialCost").value = "";
       renderEditMaterials();
       document.getElementById("editComments").value = typeof task.comments === "string" ? task.comments : "";
 
@@ -2888,6 +2969,8 @@
       const tagsRaw = document.getElementById("editTags").value;
       const dueDate = document.getElementById("editDueDate").value;
 
+      const badCost = invalidMaterialCost(editMaterials);
+      if (badCost) { alert(`The cost of "${badCost}" is not an amount. Use a number such as 12.50, or leave it empty.`); return false; }
       const tags = tagsRaw.split(",").map(s => s.trim()).filter(Boolean);
       const recurrence = recurrenceFields(document.getElementById("editRecurFreq").value, document.getElementById("editRecurInterval").value);
       const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence, materials: materialsFields(editMaterials), comments: document.getElementById("editComments").value };
@@ -3502,6 +3585,7 @@
 
     // Show settings from the server in the form, and switch every date and time on the page to the configured zone.
     let savedContractorInfo = "";
+    let savedHourlyRate = ""; // the rate box as last saved or loaded, to tell unsaved edits from the stored value
     function applySettings(s) {
       const zoneChanged = s.timeZone !== appTimeZone;
       currentSettings = s;
@@ -3528,6 +3612,10 @@
       const infoBox = document.getElementById("contractorInfo");
       if (infoBox.value === savedContractorInfo) infoBox.value = info;
       savedContractorInfo = info;
+      const rate = s.jobSheet && typeof s.jobSheet.hourlyRate === "number" ? costBoxText(s.jobSheet.hourlyRate) : "";
+      const rateBox = document.getElementById("hourlyRate");
+      if (rateBox.value === savedHourlyRate) rateBox.value = rate;
+      savedHourlyRate = rate;
       const last = s.lastAutoRunAt ? new Date(s.lastAutoRunAt) : null;
       document.getElementById("settingsLastRun").textContent = last && !isNaN(last)
         ? `Last automatic run: ${formatInstant(last)} (${appTimeZone}).`
@@ -3681,16 +3769,18 @@
         const res = await apiFetch(UPDATE_SETTINGS_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ settings: jobSheetPayload(document.getElementById("contractorInfo").value) })
+          body: JSON.stringify({ settings: jobSheetPayload(document.getElementById("contractorInfo").value, document.getElementById("hourlyRate").value) })
         });
         const saved = (await res.json()).settings;
-        if (!saved || !saved.jobSheet || typeof saved.jobSheet.contractorInfo !== "string") {
-          status.textContent = "Saved, but the server ignored the contractor information. Deploy the latest functions.";
+        if (!saved || !saved.jobSheet || typeof saved.jobSheet.contractorInfo !== "string" || !("hourlyRate" in saved.jobSheet)) {
+          status.textContent = "Saved, but the server ignored part of it. Deploy the latest functions.";
           return;
         }
         currentSettings = { ...currentSettings, jobSheet: saved.jobSheet };
         savedContractorInfo = saved.jobSheet.contractorInfo;
         document.getElementById("contractorInfo").value = savedContractorInfo;
+        savedHourlyRate = typeof saved.jobSheet.hourlyRate === "number" ? costBoxText(saved.jobSheet.hourlyRate) : "";
+        document.getElementById("hourlyRate").value = savedHourlyRate;
         status.textContent = "Saved.";
       } catch (err) {
         status.textContent = "Not saved: " + err.message;

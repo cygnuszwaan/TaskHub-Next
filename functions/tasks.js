@@ -308,7 +308,7 @@ function completeInList(tasks, taskId, today, makeId, now, jobCounter) {
   spawned.snoozedUntil = spawned.dueDate;
   if (typeof now === "string" && now) spawned.addedAt = now;
   if (Array.isArray(completedTask.materials) && completedTask.materials.length > 0) {
-    spawned.materials = completedTask.materials.map((m) => ({id: makeId(), text: m.text, checked: false}));
+    spawned.materials = completedTask.materials.map((m) => ({id: makeId(), text: m.text, checked: false, ...(typeof m.cost === "number" ? {cost: m.cost} : {})}));
   }
   if (typeof completedTask.comments === "string" && completedTask.comments !== "") spawned.comments = completedTask.comments;
   if (counting) spawned.jobNumber = jobCounter + 1;

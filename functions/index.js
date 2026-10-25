@@ -35,6 +35,8 @@ const {makeOwnerOnly} = require("./auth");
 const {dayWindowMinutes} = require("./settings");
 const {lastIssued} = require("./jobNumber");
 const {randomUUID} = require("crypto");
+const {v1: firestoreV1} = require("@google-cloud/firestore");
+const {BACKUP_ROOT, normalizeBucketName, runBackup} = require("./backup");
 
 admin.initializeApp();
 // Every function runs in Sydney, next to the Firestore database (australia-southeast1).
@@ -59,6 +61,9 @@ const MODEL_NAME = "gemini-3.5-flash-lite";
 const CALENDAR_ID = defineString("USER_CALENDAR_ID");
 // Owner's personal calendar. Read-only: used for free/busy, never written to (set in functions/.env)
 const PERSONAL_CALENDAR_ID = defineString("USER_PERSONAL_CALENDAR_ID");
+
+// Cloud Storage bucket the weekly backup is written to (set in functions/.env; empty skips the backup)
+const BACKUP_BUCKET = defineString("BACKUP_BUCKET", {default: ""});
 
 // The owner's Google account, the only one allowed to call the HTTP endpoints (set in functions/.env)
 const OWNER_EMAIL = defineString("OWNER_EMAIL");
@@ -405,6 +410,36 @@ exports.autoScheduleDaily = onSchedule({
     console.log("Automated schedule completed:", JSON.stringify(result));
   } catch (err) {
     console.error("Automated schedule failed:", err);
+  }
+});
+
+// Weekly backup: Sunday 03:00 Auckland time, a Firestore export of the whole database (photos included) into
+// `backups/<stamp>/` in BACKUP_BUCKET, keeping the newest few (see backup.js). The export runs as a long operation
+// that Firestore finishes on its own, so this only starts it.
+exports.weeklyBackup = onSchedule({
+  schedule: "0 3 * * 0",
+  timeZone: "Pacific/Auckland",
+  timeoutSeconds: 120,
+}, async () => {
+  const bucket = normalizeBucketName(BACKUP_BUCKET.value());
+  try {
+    const store = bucket ? admin.storage().bucket(bucket) : null;
+    const adminClient = bucket ? new firestoreV1.FirestoreAdminClient() : null;
+    const result = await runBackup({
+      bucket,
+      projectId: process.env.GCLOUD_PROJECT || admin.app().options.projectId,
+      now: new Date(),
+      exportDocuments: (request) => adminClient.exportDocuments(request),
+      listFolders: async () => {
+        const [, , apiResponse] = await store.getFiles({prefix: `${BACKUP_ROOT}/`, delimiter: "/", autoPaginate: false});
+        return (apiResponse && apiResponse.prefixes) || [];
+      },
+      deleteFolder: (folder) => store.deleteFiles({prefix: `${folder}/`}),
+    });
+    if (result.error) console.error("Weekly backup skipped:", result.error);
+    else console.log("Weekly backup started:", JSON.stringify(result));
+  } catch (err) {
+    console.error("Weekly backup failed:", err);
   }
 });
 

@@ -16,6 +16,17 @@ describe("materials.js", () => {
         {id: "a", text: "Paint", checked: true}, {id: "b", text: "Brushes", checked: false},
       ]);
     });
+    it("keeps a usable cost rounded to cents, and leaves the key out otherwise", () => {
+      const out = normalizeMaterials([
+        {id: "a", text: "Paint", cost: 45.678}, {id: "b", text: "Tape", cost: "3.5"}, {id: "c", text: "Free", cost: 0},
+        {id: "d", text: "Bad", cost: -2}, {id: "e", text: "Text", cost: "lots"}, {id: "f", text: "Null", cost: null}, {id: "g", text: "Huge", cost: 2000000}, {id: "h", text: "Empty", cost: ""},
+      ], ids());
+      assert.deepEqual(out.map((m) => m.cost), [45.68, 3.5, 0, undefined, undefined, undefined, undefined, undefined]);
+      for (const m of out.slice(3)) assert.equal("cost" in m, false);
+    });
+    it("clears a cost when the item is sent again without one", () => {
+      assert.equal("cost" in normalizeMaterials([{id: "a", text: "Paint"}], ids())[0], false);
+    });
     it("trims text and treats anything but a boolean true as unchecked", () => {
       const out = normalizeMaterials([{id: "a", text: "  Paint  ", checked: "true"}, {id: "b", text: "Tape", checked: 1}, {id: "c", text: "Rags"}], ids());
       assert.deepEqual(out.map((m) => [m.text, m.checked]), [["Paint", false], ["Tape", false], ["Rags", false]]);

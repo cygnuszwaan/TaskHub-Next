@@ -28,8 +28,8 @@ function isArchiveId(id) {
 //            priority (HIGH, MEDIUM or LOW), estimatedMinutes (a whole number from 1 to MAX_ESTIMATE_MINUTES),
 //            trackedSeconds (0 to MAX_TRACKED_SECONDS, whole seconds; 0 makes the estimate count), tags (a list, cleaned
 //            as the model's tags are, at most MAX_TAGS), comments (text, trimmed and cut to 2000 characters; null or empty
-//            text removes them), materials (a list of texts, a plain record of what was used: each trimmed and cut to 100
-//            characters, blanks dropped, at most 30; null or an empty list removes them; stored as a task's materials are,
+//            text removes them), materials (a list of texts, or of {text, cost?} objects, a plain record of what was used: each trimmed and cut
+//            to 100 characters, blanks dropped, at most 30, a cost kept when usable as in materials.js; null or an empty list removes them; stored as a task's materials are,
 //            every item checked), projectId (a current project, or null or "" for none; the id the row
 //            already has counts as unchanged even when that project is gone), and the completion time as the two
 //            keys completedDate (YYYY-MM-DD) and completedTime (HH:MM) together, the zone's wall clock
@@ -73,7 +73,9 @@ function applyCompletedEdit(row, fields, options) {
   if ("materials" in fields) {
     const given = fields.materials;
     if (given !== null && !Array.isArray(given)) return {error: "Materials must be a list"};
-    const items = given === null ? null : given.filter((t) => typeof t === "string").map((text) => ({text}));
+    const items = given === null ? null : given
+        .map((t) => (typeof t === "string" ? {text: t} : t))
+        .filter((t) => t && typeof t === "object" && typeof t.text === "string");
     const cleaned = items === null ? null : normalizeMaterials(items, makeId);
     if (cleaned === null) {
       if (row && row.materials !== undefined) remove.push("materials");

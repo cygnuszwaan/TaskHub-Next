@@ -19,7 +19,7 @@ describe("templates.js", () => {
     });
     it("copies the reusable fields and drops everything tied to one instance", () => {
       const [t] = buildTemplates(rows);
-      assert.deepEqual(t, {title: "Mow lawn", priority: "LOW", estimatedMinutes: 15, tags: ["Outdoor", "Garden"], completedAt: "2026-10-20T01:00:00.000Z", completedCount: 2, recentSeconds: [900], recurrence: {frequency: "WEEKLY", interval: 2}, projectId: "p1", projectOrder: 2, materials: ["Petrol"], comments: "Check the blade"});
+      assert.deepEqual(t, {title: "Mow lawn", priority: "LOW", estimatedMinutes: 15, tags: ["Outdoor", "Garden"], completedAt: "2026-10-20T01:00:00.000Z", completedCount: 2, recentSeconds: [900], recurrence: {frequency: "WEEKLY", interval: 2}, projectId: "p1", projectOrder: 2, materials: [{text: "Petrol"}], comments: "Check the blade"});
     });
     it("falls back to MEDIUM, 15 minutes and no tags for unusable values", () => {
       const t = buildTemplates(rows)[1];

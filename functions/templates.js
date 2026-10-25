@@ -16,7 +16,7 @@ function titleKey(title) {
 // row with that title. Pure: the input is not modified.
 //   rows: archive rows as `serializeCompleted` returns them, newest first
 // A template is {title, priority, estimatedMinutes, tags, completedAt} plus, when the row had them, `recurrence`,
-// `projectId`, `projectOrder`, `materials` (the item texts only; a new task starts with every item unchecked) and
+// `projectId`, `projectOrder`, `materials` (`{text, cost?}` per item, no ids or checked state: a new task starts with every item unchecked) and
 // `comments`. It carries no due date, schedule, timer or id: those belong to one instance.
 // The job's history (see history.js) comes with it: `completedCount` is the larger of the newest row's stored count and the
 // number of rows with that title, and `recentSeconds` the newest row's stored samples, or, for rows archived before
@@ -56,7 +56,11 @@ function buildTemplates(rows, limit = MAX_TEMPLATES) {
       template.projectId = row.projectId;
       if (Number.isInteger(row.projectOrder)) template.projectOrder = row.projectOrder;
     }
-    const materials = Array.isArray(row.materials) ? row.materials.map((m) => (m && typeof m.text === "string" ? m.text.trim() : "")).filter(Boolean) : [];
+    const materials = [];
+    for (const m of Array.isArray(row.materials) ? row.materials : []) {
+      const text = m && typeof m.text === "string" ? m.text.trim() : "";
+      if (text) materials.push(typeof m.cost === "number" ? {text, cost: m.cost} : {text});
+    }
     if (materials.length > 0) template.materials = materials;
     if (typeof row.comments === "string" && row.comments.trim()) template.comments = row.comments;
     out.push(template);
