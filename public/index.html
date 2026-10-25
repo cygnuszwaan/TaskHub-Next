@@ -492,6 +492,7 @@
         <label>Task Title</label>
         <input type="text" id="editTitle">
       </div>
+      <div id="editJobNumber" class="settings-note" style="margin: -6px 0 12px;" hidden></div>
 
       <div style="display: flex; gap: 10px;">
         <div class="form-group" style="flex: 1;">
@@ -615,6 +616,7 @@
         <label>Task</label>
         <div id="ceTitle" style="font-weight: 600; overflow-wrap: anywhere;"></div>
       </div>
+      <div id="ceJobNumber" class="settings-note" style="margin: -6px 0 12px;" hidden></div>
 
       <div style="display: flex; gap: 10px;">
         <div class="form-group" style="flex: 1;">
@@ -1306,6 +1308,10 @@
     // The number chip's text, "#3"; "" for a task the map does not know.
     function numberChipText(numbers, id) {
       return numbers.has(id) ? `#${numbers.get(id)}` : "";
+    }
+    // The job number line of an edit form, "Job number 123"; "" for a task or entry that has no usable one.
+    function jobNumberText(value) {
+      return Number.isSafeInteger(value) && value >= 1 ? `Job number ${value}` : "";
     }
     // The Task number field of the edit form as the `queueNumber` to send: a whole number from 1 to `count` that
     // differs from the task's current one, else null (nothing to move).
@@ -2594,12 +2600,20 @@
       }
     }
 
+    // Shows a task's job number in a form's read-only line, or hides the line when it has none.
+    function showJobNumber(elementId, value) {
+      const el = document.getElementById(elementId);
+      el.textContent = jobNumberText(value);
+      el.hidden = el.textContent === "";
+    }
+
     function openEditModal(taskId) {
       const task = allTasks.find(t => t.id === taskId);
       if (!task) return;
 
       document.getElementById("editTaskId").value = task.id;
       document.getElementById("editTitle").value = task.title || "";
+      showJobNumber("editJobNumber", task.jobNumber);
       document.getElementById("editPriority").value = task.priority || "MEDIUM";
       document.getElementById("editDuration").value = task.estimatedMinutes || 15;
       document.getElementById("editNumber").max = allTasks.length;
@@ -2938,6 +2952,7 @@
       const values = completedFormValues(row, appTimeZone);
       document.getElementById("ceId").value = id;
       document.getElementById("ceTitle").textContent = row.title || "";
+      showJobNumber("ceJobNumber", row.jobNumber);
       document.getElementById("cePriority").value = values.priority;
       document.getElementById("ceEstimate").value = values.estimatedMinutes;
       document.getElementById("ceTracked").value = values.trackedMinutes;

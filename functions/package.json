@@ -8,7 +8,8 @@
     "shell": "firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions --project taskhub-next",
-    "logs": "firebase functions:log --project taskhub-next"
+    "logs": "firebase functions:log --project taskhub-next",
+    "backfill-job-numbers": "node scripts/backfillJobNumbers.js"
   },
   "engines": {
     "node": "24"
