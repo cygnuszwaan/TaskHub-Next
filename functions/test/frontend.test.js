@@ -2164,10 +2164,17 @@ describe("public/index.html helpers", () => {
       assert.equal(clientSummary({name: "Jo"}), "");
       assert.equal(clientSummary(null), "");
     });
+    it("shows a client's own hourly rate in the summary", () => {
+      const {clientSummary} = load();
+      assert.equal(clientSummary({name: "Jo", phone: "021", hourlyRate: 95}), "021 · $95.00/h");
+      assert.equal(clientSummary({name: "Jo", hourlyRate: 72.5}), "$72.50/h");
+      for (const hourlyRate of [undefined, null, 0, "95", NaN]) assert.equal(clientSummary({name: "Jo", hourlyRate}), "");
+    });
     it("builds the form body, trimming the name only", () => {
       const {clientFormBody} = load();
-      assert.deepEqual(clientFormBody({name: "  Jo ", address: "1 Rd\n", phone: " 1", email: "a@b.nz"}), {name: "Jo", address: "1 Rd\n", phone: " 1", email: "a@b.nz"});
-      assert.deepEqual(clientFormBody(undefined), {name: "", address: "", phone: "", email: ""});
+      assert.deepEqual(clientFormBody({name: "  Jo ", address: "1 Rd\n", phone: " 1", email: "a@b.nz", hourlyRate: " 95.50 "}), {name: "Jo", address: "1 Rd\n", phone: " 1", email: "a@b.nz", hourlyRate: "95.50"});
+      assert.deepEqual(clientFormBody({name: "Jo", hourlyRate: null}), {name: "Jo", address: "", phone: "", email: "", hourlyRate: ""});
+      assert.deepEqual(clientFormBody(undefined), {name: "", address: "", phone: "", email: "", hourlyRate: ""});
     });
     it("asks before deleting, saying what happens to its projects", () => {
       const {deleteClientPrompt} = load();

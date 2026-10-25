@@ -382,6 +382,34 @@ describe("jobsheet.js", () => {
     });
   });
 
+  describe("client hourly rate", () => {
+    const labour = (c, hourlyRate, request = {type: "PROJECT"}) => buildJobSheet({request, rows: [row({trackedSeconds: 3600})], project, client: c, timeZone: NZ, now, hourlyRate}).totals;
+    it("bills at the client's rate instead of the global one", () => {
+      assert.equal(labour({name: "Jo", hourlyRate: 100}, 85).money.labour, "$100.00");
+    });
+    it("falls back to the global rate when the client has none", () => {
+      assert.equal(labour({name: "Jo"}, 85).money.labour, "$85.00");
+      assert.equal(labour(null, 85).money.labour, "$85.00");
+    });
+    it("bills a client with a rate even when there is no global rate", () => {
+      const s = buildJobSheet({request: {type: "PROJECT"}, rows: [row({trackedSeconds: 3600})], project, client: {name: "Jo", hourlyRate: 100}, timeZone: NZ, now});
+      assert.equal(s.invoice, true);
+      assert.equal(s.rateText, "$100.00");
+      assert.equal(s.totals.money.total, "$100.00");
+    });
+    it("shows the rate used in the header and on task and week sheets", () => {
+      const c = {name: "Jo", hourlyRate: 100};
+      for (const request of [{type: "PROJECT"}, {type: "WEEK", weekStart: "2026-10-19"}, {type: "TASK"}]) {
+        const s = buildJobSheet({request, rows: [row({trackedSeconds: 3600})], project, client: c, timeZone: NZ, now, hourlyRate: 85});
+        assert.equal(s.rateText, "$100.00", request.type);
+        assert.equal(s.sections[0].entries[0].money.labour, "$100.00", request.type);
+      }
+    });
+    it("leaves a sheet with no rate anywhere without money", () => {
+      assert.equal(buildJobSheet({request: {type: "PROJECT"}, rows: [row()], project, client: {name: "Jo"}, timeZone: NZ, now}).invoice, false);
+    });
+  });
+
   describe("client details", () => {
     const client = {id: "c1", name: "Jo Smith", address: "1 Beach Rd\nWhangaparāoa", phone: "021 000 000", email: "jo@example.co.nz"};
     const withClient = (request, c) => buildJobSheet({request, rows: [row()], project, client: c, timeZone: NZ, now});

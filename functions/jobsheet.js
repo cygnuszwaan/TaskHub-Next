@@ -5,7 +5,7 @@ const {isArchiveId} = require("./completedEdit");
 const {toIso, weekStartOf, minutesOf, summarizeProjectHours} = require("./completed");
 const {sortPhotos} = require("./photos");
 const {formatJobNumber} = require("./jobNumber");
-const {clientLines} = require("./clients");
+const {clientLines, clientHourlyRate} = require("./clients");
 const {formatMoney, usableRate, entryFigures, sumFigures, isInvoice, figuresText, travelTenths, travelText} = require("./invoice");
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -152,7 +152,7 @@ function byCompletion(a, b) {
 //   contractorInfo: the owner's contractor text (settings.jobSheet.contractorInfo), printed under the "Job sheet" title
 //   client:   the project's client {name, address, phone, email}, or null/absent for none; its lines (`clientLines`, cleaned by pdfText,
 //             [] with none) are printed under the contractor information
-//   hourlyRate: settings.jobSheet.hourlyRate (dollars, null or absent for none)
+//   hourlyRate: settings.jobSheet.hourlyRate (dollars, null or absent for none); a `client.hourlyRate` overrides it for that client's sheets
 //   travelRate: settings.jobSheet.travelRate (dollars per km, null or absent for none)
 // Invoice figures: a sheet is an invoice sheet (`invoice` true, `rateText` the rate as "$85.00", "" without one) when there is a usable
 // hourly rate, any listed task has a material with a cost or any has travel at a usable travel rate (`travelRateText`, the rate as "$1.20", "" when no travel is billed); otherwise it carries no money at all, as before. Then each entry has
@@ -177,7 +177,7 @@ function buildJobSheet({request, rows, project, client, timeZone, now, contracto
   const generatedText = pdfText(formatLocalNow(timeZone, now));
   const projectName = project && typeof project.name === "string" ? pdfText(project.name) : "";
   const stamped = (Array.isArray(rows) ? rows : []).map((row) => ({row, iso: toIso(row && row.completedAt)})).filter((r) => r.row);
-  const rate = usableRate(hourlyRate);
+  const rate = usableRate(clientHourlyRate(client, hourlyRate));
   const rateText = rate === null ? "" : formatMoney(Math.round(rate * 100));
   const tRate = usableRate(travelRate);
   const billedTravel = (figures) => (tRate !== null && figures.some((f) => f.hasTravel) ? formatMoney(Math.round(tRate * 100)) : "");

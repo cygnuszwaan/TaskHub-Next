@@ -551,6 +551,10 @@
       <label for="clientEmail">Email</label>
       <input type="email" id="clientEmail" maxlength="100">
     </div>
+    <div class="form-group" style="margin:10px 0 0;">
+      <label for="clientHourlyRate">Hourly rate</label>
+      <input type="number" id="clientHourlyRate" min="0" max="10000" step="0.01" inputmode="decimal" placeholder="Default rate" style="max-width: 160px;">
+    </div>
     <!-- <p class="settings-note" style="margin:6px 0 0;">A project can belong to a client, chosen in the Projects section of the Tasks page. Deleting a client leaves its projects in place.</p> -->
     <div class="action-row" style="margin-top: 14px;">
       <button type="button" id="saveClientBtn">Add client</button>
@@ -1417,17 +1421,20 @@
       if (!project) return "";
       return [project.name, projectClientName(project, clients)].filter(Boolean).join(" ");
     }
-    // One line under a client's name in the Clients list: address (lines joined), phone and email that exist.
+    // One line under a client's name in the Clients list: address (lines joined), phone, email and own hourly rate that exist.
     function clientSummary(client) {
       const text = (v) => (typeof v === "string" ? v.trim() : "");
       const address = text(client && client.address).split(/\n+/).map(l => l.trim()).filter(Boolean).join(", ");
-      return [address, text(client && client.phone), text(client && client.email)].filter(Boolean).join(" · ");
+      const rate = client && typeof client.hourlyRate === "number" && Number.isFinite(client.hourlyRate) && client.hourlyRate > 0 ? "$" + client.hourlyRate.toFixed(2) + "/h" : "";
+      return [address, text(client && client.phone), text(client && client.email), rate].filter(Boolean).join(" · ");
     }
-    // The updateClient `client` object for the Clients form's four fields.
+    // The updateClient `client` object for the Clients form's fields; `hourlyRate` is the box as typed (trimmed), "" for none, which
+    // the server reads as the global rate.
     function clientFormBody(values) {
       const v = values || {};
       const text = (x) => (typeof x === "string" ? x : "");
-      return { name: text(v.name).trim(), address: text(v.address), phone: text(v.phone), email: text(v.email) };
+      const rate = v.hourlyRate === undefined || v.hourlyRate === null ? "" : String(v.hourlyRate).trim();
+      return { name: text(v.name).trim(), address: text(v.address), phone: text(v.phone), email: text(v.email), hourlyRate: rate };
     }
     // The confirmation before deleting a client; `projects` is how many of the owner's projects belong to it.
     function deleteClientPrompt(name, projects) {
@@ -4019,6 +4026,7 @@
       document.getElementById("clientAddress").value = client ? client.address || "" : "";
       document.getElementById("clientPhone").value = client ? client.phone || "" : "";
       document.getElementById("clientEmail").value = client ? client.email || "" : "";
+      document.getElementById("clientHourlyRate").value = client ? costBoxText(client.hourlyRate) : "";
       document.getElementById("saveClientBtn").textContent = client ? "Save client" : "Add client";
       document.getElementById("cancelClientBtn").hidden = !client;
     }
@@ -4070,7 +4078,8 @@
         name: document.getElementById("clientName").value,
         address: document.getElementById("clientAddress").value,
         phone: document.getElementById("clientPhone").value,
-        email: document.getElementById("clientEmail").value
+        email: document.getElementById("clientEmail").value,
+        hourlyRate: document.getElementById("clientHourlyRate").value
       });
       if (!client.name) { setClientsStatus("Enter a name."); return; }
       const editing = editingClientId;

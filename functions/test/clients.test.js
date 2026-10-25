@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {MAX_NAME_LENGTH, MAX_ADDRESS_LENGTH, MAX_PHONE_LENGTH, MAX_EMAIL_LENGTH, normalizeClientFields, sortClients, addClient, updateClient, removeClientFromProjects, setProjectClient, clientLines} = require("../clients");
+const {MAX_NAME_LENGTH, MAX_ADDRESS_LENGTH, MAX_PHONE_LENGTH, MAX_EMAIL_LENGTH, normalizeClientFields, sortClients, addClient, updateClient, removeClientFromProjects, setProjectClient, clientLines, clientHourlyRate} = require("../clients");
 
 const list = [{id: "c1", name: "Smith Family", address: "1 Beach Rd", phone: "", email: ""}, {id: "c2", name: "acme Ltd", address: "", phone: "", email: ""}];
 
@@ -12,6 +12,14 @@ describe("clients.js", () => {
       assert.deepEqual(normalizeClientFields({name: "  Jo \n Smith ", address: " 1 Beach Rd \r\n\r\n  Whangaparāoa  0930 ", phone: " 021  000 000 ", email: " jo@example.co.nz "}),
           {client: {name: "Jo Smith", address: "1 Beach Rd\nWhangaparāoa 0930", phone: "021 000 000", email: "jo@example.co.nz"}});
       assert.deepEqual(normalizeClientFields({name: "Jo", address: null}), {client: {name: "Jo", address: "", phone: "", email: ""}});
+    });
+    it("keeps an hourly rate rounded to cents and leaves the key out for none", () => {
+      assert.equal(normalizeClientFields({name: "Jo", hourlyRate: 95}).client.hourlyRate, 95);
+      assert.equal(normalizeClientFields({name: "Jo", hourlyRate: "72.456"}).client.hourlyRate, 72.46);
+      for (const hourlyRate of [undefined, null, "", "  ", 0, "0"]) assert.equal("hourlyRate" in normalizeClientFields({name: "Jo", hourlyRate}).client, false, String(hourlyRate));
+    });
+    it("rejects an unusable hourly rate", () => {
+      for (const hourlyRate of [-1, "abc", "1e3", 10000.01, NaN, true, {}, []]) assert.match(normalizeClientFields({name: "Jo", hourlyRate}).error, /hourlyRate must be an amount/, String(hourlyRate));
     });
     it("needs an object with a name", () => {
       for (const v of [undefined, null, "x", [], 5]) assert.match(normalizeClientFields(v).error, /must be an object/);
@@ -55,6 +63,13 @@ describe("clients.js", () => {
       assert.deepEqual(r.client, {id: "c1", name: "Smith", address: "", phone: "021", email: ""});
       assert.equal(r.clients.length, 2);
     });
+    it("sets, changes and clears the hourly rate (an update replaces the fields)", () => {
+      const withRate = updateClient(list, "c1", {name: "Smith Family", hourlyRate: 90});
+      assert.equal(withRate.client.hourlyRate, 90);
+      assert.equal(updateClient(withRate.clients, "c1", {name: "Smith Family", hourlyRate: 100}).client.hourlyRate, 100);
+      assert.equal("hourlyRate" in updateClient(withRate.clients, "c1", {name: "Smith Family"}).client, false);
+      assert.match(updateClient(list, "c1", {name: "Smith Family", hourlyRate: -3}).error, /hourlyRate/);
+    });
     it("lets a client keep its own name, in other letters", () => {
       assert.equal(updateClient(list, "c1", {name: "SMITH FAMILY"}).client.name, "SMITH FAMILY");
     });
@@ -84,6 +99,19 @@ describe("clients.js", () => {
       assert.deepEqual(setProjectClient(projects, list, "zzz", "c1"), {notFound: true});
       assert.deepEqual(setProjectClient(projects, list, "p1", "zzz"), {error: "Client not found"});
       assert.deepEqual(setProjectClient(projects, list, "p1", 7), {error: "Client not found"});
+    });
+  });
+
+  describe("clientHourlyRate", () => {
+    it("uses the client's rate, else the fallback", () => {
+      assert.equal(clientHourlyRate({hourlyRate: 95}, 85), 95);
+      assert.equal(clientHourlyRate({name: "Jo"}, 85), 85);
+      assert.equal(clientHourlyRate(null, 85), 85);
+      assert.equal(clientHourlyRate(undefined, null), null);
+      assert.equal(clientHourlyRate({name: "Jo"}, null), null);
+    });
+    it("ignores an unusable stored rate", () => {
+      for (const hourlyRate of [0, -5, "95", NaN, null]) assert.equal(clientHourlyRate({hourlyRate}, 85), 85, String(hourlyRate));
     });
   });
 
