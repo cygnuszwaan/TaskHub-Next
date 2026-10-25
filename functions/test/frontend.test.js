@@ -318,7 +318,7 @@ describe("public/index.html helpers", () => {
       assert.doesNotMatch(header, /margin-top/);
       assert.doesNotMatch(html, /\bhtml\s*\{[^}]*(margin|padding)/);
     });
-    it("has a pinned header with the Tasks, Materials and Settings tabs, in that order, and nothing else", () => {
+    it("has a pinned header with the Queue, Materials and Settings tabs, in that order, and nothing else", () => {
       assert.match(html, /\.app-header\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0/);
       const header = html.slice(at("<header"), at("</header>"));
       assert.ok(header.includes(`id="tabBar"`));
@@ -326,25 +326,25 @@ describe("public/index.html helpers", () => {
       assert.doesNotMatch(html.slice(at(`id="app"`), at(`id="editModal"`)), /signOutUser\(\)/);
       assert.ok(at("<header") - at(`id="app"`) < 40, "the header is the first thing in the app");
       const tabs = [...header.matchAll(/data-tab="(\w+)"/g)].map((m) => m[1]);
-      assert.deepEqual(tabs, ["tasks", "materials", "history", "settings"]);
+      assert.deepEqual(tabs, ["queue", "materials", "history", "settings"]);
       assert.match(header, /data-tab="history">History</);
       assert.ok(header.indexOf(`id="materialsCount"`) > header.indexOf(`data-tab="materials"`));
       assert.ok(header.indexOf(`id="materialsCount"`) < header.indexOf(`data-tab="settings"`));
     });
-    it("has one page per tab, with only the Tasks page visible at first", () => {
+    it("has one page per tab, with only the Queue page visible at first", () => {
       const pages = [...html.matchAll(/<main id="(\w+)" data-page="(\w+)"([^>]*)>/g)];
-      assert.deepEqual(pages.map((m) => m[2]), ["tasks", "materials", "history", "settings"]);
+      assert.deepEqual(pages.map((m) => m[2]), ["queue", "materials", "history", "settings"]);
       assert.deepEqual(pages.map((m) => /\bhidden\b/.test(m[3])), [false, true, true, true]);
     });
-    it("puts add task and the Queue on the Tasks page", () => {
-      const tasks = at(`id="pageTasks"`);
+    it("puts add task and the Queue on the Queue page", () => {
+      const tasks = at(`id="pageQueue"`);
       const end = at("</main>", tasks);
       for (const id of ["taskInput", "queueCard", "tagsDetails", "projectsDetails", "taskList"]) {
         const i = at(`id="${id}"`);
-        assert.ok(i > tasks && i < end, `${id} is on the Tasks page`);
+        assert.ok(i > tasks && i < end, `${id} is on the Queue page`);
       }
       assert.ok(at(`id="taskInput"`) < at(`id="queueCard"`));
-      assert.ok(at(`id="pageHistory"`) > end, "Recently Completed is not on the Tasks page");
+      assert.ok(at(`id="pageHistory"`) > end, "Recently Completed is not on the Queue page");
     });
     it("makes Materials a page, not a collapsible card", () => {
       const page = at(`id="pageMaterials"`);
@@ -587,11 +587,11 @@ describe("public/index.html helpers", () => {
   });
 
   describe("tabs", () => {
-    it("lists the tabs and falls back to Tasks for an unknown name", () => {
+    it("lists the tabs and falls back to Queue for an unknown name", () => {
       const {TABS, normalizeTab} = load();
-      assert.deepEqual([...TABS], ["tasks", "materials", "history", "settings"]);
+      assert.deepEqual([...TABS], ["queue", "materials", "history", "settings"]);
       for (const name of TABS) assert.equal(normalizeTab(name), name);
-      for (const name of ["", "other", undefined, null, "Tasks"]) assert.equal(normalizeTab(name), "tasks");
+      for (const name of ["", "other", undefined, null, "Queue", "tasks"]) assert.equal(normalizeTab(name), "queue");
     });
   });
 
@@ -2283,7 +2283,7 @@ describe("public/index.html helpers", () => {
       const signedIn = html.slice(from, html.indexOf("showGate(", from));
       assert.match(signedIn, /showApp\(\);\s*applyPendingShare\(\);/);
       const fn = html.slice(html.indexOf("function applyPendingShare"), html.indexOf("// Dark mode:"));
-      assert.match(fn, /showTab\("tasks"\)/);
+      assert.match(fn, /showTab\("queue"\)/);
       assert.match(fn, /input\.value = text/);
       assert.doesNotMatch(fn, /addTask|apiFetch|fetch\(/);
     });

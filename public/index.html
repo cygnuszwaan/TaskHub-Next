@@ -260,14 +260,14 @@
   <div id="app" hidden>
   <header class="app-header">
     <nav class="tab-bar" id="tabBar">
-      <button type="button" class="tab-btn active" data-tab="tasks">Tasks</button>
+      <button type="button" class="tab-btn active" data-tab="queue">Queue</button>
       <button type="button" class="tab-btn" data-tab="materials">Materials <small id="materialsCount"></small></button>
       <button type="button" class="tab-btn" data-tab="history">History</button>
       <button type="button" class="tab-btn" data-tab="settings">Settings</button>
     </nav>
   </header>
 
-  <main id="pageTasks" data-page="tasks">
+  <main id="pageQueue" data-page="queue">
   <div class="card">
     <div class="input-row">
       <input type="text" id="taskInput" placeholder="Add New Task">
@@ -555,7 +555,7 @@
       <label for="clientHourlyRate">Hourly rate</label>
       <input type="number" id="clientHourlyRate" min="0" max="10000" step="0.01" inputmode="decimal" placeholder="Default rate" style="max-width: 160px;">
     </div>
-    <!-- <p class="settings-note" style="margin:6px 0 0;">A project can belong to a client, chosen in the Projects section of the Tasks page. Deleting a client leaves its projects in place.</p> -->
+    <!-- <p class="settings-note" style="margin:6px 0 0;">A project can belong to a client, chosen in the Projects section of the Queue page. Deleting a client leaves its projects in place.</p> -->
     <div class="action-row" style="margin-top: 14px;">
       <button type="button" id="saveClientBtn">Add client</button>
       <button type="button" id="cancelClientBtn" class="btn-secondary" hidden>Cancel</button>
@@ -1117,7 +1117,7 @@
       return (kind === "COMPLETE" ? "Completed" : "Deleted") + (shown ? ` “${shown}”` : " task");
     }
 
-    const TABS = ["tasks", "materials", "history", "settings"];
+    const TABS = ["queue", "materials", "history", "settings"];
     // The tab to show for a requested name; anything unknown falls back to the first tab.
     function normalizeTab(name) {
       return TABS.includes(name) ? name : TABS[0];
@@ -2239,7 +2239,7 @@
         sessionStorage.removeItem(SHARE_KEY);
       } catch (e) { /* none */ }
       if (!text) return;
-      showTab("tasks");
+      showTab("queue");
       const input = document.getElementById("taskInput");
       input.value = text;
       input.dispatchEvent(new Event("input"));
