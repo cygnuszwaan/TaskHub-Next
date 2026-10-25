@@ -344,7 +344,7 @@ describe("public/index.html helpers", () => {
         assert.ok(i > tasks && i < end, `${id} is on the Queue page`);
       }
       assert.ok(at(`id="taskInput"`) < at(`id="queueCard"`));
-      assert.ok(at(`id="pageHistory"`) > end, "Recently Completed is not on the Queue page");
+      assert.ok(at(`id="pageHistory"`) > end, "the History page is not on the Queue page");
     });
     it("makes Materials a page, not a collapsible card", () => {
       const page = at(`id="pageMaterials"`);
@@ -411,15 +411,31 @@ describe("public/index.html helpers", () => {
       assert.equal(values[5][2], "Daily at 8pm");
       assert.equal(html.slice(at(`<label for="schedInterval">`), at("</label>", at(`<label for="schedInterval">`))).replace(/<[^>]+>/g, ""), "Repeat every");
     });
-    it("makes Recently Completed the History page, not a collapsible card, with its list loaded on each visit", () => {
+    it("makes the History page a collapsed Stats card above the project hours and completed list, loaded on each visit", () => {
       const page = at(`id="pageHistory"`);
       const end = at("</main>", page);
       assert.ok(page > at(`id="pageMaterials"`) && end < at(`id="pageSettings"`));
       assert.ok(at(`id="completedList"`) > page && at(`id="completedList"`) < end);
-      assert.doesNotMatch(html.slice(page, end), /<details/);
-      assert.doesNotMatch(html, /completedDetails|Recently Completed/);
+      const open = at(`<details class="card settings-card" id="statsDetails"`, page);
+      assert.ok(open > page && open < at(`id="completedList"`), "the Stats card comes first");
+      assert.match(html.slice(open, html.indexOf(">", open)), /^<details class="card settings-card" id="statsDetails" hidden$/, "collapsed (no open attribute) until the stats load");
+      const close = html.indexOf("</details>", open);
+      assert.ok(close < at(`id="completedList"`) && close < end, "the Stats card closes before the project hours and list");
+      assert.match(html.slice(open, close), /<summary><h3>Stats<\/h3><\/summary>\s*<div id="statsSummary"><\/div>/);
+      assert.equal((html.slice(page, end).match(/<details\b/g) || []).length, 1, "only the Stats card collapses");
+      assert.doesNotMatch(html, /completedDetails|Recently [Cc]ompleted/);
       const show = html.slice(at("function showTab"), at("function showTab") + 700);
       assert.match(show, /tab === "history"\) fetchCompleted\(\)/);
+    });
+    it("puts the summary, down to Most completed jobs, in the Stats card and the project hours outside it", () => {
+      const fetchFn = html.slice(at("async function fetchCompleted"), at("async function fetchCompleted") + 2200);
+      assert.match(fetchFn, /getElementById\("statsSummary"\)\.innerHTML = summaryHtml/);
+      assert.match(fetchFn, /list\.innerHTML = renderProjectHours\(/);
+      assert.doesNotMatch(fetchFn, /renderSummary\(data\.summary\) \+/);
+      assert.match(fetchFn, /stats\.hidden = summaryHtml === ""/);
+      assert.equal((fetchFn.match(/stats\.hidden = true/g) || []).length, 2, "hidden for no completions and for a failed load");
+      const summaryFn = html.slice(at("function renderSummary"), at("function renderProjectHours"));
+      assert.ok(summaryFn.indexOf("Most completed jobs") > summaryFn.indexOf("By project"));
     });
     it("keeps four tabs on one row by letting them size to their text", () => {
       assert.match(html, /\.tab-btn\s*\{[^}]*flex:\s*1 1 auto;[^}]*font-size:\s*13px/);

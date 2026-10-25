@@ -411,8 +411,11 @@
   </main>
 
   <main id="pageHistory" data-page="history" hidden>
+  <details class="card settings-card" id="statsDetails" hidden>
+    <summary><h3>Stats</h3></summary>
+    <div id="statsSummary"></div>
+  </details>
   <div class="card">
-    <h3 style="margin-top:0; margin-bottom:12px;">Recently completed</h3>
     <div id="completedList"></div>
     <div id="completedBrowser" hidden>
       <div class="search-row">
@@ -3745,6 +3748,7 @@
     async function fetchCompleted() {
       const list = document.getElementById("completedList");
       const browser = document.getElementById("completedBrowser");
+      const stats = document.getElementById("statsDetails"); // collapsed by default; its open state is left alone on reloads
       list.textContent = "Loading...";
       try {
         const res = await apiFetch(`${COMPLETED_URL}?limit=${COMPLETED_FETCH_LIMIT}`);
@@ -3754,16 +3758,21 @@
           completedAll = [];
           completedRows = new Map();
           browser.hidden = true;
+          stats.hidden = true;
           list.innerHTML = "<p style='color:var(--text-faint); margin:0;'>No completed tasks yet.</p>";
           return;
         }
         completedAll = tasks;
         completedListLimited = data.listTruncated === true;
         completedRows = new Map(tasks.filter(t => t.archiveId).map(t => [t.archiveId, t]));
-        list.innerHTML = renderSummary(data.summary) + renderProjectHours(data.projectHours, data.projectHoursTruncated);
+        const summaryHtml = renderSummary(data.summary);
+        document.getElementById("statsSummary").innerHTML = summaryHtml;
+        stats.hidden = summaryHtml === "";
+        list.innerHTML = renderProjectHours(data.projectHours, data.projectHoursTruncated);
         browser.hidden = false;
         renderCompletedRows();
       } catch (err) {
+        stats.hidden = true;
         list.innerHTML = "<p>Error loading completed tasks: " + esc(err.message) + "</p>";
       }
     }
