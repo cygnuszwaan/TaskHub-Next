@@ -2,6 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {localParts} = require("./time");
 const {normalizeHourlyRate, MAX_HOURLY_RATE} = require("./money");
+const {normalizePushTokens} = require("./push");
 
 const INTERVALS = [15, 30, 60, 120, 240];
 const FREQUENCIES = ["DAILY", "INTERVAL"];
@@ -43,6 +44,7 @@ const DEFAULTS = Object.freeze({
   jobSheet: Object.freeze({contractorInfo: "", hourlyRate: null}),
   lastAutoRunAt: null,
   lastRunFingerprint: null,
+  pushTokens: Object.freeze([]),
 });
 
 function isPlainObject(v) {
@@ -239,11 +241,13 @@ function mergeSettings(stored) {
   }
   out.lastAutoRunAt = isoOrNull(stored && stored.lastAutoRunAt);
   out.lastRunFingerprint = typeof (stored && stored.lastRunFingerprint) === "string" ? stored.lastRunFingerprint : null;
+  out.pushTokens = normalizePushTokens(stored && stored.pushTokens);
   return out;
 }
 
 // Apply a partial update (only the editable fields present in `patch`) to the current settings. Returns
-// {settings} or {error}; nothing is applied if any provided field is invalid. Run state is carried over.
+// {settings} or {error}; nothing is applied if any provided field is invalid. Run state and the push device
+// tokens (never editable here, see push.js) are carried over.
 function applySettingsUpdate(current, patch) {
   if (!isPlainObject(patch)) return {error: "Settings update must be an object"};
   for (const group of ["location", "day", "lunch", "schedule", "jobSheet"]) {

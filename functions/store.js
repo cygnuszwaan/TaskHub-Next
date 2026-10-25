@@ -2,6 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {isDeepStrictEqual} = require("node:util");
 const {mergeSettings, applySettingsUpdate, claimRun} = require("./settings");
+const {addPushToken, removePushTokens} = require("./push");
 const {lastIssued} = require("./jobNumber");
 const {sortProjects, addProject, renameProject, removeProjectFromTasks} = require("./projects");
 const {buildTemplateSteps, sortTemplates, addTemplate, renameTemplate} = require("./projectTemplates");
@@ -286,7 +287,30 @@ function makeSettingsStore(db) {
     });
   }
 
-  return {getSettings, updateSettings, claimAutoRun, setRunFingerprint};
+  // Registers a device's push token on the settings document (see push.js). Returns {tokens} or {error}.
+  async function addDeviceToken(token) {
+    return db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const current = mergeSettings(snap.exists ? snap.data() : undefined);
+      const result = addPushToken(current.pushTokens, token);
+      if (result.error) return result;
+      tx.set(ref, {...current, pushTokens: result.tokens});
+      return result;
+    });
+  }
+
+  // Drops device tokens (a device that turned notifications off, or one the push service says is gone). Returns {tokens}.
+  async function removeDeviceTokens(tokens) {
+    return db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const current = mergeSettings(snap.exists ? snap.data() : undefined);
+      const left = removePushTokens(current.pushTokens, tokens);
+      if (left.length !== current.pushTokens.length) tx.set(ref, {...current, pushTokens: left});
+      return {tokens: left};
+    });
+  }
+
+  return {getSettings, updateSettings, claimAutoRun, setRunFingerprint, addDeviceToken, removeDeviceTokens};
 }
 
 module.exports = {COLLECTION, PROJECTS_COLLECTION, CLIENTS_COLLECTION, TEMPLATES_COLLECTION, SETTINGS_DOC, JOB_COUNTER_DOC, checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeTemplateStore, makeSettingsStore};

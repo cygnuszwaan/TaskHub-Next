@@ -97,8 +97,8 @@ describe("service worker", () => {
   const sw = require(path.join(pub, "sw.js"));
   const origin = "https://taskhub-next.web.app";
 
-  it("registers install, activate and fetch handlers", () => {
-    for (const name of ["install", "activate", "fetch"]) assert.equal(typeof listeners[name], "function", name);
+  it("registers install, activate, fetch, push and notification click handlers", () => {
+    for (const name of ["install", "activate", "fetch", "push", "notificationclick"]) assert.equal(typeof listeners[name], "function", name);
   });
   it("caches only same-origin GETs for the shell files", () => {
     for (const p of sw.SHELL) assert.ok(sw.isShellRequest("GET", origin + p, origin), p);
@@ -114,5 +114,40 @@ describe("service worker", () => {
   });
   it("lists only files that exist in public/", () => {
     for (const p of sw.SHELL) assert.ok(fs.existsSync(path.join(pub, p)), p);
+  });
+  describe("push notifications", () => {
+    it("shows a data-only message from the server with its title, text, tag and link", () => {
+      const n = sw.notificationFromPush({data: {title: "Rain", body: "Moved to Friday", url: "/#tasks", tag: "weather"}});
+      assert.equal(n.title, "Rain");
+      assert.equal(n.options.body, "Moved to Friday");
+      assert.equal(n.options.tag, "weather");
+      assert.deepEqual(n.options.data, {url: "/#tasks"});
+      assert.equal(n.options.icon, "/icons/icon-192.png");
+    });
+    it("reads a notification block the same way and falls back to plain defaults", () => {
+      assert.equal(sw.notificationFromPush({notification: {title: "A", body: "B"}}).title, "A");
+      for (const payload of [undefined, null, "x", {}, {data: {}}, {data: {title: 5, body: {}}}]) {
+        const n = sw.notificationFromPush(payload);
+        assert.equal(n.title, "TaskHub");
+        assert.equal(n.options.body, "");
+        assert.equal(n.options.data.url, "/");
+        assert.equal("tag" in n.options, false);
+      }
+    });
+    it("cuts very long text", () => {
+      assert.equal(sw.notificationFromPush({data: {title: "t".repeat(1000)}}).title.length, 300);
+    });
+    it("opens only links on this site", () => {
+      assert.equal(sw.notificationTarget("/tasks?x=1#a", origin), "/tasks?x=1#a");
+      assert.equal(sw.notificationTarget(origin + "/stats", origin), "/stats");
+      assert.equal(sw.notificationTarget("https://evil.example/x", origin), "/");
+      assert.equal(sw.notificationTarget("//evil.example/x", origin), "/");
+      assert.equal(sw.notificationTarget(undefined, origin), "/");
+      assert.equal(sw.notificationTarget("http://[bad", origin), "/");
+    });
+    it("loads the Messaging SDK from the same pinned version as Auth, only when needed", () => {
+      assert.match(html, /import\(`\$\{CONFIG\.firebaseSdk\}\/firebase-messaging\.js`\)/);
+      assert.equal(html.match(/import\(`\$\{CONFIG\.firebaseSdk\}\/firebase-messaging\.js`\)/g).length, 1);
+    });
   });
 });

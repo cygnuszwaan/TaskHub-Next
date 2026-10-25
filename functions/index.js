@@ -39,6 +39,7 @@ const {lastIssued} = require("./jobNumber");
 const {randomUUID} = require("crypto");
 const {v1: firestoreV1} = require("@google-cloud/firestore");
 const {BACKUP_ROOT, normalizeBucketName, runBackup} = require("./backup");
+const {normalizePushToken, sendToTokens, testPayload, publicSettings} = require("./push");
 
 admin.initializeApp();
 // Every function runs in Sydney, next to the Firestore database (australia-southeast1).
@@ -59,7 +60,7 @@ const {getClients: readClients, createClient, updateClient, deleteClient} = make
 // Project templates (a project's steps saved for reuse), in `project_templates/{id}`; see projectTemplates.js and store.js.
 const {getTemplates: readTemplates, saveTemplate, renameTemplate, deleteTemplate} = makeTemplateStore(db);
 // Runtime settings (location, time zone, auto-run schedule) in `settings/app`; see settings.js.
-const {getSettings: readSettings, updateSettings: writeSettings, claimAutoRun, setRunFingerprint} = makeSettingsStore(db);
+const {getSettings: readSettings, updateSettings: writeSettings, claimAutoRun, setRunFingerprint, addDeviceToken, removeDeviceTokens} = makeSettingsStore(db);
 
 const MODEL_NAME = "gemini-3.5-flash-lite";
 
@@ -1041,7 +1042,7 @@ exports.exportData = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, re
       db.doc("settings/jobCounter").get(),
       db.collection("completed_tasks").orderBy("completedAt", "desc").limit(EXPORT_MAX_ROWS).get(),
     ]);
-    const payload = buildExport({tasks, projects, clients, projectTemplates, settings, completed: archiveSnap.docs.map((d) => d.data()), now: new Date(), jobCounter: lastIssued(counterSnap.exists ? counterSnap.data() : undefined)});
+    const payload = buildExport({tasks, projects, clients, projectTemplates, settings: publicSettings(settings), completed: archiveSnap.docs.map((d) => d.data()), now: new Date(), jobCounter: lastIssued(counterSnap.exists ? counterSnap.data() : undefined)});
     res.status(200).type("application/json").send(JSON.stringify(payload, null, 2));
   } catch (err) {
     console.error(err);
@@ -1116,7 +1117,7 @@ exports.getJobSheet = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 60, memo
 // Location, time zone, auto-run schedule and the run state; defaults fill anything not yet saved.
 exports.getSettings = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
-    res.status(200).send({success: true, settings: await readSettings()});
+    res.status(200).send({success: true, settings: publicSettings(await readSettings())});
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});
@@ -1130,7 +1131,43 @@ exports.updateSettings = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req
   try {
     const result = await writeSettings(req.body && req.body.settings);
     if (result.error) return res.status(400).send({error: result.error});
-    res.status(200).send({success: true, settings: result.settings});
+    res.status(200).send({success: true, settings: publicSettings(result.settings)});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 9b. Endpoint: Register or drop a device for push notifications
+// Body: {action: "REGISTER"|"UNREGISTER", token}, the token being the Firebase Cloud Messaging registration token the page got for
+// this device. At most 5 devices are kept (the oldest goes). 400 for another action or an unusable token. Responds {success, devices}.
+exports.updatePushToken = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const {action, token} = req.body || {};
+    let result;
+    if (action === "REGISTER") result = await addDeviceToken(token);
+    else if (action === "UNREGISTER") result = await removeDeviceTokens([normalizePushToken(token)]);
+    else return res.status(400).send({error: "action must be REGISTER or UNREGISTER"});
+    if (result.error) return res.status(400).send({error: result.error});
+    res.status(200).send({success: true, devices: result.tokens.length});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 9c. Endpoint: Send a test notification
+// No body. Sends one message to every registered device and drops the devices the push service reports as gone. 400 when no device
+// is registered; 502 with the error codes when nothing was delivered. Responds {success, sent, failed, removed, devices}.
+exports.sendTestNotification = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const {pushTokens} = await readSettings();
+    if (!pushTokens.length) return res.status(400).send({error: "No device is registered for notifications"});
+    const summary = await sendToTokens(admin.messaging(), pushTokens, testPayload());
+    let devices = pushTokens.length;
+    if (summary.dead.length) devices = (await removeDeviceTokens(summary.dead)).tokens.length;
+    if (!summary.sent) return res.status(502).send({error: `No notification was delivered (${summary.errors.join(", ")})`});
+    res.status(200).send({success: true, sent: summary.sent, failed: summary.failed, removed: summary.dead.length, devices});
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});

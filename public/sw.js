@@ -10,6 +10,53 @@ function isShellRequest(method, url, origin) {
   return u.origin === origin && SHELL.includes(u.pathname);
 }
 
+// What a push shows. The server sends data-only FCM messages (functions/push.js), which arrive as {data: {title, body,
+// url, tag}}; a message with a `notification` block is read the same way. Returns {title, options} for
+// showNotification; the link is kept in options.data.url.
+function notificationFromPush(payload) {
+  const source = payload && typeof payload === "object" ? (payload.data || payload.notification || {}) : {};
+  const text = (v, fallback) => (typeof v === "string" && v.trim() ? v.trim().slice(0, 300) : fallback);
+  const options = {
+    body: text(source.body, ""),
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    data: {url: text(source.url, "/")},
+  };
+  const tag = text(source.tag, "");
+  if (tag) options.tag = tag;
+  return {title: text(source.title, "TaskHub"), options};
+}
+
+// Where a tap on a notification goes: the link when it stays on this site, else the page itself.
+function notificationTarget(url, origin) {
+  if (typeof url !== "string") return "/";
+  try {
+    const u = new URL(url, origin);
+    return u.origin === origin ? u.pathname + u.search + u.hash : "/";
+  } catch (err) {
+    return "/";
+  }
+}
+
+self.addEventListener("push", event => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch (err) { /* not JSON: show the default */ }
+  const {title, options} = notificationFromPush(payload);
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", event => {
+  event.notification.close();
+  const target = notificationTarget((event.notification.data || {}).url, self.location.origin);
+  event.waitUntil(
+    self.clients.matchAll({type: "window", includeUncontrolled: true}).then(windows => {
+      const open = windows.find(w => w.url.startsWith(self.location.origin));
+      if (open) return open.focus().then(w => (w && target !== "/" && w.navigate ? w.navigate(target) : w));
+      return self.clients.openWindow(target);
+    })
+  );
+});
+
 self.addEventListener("install", event => {
   event.waitUntil(
     caches.open(CACHE)
@@ -61,4 +108,4 @@ self.addEventListener("fetch", event => {
   );
 });
 
-if (typeof module !== "undefined") module.exports = {CACHE, SHELL, isShellRequest};
+if (typeof module !== "undefined") module.exports = {CACHE, SHELL, isShellRequest, notificationFromPush, notificationTarget};

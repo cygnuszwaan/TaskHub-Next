@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch};`)();
+    return {TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickStatsProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -1024,13 +1024,13 @@ describe("public/index.html helpers", () => {
     const page = html.slice(html.indexOf("id=\"pageSettings\""), html.indexOf("</main>", html.indexOf("id=\"pageSettings\"")));
     it("makes every card a details element, collapsed by default, with its title as the summary", () => {
       const cards = [...page.matchAll(/<details class="card settings-card"([^>]*)>\s*<summary><h3>([^<]+)<\/h3><\/summary>/g)];
-      assert.deepEqual(cards.map((m) => m[2]), ["Scheduling", "Job Sheets", "Clients", "Appearance", "Backup", "Tidy up"]);
+      assert.deepEqual(cards.map((m) => m[2]), ["Scheduling", "Job Sheets", "Clients", "Appearance", "Notifications", "Backup", "Tidy up"]);
       assert.ok(cards.every((m) => !/\bopen\b/.test(m[1])), "no card starts open");
     });
     it("leaves no plain card on the Settings page and balances the tags", () => {
       assert.doesNotMatch(page, /<div class="card"/);
-      assert.equal((page.match(/<details\b/g) || []).length, 6);
-      assert.equal((page.match(/<\/details>/g) || []).length, 6);
+      assert.equal((page.match(/<details\b/g) || []).length, 7);
+      assert.equal((page.match(/<\/details>/g) || []).length, 7);
     });
     it("styles the summary with a marker that turns when the card opens", () => {
       assert.match(html, /\.settings-card\[open\] > summary::after \{ transform: rotate\(90deg\)/);
@@ -2185,6 +2185,63 @@ describe("public/index.html helpers", () => {
       assert.match(fn, /showTab\("tasks"\)/);
       assert.match(fn, /input\.value = text/);
       assert.doesNotMatch(fn, /addTask|apiFetch|fetch\(/);
+    });
+  });
+  describe("notifications card", () => {
+    it("explains why a browser cannot use notifications and offers nothing", () => {
+      const {pushState} = load();
+      const st = pushState({supported: false, permission: "default", enabled: false});
+      assert.equal(st.state, "UNSUPPORTED");
+      assert.deepEqual([st.canEnable, st.canDisable, st.canTest], [false, false, false]);
+      assert.match(st.text, /Home Screen/);
+    });
+    it("offers to turn on while permission has not been refused", () => {
+      const {pushState} = load();
+      for (const permission of ["default", "granted"]) {
+        const st = pushState({supported: true, permission, enabled: false});
+        assert.equal(st.state, "OFF");
+        assert.deepEqual([st.canEnable, st.canDisable, st.canTest], [true, false, false]);
+      }
+    });
+    it("is on only with permission and a registered token, and then allows a test and turning off", () => {
+      const {pushState} = load();
+      const st = pushState({supported: true, permission: "granted", enabled: true});
+      assert.equal(st.state, "ON");
+      assert.deepEqual([st.canEnable, st.canDisable, st.canTest], [false, true, true]);
+    });
+    it("treats a token without permission as off, so it can be turned on again or cleared", () => {
+      const {pushState} = load();
+      const st = pushState({supported: true, permission: "default", enabled: true});
+      assert.equal(st.state, "OFF");
+      assert.deepEqual([st.canEnable, st.canDisable, st.canTest], [true, true, false]);
+    });
+    it("explains a blocked site and still lets a saved token be cleared", () => {
+      const {pushState} = load();
+      const st = pushState({supported: true, permission: "denied", enabled: true});
+      assert.equal(st.state, "DENIED");
+      assert.deepEqual([st.canEnable, st.canDisable, st.canTest], [false, true, false]);
+      assert.equal(pushState({supported: true, permission: "denied", enabled: false}).canDisable, false);
+    });
+    it("builds the token request body", () => {
+      const {pushTokenBody} = load();
+      assert.deepEqual(pushTokenBody("REGISTER", "abc"), {action: "REGISTER", token: "abc"});
+      assert.deepEqual(pushTokenBody("UNREGISTER", "abc"), {action: "UNREGISTER", token: "abc"});
+      assert.deepEqual(pushTokenBody("anything", undefined), {action: "REGISTER", token: ""});
+    });
+    it("reports a test in words", () => {
+      const {pushTestText} = load();
+      assert.equal(pushTestText({sent: 1}), "Sent to 1 device.");
+      assert.equal(pushTestText({sent: 2, removed: 0}), "Sent to 2 devices.");
+      assert.equal(pushTestText({sent: 1, removed: 1}), "Sent to 1 device. 1 no longer reachable and removed.");
+      assert.equal(pushTestText(null), "Sent to 0 devices.");
+    });
+    it("sends the token only to our own functions and asks for permission before anything slow", () => {
+      assert.match(html, /const PUSH_TOKEN_URL = endpoint\("updatePushToken"\)/);
+      const enable = html.slice(html.indexOf("async function enablePush"), html.indexOf("async function disablePush"));
+      assert.ok(enable.indexOf("Notification.requestPermission()") < enable.indexOf("fetchPushToken()"), "the permission prompt comes first, inside the tap");
+    });
+    it("keeps the token on the device and never in a place the server could not clear", () => {
+      assert.match(html, /const PUSH_KEY = "taskhub-push-token"/);
     });
   });
 });

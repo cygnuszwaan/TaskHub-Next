@@ -94,6 +94,27 @@ describe("settings.js", () => {
     });
   });
 
+  describe("push device tokens", () => {
+    const t1 = "token-001:APA91b-abcdefghijklmnop_1";
+    const t2 = "token-002:APA91b-abcdefghijklmnop_2";
+    it("defaults to none and cleans a stored list", () => {
+      assert.deepEqual(mergeSettings(undefined).pushTokens, []);
+      assert.deepEqual(mergeSettings({pushTokens: "junk"}).pushTokens, []);
+      assert.deepEqual(mergeSettings({pushTokens: [t1, "bad", t1, t2]}).pushTokens, [t1, t2]);
+    });
+    it("cannot be set through an update, but survives one", () => {
+      const current = base({pushTokens: [t1]});
+      const r = applySettingsUpdate(current, {pushTokens: [t2], timeZone: "Australia/Sydney"});
+      assert.equal(r.settings.timeZone, "Australia/Sydney");
+      assert.deepEqual(r.settings.pushTokens, [t1]);
+    });
+    it("survive claiming an automatic run", () => {
+      const s = sched({frequency: "INTERVAL", intervalMinutes: 15}, {pushTokens: [t1]});
+      const r = claimRun(s, new Date("2026-10-25T00:00:00.000Z"));
+      assert.deepEqual(r.settings.pushTokens, [t1]);
+    });
+  });
+
   describe("applySettingsUpdate", () => {
     it("changes only the fields provided", () => {
       const r = applySettingsUpdate(base(), {schedule: {time: "07:15"}});

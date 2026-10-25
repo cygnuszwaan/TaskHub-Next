@@ -217,6 +217,52 @@ describe("makeSettingsStore", () => {
     assert.equal(db.state.writes, 0);
   });
 
+  describe("device tokens", () => {
+    const t1 = "token-001:APA91b-abcdefghijklmnop_1";
+    const t2 = "token-002:APA91b-abcdefghijklmnop_2";
+    it("addDeviceToken stores the token and keeps the rest of the document", async () => {
+      const db = fakeDocDb({timeZone: "Australia/Sydney", lastAutoRunAt: "2026-10-22T07:00:00.000Z"});
+      const r = await makeSettingsStore(db).addDeviceToken(t1);
+      assert.deepEqual(r.tokens, [t1]);
+      assert.deepEqual(db.state.value.pushTokens, [t1]);
+      assert.equal(db.state.value.timeZone, "Australia/Sydney");
+      assert.equal(db.state.value.lastAutoRunAt, "2026-10-22T07:00:00.000Z");
+    });
+    it("addDeviceToken works on a missing document and adds a second device", async () => {
+      const db = fakeDocDb();
+      const store = makeSettingsStore(db);
+      await store.addDeviceToken(t1);
+      const r = await store.addDeviceToken(t2);
+      assert.deepEqual(r.tokens, [t1, t2]);
+      assert.equal(db.state.writes, 2);
+    });
+    it("addDeviceToken writes nothing for an unusable token", async () => {
+      const db = fakeDocDb({pushTokens: [t1]});
+      const r = await makeSettingsStore(db).addDeviceToken("nope");
+      assert.match(r.error, /token/);
+      assert.equal(db.state.writes, 0);
+    });
+    it("removeDeviceTokens drops only the named ones and skips the write when nothing changes", async () => {
+      const db = fakeDocDb({pushTokens: [t1, t2]});
+      const store = makeSettingsStore(db);
+      assert.deepEqual((await store.removeDeviceTokens([t1])).tokens, [t2]);
+      assert.deepEqual(db.state.value.pushTokens, [t2]);
+      assert.equal(db.state.writes, 1);
+      assert.deepEqual((await store.removeDeviceTokens([null])).tokens, [t2]);
+      assert.equal(db.state.writes, 1);
+    });
+    it("tokens survive updateSettings, claimAutoRun and setRunFingerprint", async () => {
+      const db = fakeDocDb({pushTokens: [t1], schedule: {enabled: true, frequency: "INTERVAL", time: "20:00", intervalMinutes: 15}});
+      const store = makeSettingsStore(db);
+      await store.updateSettings({gapMinutes: 10});
+      assert.deepEqual(db.state.value.pushTokens, [t1]);
+      await store.claimAutoRun(new Date("2026-10-25T00:00:00.000Z"));
+      assert.deepEqual(db.state.value.pushTokens, [t1]);
+      await store.setRunFingerprint("abc");
+      assert.deepEqual(db.state.value.pushTokens, [t1]);
+    });
+  });
+
   describe("setRunFingerprint", () => {
     it("records the fingerprint and keeps everything else", async () => {
       const db = fakeDocDb({timeZone: "Australia/Sydney", lastAutoRunAt: "2026-10-22T07:00:00.000Z"});

@@ -29,6 +29,10 @@ firebase functions:secrets:set GOOGLE_CALENDAR_CREDENTIALS --data-file service-a
 | `USER_PERSONAL_CALENDAR_ID` | Your personal calendar (read-only) |
 | `BACKUP_BUCKET` | Cloud Storage bucket for the weekly backup (see below). Leave empty to switch the backup off |
 
+**Notifications** (nothing to install; check once)
+
+Push uses Firebase Cloud Messaging, which is on by default in a Firebase project; the functions send as their own service account, so there is no secret. In the Firebase console, Project settings, Cloud Messaging, check that "Firebase Cloud Messaging API (V1)" is enabled. Optionally generate a Web Push certificate there and paste its public key into `CONFIG.vapidKey` in `public/index.html`; empty uses Firebase's default key. Then deploy functions and hosting, open the installed app, and use Settings, Notifications: Turn on notifications, allow the prompt, then Send a test. Each device is switched on separately. If the test returns an error, run `npm run logs`: a permission error means the Cloud Messaging API is disabled for `taskhub-next` or the functions' service account may not send.
+
 **Weekly backup** (needs the Blaze plan; a Firestore export is billed like any other storage and reads)
 
 `weeklyBackup` starts a Firestore export of the whole database, photos included, every Sunday at 03:00 Auckland time into `gs://BUCKET/backups/<UTC time>/` and deletes all but the newest 4. Do this once, in Cloud Shell or any terminal signed in with `gcloud`:

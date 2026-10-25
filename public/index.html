@@ -544,6 +544,19 @@
     </div>
   </details>
   <details class="card settings-card">
+    <summary><h3>Notifications</h3></summary>
+    <div class="form-group" style="margin-bottom:0;">
+      <p id="pushText" class="settings-note" style="margin:0 0 10px;"></p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button type="button" id="pushOnBtn" class="btn-secondary">🔔 Turn on notifications</button>
+        <button type="button" id="pushTestBtn" class="btn-secondary">Send a test</button>
+        <button type="button" id="pushOffBtn" class="btn-secondary">Turn off</button>
+      </div>
+      <p class="settings-note" style="margin:6px 0 0;">Each device is switched on separately and keeps its own choice. Turning it on asks the browser for permission.</p>
+      <div id="pushStatus" class="settings-status"></div>
+    </div>
+  </details>
+  <details class="card settings-card">
     <summary><h3>Backup</h3></summary>
     <button type="button" id="exportBtn" class="btn-secondary" title="Download your tasks, projects, settings and completed archive as one JSON file">⬇️ Download all data</button>
     <p class="settings-note" style="margin:6px 0 0;">One JSON file with the task list, projects, settings and the completed archive.</p>
@@ -823,7 +836,9 @@
     // Config: the only place deployment-specific values live.
     const CONFIG = {
       functionsBase: "https://australia-southeast1-taskhub-next.cloudfunctions.net",
-      firebaseSdk: "https://www.gstatic.com/firebasejs/12.18.0"
+      firebaseSdk: "https://www.gstatic.com/firebasejs/12.18.0",
+      // Web Push certificate (public key) from the Firebase console, Project settings, Cloud Messaging. Optional: empty uses Firebase's default key.
+      vapidKey: ""
     };
     const endpoint = name => `${CONFIG.functionsBase}/${name}`;
     const ADD_TASK_URL = endpoint("addOrUpdateTask");
@@ -854,10 +869,13 @@
     const GET_PHOTOS_URL = endpoint("getCompletedPhotos");
     const ADD_PHOTO_URL = endpoint("addCompletedPhoto");
     const DELETE_PHOTO_URL = endpoint("deleteCompletedPhoto");
+    const PUSH_TOKEN_URL = endpoint("updatePushToken");
+    const TEST_PUSH_URL = endpoint("sendTestNotification");
 
     // Firebase Auth. The SDK loads from the CDN and the web config from Hosting's reserved URL, so there is no build step or key in this file.
     let authLib = null;
     let firebaseAuth = null;
+    let firebaseApp = null;
     let gateNotice = "";
 
     function showGate(message) {
@@ -899,7 +917,8 @@
           })
         ]);
         authLib = lib;
-        firebaseAuth = lib.getAuth(appLib.initializeApp(config));
+        firebaseApp = appLib.initializeApp(config);
+        firebaseAuth = lib.getAuth(firebaseApp);
         // Completes a redirect sign-in (see signIn); a success arrives through onAuthStateChanged below.
         lib.getRedirectResult(firebaseAuth).catch(err => noteGate("Sign-in failed: " + err.message));
         lib.onAuthStateChanged(firebaseAuth, user => {
@@ -911,6 +930,7 @@
             loadClients();
             loadTemplates();
             loadSettings();
+            refreshPushToken();
           } else {
             showGate("");
           }
@@ -1817,6 +1837,26 @@
       const tail = kind === "WEEK" && DATE_ONLY.test(weekStart || "") ? `-week-${weekStart}` : kind === "PROJECT" && day ? `-to-${day}` : kind === "TASK" && day ? `-${day}` : "";
       return `jobsheet-${slug}${tail}.pdf`;
     }
+    // The Notifications card's state for this device. `supported`: the browser has notifications, service workers and push;
+    // `permission`: Notification.permission; `enabled`: this device holds a registered token. Returns {state, text,
+    // canEnable, canDisable, canTest}, state being UNSUPPORTED, DENIED, ON or OFF.
+    function pushState({ supported, permission, enabled }) {
+      if (!supported) return { state: "UNSUPPORTED", text: "This browser can't receive notifications here. On an iPhone or iPad, add the app to the Home Screen first.", canEnable: false, canDisable: false, canTest: false };
+      if (permission === "denied") return { state: "DENIED", text: "Notifications are blocked for this site. Allow them in the browser's site settings, then come back.", canEnable: false, canDisable: !!enabled, canTest: false };
+      if (enabled && permission === "granted") return { state: "ON", text: "Notifications are on for this device.", canEnable: false, canDisable: true, canTest: true };
+      return { state: "OFF", text: "Notifications are off on this device.", canEnable: true, canDisable: !!enabled, canTest: false };
+    }
+    // Body for updatePushToken.
+    function pushTokenBody(action, token) {
+      return { action: action === "UNREGISTER" ? "UNREGISTER" : "REGISTER", token: String(token || "") };
+    }
+    // What the test notification reports: "Sent to 2 devices." and a note on devices dropped as gone.
+    function pushTestText(result) {
+      const n = Number(result && result.sent) || 0;
+      const gone = Number(result && result.removed) || 0;
+      return `Sent to ${n} ${n === 1 ? "device" : "devices"}.` + (gone ? ` ${gone} no longer reachable and removed.` : "");
+    }
+
     // What an export holds, in words: "12 tasks, 1 project, 340 completed" (and a note when the archive was cut off).
     function exportSummary(data) {
       const count = (list, one, many) => { const n = Array.isArray(list) ? list.length : 0; return `${n} ${n === 1 ? one : many}`; };
@@ -4201,6 +4241,114 @@
       }
     }
 
+    // Push notifications. The token lives with the device (localStorage, never sent anywhere but our own server), and the
+    // server keeps a short list of them on the settings document. The Messaging SDK loads only when needed.
+    const PUSH_KEY = "taskhub-push-token";
+    let pushLib = null;
+    let pushMessaging = null;
+
+    function pushSupported() {
+      return "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
+    }
+    function savedPushToken() {
+      try { return localStorage.getItem(PUSH_KEY) || ""; } catch (e) { return ""; }
+    }
+    function savePushToken(token) {
+      try { if (token) localStorage.setItem(PUSH_KEY, token); else localStorage.removeItem(PUSH_KEY); } catch (e) { /* kept for this session only */ }
+    }
+    function renderPush() {
+      const st = pushState({ supported: pushSupported(), permission: pushSupported() ? Notification.permission : "default", enabled: !!savedPushToken() });
+      document.getElementById("pushText").textContent = st.text;
+      document.getElementById("pushOnBtn").hidden = !st.canEnable;
+      document.getElementById("pushOffBtn").hidden = !st.canDisable;
+      document.getElementById("pushTestBtn").hidden = !st.canTest;
+    }
+    async function loadPushMessaging() {
+      if (pushMessaging) return pushMessaging;
+      const lib = await import(`${CONFIG.firebaseSdk}/firebase-messaging.js`);
+      if (!(await lib.isSupported())) throw new Error("This browser can't receive push notifications.");
+      pushLib = lib;
+      pushMessaging = lib.getMessaging(firebaseApp);
+      return pushMessaging;
+    }
+    // This device's registration token from Firebase, through the app's own service worker.
+    async function fetchPushToken() {
+      const messaging = await loadPushMessaging();
+      const options = { serviceWorkerRegistration: await navigator.serviceWorker.ready };
+      if (CONFIG.vapidKey) options.vapidKey = CONFIG.vapidKey;
+      const token = await pushLib.getToken(messaging, options);
+      if (!token) throw new Error("No notification token was issued.");
+      return token;
+    }
+    function postPushToken(action, token) {
+      return apiFetch(PUSH_TOKEN_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pushTokenBody(action, token)) });
+    }
+    async function enablePush() {
+      const btn = document.getElementById("pushOnBtn");
+      const status = document.getElementById("pushStatus");
+      btn.disabled = true;
+      status.textContent = "Asking for permission...";
+      try {
+        const permission = await Notification.requestPermission(); // first, so the browser still sees the tap
+        if (permission !== "granted") { status.textContent = permission === "denied" ? "Permission was refused." : "Permission was not given."; return; }
+        status.textContent = "Registering this device...";
+        const token = await fetchPushToken();
+        await postPushToken("REGISTER", token);
+        savePushToken(token);
+        status.textContent = "Done. Use Send a test to check it.";
+      } catch (err) {
+        status.textContent = "Could not turn on notifications: " + err.message;
+      } finally {
+        btn.disabled = false;
+        renderPush();
+      }
+    }
+    async function disablePush() {
+      const btn = document.getElementById("pushOffBtn");
+      const status = document.getElementById("pushStatus");
+      btn.disabled = true;
+      status.textContent = "Turning off...";
+      try {
+        const token = savedPushToken();
+        if (token) await postPushToken("UNREGISTER", token);
+        savePushToken("");
+        try { if (pushLib && pushMessaging) await pushLib.deleteToken(pushMessaging); } catch (e) { /* the server no longer sends to it */ }
+        status.textContent = "Notifications are off on this device.";
+      } catch (err) {
+        status.textContent = "Could not turn off notifications: " + err.message;
+      } finally {
+        btn.disabled = false;
+        renderPush();
+      }
+    }
+    async function sendPushTest() {
+      const btn = document.getElementById("pushTestBtn");
+      const status = document.getElementById("pushStatus");
+      btn.disabled = true;
+      status.textContent = "Sending...";
+      try {
+        const res = await apiFetch(TEST_PUSH_URL, { method: "POST" });
+        status.textContent = pushTestText(await res.json());
+      } catch (err) {
+        status.textContent = "Test failed: " + err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+    // After sign-in, on a device that has notifications on: keep its token current (Firebase can issue a new one).
+    async function refreshPushToken() {
+      renderPush();
+      const old = savedPushToken();
+      if (!old || !pushSupported() || Notification.permission !== "granted") return;
+      try {
+        const token = await fetchPushToken();
+        if (token === old) return;
+        await postPushToken("REGISTER", token);
+        savePushToken(token);
+        await postPushToken("UNREGISTER", old).catch(() => {});
+      } catch (err) { /* leave the saved token; the next load tries again */ }
+    }
+
     // Save the contractor information alone. Only the job sheet group is sent and applySettings is not called, so
     // unsaved edits in the Scheduling form stay as they are.
     async function saveJobSheetSettings() {
@@ -4305,6 +4453,9 @@
     });
     document.getElementById("saveSettingsBtn").addEventListener("click", saveSettings);
     document.getElementById("saveJobSheetBtn").addEventListener("click", saveJobSheetSettings);
+    document.getElementById("pushOnBtn").addEventListener("click", enablePush);
+    document.getElementById("pushOffBtn").addEventListener("click", disablePush);
+    document.getElementById("pushTestBtn").addEventListener("click", sendPushTest);
     document.getElementById("exportBtn").addEventListener("click", downloadExport);
     document.getElementById("dedupBtn").addEventListener("click", removeDuplicateTasks);
     document.querySelector(".snooze-choices").addEventListener("click", e => {
