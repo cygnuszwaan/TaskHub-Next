@@ -517,11 +517,13 @@ describe("public/index.html helpers", () => {
       assert.match(fromModal, /if \(!confirm\("Delete this task\?"\)\) return;\s*const taskId/);
       assert.ok(fromModal.indexOf("confirm(") < fromModal.indexOf("closeEditModal()"), "cancelling keeps the modal open");
     });
-    it("has an Undo footnote at the bottom of the page, shown after a delete or completion and kept until the server's window ends", () => {
+    it("has an Undo bar pinned to the bottom of the screen, shown after a delete or completion and kept until the server's window ends", () => {
       const note = at(`id="undoNote"`);
       assert.ok(note > at("</main>", at(`id="pageSettings"`)) && note < at(`id="editModal"`));
       assert.match(html.slice(html.lastIndexOf("<", note), note), /^<footer /);
       assert.match(html, /\.undo-note\[hidden\]\s*\{\s*display:\s*none/);
+      assert.match(html, /\.undo-note \{[^}]*position: sticky; bottom: 0;/);
+      assert.match(html, /body:has\(#undoNote:not\(\[hidden\]\)\) \.batch-bar \{ bottom: calc\(44px/, "the Multi-Select bar sits above it");
       assert.match(html, /const UNDO_URL = endpoint\("undoRemove"\)/);
       assert.match(html, /showUndoNote\(kind, task\.title\)/);
       assert.match(html, /removeTask\(taskId, "COMPLETE"/);
