@@ -115,7 +115,20 @@ The cron and the manual trigger run the full engine and both use `USER_CALENDAR_
 
 Each step fits in one turn. Do them in order unless told otherwise. Each step adds tests for any new pure logic.
 
-There are no planned steps; the next work comes from the stretch goals or the owner.
+1. Due-date colours on queue task cards: a card's background turns amber when it is due in 2 days or less (today included) and pale red when overdue; no due date or a later one leaves it plain, and overdue wins. Uses `daysUntilDue`; a pure helper picks the class (tested). New colour variables with dark values in both blocks (`darkmode.test.js`). The Active task box keeps its timer tint.
+2. Long-running timer warning: when a timer has run longer than a threshold (6 hours by default, a Scheduling setting), the Active task box says so and offers to pause it with the time capped at the threshold; never changes tracked time without the owner's choice.
+3. `#123` in the Queue search: a word of the form `#123` matches only the task with job number 123, the same rule as the Completed Tasks search (share the helper).
+4. Weekly automatic backup: a scheduled function writes a Firestore export (photos included) to a Cloud Storage bucket every week and keeps the latest few; the one-off bucket and role setup goes in `README.md`.
+5. Invoice figures, data: an hourly rate in the Job Sheets settings and an optional cost per material (edit form, completed task form and manual add); validated and tested, nothing printed yet.
+6. Invoice figures, printing: job sheets print labour (tracked time at the rate), materials cost and a total per task, per week and per project; a sheet with no rate or costs prints as it does now; no GST (see the GST stretch goal).
+7. Clients, data: a client (name, address, phone, email) that a project can belong to; a Clients card in Settings to add, edit and delete them, deleting one leaving its projects in place.
+8. Clients, printing and search: a project sheet prints its client's details under the contractor information, and the Completed Tasks search also matches a client's name.
+9. Project templates, save: a Save as template button on a project stores its steps (title, priority, estimate, tags, materials, comments, order numbers) without dates, timers or history.
+10. Project templates, start: a Start from template choice in the Projects section creates a project and its tasks from a stored template, numbering each new task; templates can be renamed and deleted.
+11. Spreadsheet export: a CSV of completed work (job number, project, client, completed date, tracked hours, estimate, materials, cost when set) for a date range, downloaded from the Backup card.
+12. Share to TaskHub: the manifest gains a `share_target` so text shared from another Android app lands in the add field (service worker route, page handling of the shared text).
+13. Notifications, setup: Firebase Cloud Messaging for the installed app (permission prompt, token stored on the owner's settings document, a test notification).
+14. Notifications, events: push a message when an automatic run fails, when an Outdoor or Garden task is moved off a rainy day, and shortly before a scheduled task starts; each kind can be switched off in Settings.
 
 ## Stretch goals (unplanned)
 
@@ -124,6 +137,23 @@ Ideas kept in sight, not started and not committed to. Each goal's steps are in 
 ### Archive scale
 
 1. Only when the archive nears 1000 completions, or a job done rarely drops out of the completed-task search (`getCompletedTemplates` and the stats summary each read at most the newest 1000 `completed_tasks` rows; the Stats project hours also read every archived row of each current project, up to 5000 each, on every load, which the same step can avoid by keeping each project's weekly totals on its own document): add a `jobs/{titleKey}` summary document, one per distinct title (`titleKey` from `templates.js`), `{title, priority, estimatedMinutes, tags, recurrence, projectId, projectOrder, materials, comments, completedCount, recentSeconds, lastCompletedAt}`. `completeTask` updates it in the same transaction as the archive write, `undoRemove` rolls it back, and `getCompletedTemplates` reads it instead of scanning the archive (one read per job, no 1000-row cap). Add a one-off backfill from the existing archive and include `jobs` in `exportData`. `completed_tasks` stays one append-only row per completion, since the stats queries by `completedAt` and the per-completion snapshots depend on it; do not merge a job's completions into one document with an array (unbounded growth against the 1 MiB document limit, a whole-document rewrite per completion, no range queries over elements).
+
+### Offline adds
+
+1. Queue tasks added without a connection in the page (kept in `localStorage`, shown on the list as pending) and send them when the connection returns, once each and in order.
+2. Show and retry or discard failed queued adds, and keep a manual add's job number from being issued twice if a retry races its first attempt.
+
+### Travel-aware scheduling
+
+1. A location (address and coordinates, from the same geocoding search as Settings) on a client or project.
+2. A planner preference that keeps tasks in the same area on the same day when priority and due dates allow, with a fingerprint and engine version bump.
+
+### GST on invoices
+
+Not needed while the owner is not GST registered; prices on job sheets carry no GST until then.
+
+1. Settings: a GST number and rate (15% by default), saved with the Job Sheets settings and validated.
+2. Job sheets: rate and material costs entered as GST-exclusive; a sheet prints the subtotal, GST and total, and the GST number in the header; unchanged while no number is set.
 
 ### Public multi-user version
 
