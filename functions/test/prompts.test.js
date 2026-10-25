@@ -60,13 +60,21 @@ describe("prompts.js", () => {
       assert.ok(!prompt().includes("comments field"));
       assert.ok(text.startsWith(prompt().slice(0, 200)));
     });
+    it("shows the rank as the place in the queue, 1..n, even when the stored ranks have gaps or run out of order", () => {
+      const list = [{id: "x", title: "X", order: 9}, {id: "y", title: "Y", order: 2}, {id: "z", title: "Z", order: 5}];
+      const p = prompt({tasks: list});
+      const shown = JSON.parse(p.slice(p.indexOf("["), p.indexOf("]\n", p.indexOf("[")) + 1));
+      assert.deepEqual(shown.map((t) => [t.id, t.order]), [["y", 1], ["z", 2], ["x", 3]]);
+      assert.equal(list[0].order, 9);
+    });
     it("copes with no projects", () => {
       assert.match(prompt({projects: []}), /Existing Projects[^\n]*\n\s*\[\]/);
     });
     it("keeps the earlier instructions: ranks, ids for changes and recurrence", () => {
       const p = prompt();
       assert.match(p, /Return ONLY the tasks that are new or that the input changes\./);
-      assert.match(p, /Set order to the rank \(from 1\)/);
+      assert.match(p, /Set order on each NEW task to the rank \(from 1\)/);
+      assert.match(p, /Existing tasks keep their place/);
       assert.match(p, /return frequency NONE/);
     });
     it("does not modify the tasks or projects it is given", () => {

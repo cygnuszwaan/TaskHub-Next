@@ -366,9 +366,23 @@ describe("tasks.js", () => {
       const r = mergeTaskChanges(existingTasks(), [{id: "b", title: "B2"}], makeIdGenerator());
       assert.deepEqual(r.tasks.map((t) => t.id), ["a", "b", "c"]);
     });
-    it("moves a task to the requested rank", () => {
-      const r = mergeTaskChanges(existingTasks(), [{id: "c", title: "C", order: 1}], makeIdGenerator());
-      assert.deepEqual(r.tasks.map((t) => `${t.id}${t.order}`), ["c1", "a2", "b3"]);
+    it("never moves an existing task, whatever rank the change gives", () => {
+      const r = mergeTaskChanges(existingTasks(), [{id: "c", title: "C2", order: 1}], makeIdGenerator());
+      assert.deepEqual(r.tasks.map((t) => `${t.id}${t.order}`), ["a1", "b2", "c3"]);
+      assert.equal(r.tasks[2].title, "C2");
+    });
+    it("inserts several new tasks at their final ranks whatever order the model lists them in", () => {
+      const changes = [{title: "Late", order: 4}, {title: "Early", order: 2}];
+      const r = mergeTaskChanges(existingTasks(), changes, makeIdGenerator());
+      assert.deepEqual(r.tasks.map((t) => t.id).filter((id) => ["a", "b", "c"].includes(id)), ["a", "b", "c"]);
+      assert.deepEqual(r.tasks.map((t) => t.order), [1, 2, 3, 4, 5]);
+      assert.equal(r.tasks[1].title, "Early");
+      assert.equal(r.tasks[3].title, "Late");
+    });
+    it("puts a new task with no usable rank at the end, after the ranked ones", () => {
+      const r = mergeTaskChanges(existingTasks(), [{title: "NoRank"}, {title: "First", order: 1}], makeIdGenerator());
+      assert.deepEqual(r.tasks.map((t) => t.title).slice(0, 1), ["First"]);
+      assert.equal(r.tasks[r.tasks.length - 1].title, "NoRank");
     });
     it("trims titles and tags and rounds the estimate", () => {
       const r = mergeTaskChanges(existingTasks(), [{id: "b", title: "  New title  ", tags: [" Indoor ", "", 5], estimatedMinutes: 20.6}], makeIdGenerator());
@@ -457,7 +471,7 @@ describe("tasks.js", () => {
     it("does not mutate its inputs", () => {
       const tasks = existingTasks();
       const snapshot = JSON.stringify(tasks);
-      const changes = [{id: "a", title: "Changed", order: 3}, {title: "New"}];
+      const changes = [{id: "a", title: "Changed", order: 3}, {title: "New", order: 2}];
       const changeSnapshot = JSON.stringify(changes);
       mergeTaskChanges(tasks, changes, makeIdGenerator());
       assert.equal(JSON.stringify(tasks), snapshot);

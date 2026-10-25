@@ -192,10 +192,12 @@ function placeAtRank(list, task, rank) {
 //             {comments: true} its `comments` (validated by normalizeComments); only a manual entry sets them. Without
 //             the option, and for an update, the field is never read.
 // Untouched tasks, and every server-owned field of updated tasks, are preserved. A change naming an id that is
-// no longer stored is skipped. Ranks are renumbered 1..n in list order.
+// no longer stored is skipped. An existing task never moves: a rank on a change to one is ignored. A new task takes
+// the rank asked for (clamped; at the end when none), new tasks going in lowest rank first. Ranks are renumbered 1..n in list order.
 // Returns {tasks, added, updated, skipped}.
 function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = {}) {
   let list = [...existing].sort((a, b) => (a.order || 0) - (b.order || 0));
+  const created = []; // new tasks with the rank asked for, inserted after the loop
   let added = 0;
   let updated = 0;
   let skipped = 0;
@@ -211,11 +213,7 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
     if (current) {
       const next = applyProjectFields({...current, ...fields}, changeProjectFields(change, projectIds), projectIds);
       if (next.recurrence === null) delete next.recurrence;
-      if (Number.isInteger(change.order)) {
-        list = placeAtRank(list, next, change.order);
-      } else {
-        list = list.map((t) => (t.id === current.id ? next : t)); // no rank given: keep its place
-      }
+      list = list.map((t) => (t.id === current.id ? next : t)); // an existing task always keeps its place: any rank is ignored
       updated++;
     } else if (change.id) {
       skipped++; // names a task that no longer exists
@@ -244,12 +242,17 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
         const history = normalizeHistory(change.history);
         if (history) Object.assign(task, history);
       }
-      list = placeAtRank(list, task, change.order);
+      created.push({task, rank: change.order});
       added++;
     } else {
       skipped++;
     }
   }
+
+  // New tasks go in lowest requested rank first, so each rank (a place in the final list) is where the task ends up;
+  // a task with no usable rank goes at the end. Existing tasks keep their order relative to each other.
+  const ranked = created.filter((c) => Number.isInteger(c.rank)).sort((a, b) => a.rank - b.rank);
+  for (const {task, rank} of [...ranked, ...created.filter((c) => !Number.isInteger(c.rank))]) list = placeAtRank(list, task, rank);
 
   return {tasks: list.map((t, i) => ({...t, order: i + 1})), added, updated, skipped};
 }

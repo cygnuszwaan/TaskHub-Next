@@ -28,7 +28,9 @@ const PROPOSAL_INSTRUCTIONS = `
 //   today:    the current local date, YYYY-MM-DD
 //   proposals: true to also let the model suggest a new project (see below); left out of the prompt otherwise
 function buildTaskPrompt({tasks, projects, input, today, proposals = false}) {
-  const visibleTasks = tasks.map(({id, title, priority, dueDate, estimatedMinutes, tags, recurrence, order}) => ({id, title, priority, dueDate, estimatedMinutes, tags, recurrence, order}));
+  // The rank the model sees is the task's place in the queue, 1..n, whatever gaps the stored ranks have
+  const ranked = tasks.map((t, i) => [t, i]).sort((a, b) => (a[0].order || 0) - (b[0].order || 0) || a[1] - b[1]).map((pair) => pair[0]);
+  const visibleTasks = ranked.map(({id, title, priority, dueDate, estimatedMinutes, tags, recurrence}, i) => ({id, title, priority, dueDate, estimatedMinutes, tags, recurrence, order: i + 1}));
   const visibleProjects = projects.map((p) => oneLine(p.name));
 
   return `
@@ -46,7 +48,8 @@ function buildTaskPrompt({tasks, projects, input, today, proposals = false}) {
       Return ONLY the tasks that are new or that the input changes.
       For a change to an existing task, return it with that task's id and its complete updated fields.
       For a new task, leave id empty.
-      Set order to the rank (from 1) the task should hold in the full list.
+      Set order on each NEW task to the rank (from 1) it should hold in the full list once the new tasks are added, using the
+      ranks shown above. Existing tasks keep their place: for a change to an existing task, return its current order unchanged.
       If the input says a task repeats (for example "every Monday", "monthly", "every 2 weeks"), set recurrence
       to the frequency and interval, and set dueDate to its first occurrence. Leave recurrence out for tasks that do not repeat
       and for existing tasks whose repetition the input does not mention. To stop an existing task repeating, return frequency NONE.

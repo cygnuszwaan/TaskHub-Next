@@ -114,7 +114,7 @@ const changeSchema = {
           },
           order: {
             type: Type.INTEGER,
-            description: "Rank (from 1) this task should hold in the full list",
+            description: "For a new task, the rank (from 1) it should hold in the full list; for an existing task, its current rank",
           },
         },
         required: ["title", "priority", "estimatedMinutes", "tags", "order"],
