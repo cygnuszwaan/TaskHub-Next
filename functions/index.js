@@ -19,7 +19,7 @@ const {withoutProjectFields, needsTagFill, cleanTags, newTaskIds, applyDirectUpd
 const {withNewProject, addProject, normalizeProjectName} = require("./projects");
 const {applyBatch, needsReschedule} = require("./batch");
 const {findDuplicateTasks} = require("./duplicates");
-const {PROJECTS_COLLECTION, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore} = require("./store");
+const {PROJECTS_COLLECTION, ADD_REQUESTS_DOC, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore} = require("./store");
 const {startFromTemplate} = require("./projectTemplates");
 const {UNAVAILABLE, weatherUrl, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
@@ -39,6 +39,7 @@ const {makeOwnerOnly} = require("./auth");
 const {dayWindowMinutes} = require("./settings");
 const {lastIssued} = require("./jobNumber");
 const {normalizeRequestId, isRepeatedRequest} = require("./addRequests");
+const {resolveActionTime, normalizeArchiveId} = require("./clientTime");
 const {randomUUID} = require("crypto");
 const {v1: firestoreV1} = require("@google-cloud/firestore");
 const {BACKUP_ROOT, normalizeBucketName, runBackup} = require("./backup");
@@ -699,6 +700,21 @@ exports.addOrUpdateTask = onRequest({
 }));
 
 // 4. Endpoint: Archive Completed Tasks (Zero Token Cost Solution)
+// Whether a request id was already used by a change that went through (read outside any transaction, for a repeat whose first
+// attempt has already removed what it acted on); each endpoint also checks inside its own transaction.
+async function requestWasUsed(requestId) {
+  if (!requestId) return false;
+  const snap = await db.doc(ADD_REQUESTS_DOC).get();
+  return isRepeatedRequest(snap.exists ? snap.data() : undefined, requestId);
+}
+
+// The request id in a body: {requestId} (null when absent) or {error} for one that is present and unusable.
+function requestIdOf(body) {
+  const requestId = normalizeRequestId(body && body.requestId);
+  if (body && body.requestId !== undefined && requestId === null) return {error: "requestId must be 8 to 64 letters, digits, - or _"};
+  return {requestId};
+}
+
 exports.completeTask = onRequest({
   secrets: [{name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"}],
   cors: ALLOWED_ORIGINS,
@@ -706,26 +722,37 @@ exports.completeTask = onRequest({
   try {
     const {taskId} = req.body;
     if (!taskId) return res.status(400).send({error: "Missing taskId"});
+    // A change made offline says when it was made (`at`), may name the archive row (`archiveId`, so the page can keep working
+    // on the entry before it is sent) and carries a `requestId`, so a repeat after a lost reply is not applied twice
+    const {requestId, error: requestError} = requestIdOf(req.body);
+    if (requestError) return res.status(400).send({error: requestError});
+    const archiveId = req.body.archiveId === undefined ? null : normalizeArchiveId(req.body.archiveId);
+    if (req.body.archiveId !== undefined && archiveId === null) return res.status(400).send({error: "archiveId must be 8 to 64 letters, digits, - or _"});
+    const when = resolveActionTime(req.body.at, Date.now());
+    if (when.error) return res.status(400).send({error: when.error});
 
-    // The transaction function may run more than once, so the owner's local date is worked out before it
-    const today = localDate((await readSettings()).timeZone);
+    // The transaction function may run more than once, so the owner's local date (on the day it was completed) is worked out before it
+    const today = localDate((await readSettings()).timeZone, new Date(when.at));
     // The task's photos move to its archive row in the same commit (read here: the transaction callback is synchronous)
     const photoRefs = (await PHOTOS.where("taskId", "==", taskId).get()).docs.map((d) => d.ref);
     // Archive, removal and the next occurrence of a recurring task commit together; calendar cleanup follows once they have
-    const result = await updateTaskList((tasks, tx, {jobCounter}) => {
-      const done = completeInList(tasks, taskId, today, randomUUID, new Date().toISOString(), jobCounter);
+    const result = await updateTaskList((tasks, tx, {jobCounter, addRequests}) => {
+      // A completion already made under this requestId is not made again
+      if (isRepeatedRequest({ids: addRequests}, requestId)) return {current: tasks, duplicate: true};
+      const done = completeInList(tasks, taskId, today, randomUUID, new Date(when.at).toISOString(), jobCounter);
       if (!done) return {current: tasks};
-      const archiveRef = db.collection("completed_tasks").doc();
+      const archiveRef = archiveId ? db.collection("completed_tasks").doc(archiveId) : db.collection("completed_tasks").doc();
       tx.create(archiveRef, {
         ...done.completedTask,
         ...done.history,
-        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        completedAt: admin.firestore.Timestamp.fromMillis(when.at),
       });
       for (const ref of photoRefs) tx.update(ref, {archiveId: archiveRef.id, taskId: admin.firestore.FieldValue.delete()});
       // Kept for undoRemove, in the same commit
       tx.set(LAST_REMOVED_REF, removalRecord("COMPLETE", done.completedTask, archiveRef.id, done.spawned, Date.now()));
-      return {tasks: done.tasks, current: done.tasks, completedTask: done.completedTask, spawned: done.spawned, archiveId: archiveRef.id, jobCounter: done.jobCounter};
-    }, {withJobCounter: true});
+      return {tasks: done.tasks, current: done.tasks, completedTask: done.completedTask, spawned: done.spawned, archiveId: archiveRef.id, jobCounter: done.jobCounter, addRequestId: requestId};
+    }, {withJobCounter: true, withAddRequests: true});
+    if (result.duplicate) return res.status(200).send({success: true, tasks: result.current, spawned: null, duplicate: true, serverTime: Date.now()});
     await removeTaskCalendarEvent(result.completedTask);
     // A photo added while the task was being completed is moved too
     if (result.completedTask && result.archiveId) {
@@ -737,8 +764,10 @@ exports.completeTask = onRequest({
       }
     }
 
-    res.status(200).send({success: true, tasks: result.current, spawned: result.spawned || null});
+    res.status(200).send({success: true, tasks: result.current, spawned: result.spawned || null, serverTime: Date.now()});
   } catch (err) {
+    // The page's own archive id is already a row (create fails with ALREADY_EXISTS)
+    if (err && err.code === 6) return res.status(400).send({error: "archiveId is already in use"});
     console.error(err);
     res.status(500).send({error: err.message});
   }
@@ -748,7 +777,7 @@ exports.completeTask = onRequest({
 exports.getTasks = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
     const tasks = await readTaskList();
-    res.status(200).send({success: true, tasks});
+    res.status(200).send({success: true, tasks, serverTime: Date.now()});
   } catch (err) {
     res.status(500).send({error: err.message});
   }
@@ -839,26 +868,34 @@ exports.reopenCompletedTask = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async
   try {
     const {id} = req.body || {};
     if (!isArchiveId(id)) return res.status(400).send({error: "Missing id"});
+    const {requestId, error: requestError} = requestIdOf(req.body);
+    if (requestError) return res.status(400).send({error: requestError});
     const archiveRef = db.collection("completed_tasks").doc(id);
     // The row and its photos are read before the transaction (its callback is synchronous); a photo added in between is moved after the commit
     const [snap, photoSnap] = await Promise.all([archiveRef.get(), PHOTOS.where("archiveId", "==", id).get()]);
-    if (!snap.exists) return res.status(404).send({error: "Completed task not found"});
+    if (!snap.exists) {
+      // A repeat of a reopen that already went through (its reply was lost) is not an error
+      if (await requestWasUsed(requestId)) return res.status(200).send({success: true, tasks: await readTaskList(), task: null, duplicate: true, serverTime: Date.now()});
+      return res.status(404).send({error: "Completed task not found"});
+    }
     const row = snap.data();
-    const result = await updateTaskList((tasks, tx, {projects: stored}) => {
+    const result = await updateTaskList((tasks, tx, {projects: stored, addRequests}) => {
+      if (isRepeatedRequest({ids: addRequests}, requestId)) return {current: tasks, task: null, duplicate: true};
       const done = reopenTask(tasks, row, {projectIds: stored.map((p) => p.id), makeId: randomUUID});
       if (done.error) return {error: done.error, current: tasks};
       tx.delete(archiveRef);
       for (const doc of photoSnap.docs) tx.update(doc.ref, {taskId: done.task.id, archiveId: admin.firestore.FieldValue.delete()});
-      return {tasks: done.tasks, current: done.tasks, task: done.task};
-    }, {withProjects: true});
+      return {tasks: done.tasks, current: done.tasks, task: done.task, addRequestId: requestId};
+    }, {withProjects: true, withAddRequests: true});
     if (result.error) return res.status(400).send({error: result.error});
+    if (result.duplicate) return res.status(200).send({success: true, tasks: result.current, task: null, duplicate: true, serverTime: Date.now()});
     try {
       const left = await PHOTOS.where("archiveId", "==", id).get();
       await Promise.all(left.docs.map((d) => d.ref.update({taskId: result.task.id, archiveId: admin.firestore.FieldValue.delete()})));
     } catch (err) {
       console.warn("Could not sweep photos after reopening", err);
     }
-    res.status(200).send({success: true, tasks: result.current, task: result.task});
+    res.status(200).send({success: true, tasks: result.current, task: result.task, serverTime: Date.now()});
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});
@@ -1116,13 +1153,16 @@ exports.toggleTimer = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, r
     const verb = typeof action === "string" ? action.trim().toUpperCase() : "";
     if (verb !== "START" && verb !== "PAUSE" && verb !== "ABORT") return res.status(400).send({error: "action must be START, PAUSE or ABORT"});
     if (capSeconds !== undefined && capSeconds !== null && !(Number.isInteger(capSeconds) && capSeconds >= 0)) return res.status(400).send({error: "capSeconds must be a whole number of seconds, 0 or more"});
+    // A change made offline says when it was made; the server books that instant, never one in the future (see clientTime.js)
+    const when = resolveActionTime((req.body || {}).at, Date.now());
+    if (when.error) return res.status(400).send({error: when.error});
     const result = await updateTaskList((tasks) => {
-      const done = setTimerInList(tasks, taskId, verb, Date.now(), {capSeconds: capSeconds === null ? undefined : capSeconds});
+      const done = setTimerInList(tasks, taskId, verb, when.at, {capSeconds: capSeconds === null ? undefined : capSeconds});
       if (!done) return {current: tasks, unknown: true};
       return {tasks: done.tasks, current: done.tasks};
     });
     if (result.unknown) return res.status(404).send({error: "Task not found"});
-    res.status(200).send({success: true, tasks: result.current});
+    res.status(200).send({success: true, tasks: result.current, serverTime: Date.now()});
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});
@@ -1136,14 +1176,21 @@ exports.toggleTimer = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, r
 // to undo. The task's calendar event stays deleted: the next schedule run books it again.
 exports.undoRemove = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
+    const {requestId, error: requestError} = requestIdOf(req.body);
+    if (requestError) return res.status(400).send({error: requestError});
     const snap = await LAST_REMOVED_REF.get();
     const record = snap.exists ? snap.data() : null;
-    if (!isUndoable(record, Date.now())) return res.status(404).send({error: "Nothing to undo"});
+    if (!isUndoable(record, Date.now())) {
+      // A repeat of an undo that already went through (its reply was lost) is not an error
+      if (await requestWasUsed(requestId)) return res.status(200).send({success: true, tasks: await readTaskList(), kind: null, restored: false, duplicate: true, serverTime: Date.now()});
+      return res.status(404).send({error: "Nothing to undo"});
+    }
     // The archive row's photos go back to the task. They are read before the transaction (its callback is synchronous) and
     // any added in between are moved after the commit.
     const backToTask = (ref) => ref.update({taskId: record.task.id, archiveId: admin.firestore.FieldValue.delete()});
     const photoRefs = record.archiveId ? (await PHOTOS.where("archiveId", "==", record.archiveId).get()).docs.map((d) => d.ref) : [];
-    const result = await updateTaskList((tasks, tx) => {
+    const result = await updateTaskList((tasks, tx, {addRequests}) => {
+      if (isRepeatedRequest({ids: addRequests}, requestId)) return {current: tasks, duplicate: true};
       const undone = undoInList(tasks, record);
       tx.delete(LAST_REMOVED_REF);
       if (!undone) return {current: tasks};
@@ -1151,8 +1198,8 @@ exports.undoRemove = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, re
         tx.delete(db.collection("completed_tasks").doc(record.archiveId));
         for (const ref of photoRefs) tx.update(ref, {taskId: record.task.id, archiveId: admin.firestore.FieldValue.delete()});
       }
-      return {tasks: undone.tasks, current: undone.tasks, restored: true};
-    });
+      return {tasks: undone.tasks, current: undone.tasks, restored: true, addRequestId: requestId};
+    }, {withAddRequests: true});
     if (result.restored && record.archiveId) {
       try {
         const left = await PHOTOS.where("archiveId", "==", record.archiveId).get();
@@ -1161,7 +1208,7 @@ exports.undoRemove = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, re
         console.warn("Could not move photos back after undo", err);
       }
     }
-    res.status(200).send({success: true, tasks: result.current, kind: record.kind, restored: Boolean(result.restored)});
+    res.status(200).send({success: true, tasks: result.current, kind: record.kind, restored: Boolean(result.restored), ...(result.duplicate ? {duplicate: true} : {}), serverTime: Date.now()});
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});
