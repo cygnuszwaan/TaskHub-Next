@@ -16,7 +16,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
+    return {ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -2963,7 +2963,7 @@ describe("public/index.html helpers", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(code, /(?<![\w.])alert\(/, "a native alert() is left");
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
-      assert.equal(calls.length, 35, "the thirty-five messages the page shows");
+      assert.equal(calls.length, 36, "the thirty-six messages the page shows (one is the refusal to keep an add for later)");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 16, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
@@ -3834,7 +3834,7 @@ describe("offline add queue (page)", () => {
 });
 
 describe("offline add queue display (page)", () => {
-  const {ADD_QUEUE_KEY, makeQueuedAdd, parseQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, drainQueue} = load();
+  const {ADD_QUEUE_KEY, ADD_QUEUE_MAX, makeQueuedAdd, parseQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, drainQueue, addQueueRefusal, newRequestId} = load();
   const rid = (n) => `req-${String(n).padStart(6, "0")}`;
   const add = (n, title = `Task ${n}`) => makeQueuedAdd({kind: "MANUAL", body: {manual: {title}}, now: "2026-10-27T08:00:00.000Z", requestId: rid(n)});
 
@@ -4078,9 +4078,63 @@ describe("offline add queue display (page)", () => {
       const discard = body("discardQueuedAdd");
       assert.equal((discard.match(/sendingRequestId === requestId\) return;/g) || []).length, 2);
     });
-    it("still queues nothing: submitTask does not touch the queue yet", () => {
+  });
+
+  describe("addQueueRefusal", () => {
+    it("allows an add while storage works and the queue has room", () => {
+      assert.equal(addQueueRefusal(0, true), "");
+      assert.equal(addQueueRefusal(ADD_QUEUE_MAX - 1, true), "");
+    });
+    it("refuses a full queue and says how many are waiting", () => {
+      assert.match(addQueueRefusal(ADD_QUEUE_MAX, true), new RegExp(`^${ADD_QUEUE_MAX} adds are already waiting`));
+      assert.notEqual(addQueueRefusal(ADD_QUEUE_MAX + 5, true), "");
+    });
+    it("refuses when the device's storage cannot be used, whatever the count", () => {
+      assert.match(addQueueRefusal(0, false), /cannot keep an add for later/);
+      assert.match(addQueueRefusal(ADD_QUEUE_MAX, false), /cannot keep an add for later/);
+    });
+  });
+
+  describe("going live (page)", () => {
+    const body = (name) => {
+      const from = html.indexOf(`function ${name}(`);
+      assert.ok(from > 0, `${name} not found`);
+      return html.slice(from, html.indexOf("\n    }\n", from));
+    };
+    it("gives every add a request id before the first attempt, and sends it", () => {
       const submit = body("submitTask");
-      assert.doesNotMatch(submit, /makeQueuedAdd|saveAddQueue|addQueue/);
+      assert.ok(submit.indexOf("newRequestId()") > 0 && submit.indexOf("newRequestId()") < submit.indexOf("apiFetch(ADD_TASK_URL"));
+      assert.match(submit, /Object\.assign\(body, addTaskExtras\(\{ startNow: [^}]*\}\), \{ requestId \}\);/);
+      assert.equal((submit.match(/newRequestId\(\)/g) || []).length, 1, "one id per add, reused if it waits");
+    });
+    it("queues the add under that same id only when the failure is the connection's and the body was built", () => {
+      const submit = body("submitTask");
+      assert.match(submit, /if \(body && isNetworkError\(err, navigator\.onLine\)\) \{\s*const refusal = queueFailedAdd\(manual \? "MANUAL" : "TEXT", body, requestId\);/);
+      assert.match(submit, /if \(refusal\) askAlert\(refusal, \{ tone: "error" \}\);\s*else resetAddForm\(manual\);\s*return;/);
+      assert.ok(submit.indexOf("isNetworkError") < submit.indexOf("failureText(\"Error updating tasks\""), "other failures still alert");
+    });
+    it("clears the add card the same way after a sent add and a kept one", () => {
+      assert.match(body("finishAdd"), /resetAddForm\(manual\);/);
+      const reset = body("resetAddForm");
+      for (const part of ["\"taskInput\").value = \"\"", "startNow\").checked = false", "resetManualExtras()", "manualToggle\").checked = false", "manualFields\").hidden = true"]) {
+        assert.ok(reset.includes(part), part);
+      }
+    });
+    it("keeps an add at the end of the queue, refusing a full queue or unusable storage, and shows the card", () => {
+      const keep = body("queueFailedAdd");
+      assert.ok(keep.indexOf("loadAddQueue()") < keep.indexOf("addQueueRefusal(addQueue.length, addQueueUsable)"));
+      assert.match(keep, /makeQueuedAdd\(\{ kind, body, now: new Date\(\)\.toISOString\(\), requestId \}\)/);
+      assert.match(keep, /saveAddQueue\(\[\.\.\.addQueue, item\]\)/);
+      assert.ok(keep.indexOf("saveAddQueue(") < keep.indexOf("renderAddQueue()"));
+      assert.match(keep, /return "";\s*$/);
+    });
+    it("queues the add without startNow or allowProposal whatever the form sent", () => {
+      const sent = {input: "Mow the lawn", allowProposal: true, startNow: true, requestId: "req-000001"};
+      const item = makeQueuedAdd({kind: "TEXT", body: sent, now: "2026-10-27T08:00:00.000Z", requestId: sent.requestId});
+      assert.deepEqual(item.body, {input: "Mow the lawn", requestId: "req-000001"});
+      const manual = makeQueuedAdd({kind: "MANUAL", body: {manual: {title: "Fix gate"}, startNow: true, requestId: "req-000002"}, now: "", requestId: "req-000002"});
+      assert.deepEqual(manual.body, {manual: {title: "Fix gate"}, requestId: "req-000002"});
+      assert.match(newRequestId(), /^[A-Za-z0-9_-]{8,64}$/);
     });
   });
 });

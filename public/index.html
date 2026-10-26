@@ -3192,6 +3192,14 @@
         return { ...rest, status: "PENDING" };
       });
     }
+
+    // Why an add cannot be kept for later, as the alert text: "" when it can. `count` is the items already queued and `usable`
+    // whether the device's storage works (addQueueUsable).
+    function addQueueRefusal(count, usable) {
+      if (usable === false) return "This browser cannot keep an add for later, so nothing was saved. Check your connection and try again.";
+      if (count >= ADD_QUEUE_MAX) return `${ADD_QUEUE_MAX} adds are already waiting to be sent, so this one was not saved. Wait for the connection or discard some, then try again.`;
+      return "";
+    }
     // </pure-helpers>
 
     // The page's own dialogs, in place of the browser's confirm(), prompt() and alert(). `askConfirm(text, { tone,
@@ -3645,8 +3653,10 @@
       if (manual && parseTravelText(document.getElementById("manualTravel").value) === undefined) { askAlert(INVALID_TRAVEL, { tone: "warning" }); return; }
       if (manual && parseEmailText(document.getElementById("manualEmail").value) === undefined) { askAlert(INVALID_EMAIL, { tone: "warning" }); return; }
       setLoading(true);
+      let body = null;
+      const requestId = newRequestId(); // the same id goes with the add if it has to wait: a second attempt then adds nothing
       try {
-        const body = manual ? manualTaskBody({
+        body = manual ? manualTaskBody({
           title: input,
           priority: document.getElementById("manualPriority").value,
           estimatedMinutes: document.getElementById("manualMinutes").value,
@@ -3666,7 +3676,7 @@
           location: locationFromBox(document.getElementById("manualLocation").value, pickedLocation.manual),
           history: historyForTitle(copiedHistory, input)
         }) : freeTextBody(input);
-        Object.assign(body, addTaskExtras({ startNow: document.getElementById("startNow").checked }));
+        Object.assign(body, addTaskExtras({ startNow: document.getElementById("startNow").checked }), { requestId });
         const res = await apiFetch(ADD_TASK_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -3681,6 +3691,13 @@
         }
         finishAdd(data, manual);
       } catch (err) {
+        // The connection is the problem, not the add: it waits on the Queue and is sent when the connection returns
+        if (body && isNetworkError(err, navigator.onLine)) {
+          const refusal = queueFailedAdd(manual ? "MANUAL" : "TEXT", body, requestId);
+          if (refusal) askAlert(refusal, { tone: "error" });
+          else resetAddForm(manual);
+          return;
+        }
         askAlert(failureText("Error updating tasks", err), { tone: "error" });
       } finally {
         setLoading(false);
@@ -3691,6 +3708,13 @@
     function finishAdd(data, manual) {
       setTasks(data.tasks || []);
       if (data.project && data.projects) allProjects = data.projects; // a project made with the task
+      resetAddForm(manual);
+      renderFilterBar();
+      renderTasks();
+    }
+
+    // Clears the add card after an add, sent or kept for later.
+    function resetAddForm(manual) {
       document.getElementById("taskInput").value = "";
       document.getElementById("startNow").checked = false; // it applies to this task only
       renderTemplateResults();
@@ -3702,8 +3726,6 @@
         document.getElementById("manualToggle").checked = false;
         document.getElementById("manualFields").hidden = true;
       }
-      renderFilterBar();
-      renderTasks();
     }
 
     // The project suggestion dialog: Add as a project (acceptProposal), Add as one task (apply) or Close, which adds nothing.
@@ -6675,6 +6697,18 @@
         sendingRequestId = "";
         renderAddQueue();
       }
+    }
+    // Keeps an add that could not reach the server at the end of the queue, with the request id it was first sent under (the
+    // server may have saved it before the connection dropped). Returns "" when kept, else the alert text saying why not.
+    function queueFailedAdd(kind, body, requestId) {
+      loadAddQueue();
+      const refusal = addQueueRefusal(addQueue.length, addQueueUsable);
+      if (refusal) return refusal;
+      const item = makeQueuedAdd({ kind, body, now: new Date().toISOString(), requestId });
+      if (!item) return "This add could not be kept for later. Check your connection and try again.";
+      if (!saveAddQueue([...addQueue, item])) return addQueueRefusal(0, false);
+      renderAddQueue();
+      return "";
     }
     // Retry on a FAILED card: it becomes PENDING again and the queue is sent.
     function retryQueuedAdd(requestId) {
