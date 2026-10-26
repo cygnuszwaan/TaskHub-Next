@@ -12,14 +12,15 @@ const EXPORT_MAX_ROWS = 10000;
 //   projects:  all projects
 //   clients:   all clients
 //   projectTemplates: all project templates
+//   shoppingList: the Miscellaneous shopping list items ({id, text})
 //   settings:  the settings as the app reads them (defaults filled in, run state included)
 //   completed: archive documents (a Task plus completedAt as a Timestamp, Date or ISO string), newest first
 //   now:       the Date of the export
 //   jobCounter: the last job number issued (0 when none)
-// Returns {format, version, exportedAt, tasks, projects, clients, projectTemplates, settings, jobCounter, completedTasks, completedTruncated}: `completedTasks`
+// Returns {format, version, exportedAt, tasks, projects, clients, projectTemplates, shoppingList, settings, jobCounter, completedTasks, completedTruncated}: `completedTasks`
 // has completedAt as an ISO string (see serializeCompleted), and `completedTruncated` is true when `completed` is as
 // long as EXPORT_MAX_ROWS, so the archive may hold older entries that were not read.
-function buildExport({tasks, projects, clients, projectTemplates, settings, completed, now, jobCounter}) {
+function buildExport({tasks, projects, clients, projectTemplates, shoppingList, settings, completed, now, jobCounter}) {
   const rows = Array.isArray(completed) ? completed : [];
   return {
     format: EXPORT_FORMAT,
@@ -29,6 +30,7 @@ function buildExport({tasks, projects, clients, projectTemplates, settings, comp
     projects: Array.isArray(projects) ? projects : [],
     clients: Array.isArray(clients) ? clients : [],
     projectTemplates: Array.isArray(projectTemplates) ? projectTemplates : [],
+    shoppingList: Array.isArray(shoppingList) ? shoppingList : [],
     settings: settings || {},
     jobCounter: Number.isSafeInteger(jobCounter) && jobCounter >= 0 ? jobCounter : 0,
     completedTasks: serializeCompleted(rows),

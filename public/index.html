@@ -149,6 +149,7 @@
     .field-pair { display: flex; gap: 10px; align-items: flex-start; }
     .field-pair > .form-group { margin-bottom: 12px; }
     .field-with-btn { display: flex; gap: 6px; }
+    .shopping-add { padding-top: 0; }
     .material-group { padding: 8px 0; border-bottom: 1px solid var(--divider); }
     .material-group-title { font-weight: 600; font-size: 14px; cursor: pointer; }
     .summary { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--divider); }
@@ -465,6 +466,15 @@
     <h3 style="margin-top:0; margin-bottom:12px;">Materials to get</h3>
     <div id="materialsList"></div>
     <div id="materialsStatus" class="settings-status"></div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0; margin-bottom:12px;">Miscellaneous</h3>
+    <div class="material-row shopping-add">
+      <input type="text" id="shoppingInput" maxlength="100" placeholder="Add an item to get" aria-label="Add an item to get" autocomplete="off" enterkeyhint="done">
+      <button type="button" id="shoppingAddBtn">Add</button>
+    </div>
+    <div id="shoppingList"></div>
+    <div id="shoppingStatus" class="settings-status"></div>
   </div>
   </main>
 
@@ -1036,6 +1046,8 @@
     const GET_PROJECTS_URL = endpoint("getProjects");
     const UPDATE_PROJECT_URL = endpoint("updateProject");
     const GET_TEMPLATES_URL = endpoint("getProjectTemplates");
+    const SHOPPING_URL = endpoint("getShoppingList");
+    const UPDATE_SHOPPING_URL = endpoint("updateShoppingList");
     const UPDATE_TEMPLATE_URL = endpoint("updateProjectTemplate");
     const GET_CLIENTS_URL = endpoint("getClients");
     const UPDATE_CLIENT_URL = endpoint("updateClient");
@@ -1106,6 +1118,7 @@
             loadProjects();
             loadClients();
             loadProjectTemplates();
+            loadShoppingList();
             loadSettings();
             refreshPushToken();
           } else {
@@ -1189,6 +1202,9 @@
     let editMaterials = []; // the materials list being edited in the modal: [{id, text, checked}]
     let manualMaterials = []; // the materials list of the add form's own entry, same shape
     let materialsBusy = false; // true while a check-off from the Materials card is being saved
+    let shoppingItems = []; // the Miscellaneous list, [{id, text}], as the server last sent it
+    let shoppingLoaded = false; // true once the server has answered, so a list that failed to load is not shown as empty
+    let shoppingBusy = false; // true while an add or a check-off on the Miscellaneous card is being saved
     let allProjects = [];
     let projectsLoaded = false; // set once getProjects has answered; until then the edit form leaves project fields alone
     let allClients = []; // {id, name, address, phone, email}, sorted by name; filled by getClients
@@ -2080,6 +2096,11 @@
       return `Sent to ${n} ${n === 1 ? "device" : "devices"}.` + (gone ? ` ${gone} no longer reachable and removed.` : "");
     }
 
+    // The text of a Miscellaneous item as typed: inner whitespace collapsed and trimmed, "" when blank. The server checks the rest.
+    function shoppingItemText(value) {
+      return String(value === undefined || value === null ? "" : value).replace(/\s+/g, " ").trim();
+    }
+
     // What an export holds, in words: "12 tasks, 1 project, 340 completed" (and a note when the archive was cut off).
     function exportSummary(data) {
       const count = (list, one, many) => { const n = Array.isArray(list) ? list.length : 0; return `${n} ${n === 1 ? one : many}`; };
@@ -2827,6 +2848,15 @@
         checkMaterial(row.dataset.taskId, row.dataset.materialId, e.target.checked);
       });
 
+      document.getElementById("shoppingAddBtn").addEventListener("click", addShoppingItemFromInput);
+      document.getElementById("shoppingInput").addEventListener("keydown", e => {
+        if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); addShoppingItemFromInput(); }
+      });
+      document.getElementById("shoppingList").addEventListener("change", e => {
+        const row = e.target.closest(".material-row");
+        if (row && e.target.matches('input[type="checkbox"]')) checkShoppingItem(row.dataset.shoppingId);
+      });
+
       updateRecurUnit("manual"); // hides the interval controls until a frequency is chosen
       initAuth();
       // The service worker caches only the app shell (see sw.js); the page works without it.
@@ -3404,6 +3434,69 @@
                 <input type="checkbox"> <span>${esc(m.text)}</span>
               </label>`).join("")}
           </div>`).join("");
+    }
+
+    // The Miscellaneous card: loose items to get that belong to no task, a simple list kept on the server. Checking one
+    // takes it off the list.
+    function renderShoppingList() {
+      document.getElementById("shoppingList").innerHTML = !shoppingLoaded ? "" : shoppingItems.length === 0 ?
+        "<p style='color:var(--text-faint); margin:0;'>Nothing on the list.</p>" :
+        shoppingItems.map(i => `
+          <label class="material-row" data-shopping-id="${esc(i.id)}">
+            <input type="checkbox"> <span>${esc(i.text)}</span>
+          </label>`).join("");
+    }
+
+    async function loadShoppingList() {
+      const status = document.getElementById("shoppingStatus");
+      try {
+        const res = await apiFetch(SHOPPING_URL);
+        shoppingItems = (await res.json()).items || [];
+        shoppingLoaded = true;
+        status.textContent = "";
+        renderShoppingList();
+      } catch (err) {
+        status.textContent = "Could not load the list: " + err.message;
+      }
+    }
+
+    // Sends one updateShoppingList request and shows the new list; returns true when it was saved.
+    async function sendShopping(body) {
+      const status = document.getElementById("shoppingStatus");
+      shoppingBusy = true;
+      status.textContent = "Saving...";
+      try {
+        const res = await apiFetch(UPDATE_SHOPPING_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        shoppingItems = data.items || shoppingItems;
+        shoppingLoaded = true;
+        status.textContent = "";
+        return true;
+      } catch (err) {
+        status.textContent = "Not saved: " + err.message;
+        return false;
+      } finally {
+        shoppingBusy = false;
+        renderShoppingList(); // also puts back a box that was ticked for an item that is still on the list
+      }
+    }
+
+    async function addShoppingItemFromInput() {
+      const input = document.getElementById("shoppingInput");
+      const text = shoppingItemText(input.value);
+      if (shoppingBusy) return;
+      if (!text) { input.value = ""; return; }
+      if (await sendShopping({ action: "ADD", text })) input.value = "";
+      input.focus();
+    }
+
+    function checkShoppingItem(itemId) {
+      if (shoppingBusy) return renderShoppingList();
+      sendShopping({ action: "REMOVE", itemId });
     }
 
     async function checkMaterial(taskId, materialId, checked) {

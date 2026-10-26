@@ -18,7 +18,7 @@ const {withoutProjectFields, needsTagFill, cleanTags, newTaskIds, applyDirectUpd
 const {withNewProject, addProject, normalizeProjectName} = require("./projects");
 const {applyBatch, needsReschedule} = require("./batch");
 const {findDuplicateTasks} = require("./duplicates");
-const {PROJECTS_COLLECTION, makeTaskStore, makeProjectStore, makeClientStore, makeTemplateStore, makeSettingsStore} = require("./store");
+const {PROJECTS_COLLECTION, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore} = require("./store");
 const {startFromTemplate} = require("./projectTemplates");
 const {UNAVAILABLE, weatherUrl, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
@@ -59,6 +59,8 @@ const PHOTOS = db.collection("completed_photos");
 const {getProjects: readProjects, createProject, renameProject, setProjectClient, deleteProject} = makeProjectStore(db);
 // Clients that projects can belong to, in `clients/{id}`; see clients.js and store.js.
 const {getClients: readClients, createClient, updateClient, deleteClient} = makeClientStore(db);
+// The Miscellaneous shopping list on the Materials tab, one document `settings/shoppingList`; see shopping.js and store.js.
+const {getItems: readShoppingItems, addItem: addShoppingItem, removeItem: removeShoppingItem} = makeShoppingStore(db);
 // Project templates (a project's steps saved for reuse), in `project_templates/{id}`; see projectTemplates.js and store.js.
 const {getTemplates: readTemplates, saveTemplate, renameTemplate, deleteTemplate} = makeTemplateStore(db);
 // Runtime settings (location, time zone, auto-run schedule) in `settings/app`; see settings.js.
@@ -1137,16 +1139,17 @@ exports.undoRemove = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, re
 // another without a shared snapshot, which is fine for a single user's backup.
 exports.exportData = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
-    const [tasks, projects, clients, projectTemplates, settings, counterSnap, archiveSnap] = await Promise.all([
+    const [tasks, projects, clients, projectTemplates, shoppingList, settings, counterSnap, archiveSnap] = await Promise.all([
       readTaskList(),
       readProjects(),
       readClients(),
       readTemplates(),
+      readShoppingItems(),
       readSettings(),
       db.doc("settings/jobCounter").get(),
       db.collection("completed_tasks").orderBy("completedAt", "desc").limit(EXPORT_MAX_ROWS).get(),
     ]);
-    const payload = buildExport({tasks, projects, clients, projectTemplates, settings: publicSettings(settings), completed: archiveSnap.docs.map((d) => d.data()), now: new Date(), jobCounter: lastIssued(counterSnap.exists ? counterSnap.data() : undefined)});
+    const payload = buildExport({tasks, projects, clients, projectTemplates, shoppingList, settings: publicSettings(settings), completed: archiveSnap.docs.map((d) => d.data()), now: new Date(), jobCounter: lastIssued(counterSnap.exists ? counterSnap.data() : undefined)});
     res.status(200).type("application/json").send(JSON.stringify(payload, null, 2));
   } catch (err) {
     console.error(err);
@@ -1385,6 +1388,36 @@ exports.updateProjectTemplate = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(asy
     if (result.notFound) return res.status(404).send({error: action === "SAVE" ? "Project not found" : "Template not found"});
     if (result.error) return res.status(400).send({error: result.error});
     res.status(200).send({success: true, ...result});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 15. Endpoint: Read the Miscellaneous shopping list (the Materials tab)
+exports.getShoppingList = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    res.status(200).send({success: true, items: await readShoppingItems()});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 16. Endpoint: Add to / take from the Miscellaneous shopping list
+// Body: {action: "ADD", text} | {action: "REMOVE", itemId}. ADD appends the item (an item already there, ignoring case, is not added twice and
+// still answers 200); 400 with the reason for an unusable text or a full list. REMOVE takes the item off (an id that is not there changes
+// nothing, so a second device or a double tap is not an error). Responds {success, items} with the whole list, plus `item` for ADD.
+// The list belongs to no task: no calendar or schedule changes.
+exports.updateShoppingList = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const {action, text, itemId} = req.body || {};
+    let result;
+    if (action === "ADD") result = await addShoppingItem(text, randomUUID);
+    else if (action === "REMOVE") result = await removeShoppingItem(itemId);
+    else return res.status(400).send({error: "action must be ADD or REMOVE"});
+    if (result.error) return res.status(400).send({error: result.error});
+    res.status(200).send({success: true, items: result.items, ...(result.item ? {item: result.item} : {})});
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});

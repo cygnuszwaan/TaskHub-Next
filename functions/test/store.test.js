@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeTemplateStore, makeSettingsStore} = require("../store");
+const {checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore} = require("../store");
 
 const task = (id, order, extra = {}) => ({id, title: `Task ${id}`, priority: "MEDIUM", dueDate: "", estimatedMinutes: 15, tags: [], status: "PENDING", order, ...extra});
 
@@ -638,5 +638,52 @@ describe("store.js makeTemplateStore", () => {
     const left = await store.deleteTemplate(other.id);
     assert.deepEqual(left.templates.map((t) => t.id), [template.id]);
     assert.deepEqual((await store.getTemplates()).map((t) => t.id), [template.id]);
+  });
+});
+
+describe("store.js makeShoppingStore", () => {
+  const seeded = () => {
+    const db = fakeDb();
+    db.data.settings.set("shoppingList", {items: [{id: "a", text: "Milk"}, {id: "b", text: "Duct tape"}]});
+    return db;
+  };
+
+  it("getItems reads the items in order, an empty list when the document is absent", async () => {
+    assert.deepEqual((await makeShoppingStore(seeded()).getItems()).map((i) => i.id), ["a", "b"]);
+    assert.deepEqual(await makeShoppingStore(fakeDb()).getItems(), []);
+  });
+  it("addItem creates the document on the first item and appends after that, in one write each", async () => {
+    const db = fakeDb();
+    const store = makeShoppingStore(db);
+    const first = await store.addItem(" Milk ", () => "n1");
+    assert.deepEqual(first.item, {id: "n1", text: "Milk"});
+    await store.addItem("Eggs", () => "n2");
+    assert.deepEqual(db.data.settings.get("shoppingList"), {items: [{id: "n1", text: "Milk"}, {id: "n2", text: "Eggs"}]});
+    assert.deepEqual(db.log, ["set settings/shoppingList", "set settings/shoppingList"]);
+  });
+  it("addItem writes nothing for a duplicate or an unusable text", async () => {
+    const db = seeded();
+    const store = makeShoppingStore(db);
+    const dup = await store.addItem("milk", () => "n");
+    assert.equal(dup.added, false);
+    assert.deepEqual(dup.items.map((i) => i.id), ["a", "b"]);
+    assert.match((await store.addItem("   ", () => "n")).error, /1 to 100/);
+    assert.deepEqual(db.log, []);
+  });
+  it("removeItem takes the item off; an unknown id writes nothing", async () => {
+    const db = seeded();
+    const store = makeShoppingStore(db);
+    const r = await store.removeItem("a");
+    assert.deepEqual(r.items, [{id: "b", text: "Duct tape"}]);
+    assert.deepEqual(db.data.settings.get("shoppingList"), {items: [{id: "b", text: "Duct tape"}]});
+    db.log.length = 0;
+    assert.equal((await store.removeItem("zzz")).removed, false);
+    assert.deepEqual(db.log, []);
+  });
+  it("leaves the settings document alone", async () => {
+    const db = seeded();
+    db.data.settings.set("app", {timeZone: "Pacific/Auckland"});
+    await makeShoppingStore(db).addItem("Eggs", () => "n");
+    assert.deepEqual(db.data.settings.get("app"), {timeZone: "Pacific/Auckland"});
   });
 });
