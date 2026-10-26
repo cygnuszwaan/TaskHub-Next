@@ -2534,7 +2534,7 @@ describe("public/index.html helpers", () => {
     });
     it("draws an icon for every tone from the tone's colour, never a fixed one", () => {
       const {CONFIRM_TONES} = load();
-      assert.deepEqual(Object.keys(CONFIRM_TONES).sort(), ["danger", "info", "success", "warning"]);
+      assert.deepEqual(Object.keys(CONFIRM_TONES).sort(), ["danger", "edit", "info", "save", "success", "warning"]);
       for (const tone of Object.values(CONFIRM_TONES)) {
         assert.match(tone.icon, /^<svg [^>]*stroke="currentColor"/);
         assert.doesNotMatch(tone.icon, /#[0-9a-fA-F]{3,8}\b/);
@@ -2573,7 +2573,7 @@ describe("public/index.html helpers", () => {
       assert.ok(z("\\.confirm-overlay") > z("\\.modal-overlay"), "above the other modals");
     });
     it("puts the owner's text in the dialog as text, never as markup", () => {
-      const fn = html.slice(html.indexOf("function askConfirm"), html.indexOf("function closeConfirmOnOverlay"));
+      const fn = html.slice(html.indexOf("function openConfirm"), html.indexOf("function askConfirm"));
       assert.match(fn, /getElementById\("confirmTitle"\)\.textContent = view\.title/);
       assert.match(fn, /p\.textContent = part\.text/);
       assert.equal((fn.match(/innerHTML/g) || []).length, 1, "only the fixed icon markup is set as HTML");
@@ -2583,7 +2583,7 @@ describe("public/index.html helpers", () => {
       const dom = html.slice(html.indexOf("let confirmPending"), html.indexOf("// Share to TaskHub"));
       assert.match(dom, /e\.key === "Escape"[\s\S]*settleConfirm\(false\)/);
       assert.match(dom, /e\.target\.id === "confirmModal"\) settleConfirm\(false\)/);
-      assert.match(dom, /function askConfirm\(text, options\) \{\s*settleConfirm\(false\);/);
+      assert.match(dom, /function openConfirm\(text, options\) \{\s*settleConfirm\(false\);/);
       assert.match(dom, /bodyWasLocked: document\.body\.classList\.contains\("modal-open"\)/);
       assert.match(dom, /if \(!pending\.bodyWasLocked\) document\.body\.classList\.remove\("modal-open"\)/);
     });
@@ -2591,6 +2591,44 @@ describe("public/index.html helpers", () => {
       const up = html.slice(html.indexOf("const onTaskRowUp"), html.indexOf("const onTaskRowClick"));
       assert.match(up, /const onTaskRowUp = async e =>/);
       assert.ok(up.lastIndexOf("await ") < up.indexOf("resetSwipe(s)"), "the card is reset after the last answer");
+    });
+  });
+  describe("the input dialog", () => {
+    it("has no text field for a plain question and one for an input question", () => {
+      const {confirmView} = load();
+      assert.equal(confirmView("Delete it?", {tone: "danger"}).input, null);
+      assert.deepEqual(confirmView("Rename project", {input: true, value: "Kitchen", placeholder: "Name"}).input, {value: "Kitchen", placeholder: "Name", maxLength: 100});
+    });
+    it("starts the field empty, without a placeholder and limited to 100 characters unless told otherwise", () => {
+      const {confirmView} = load();
+      assert.deepEqual(confirmView("Name it", {input: true}).input, {value: "", placeholder: "", maxLength: 100});
+      assert.deepEqual(confirmView("Name it", {input: true, value: null, placeholder: 5, maxLength: 0}).input, {value: "", placeholder: "", maxLength: 100});
+      assert.equal(confirmView("Name it", {input: true, maxLength: 40}).input.maxLength, 40);
+      assert.equal(confirmView("Name it", {input: true, value: 12}).input.value, "12");
+    });
+    it("draws the edit and save tones in the info colours", () => {
+      const css = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+      assert.match(css, /\.confirm-icon\.edit, \.confirm-icon\.save \{ background: var\(--time-bg\); color: var\(--time-fg\); \}/);
+    });
+    it("asks for the three names with the input dialog, and no native prompt() is left", () => {
+      const code = html.replace(/\/\/.*$/gm, "");
+      assert.doesNotMatch(code, /(?<![\w.])prompt\(/, "a native prompt() is left");
+      assert.equal((code.match(/(?<!function )askInput\(/g) || []).length, 3);
+      assert.match(code, /await askInput\("Rename project", \{ tone: "edit", confirmLabel: "Rename", value: project\.name \}\);\s*if \(name === null \|\| name === project\.name\) return;/);
+      assert.match(code, /await askInput\("Rename template", \{ tone: "edit", confirmLabel: "Rename", value: template\.name \}\);\s*if \(name === null \|\| name === template\.name\) return;/);
+      assert.match(code, /await askInput\(`Save as template[^`]*`, \{ tone: "save", confirmLabel: "Save"[^\n]*defaultProjectName\(project\.name[^\n]*\n\s*if \(name === null\) return;/);
+    });
+    it("answers with the trimmed text or null, and keeps the confirm button off while the field is blank", () => {
+      const dom = html.slice(html.indexOf("let confirmPending"), html.indexOf("// Share to TaskHub"));
+      assert.match(dom, /const result = pending\.input \? \(answer \? field\.value\.trim\(\) : null\) : answer;/);
+      assert.match(dom, /ok\.disabled = !!view\.input && !field\.value\.trim\(\);/);
+      assert.match(dom, /"input", e => \{\s*document\.getElementById\("confirmOkBtn"\)\.disabled = !e\.target\.value\.trim\(\);/);
+      assert.match(dom, /e\.key === "Enter" && e\.target === field && !e\.isComposing[\s\S]*if \(!ok\.disabled\) settleConfirm\(true\)/);
+    });
+    it("sets the field's value as a property, never as markup", () => {
+      const fn = html.slice(html.indexOf("function openConfirm"), html.indexOf("function askConfirm"));
+      assert.match(fn, /field\.value = view\.input\.value;/);
+      assert.equal((fn.match(/innerHTML/g) || []).length, 1);
     });
   });
 });
