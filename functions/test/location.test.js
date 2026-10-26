@@ -3,6 +3,9 @@
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
 const {MAX_LOCATION_NAME_LENGTH, normalizeLocation, effectiveLocation} = require("../location");
+const {applyDirectUpdate, completeInList, mergeTaskChanges, manualTaskChange} = require("../tasks");
+const {buildTemplates} = require("../templates");
+const {stepFromTask} = require("../projectTemplates");
 
 describe("location.js", () => {
   describe("normalizeLocation", () => {
@@ -83,6 +86,87 @@ describe("location.js", () => {
     });
     it("allows a label with no position", () => {
       assert.deepEqual(effectiveLocation(null, {name: "p", location: {name: "Smith's yard"}}, null), {location: {name: "Smith's yard"}, source: "project", from: "p"});
+    });
+  });
+});
+
+let n = 0;
+const makeId = () => `loc${++n}`;
+const SMITH = {name: "12 Beach Rd, Whangaparaoa", latitude: -36.63, longitude: 174.78};
+const withLocation = () => ({id: "t1", title: "Fit tap", priority: "LOW", dueDate: "", estimatedMinutes: 30, tags: [], status: "PENDING", order: 1, location: SMITH});
+
+describe("location on a task", () => {
+  describe("applyDirectUpdate", () => {
+    it("sets a normalized location", () => {
+      const next = applyDirectUpdate({id: "t1", title: "x"}, {location: {name: "  12   Beach Rd ", latitude: -36.63, longitude: 174.78}});
+      assert.deepEqual(next.location, {name: "12 Beach Rd", latitude: -36.63, longitude: 174.78});
+    });
+    it("accepts a name without coordinates", () => {
+      assert.deepEqual(applyDirectUpdate({id: "t1", title: "x"}, {location: {name: "Garage"}}).location, {name: "Garage"});
+    });
+    it("removes it with null, blank text or an empty object", () => {
+      for (const v of [null, "", "  ", {}, {name: " "}]) assert.equal("location" in applyDirectUpdate(withLocation(), {location: v}), false, JSON.stringify(v));
+    });
+    it("leaves it as it was when the value is unusable", () => {
+      for (const v of [42, [], {name: 5}, {name: "x", latitude: 1}, {name: "x".repeat(MAX_LOCATION_NAME_LENGTH + 1)}, {latitude: 1, longitude: 2}]) {
+        assert.deepEqual(applyDirectUpdate(withLocation(), {location: v}).location, SMITH, JSON.stringify(v));
+      }
+    });
+    it("is not touched by an edit that does not mention it", () => {
+      assert.deepEqual(applyDirectUpdate(withLocation(), {title: "Fit tap again"}).location, SMITH);
+    });
+    it("never stores an unvalidated value", () => {
+      assert.equal("location" in applyDirectUpdate({id: "t1", title: "x"}, {location: 42}), false);
+    });
+  });
+
+  describe("manual entry", () => {
+    it("manualTaskChange passes location on and omits it when not sent", () => {
+      assert.deepEqual(manualTaskChange({title: "Fit tap", location: SMITH}).location, SMITH);
+      assert.equal("location" in manualTaskChange({title: "Fit tap"}), false);
+    });
+    it("mergeTaskChanges applies it to a new task only when told to", () => {
+      const change = {title: "Fit tap", location: {name: " Garage "}};
+      assert.deepEqual(mergeTaskChanges([], [change], makeId, [], {location: true}).tasks[0].location, {name: "Garage"});
+      assert.equal("location" in mergeTaskChanges([], [change], makeId).tasks[0], false);
+    });
+    it("drops an unusable location on a new task", () => {
+      assert.equal("location" in mergeTaskChanges([], [{title: "Fit tap", location: {name: "x", latitude: 1}}], makeId, [], {location: true}).tasks[0], false);
+    });
+    it("is never changed on an existing task by a merge", () => {
+      const merged = mergeTaskChanges([withLocation()], [{id: "t1", title: "Fit tap", location: {name: "Elsewhere"}}], makeId, [], {location: true});
+      assert.deepEqual(merged.tasks[0].location, SMITH);
+    });
+  });
+
+  describe("repeating task", () => {
+    const task = {...withLocation(), dueDate: "2026-10-20", recurrence: {frequency: "WEEKLY", interval: 1}};
+    it("goes to the next occurrence", () => {
+      assert.deepEqual(completeInList([task], "t1", "2026-10-22", makeId).spawned.location, SMITH);
+    });
+    it("is left off the next occurrence when the task has none", () => {
+      const {location, ...bare} = task; // eslint-disable-line no-unused-vars
+      assert.equal("location" in completeInList([bare], "t1", "2026-10-22", makeId).spawned, false);
+    });
+    it("is kept on the completed task", () => {
+      assert.deepEqual(completeInList([task], "t1", "2026-10-22", makeId).completedTask.location, SMITH);
+    });
+  });
+
+  describe("completed-task templates", () => {
+    const row = {title: "Fit tap", priority: "LOW", estimatedMinutes: 30, tags: [], completedAt: "2026-10-20T01:00:00.000Z"};
+    it("carry the newest row's location", () => {
+      assert.deepEqual(buildTemplates([{...row, location: SMITH}])[0].location, SMITH);
+    });
+    it("have none when the row has none or an unusable one", () => {
+      assert.equal("location" in buildTemplates([row])[0], false);
+      assert.equal("location" in buildTemplates([{...row, location: {name: "x", latitude: 1}}])[0], false);
+    });
+  });
+
+  describe("project templates", () => {
+    it("do not keep a step's location", () => {
+      assert.equal("location" in stepFromTask(withLocation()), false);
     });
   });
 });

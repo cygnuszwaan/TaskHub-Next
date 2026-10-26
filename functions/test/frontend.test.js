@@ -16,7 +16,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
+    return {locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -2183,7 +2183,14 @@ describe("public/index.html helpers", () => {
     it("fills the form with the old details but no due date, and every material unchecked", () => {
       const {templateFormValues} = load();
       const v = templateFormValues(templates[0], ["p1"]);
-      assert.deepEqual(v, {title: "Mow lawn", priority: "LOW", estimatedMinutes: 45, tags: "Outdoor, Garden", dueDate: "", recurFreq: "WEEKLY", recurInterval: 2, projectId: "p1", projectOrder: 2, materials: [{id: "", text: "Petrol", checked: false}, {id: "", text: "Oil", checked: false}], comments: "Check the blade", phone: "", email: "", travelKm: "18", history: null});
+      assert.deepEqual(v, {title: "Mow lawn", priority: "LOW", estimatedMinutes: 45, tags: "Outdoor, Garden", dueDate: "", recurFreq: "WEEKLY", recurInterval: 2, projectId: "p1", projectOrder: 2, materials: [{id: "", text: "Petrol", checked: false}, {id: "", text: "Oil", checked: false}], comments: "Check the blade", phone: "", email: "", travelKm: "18", location: null, history: null});
+    });
+    it("carries a template's location into the form values, dropping an unusable one", () => {
+      const {templateFormValues} = load();
+      const place = {name: "12 Beach Road", latitude: -36.6, longitude: 174.7};
+      assert.deepEqual(templateFormValues({title: "x", location: place}).location, place);
+      assert.deepEqual(templateFormValues({title: "x", location: {name: "Garage"}}).location, {name: "Garage"});
+      assert.equal(templateFormValues({title: "x", location: {name: "x", latitude: 5}}).location, null);
     });
     it("drops a project that no longer exists, with its order number", () => {
       const {templateFormValues} = load();
@@ -2216,7 +2223,7 @@ describe("public/index.html helpers", () => {
     });
     it("falls back to the form's defaults for a bare template", () => {
       const {templateFormValues} = load();
-      assert.deepEqual(templateFormValues({title: "x"}), {title: "x", priority: "MEDIUM", estimatedMinutes: 15, tags: "", dueDate: "", recurFreq: "NONE", recurInterval: 1, projectId: "", projectOrder: "", materials: [], comments: "", phone: "", email: "", travelKm: "", history: null});
+      assert.deepEqual(templateFormValues({title: "x"}), {title: "x", priority: "MEDIUM", estimatedMinutes: 15, tags: "", dueDate: "", recurFreq: "NONE", recurInterval: 1, projectId: "", projectOrder: "", materials: [], comments: "", phone: "", email: "", travelKm: "", location: null, history: null});
     });
     it("posts startNow only when ticked", () => {
       const {addTaskExtras} = load();
@@ -3371,6 +3378,55 @@ describe("Reorder mode", () => {
       assert.deepEqual(projectLocationView({id: "p1", name: "Reno"}, null), none);
       assert.deepEqual(projectLocationView({id: "p1", name: "Reno"}, {name: "Smith Ltd"}), none);
       assert.deepEqual(projectLocationView(undefined, undefined), none);
+    });
+    it("reads a task form's Location box: empty is none, a picked place keeps its position, typed text is a name only", () => {
+      const {locationFromBox} = load();
+      const picked = where("12 Beach Road");
+      assert.equal(locationFromBox("", picked), null);
+      assert.equal(locationFromBox("   ", null), null);
+      assert.equal(locationFromBox(undefined, null), null);
+      assert.deepEqual(locationFromBox("12 Beach Road", picked), picked);
+      assert.deepEqual(locationFromBox("  12   Beach Road ", picked), picked, "whitespace does not make it another place");
+      assert.deepEqual(locationFromBox("14 Beach Road", picked), {name: "14 Beach Road"}, "edited text loses the old position");
+      assert.deepEqual(locationFromBox("Garage", null), {name: "Garage"});
+      assert.equal(locationFromBox("x".repeat(250), null).name.length, 200);
+    });
+    it("tells where a task's location comes from while it has none of its own", () => {
+      const {taskLocationView} = load();
+      const projects = [{id: "p1", name: "Kitchen reno", clientId: "c1"}, {id: "p2", name: "Deck", clientId: "c1", location: where("Deck site")}, {id: "p3", name: "Solo"}];
+      const clients = [{id: "c1", name: "Smith Ltd", location: where("12 Beach Road")}];
+      assert.deepEqual(taskLocationView(null, "p1", projects, clients), {note: "From client: Smith Ltd", address: "12 Beach Road"});
+      assert.deepEqual(taskLocationView(null, "p2", projects, clients), {note: "From project: Deck", address: "Deck site"});
+      assert.deepEqual(taskLocationView(null, "p3", projects, clients), {note: "", address: ""});
+      assert.deepEqual(taskLocationView(null, "", projects, clients), {note: "", address: ""});
+      assert.deepEqual(taskLocationView(null, "gone", undefined, undefined), {note: "", address: ""});
+    });
+    it("tells whether a task's own location has a map position", () => {
+      const {taskLocationView} = load();
+      assert.deepEqual(taskLocationView(where("Here"), "", [], []), {note: "📍 Map position set.", address: ""});
+      assert.deepEqual(taskLocationView({name: "Label"}, "", [], []), {note: "No map position: pick a suggestion to set one.", address: ""});
+    });
+    it("gives a task row a 📍 chip with its effective location, task first, then project, then client", () => {
+      const {taskLocationChip} = load();
+      const projects = [{id: "p1", name: "Kitchen reno", clientId: "c1"}, {id: "p2", name: "Deck", location: where("Deck site")}];
+      const clients = [{id: "c1", name: "Smith Ltd", location: where("12 Beach Road")}];
+      assert.deepEqual(taskLocationChip({id: "t", title: "Tap", projectId: "p1", location: where("Garage")}, projects, clients), {text: "Garage", title: "Where this task is"});
+      assert.deepEqual(taskLocationChip({id: "t", title: "Tap", projectId: "p2"}, projects, clients), {text: "Deck site", title: "From project: Deck"});
+      assert.deepEqual(taskLocationChip({id: "t", title: "Tap", projectId: "p1"}, projects, clients), {text: "12 Beach Road", title: "From client: Smith Ltd"});
+      assert.equal(taskLocationChip({id: "t", title: "Tap"}, projects, clients), null);
+      assert.equal(taskLocationChip(null, [], []), null);
+    });
+    it("puts a Location field in the add form and the edit modal, and the 📍 chip on task rows", () => {
+      for (const prefix of ["manual", "edit"]) {
+        assert.match(html, new RegExp(`<label for="${prefix}Location">Location</label>`));
+        for (const id of ["Location", "PlaceSearchBtn", "LocationClearBtn", "PlaceResults", "LocationNote"]) assert.match(html, new RegExp(`id="${prefix}${id}"`));
+      }
+      assert.match(html, /\$\{locationChip\(t\)\}/);
+    });
+    it("sends a task's location with a manual add and, when changed, with an edit", () => {
+      assert.match(html, /if \(form\.location\) manual\.location = form\.location;/);
+      assert.match(html, /location: locationFromBox\(document\.getElementById\("manualLocation"\)\.value, pickedLocation\.manual\),/);
+      assert.match(html, /updatedFields\.location = location;/);
     });
     it("changes the key that decides when the box is rewritten only for another project or its own location", () => {
       const {projectLocationKey} = load();

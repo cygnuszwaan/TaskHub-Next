@@ -400,6 +400,16 @@
         <input type="number" id="manualTravel" min="0" max="10000" step="0.1" inputmode="decimal" placeholder="e.g. 12.5" style="max-width: 160px;">
       </div>
       <div class="form-group">
+        <label for="manualLocation">Location</label>
+        <input type="text" id="manualLocation" maxlength="200" autocomplete="off" placeholder="Search for an address">
+        <div class="action-row" style="margin-top: 6px;">
+          <button type="button" id="manualPlaceSearchBtn" class="btn-secondary">Find on map</button>
+          <button type="button" id="manualLocationClearBtn" class="btn-secondary" hidden>Clear</button>
+        </div>
+        <div id="manualPlaceResults" class="place-results"></div>
+        <p class="settings-note" id="manualLocationNote"></p>
+      </div>
+      <div class="form-group">
         <label for="manualPhone">Phone <small style="font-weight:normal; color:var(--text-faint);">(empty uses the client's)</small></label>
         <input type="tel" id="manualPhone" maxlength="40">
       </div>
@@ -844,6 +854,17 @@
         <div class="form-group">
           <label for="editTravel">Travel (km)</label>
           <input type="number" id="editTravel" min="0" max="10000" step="0.1" inputmode="decimal" placeholder="e.g. 12.5" style="max-width: 160px;">
+        </div>
+
+        <div class="form-group">
+          <label for="editLocation">Location</label>
+          <input type="text" id="editLocation" maxlength="200" autocomplete="off" placeholder="Search for an address">
+          <div class="action-row" style="margin-top: 6px;">
+            <button type="button" id="editPlaceSearchBtn" class="btn-secondary">Find on map</button>
+            <button type="button" id="editLocationClearBtn" class="btn-secondary" hidden>Clear</button>
+          </div>
+          <div id="editPlaceResults" class="place-results"></div>
+          <p class="settings-note" id="editLocationNote"></p>
         </div>
 
         <div class="form-group">
@@ -1599,6 +1620,38 @@
       return project ? `${project.id}|${JSON.stringify(project.location || null)}` : "";
     }
 
+    // The own location a task form holds: `text` is the Location box and `picked` the place last picked into it ({name, latitude, longitude})
+    // or null. Null for an empty box; the picked place (with its map position) while the text is still its name; else just the typed name.
+    function locationFromBox(text, picked) {
+      const name = String(text === undefined || text === null ? "" : text).replace(/\s+/g, " ").trim().slice(0, 200);
+      if (!name) return null;
+      if (picked && picked.name === name && Number.isFinite(picked.latitude) && Number.isFinite(picked.longitude)) return { name, latitude: picked.latitude, longitude: picked.longitude };
+      return { name };
+    }
+
+    // What is told under a task form's Location box. `own` is the location the box holds (null for none): with one, whether its map position
+    // is set; without, where the task's location comes from while it has none of its own ("From project: Kitchen reno" or "From client:
+    // Smith Ltd"), or "" when neither has one. `address` is the inherited address, for the box's placeholder.
+    function taskLocationView(own, projectId, projects, clients) {
+      if (own) {
+        const mapped = Number.isFinite(own.latitude) && Number.isFinite(own.longitude);
+        return { note: mapped ? "📍 Map position set." : "No map position: pick a suggestion to set one.", address: "" };
+      }
+      const project = projectId ? (Array.isArray(projects) ? projects : []).find(p => p.id === projectId) : null;
+      const client = project && project.clientId ? (Array.isArray(clients) ? clients : []).find(c => c.id === project.clientId) : null;
+      const found = effectiveLocation(null, project || null, client || null);
+      return found ? { note: `From ${found.source}: ${found.from}`, address: found.location.name } : { note: "", address: "" };
+    }
+
+    // The 📍 chip of a task row: its effective location's text, and where it comes from. Null when the task has no location.
+    function taskLocationChip(task, projects, clients) {
+      const project = task && task.projectId ? (Array.isArray(projects) ? projects : []).find(p => p.id === task.projectId) : null;
+      const client = project && project.clientId ? (Array.isArray(clients) ? clients : []).find(c => c.id === project.clientId) : null;
+      const found = effectiveLocation(task, project || null, client || null);
+      if (!found) return null;
+      return { text: found.location.name, title: found.source === "task" ? "Where this task is" : `From ${found.source}: ${found.from}` };
+    }
+
     // The text for a failed Google request: Google's own message (it says what is wrong with the key or the restrictions), else the status.
     function placesErrorText(status, data) {
       const message = data && data.error && typeof data.error.message === "string" ? data.error.message.replace(/\s+/g, " ").trim() : "";
@@ -1792,6 +1845,7 @@
       if (phone) manual.phone = phone;
       const email = parseEmailText(form.email);
       if (email) manual.email = email;
+      if (form.location) manual.location = form.location;
       if (form.history) manual.history = form.history;
       return { manual };
     }
@@ -2574,6 +2628,7 @@
         travelKm: travelBoxText(t.travelKm),
         phone: typeof t.phone === "string" ? t.phone : "",
         email: typeof t.email === "string" ? t.email : "",
+        location: effectiveLocation(t, null, null) ? effectiveLocation(t, null, null).location : null,
         history: historyOf(t)
       };
     }
@@ -3359,6 +3414,7 @@
           travelKm: document.getElementById("manualTravel").value,
           phone: document.getElementById("manualPhone").value,
           email: document.getElementById("manualEmail").value,
+          location: locationFromBox(document.getElementById("manualLocation").value, pickedLocation.manual),
           history: historyForTitle(copiedHistory, input)
         }) : freeTextBody(input);
         Object.assign(body, addTaskExtras({ startNow: document.getElementById("startNow").checked }));
@@ -3513,11 +3569,12 @@
       document.getElementById("manualTravel").value = v.travelKm;
       document.getElementById("manualPhone").value = v.phone;
       document.getElementById("manualEmail").value = v.email;
+      setLocationBox("manual", v.location);
       refreshContact("manual");
       document.getElementById("templateResults").hidden = true; // the form replaces the list
     }
 
-    // Repeats, project, materials, travel, phone, email and comments belong to one task, so they are cleared after each manual add
+    // Repeats, project, materials, travel, location, phone, email and comments belong to one task, so they are cleared after each manual add
     function resetManualExtras() {
       copiedHistory = null;
       document.getElementById("manualRecurFreq").value = "NONE";
@@ -3531,6 +3588,7 @@
       document.getElementById("manualTravel").value = "";
       document.getElementById("manualPhone").value = "";
       document.getElementById("manualEmail").value = "";
+      setLocationBox("manual", null);
       refreshContact("manual");
       document.getElementById("manualNewMaterialText").value = "";
       document.getElementById("manualNewMaterialCost").value = "";
@@ -3713,6 +3771,11 @@
         `<span class="chip">🧰 ${esc(text)}</span>`;
     }
 
+    function locationChip(t) {
+      const chip = taskLocationChip(t, allProjects, allClients);
+      return chip ? `<span class="chip location-chip" title="${esc(chip.title)}">📍 ${esc(chip.text)}</span>` : "";
+    }
+
     function snoozeChip(t) {
       const text = snoozeChipText(t);
       return text ? `<span class="chip snooze-chip" title="Not scheduled before this day; the due date is unchanged">😴 ${esc(text)}</span>` : "";
@@ -3744,6 +3807,7 @@
               ${isActive ? `<span class="time-chip" id="activeElapsed" title="Time tracked on this task">Tracked ${esc(formatElapsed(elapsedSecondsOf(t)))}</span>` : ''}
               ${(t.tags || []).map(tag => `<span class="chip">${esc(tag)}</span>`).join('')}
               ${projectChip(t)}
+              ${locationChip(t)}
               ${(() => { const d = daysUntilDue(t); return d !== null && d < 0 ? `<span class="chip overdue-chip" title="Due ${esc(t.dueDate)}">⚠️ Overdue ${esc(-d)}d</span>` : ''; })()}
               ${t.dueDate ? `<span class="chip">Due: ${esc(t.dueDate)}</span>` : ''}
               ${recurrenceChip(t)}
@@ -4101,6 +4165,8 @@
       document.getElementById("editTravel").value = travelBoxText(task.travelKm);
       document.getElementById("editPhone").value = typeof task.phone === "string" ? task.phone : "";
       document.getElementById("editEmail").value = typeof task.email === "string" ? task.email : "";
+      const ownLocation = effectiveLocation(task, null, null);
+      setLocationBox("edit", ownLocation ? ownLocation.location : null);
       refreshContact("edit");
       document.getElementById("editComments").value = typeof task.comments === "string" ? task.comments : "";
 
@@ -4146,9 +4212,34 @@
       refreshContact(prefix); // the client, and so the inherited phone and email, follows the project
     }
 
+    // The place last picked into each task form's Location box (the add form and the edit modal), with its map position, or null.
+    const pickedLocation = { manual: null, edit: null };
+
+    // Puts `location` ({name, latitude?, longitude?} or null) in a task form's Location box.
+    function setLocationBox(prefix, location) {
+      const box = document.getElementById(`${prefix}Location`);
+      if (!box) return;
+      box.value = location ? location.name : "";
+      pickedLocation[prefix] = location && Number.isFinite(location.latitude) && Number.isFinite(location.longitude) ? location : null;
+      document.getElementById(`${prefix}PlaceResults`).textContent = "";
+      refreshLocation(prefix);
+    }
+
+    // Brings a task form's Location note, placeholder and Clear button in line with what is typed and the chosen project.
+    function refreshLocation(prefix) {
+      const box = document.getElementById(`${prefix}Location`);
+      if (!box) return; // the completed task's form has none
+      const projectId = document.getElementById(`${prefix}Project`).value;
+      const view = taskLocationView(locationFromBox(box.value, pickedLocation[prefix]), projectId, allProjects, allClients);
+      box.placeholder = view.address ? view.address : "Search for an address";
+      document.getElementById(`${prefix}LocationNote`).textContent = view.note;
+      document.getElementById(`${prefix}LocationClearBtn`).hidden = box.value.trim() === "";
+    }
+
     // Brings a form's Phone and Email placeholders and its Call, Text and Email buttons (the edit and completed forms have them)
     // in line with what is typed and the chosen project's client. `prefix` is "edit", "manual" or "ce".
     function refreshContact(prefix) {
+      refreshLocation(prefix); // the project, and so the inherited location, follows too
       const phoneBox = document.getElementById(`${prefix}Phone`);
       const emailBox = document.getElementById(`${prefix}Email`);
       if (!phoneBox || !emailBox) return;
@@ -4300,6 +4391,11 @@
       const tags = tagsRaw.split(",").map(s => s.trim()).filter(Boolean);
       const recurrence = recurrenceFields(document.getElementById("editRecurFreq").value, document.getElementById("editRecurInterval").value);
       const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence, materials: materialsFields(editMaterials), travelKm, phone: document.getElementById("editPhone").value.trim(), email, comments: document.getElementById("editComments").value };
+      // A changed location is sent (null clears it); an untouched one is left out
+      const location = locationFromBox(document.getElementById("editLocation").value, pickedLocation.edit);
+      const editedTask = allTasks.find(t => t.id === taskId);
+      const ownBefore = editedTask ? effectiveLocation(editedTask, null, null) : null;
+      if (JSON.stringify(location) !== JSON.stringify(ownBefore ? ownBefore.location : null)) updatedFields.location = location;
       // Only a changed task number is sent; the server moves the task there and closes up the rest
       const queueNumber = queueNumberChange(document.getElementById("editNumber").value, taskNumbers.get(taskId), allTasks.length);
       if (queueNumber !== null) updatedFields.queueNumber = queueNumber;
@@ -6131,6 +6227,21 @@
       projectPlaces = makePlacesAutocomplete({ queryId: "projectLocationInput", resultsId: "projectPlaceResults", getBias: () => currentSettings && currentSettings.location ? currentSettings.location : null, getContext: () => selectedProjectFilter, onPick: (place, projectId) => setProjectLocation(projectId, placeLocation(place)) });
     } else {
       makePlaceSearch({ queryId: "projectLocationInput", buttonId: "projectPlaceSearchBtn", resultsId: "projectPlaceResults", showZone: false, queries: placeQueries, clearQuery: false, onPick: place => setProjectLocation(selectedProjectFilter, placeLocation(place)) });
+    }
+    for (const prefix of ["manual", "edit"]) {
+      const onPick = place => {
+        pickedLocation[prefix] = placeLocation(place);
+        document.getElementById(`${prefix}Location`).value = place.name;
+        refreshLocation(prefix);
+      };
+      if (CONFIG.placesApiKey) {
+        document.getElementById(`${prefix}PlaceSearchBtn`).hidden = true;
+        makePlacesAutocomplete({ queryId: `${prefix}Location`, resultsId: `${prefix}PlaceResults`, getBias: () => currentSettings && currentSettings.location ? currentSettings.location : null, onPick });
+      } else {
+        makePlaceSearch({ queryId: `${prefix}Location`, buttonId: `${prefix}PlaceSearchBtn`, resultsId: `${prefix}PlaceResults`, showZone: false, queries: placeQueries, clearQuery: false, onPick });
+      }
+      document.getElementById(`${prefix}Location`).addEventListener("input", () => refreshLocation(prefix));
+      document.getElementById(`${prefix}LocationClearBtn`).addEventListener("click", () => setLocationBox(prefix, null));
     }
     document.getElementById("saveSettingsBtn").addEventListener("click", saveSettings);
     document.getElementById("saveJobSheetBtn").addEventListener("click", saveJobSheetSettings);

@@ -545,7 +545,7 @@ exports.rescheduleTask = onRequest({
 
 // 3. Endpoint: Add / Ingest Task. The model returns only new or changed tasks; they are merged into the
 // stored list inside a transaction, so everything else on the list is preserved. With a `manual` body ({title,
-// priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?, comments?, travelKm?, phone?, email?}) no model is
+// priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?, comments?, travelKm?, phone?, email?, location?}) no model is
 // called to parse it: the fields are used as entered (validated like the model's) and the task is added at the end of the
 // list. The one exception is a manual entry with no tags, for which the model is asked for tags only (a failure leaves
 // the task untagged). `startNow: true` starts the timer of
@@ -649,7 +649,7 @@ exports.addOrUpdateTask = onRequest({
         entry = created.changes;
         stored = created.projects;
       }
-      const merged = mergeTaskChanges(tasks, entry, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined, comments: body.manual !== undefined, travelKm: body.manual !== undefined, contact: body.manual !== undefined, history: body.manual !== undefined, now: new Date().toISOString(), jobCounter});
+      const merged = mergeTaskChanges(tasks, entry, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined, comments: body.manual !== undefined, travelKm: body.manual !== undefined, contact: body.manual !== undefined, location: body.manual !== undefined, history: body.manual !== undefined, now: new Date().toISOString(), jobCounter});
       const changed = merged.added + merged.updated > 0;
       let list = merged.tasks;
       if (body.startNow === true) {
