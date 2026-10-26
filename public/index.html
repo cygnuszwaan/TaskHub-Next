@@ -84,7 +84,7 @@
     .sort-row label { font-size: 13px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
     .sort-row select { flex: 1; min-width: 0; }
     .select-row { display: flex; gap: 6px; margin-top: 10px; }
-    .select-row button { flex: 1; min-width: 0; }
+    .select-row button { flex: 1; min-width: 0; box-sizing: border-box; height: 36px; padding-top: 0; padding-bottom: 0; line-height: 1.2; overflow: hidden; } /* a fixed height, so a fallback font's taller ✓ or ✕ cannot make the row grow */
     .reorder-hint { margin-top: 8px; font-size: 13px; color: var(--text-muted); }
     .reorder-hint[hidden] { display: none; }
     .reorder-mark { flex: none; font-size: 18px; line-height: 1.2; margin-right: 10px; color: var(--primary); }
