@@ -5,7 +5,7 @@ const {localDate} = require("./time");
 const {snoozeDate} = require("./snooze");
 
 // Bump when the scheduling prompt or the engine's rules change, so the first run after a deploy is never skipped.
-const FINGERPRINT_VERSION = 15;
+const FINGERPRINT_VERSION = 16;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 // The fields of a task that can change what Gemini is asked or how it answers. Calendar and schedule fields are
@@ -52,15 +52,34 @@ function hasEndedSlot(tasks, timeZone, now) {
   });
 }
 
+// The coordinates of the tasks being scheduled that have any, as [id, latitude, longitude] sorted by id.
+function groupingCoords(tasks, locations) {
+  if (!locations) return [];
+  return tasks
+      .filter((t) => Object.prototype.hasOwnProperty.call(locations, t.id) && locations[t.id])
+      .map((t) => [t.id, locations[t.id].latitude, locations[t.id].longitude])
+      .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+}
+
+// The anchors as [date, latitude, longitude], sorted.
+function groupingAnchors(anchors) {
+  return (Array.isArray(anchors) ? anchors : [])
+      .map((a) => [a.date, a.latitude, a.longitude])
+      .sort((a, b) => JSON.stringify(a) < JSON.stringify(b) ? -1 : JSON.stringify(a) > JSON.stringify(b) ? 1 : 0);
+}
+
 // Hash of everything an automatic run's outcome depends on.
 //   tasks:      the unlocked tasks being scheduled
 //   busySlots:  merged busy windows, as passed to the planner
 //   weatherKey: coarse weather summary (see weather.js `forecastKey`)
-//   settings:   {timeZone, location, scheduleDays, gapMinutes, scheduleOrder, day} (the lunch break is already part of busySlots)
+//   settings:   {timeZone, location, scheduleDays, gapMinutes, scheduleOrder, day, travelGrouping} (the lunch break is already part of busySlots)
+//   locations:  {taskId: {latitude, longitude}}, the tasks' effective coordinates (location.js `taskCoordinates`); only counted with the area preference on
+//   anchors:    [{date, latitude, longitude}], the slots the run leaves in place (schedule.js `buildAnchors`); only counted with the area preference on
 //   now, horizon: the run's instant and the end of the scheduling window
-function computeFingerprint({tasks, busySlots, weatherKey, settings, now, horizon}) {
+function computeFingerprint({tasks, busySlots, weatherKey, settings, now, horizon, locations = null, anchors = []}) {
   const timeZone = settings.timeZone;
   const l = settings.location;
+  const g = settings.travelGrouping;
   const payload = {
     version: FINGERPRINT_VERSION,
     timeZone,
@@ -71,6 +90,7 @@ function computeFingerprint({tasks, busySlots, weatherKey, settings, now, horizo
     location: {name: l.name, latitude: l.latitude, longitude: l.longitude},
     today: localDate(timeZone, now),
     weather: weatherKey,
+    travelGrouping: g && g.enabled === true ? {radiusKm: g.radiusKm, maxDeferDays: g.maxDeferDays, coords: groupingCoords(tasks, locations), anchors: groupingAnchors(anchors)} : null,
     tasks: tasks.map(taskKey).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
     busy: normalizeBusy(busySlots, now, horizon),
   };

@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {MAX_LOCATION_NAME_LENGTH, normalizeLocation, effectiveLocation} = require("../location");
+const {MAX_LOCATION_NAME_LENGTH, normalizeLocation, effectiveLocation, taskCoordinates} = require("../location");
 const {applyDirectUpdate, completeInList, mergeTaskChanges, manualTaskChange} = require("../tasks");
 const {buildTemplates} = require("../templates");
 const {stepFromTask} = require("../projectTemplates");
@@ -192,5 +192,36 @@ describe("location on a completed task", () => {
   });
   it("comes back with a reopened task", () => {
     assert.deepEqual(reopenTask([], {...row, id: "t1"}, {makeId: () => "new1"}).task.location, SMITH);
+  });
+});
+
+describe("taskCoordinates", () => {
+  const HOME = {name: "Home", latitude: -36.63, longitude: 174.78};
+  const SHOP = {name: "Shop", latitude: -36.85, longitude: 174.76};
+  const NAME_ONLY = {name: "Somewhere"};
+  const projects = [{id: "p1", name: "P1", clientId: "c1"}, {id: "p2", name: "P2", clientId: "c2", location: SHOP}, {id: "p3", name: "P3"}];
+  const clients = [{id: "c1", name: "C1", location: HOME}, {id: "c2", name: "C2", location: NAME_ONLY}];
+
+  it("resolves each task's effective location: its own, its project's, then the client's", () => {
+    const tasks = [{id: "own", projectId: "p1", location: SHOP}, {id: "viaProject", projectId: "p2"}, {id: "viaClient", projectId: "p1"}, {id: "loose", location: HOME}];
+    assert.deepEqual(taskCoordinates({tasks, projects, clients}), {
+      own: {latitude: SHOP.latitude, longitude: SHOP.longitude},
+      viaProject: {latitude: SHOP.latitude, longitude: SHOP.longitude},
+      viaClient: {latitude: HOME.latitude, longitude: HOME.longitude},
+      loose: {latitude: HOME.latitude, longitude: HOME.longitude},
+    });
+  });
+  it("leaves out a task with no location or one that has a name only", () => {
+    const tasks = [{id: "none"}, {id: "inProjectWithout", projectId: "p3"}, {id: "nameOnly", location: NAME_ONLY}, {id: "clientNameOnly", projectId: "p2", location: NAME_ONLY}, {id: "missingProject", projectId: "gone"}];
+    assert.deepEqual(taskCoordinates({tasks, projects, clients}), {});
+  });
+  it("lets a nearer location without coordinates shadow a farther one with them", () => {
+    assert.deepEqual(taskCoordinates({tasks: [{id: "t", projectId: "p1", location: NAME_ONLY}], projects, clients}), {});
+  });
+  it("copes with missing lists and does not return the stored location objects", () => {
+    assert.deepEqual(taskCoordinates({tasks: [{id: "t", location: HOME}]}), {t: {latitude: -36.63, longitude: 174.78}});
+    assert.deepEqual(taskCoordinates({tasks: undefined, projects: null, clients: null}), {});
+    const out = taskCoordinates({tasks: [{id: "t", location: HOME}], projects: [], clients: []});
+    assert.deepEqual(Object.keys(out.t), ["latitude", "longitude"]);
   });
 });

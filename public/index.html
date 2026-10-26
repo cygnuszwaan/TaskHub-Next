@@ -611,6 +611,19 @@
           </div>
         </div>
         <div class="form-group">
+          <label><input type="checkbox" id="travelGroupingEnabled"> Group tasks in the same area on the same day</label>
+        </div>
+        <div class="form-group" id="travelGroupingFields" style="display: flex; gap: 10px;">
+          <div style="flex: 1;">
+            <label for="travelRadiusKm">Same area within (km)</label>
+            <input type="number" id="travelRadiusKm" min="0.5" max="100" step="0.5" inputmode="decimal">
+          </div>
+          <div style="flex: 1;">
+            <label for="travelDeferDays">May wait up to (days)</label>
+            <input type="number" id="travelDeferDays" min="0" max="14" step="1" inputmode="numeric">
+          </div>
+        </div>
+        <div class="form-group">
           <label><input type="checkbox" id="schedEnabled"> Run the schedule automatically</label>
         </div>
         <div class="form-group">
@@ -1695,6 +1708,15 @@
       return (message || `Request failed (${status})`).slice(0, 200);
     }
 
+    // The `travelGrouping` part of the updateSettings body: {travelGrouping: {...}} with only the fields the form supplies, or {} for none.
+    function travelGroupingPayload(form) {
+      const group = {};
+      if (form.travelGroupingEnabled !== undefined) group.enabled = !!form.travelGroupingEnabled;
+      if (form.travelRadiusKm !== undefined && String(form.travelRadiusKm).trim() !== "") group.radiusKm = Number(form.travelRadiusKm);
+      if (form.travelDeferDays !== undefined && String(form.travelDeferDays).trim() !== "") group.maxDeferDays = Number(form.travelDeferDays);
+      return Object.keys(group).length ? { travelGrouping: group } : {};
+    }
+
     // The updateSettings body for the settings form. Every schedule field is sent whatever the frequency, so the
     // server's checks apply to each; the server stays the validator.
     function settingsPayload(form) {
@@ -1708,6 +1730,8 @@
         scheduleOrder: form.scheduleOrder === "NUMBER" ? "NUMBER" : "URGENCY",
         day: { start: form.dayStart, end: form.dayEnd },
         lunch: { enabled: !!form.lunchEnabled, time: form.lunchTime, minutes: Number(form.lunchMinutes) },
+        // the area preference is sent only for the fields the form has; an empty number leaves the saved value alone
+        ...travelGroupingPayload(form),
         schedule: {
           enabled: !!form.enabled,
           frequency: form.frequency,
@@ -3744,7 +3768,7 @@
       btn.disabled = true;
       statusDiv.style.display = "block";
       try {
-        // Runs use the saved settings, so a changed "days ahead", gap or lunch break that was never saved would be ignored: save first.
+        // Runs use the saved settings, so a changed "days ahead", gap, lunch break or area setting that was never saved would be ignored: save first.
         if (currentSettings && scheduleFieldsChanged()) {
           statusDiv.innerText = "Saving settings...";
           if (!(await saveSettings())) {
@@ -5661,18 +5685,28 @@
       box.textContent = `📍 ${place.name} · ${place.timeZone}${pendingLocation ? " (not saved yet)" : ""}`;
     }
 
+    function updateTravelGroupingFields() {
+      const on = document.getElementById("travelGroupingEnabled").checked;
+      document.getElementById("travelRadiusKm").disabled = !on;
+      document.getElementById("travelDeferDays").disabled = !on;
+    }
+
     function updateLunchFields() {
       const on = document.getElementById("lunchEnabled").checked;
       document.getElementById("lunchTime").disabled = !on;
       document.getElementById("lunchMinutes").disabled = !on;
     }
 
-    // Whether the form holds days-ahead, gap, day-window or lunch values that differ from the saved settings (what a run uses).
+    // Whether the form holds days-ahead, gap, day-window, lunch or area values that differ from the saved settings (what a run uses).
     function scheduleFieldsChanged() {
       const s = currentSettings;
       const lunch = s.lunch || {};
       const day = s.day || {};
+      const area = s.travelGrouping || {};
       return document.getElementById("scheduleDays").value !== String(s.scheduleDays)
+        || document.getElementById("travelGroupingEnabled").checked !== !!area.enabled
+        || document.getElementById("travelRadiusKm").value !== String(area.radiusKm)
+        || document.getElementById("travelDeferDays").value !== String(area.maxDeferDays)
         || document.getElementById("gapMinutes").value !== String(s.gapMinutes)
         || document.getElementById("scheduleOrder").value !== (s.scheduleOrder === "NUMBER" ? "NUMBER" : "URGENCY")
         || document.getElementById("dayStart").value !== String(day.start)
@@ -5709,6 +5743,11 @@
       document.getElementById("lunchTime").value = lunch.time || "";
       document.getElementById("lunchMinutes").value = typeof lunch.minutes === "number" ? String(lunch.minutes) : "";
       updateLunchFields();
+      const area = s.travelGrouping || {};
+      document.getElementById("travelGroupingEnabled").checked = !!area.enabled;
+      document.getElementById("travelRadiusKm").value = typeof area.radiusKm === "number" ? String(area.radiusKm) : "";
+      document.getElementById("travelDeferDays").value = typeof area.maxDeferDays === "number" ? String(area.maxDeferDays) : "";
+      updateTravelGroupingFields();
       document.getElementById("schedEnabled").checked = !!s.schedule.enabled;
       document.getElementById("schedInterval").value = scheduleChoice(s.schedule);
       // The contractor text is replaced only while it has no unsaved edits, so saving the Scheduling form keeps them
@@ -6207,15 +6246,18 @@
             lunchEnabled: document.getElementById("lunchEnabled").checked,
             lunchTime: document.getElementById("lunchTime").value,
             lunchMinutes: document.getElementById("lunchMinutes").value,
+            travelGroupingEnabled: document.getElementById("travelGroupingEnabled").checked,
+            travelRadiusKm: document.getElementById("travelRadiusKm").value,
+            travelDeferDays: document.getElementById("travelDeferDays").value,
             enabled: document.getElementById("schedEnabled").checked,
             ...scheduleFromChoice(document.getElementById("schedInterval").value, currentSettings && currentSettings.schedule.intervalMinutes)
           }) })
         });
         const saved = (await res.json()).settings;
         applySettings(saved);
-        if (typeof saved.scheduleDays !== "number" || typeof saved.gapMinutes !== "number" || typeof saved.timerWarnHours !== "number" || typeof saved.scheduleOrder !== "string" || !saved.day || !saved.lunch) {
+        if (typeof saved.scheduleDays !== "number" || typeof saved.gapMinutes !== "number" || typeof saved.timerWarnHours !== "number" || typeof saved.scheduleOrder !== "string" || !saved.day || !saved.lunch || !saved.travelGrouping) {
           // An older deployed backend drops fields it does not know, so a setting would silently keep its old value
-          setSettingsStatus("Saved, but the server ignored the days, gap, timer warning, order, day or lunch setting. Deploy the latest functions.");
+          setSettingsStatus("Saved, but the server ignored the days, gap, timer warning, order, day, lunch or area setting. Deploy the latest functions.");
           return false;
         }
         setSettingsStatus("Saved.");
@@ -6234,6 +6276,7 @@
       if (btn) showTab(btn.dataset.tab);
     });
     document.getElementById("lunchEnabled").addEventListener("change", updateLunchFields);
+    document.getElementById("travelGroupingEnabled").addEventListener("change", updateTravelGroupingFields);
     document.getElementById("manualToggle").addEventListener("change", e => {
       document.getElementById("manualFields").hidden = !e.target.checked;
       if (!e.target.checked) copiedHistory = null;

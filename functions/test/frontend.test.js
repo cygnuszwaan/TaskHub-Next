@@ -254,6 +254,34 @@ describe("public/index.html helpers", () => {
       }
       assert.match(html.slice(html.indexOf(`id="lunchEnabled"`) - 30, html.indexOf(`id="lunchEnabled"`)), /type="checkbox"/);
     });
+    it("puts the area preference on the Settings page, after the lunch break, with its two numbers", () => {
+      const settings = html.indexOf(`id="pageSettings"`);
+      const modal = html.indexOf(`id="editModal"`);
+      const ids = ["travelGroupingEnabled", "travelRadiusKm", "travelDeferDays"];
+      let previous = html.indexOf(`id="lunchMinutes"`);
+      for (const id of ids) {
+        const i = html.indexOf(`id="${id}"`);
+        assert.ok(i > settings && i < modal, `${id} sits on the Settings page`);
+        assert.ok(i > previous, `${id} follows the lunch fields`);
+        previous = i;
+      }
+      assert.match(html.slice(html.indexOf(`id="travelGroupingEnabled"`) - 30, html.indexOf(`id="travelGroupingEnabled"`)), /type="checkbox"/);
+      assert.match(html.slice(html.indexOf(`id="travelRadiusKm"`) - 30, html.indexOf(`id="travelRadiusKm"`)), /type="number"/);
+      assert.match(html, /id="travelRadiusKm" min="0\.5" max="100"/);
+      assert.match(html, /id="travelDeferDays" min="0" max="14" step="1"/);
+    });
+    it("loads, saves and change-checks the area preference with the other scheduling fields", () => {
+      const apply = html.slice(html.indexOf("function applySettings(s)"), html.indexOf("async function saveSettings"));
+      for (const id of ["travelGroupingEnabled", "travelRadiusKm", "travelDeferDays"]) {
+        assert.ok(apply.includes(`getElementById("${id}")`), `${id} is filled from the saved settings`);
+        const changed = html.slice(html.indexOf("function scheduleFieldsChanged"), html.indexOf("function setSettingsStatus"));
+        assert.ok(changed.includes(`getElementById("${id}")`), `${id} counts as an unsaved scheduling change`);
+        const save = html.slice(html.indexOf("async function saveSettings"), html.indexOf(`document.getElementById("undoNoteBtn")`));
+        assert.ok(save.includes(`getElementById("${id}")`), `${id} is read when saving`);
+      }
+      assert.match(html, /getElementById\("travelGroupingEnabled"\)\.addEventListener\("change", updateTravelGroupingFields\)/);
+      assert.match(html, /!saved\.travelGrouping/);
+    });
     it("shows every edit-form field in the manual entry: repeats, project with order number, and materials", () => {
       const manual = html.indexOf(`id="manualFields"`);
       const queue = html.indexOf(`id="queueCard"`);
@@ -1023,6 +1051,23 @@ describe("public/index.html helpers", () => {
         lunch: {enabled: true, time: "12:30", minutes: 45},
         schedule: {enabled: true, frequency: "INTERVAL", time: "06:30", intervalMinutes: 30},
       });
+    });
+    it("sends the area preference only for the fields the form supplies", () => {
+      const h = load();
+      assert.equal("travelGrouping" in h.settingsPayload(form), false, "no area fields, nothing sent");
+      assert.deepEqual(h.settingsPayload({...form, travelGroupingEnabled: true, travelRadiusKm: "7.5", travelDeferDays: "2"}).travelGrouping, {enabled: true, radiusKm: 7.5, maxDeferDays: 2});
+      assert.deepEqual(h.settingsPayload({...form, travelGroupingEnabled: false, travelRadiusKm: "", travelDeferDays: "  "}).travelGrouping, {enabled: false});
+      assert.deepEqual(h.settingsPayload({...form, travelGroupingEnabled: 1, travelDeferDays: "0"}).travelGrouping, {enabled: true, maxDeferDays: 0});
+    });
+    it("sends an area preference the server accepts, and leaves bad numbers for it to reject", () => {
+      const h = load();
+      const {mergeSettings, applySettingsUpdate} = require("../settings");
+      const send = (extra) => applySettingsUpdate(mergeSettings(undefined), h.settingsPayload({...form, ...extra}));
+      assert.deepEqual(send({travelGroupingEnabled: false, travelRadiusKm: "12", travelDeferDays: "5"}).settings.travelGrouping, {enabled: false, radiusKm: 12, maxDeferDays: 5});
+      assert.deepEqual(send({travelRadiusKm: "", travelDeferDays: ""}).settings.travelGrouping, {enabled: true, radiusKm: 5, maxDeferDays: 3}, "empty numbers keep the saved values");
+      assert.match(send({travelGroupingEnabled: true, travelRadiusKm: "0"}).error, /travelGrouping\.radiusKm/);
+      assert.match(send({travelGroupingEnabled: true, travelDeferDays: "2.5"}).error, /travelGrouping\.maxDeferDays/);
+      assert.match(send({travelGroupingEnabled: true, travelDeferDays: "abc"}).error, /travelGrouping\.maxDeferDays/);
     });
     it("leaves the timer warning out when its field is empty, so the saved value stays", () => {
       const h = load();

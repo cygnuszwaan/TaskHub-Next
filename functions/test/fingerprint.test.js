@@ -166,4 +166,39 @@ describe("fingerprint.js: gap setting", () => {
     const lunch = {start: "2026-10-22T12:00:00+13:00", end: "2026-10-22T12:30:00+13:00"};
     assert.notEqual(fp({busySlots: [...busy, lunch]}), fp());
   });
+
+  describe("area preference", () => {
+    const withGrouping = (extra = {}) => ({...settings, travelGrouping: {enabled: true, radiusKm: 5, maxDeferDays: 3, ...extra}});
+    const locations = {a: {latitude: -36.63, longitude: 174.78}, b: {latitude: -36.85, longitude: 174.76}};
+    const anchor = {date: "2026-10-23", latitude: -36.63, longitude: 174.78};
+
+    it("changes with the setting", () => {
+      const base = fp({settings: withGrouping(), locations});
+      assert.notEqual(fp({settings: withGrouping({enabled: false}), locations}), base);
+      assert.notEqual(fp({settings: withGrouping({radiusKm: 6}), locations}), base);
+      assert.notEqual(fp({settings: withGrouping({maxDeferDays: 2}), locations}), base);
+    });
+    it("changes with a scheduled task's coordinates, and ignores those of other tasks", () => {
+      const base = fp({settings: withGrouping(), locations});
+      assert.notEqual(fp({settings: withGrouping(), locations: {...locations, a: {latitude: -36.7, longitude: 174.78}}}), base);
+      assert.notEqual(fp({settings: withGrouping(), locations: {b: locations.b}}), base);
+      assert.equal(fp({settings: withGrouping(), locations: {...locations, other: {latitude: 1, longitude: 2}}}), base);
+    });
+    it("changes with an anchor, whatever the order they come in", () => {
+      const other = {date: "2026-10-24", latitude: -36.85, longitude: 174.76};
+      const base = fp({settings: withGrouping(), locations, anchors: [anchor]});
+      assert.notEqual(base, fp({settings: withGrouping(), locations}));
+      assert.notEqual(base, fp({settings: withGrouping(), locations, anchors: [{...anchor, date: "2026-10-24"}]}));
+      assert.equal(fp({settings: withGrouping(), locations, anchors: [anchor, other]}), fp({settings: withGrouping(), locations, anchors: [other, anchor]}));
+    });
+    it("ignores coordinates and anchors while the preference is off", () => {
+      const off = withGrouping({enabled: false});
+      assert.equal(fp({settings: off, locations, anchors: [anchor]}), fp({settings: off}));
+    });
+    it("treats settings without the group as off", () => {
+      const {travelGrouping, ...without} = settings;
+      assert.equal(typeof travelGrouping, "object");
+      assert.equal(fp({settings: without, locations}), fp({settings: without}));
+    });
+  });
 });

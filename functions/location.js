@@ -45,4 +45,20 @@ function effectiveLocation(task, project, client) {
   return null;
 }
 
-module.exports = {MAX_LOCATION_NAME_LENGTH, normalizeLocation, effectiveLocation};
+// The coordinates the planner groups by: {taskId: {latitude, longitude}} for every task whose effective location (the task's own,
+// its project's or the project's client's) has coordinates. A task without one, or whose nearest location has a name only, is left out.
+// Pure: no I/O. `projects` and `clients` are the stored lists (either may be empty).
+function taskCoordinates({tasks, projects, clients}) {
+  const projectById = new Map((Array.isArray(projects) ? projects : []).map((p) => [p.id, p]));
+  const clientById = new Map((Array.isArray(clients) ? clients : []).map((c) => [c.id, c]));
+  const out = {};
+  for (const task of Array.isArray(tasks) ? tasks : []) {
+    const project = task.projectId ? projectById.get(task.projectId) : null;
+    const client = project && project.clientId ? clientById.get(project.clientId) : null;
+    const found = effectiveLocation(task, project, client);
+    if (found && typeof found.location.latitude === "number") out[task.id] = {latitude: found.location.latitude, longitude: found.location.longitude};
+  }
+  return out;
+}
+
+module.exports = {MAX_LOCATION_NAME_LENGTH, normalizeLocation, effectiveLocation, taskCoordinates};

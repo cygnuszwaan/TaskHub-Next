@@ -769,6 +769,25 @@ describe("planner.js: daily window", () => {
         const result = plan([neighbour(FRI), subject()], {locations: where(), grouping: GROUP, gapMinutes: 15});
         assert.deepEqual(times(result, "b"), ["2026-10-23T08:45:00+13:00", "2026-10-23T09:15:00+13:00"]);
       });
+      it("joins a day that holds an anchor: a slot outside the run that stays", () => {
+        const anchors = [{date: SAT, ...NEIGHBOUR}];
+        const result = plan([subject()], {locations: {b: HOME}, grouping: GROUP, anchors});
+        assert.deepEqual(times(result, "b"), ["2026-10-24T08:00:00+13:00", "2026-10-24T08:30:00+13:00"]);
+        assert.match(slotOf(result, "b").reasoning, /Grouped with a nearby task on 2026-10-24/);
+      });
+      it("ignores an anchor that is far away, unusable, or given without grouping", () => {
+        const base = plan([subject()], {locations: {b: HOME}, grouping: GROUP});
+        assert.deepEqual(times(base, "b"), THU_START);
+        for (const anchors of [[{date: SAT, ...FAR}], [{date: SAT, latitude: 99, longitude: 0}], [{latitude: -36.5859, longitude: 174.6945}], [null], "x", undefined]) {
+          assert.deepEqual(plan([subject()], {locations: {b: HOME}, grouping: GROUP, anchors}), base, JSON.stringify(anchors));
+        }
+        assert.deepEqual(plan([subject()], {locations: {b: HOME}, anchors: [{date: SAT, ...NEIGHBOUR}]}), plan([subject()]));
+      });
+      it("still applies the due date and maxDeferDays to an anchor's day", () => {
+        const anchors = [{date: SAT, ...NEIGHBOUR}];
+        assert.deepEqual(times(plan([subject({dueDate: FRI})], {locations: {b: HOME}, grouping: GROUP, anchors}), "b"), THU_START);
+        assert.deepEqual(times(plan([subject()], {locations: {b: HOME}, grouping: {radiusKm: 10, maxDeferDays: 1}, anchors}), "b"), THU_START);
+      });
       it("places the task as before when the neighbour's day has no gap for it", () => {
         const fridayFull = [win("2026-10-23T08:30:00+13:00", "2026-10-23T19:00:00+13:00")];
         const result = plan([neighbour(FRI), subject({estimatedMinutes: 60})], {locations: where(), grouping: GROUP, busy: fridayFull});

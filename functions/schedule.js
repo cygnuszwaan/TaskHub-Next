@@ -303,6 +303,29 @@ function buildFixedSlots({tasks, inScopeIds, lockedWindows, timeZone}) {
   return out;
 }
 
+// The slots a run leaves in place that the planner's area preference counts as holding their day. Pure: no I/O.
+//   tasks:         every active task
+//   replacedIds:   Set of the task ids whose slots this run replaces (so they hold nothing)
+//   lockedWindows: Map of task id -> {start, end} (ISO) for the tasks pinned to the personal calendar; used instead of the stored slot
+//   locations:     {taskId: {latitude, longitude}} (location.js `taskCoordinates`)
+//   timeZone:      the local date of a timed slot
+// Every other task with coordinates and a stored (or locked) slot is an anchor: {date, latitude, longitude}, `date` the local
+// date its slot starts on (an all-day slot's own date), sorted by date then task id.
+function buildAnchors({tasks, replacedIds, lockedWindows, locations, timeZone}) {
+  const out = [];
+  for (const task of tasks) {
+    const where = locations && Object.prototype.hasOwnProperty.call(locations, task.id) ? locations[task.id] : null;
+    if (!where || replacedIds.has(task.id)) continue;
+    const win = lockedWindows.get(task.id);
+    const start = win ? win.start : task.scheduledStart;
+    let date = null;
+    if (typeof start === "string" && DATE_ONLY.test(start)) date = isRealDate(start) ? start : null;
+    else if (typeof start === "string" && !Number.isNaN(Date.parse(start))) date = localDate(timeZone, new Date(start));
+    if (date) out.push({id: task.id, date, latitude: where.latitude, longitude: where.longitude});
+  }
+  return out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).map(({date, latitude, longitude}) => ({date, latitude, longitude}));
+}
+
 // Match app-tagged events found on the personal calendar to tasks, so those tasks count
 // as locked. Pure: no I/O. Each event matches at most one task and vice versa. Passes, in
 // order: the task's stored event id, then the event's private `taskId` tag, then the title
@@ -327,4 +350,4 @@ function matchLockedEvents(events, tasks) {
   return byTask;
 }
 
-module.exports = {DAY_START_MIN, DAY_END_MIN, tierOf, validateSchedule, repairSchedule, checkProjectOrder, buildFixedSlots, matchLockedEvents};
+module.exports = {DAY_START_MIN, DAY_END_MIN, tierOf, validateSchedule, repairSchedule, checkProjectOrder, buildFixedSlots, buildAnchors, matchLockedEvents};

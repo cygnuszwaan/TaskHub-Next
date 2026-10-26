@@ -127,10 +127,13 @@ function reasonFor(task, today, byNumber = false) {
 //             before and after itself for the tasks that follow. Busy windows are not padded here: the engine widens
 //             them by the gap before they arrive.
 //   locations: optional {taskId: {latitude, longitude}} (or a Map), the coordinates of the tasks that have them
+//   anchors:  optional [{date, latitude, longitude}] (used only with `grouping`): slots outside the run that stay (a pinned
+//             task's, or in a subset run another scheduled task's), each the local date YYYY-MM-DD it is on and where. Like
+//             the run's own tasks, they make their day a day that holds a task in that area.
 //   grouping: optional {radiusKm, maxDeferDays}, the area preference (off without it, and then `locations` is ignored): a
 //             task that is not overdue and not HIGH priority, has coordinates and goes in a timed slot, goes instead on the
 //             earliest day that has a gap for it, is within `maxDeferDays` days of its earliest feasible day, is on or before
-//             its due date, and already holds a task of this run within `radiusKm` of it. Without such a day it is placed as
+//             its due date, and already holds a task of this run, or an anchor, within `radiusKm` of it. Without such a day it is placed as
 //             before. Every other rule (weather, snooze, project order, the gap) applies to the day it picks as it does to any.
 // Tasks are taken most urgent first (see sortByUrgency), or in task number order when `scheduleOrder` is "NUMBER" (see sortByNumber), and each goes in the earliest gap that fits, so a short task can
 // fill a gap a longer, more urgent one did not fit. Within a project, a task starts only after every lower-numbered
@@ -138,10 +141,16 @@ function reasonFor(task, today, byNumber = false) {
 // slot is left out. A task with a snooze date (`snoozedUntil`) goes on that local date or later. A task longer than the working day becomes an all-day reminder on the earliest day allowed.
 // Returns {items, unplaced}: `items` in the shape of Gemini's scheduledTasks, `unplaced` [{taskId, reason}] for every
 // task that got no slot.
-function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = [], gapMinutes = 0, dayStartMin = DAY_START_MIN, dayEndMin = DAY_END_MIN, scheduleOrder = "URGENCY", locations = null, grouping = null}) {
+function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = [], gapMinutes = 0, dayStartMin = DAY_START_MIN, dayEndMin = DAY_END_MIN, scheduleOrder = "URGENCY", locations = null, grouping = null, anchors = []}) {
   const byNumber = scheduleOrder === "NUMBER";
   const area = normalizeGrouping(grouping);
-  const dayAreas = new Map(); // local date -> coordinates of the run's own tasks placed on it
+  const dayAreas = new Map(); // local date -> coordinates of the tasks placed on it (the run's own, and the anchors)
+  if (area) {
+    for (const a of Array.isArray(anchors) ? anchors : []) {
+      const c = a && typeof a.date === "string" ? coordsOf(a) : null;
+      if (c) dayAreas.set(a.date, [...(dayAreas.get(a.date) || []), c]);
+    }
+  }
   const dayMinutes = dayEndMin - dayStartMin;
   const gapMs = Number.isFinite(gapMinutes) && gapMinutes > 0 ? Math.round(gapMinutes) * 60000 : 0;
   const today = localDate(timeZone, now);

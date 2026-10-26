@@ -10,7 +10,8 @@ const {calendar: createCalendarClient} = require("@googleapis/calendar");
 const {JWT} = require("google-auth-library");
 const {localDate, startOfLocalDay, localDayStart, addDays} = require("./time");
 const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
-const {repairSchedule, buildFixedSlots, matchLockedEvents} = require("./schedule");
+const {repairSchedule, buildFixedSlots, buildAnchors, matchLockedEvents} = require("./schedule");
+const {taskCoordinates} = require("./location");
 const {planSchedule} = require("./planner");
 const {lunchWindows, padWindows} = require("./breaks");
 const {setTimerInList, pauseTimer} = require("./timer");
@@ -245,8 +246,9 @@ async function sendStartReminders(now = new Date()) {
 // Place the tasks with the deterministic planner and check the result against the slot rules (repairSchedule).
 // Returns {slots, items, dropped}. An empty result is a real one (nothing fits), so it is not an error; slots that fail
 // validation would be a planner bug, so those stop the run with the calendar untouched.
-function planValidSchedule(toSchedule, validation, scheduleOrder = "URGENCY") {
-  const plan = planSchedule({tasks: toSchedule, ...validation, scheduleOrder});
+// `area` is the planner's area preference, {locations, grouping, anchors} (planner.js), or nothing for none.
+function planValidSchedule(toSchedule, validation, scheduleOrder = "URGENCY", area = {}) {
+  const plan = planSchedule({tasks: toSchedule, ...validation, scheduleOrder, ...area});
   const repaired = repairSchedule({items: plan.items, tasks: toSchedule, ...validation});
   if (repaired.dropped.length > 0 || repaired.errors.length > 0) {
     console.error("Planner output failed validation:", JSON.stringify({dropped: repaired.dropped, errors: repaired.errors}));
@@ -338,20 +340,30 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
   let weatherRules = null;
   if (toSchedule.length > 0) {
     const weather = await getWeather(settings.location, timeZone);
+    // Area preference: the tasks' effective coordinates and the slots this run leaves in place (pinned tasks, and in a
+    // subset run every other scheduled task) that make their day a day with a task in that area. A failed read aborts the run.
+    const lockedByTask = new Map([...lockedEvents].map(([id, ev]) => [id, eventWindow(ev, timeZone)]));
+    const grouping = settings.travelGrouping.enabled ? {radiusKm: settings.travelGrouping.radiusKm, maxDeferDays: settings.travelGrouping.maxDeferDays} : null;
+    let locations = null;
+    let anchors = [];
+    if (grouping) {
+      const [projects, clients] = await Promise.all([readProjects(), readClients()]);
+      locations = taskCoordinates({tasks: currentTasks, projects, clients});
+      anchors = buildAnchors({tasks: currentTasks, replacedIds: new Set(replacing.map((t) => t.id)), lockedWindows: lockedByTask, locations, timeZone});
+    }
     if (!subset) {
-      fingerprint = computeFingerprint({tasks: toSchedule, busySlots, weatherKey: weather.key, settings, now, horizon});
+      fingerprint = computeFingerprint({tasks: toSchedule, busySlots, weatherKey: weather.key, settings, now, horizon, locations, anchors});
       if (shouldSkipRun({skipIfUnchanged, fingerprint, lastRunFingerprint: settings.lastRunFingerprint, endedSlot: hasEndedSlot(toSchedule, timeZone, now)})) {
         return {success: true, skipped: true, scheduledCount: 0, lockedCount: lockedEvents.size, heldCount, message: "Nothing changed since the last run; existing events were kept."};
       }
     }
     // Project members outside this run (locked, or already scheduled in a subset run) that the order rule respects
-    const lockedByTask = new Map([...lockedEvents].map(([id, ev]) => [id, eventWindow(ev, timeZone)]));
     const fixed = buildFixedSlots({tasks: currentTasks, inScopeIds: subset ? new Set(inScope.map((t) => t.id)) : null, lockedWindows: lockedByTask, timeZone});
-    console.log(`Scheduling ${toSchedule.length} tasks over ${settings.scheduleDays} days (${busySlots.length} busy windows, gap ${gap} min, day ${settings.day.start}-${settings.day.end}, lunch ${settings.lunch.enabled ? "on" : "off"}, to ${horizon.toISOString()})`);
+    console.log(`Scheduling ${toSchedule.length} tasks over ${settings.scheduleDays} days (${busySlots.length} busy windows, gap ${gap} min, day ${settings.day.start}-${settings.day.end}, lunch ${settings.lunch.enabled ? "on" : "off"}, area grouping ${grouping ? `${grouping.radiusKm} km / ${grouping.maxDeferDays} days, ${Object.keys(locations).length} located, ${anchors.length} anchors` : "off"}, to ${horizon.toISOString()})`);
     // Outdoor and Garden tasks stay inside the forecast window and off rainy days (enforced by the slot validation)
     weatherRules = weatherWindow({today: localDate(timeZone, now), forecast: weather.forecast, current: weather.key});
     const validation = {busy: busySlots, now, horizon, timeZone, weather: weatherRules, allTasks: currentTasks, fixed, gapMinutes: gap, dayStartMin, dayEndMin};
-    const result = planValidSchedule(toSchedule, validation, settings.scheduleOrder);
+    const result = planValidSchedule(toSchedule, validation, settings.scheduleOrder, grouping ? {locations, grouping, anchors} : {});
     scheduledList = result.items;
     slots = result.slots;
     unscheduled = result.dropped;
@@ -1246,7 +1258,7 @@ exports.getSettings = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, r
 }));
 
 // 9. Endpoint: Update Settings
-// Body: {settings: {location?, timeZone?, scheduleDays?, gapMinutes?, timerWarnHours?, scheduleOrder?, day?, lunch?, schedule?, jobSheet?}}, any subset of the editable fields. 400 with the reason
+// Body: {settings: {location?, timeZone?, scheduleDays?, gapMinutes?, timerWarnHours?, scheduleOrder?, day?, lunch?, travelGrouping?, schedule?, jobSheet?}}, any subset of the editable fields. 400 with the reason
 // when a field is invalid (nothing is saved); run state cannot be set.
 exports.updateSettings = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {

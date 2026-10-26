@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {REMINDER_LEADS, MAX_CONTRACTOR_INFO, DEFAULTS, INTERVALS, mergeSettings, applySettingsUpdate, isRunDue, claimRun} = require("../settings");
+const {REMINDER_LEADS, MAX_CONTRACTOR_INFO, DEFAULTS, INTERVALS, MIN_GROUPING_RADIUS_KM, MAX_GROUPING_RADIUS_KM, MIN_DEFER_DAYS, MAX_DEFER_DAYS, mergeSettings, applySettingsUpdate, isRunDue, claimRun} = require("../settings");
 
 const base = (extra = {}) => ({...mergeSettings(undefined), ...extra});
 const sched = (schedule, extra = {}) => base({schedule: {...DEFAULTS.schedule, ...schedule}, ...extra});
@@ -514,5 +514,44 @@ describe("settings.js job sheet hourly rate", () => {
     const s = applySettingsUpdate(base(), {jobSheet: {contractorInfo: "A Builder", hourlyRate: 85}}).settings;
     assert.equal(applySettingsUpdate(s, {jobSheet: {contractorInfo: "B"}}).settings.jobSheet.hourlyRate, 85);
     assert.equal(applySettingsUpdate(s, {jobSheet: {hourlyRate: 90}}).settings.jobSheet.contractorInfo, "A Builder");
+  });
+});
+
+describe("settings.js: travel grouping", () => {
+  it("defaults to enabled, 5 km and 3 days", () => {
+    assert.deepEqual(mergeSettings(undefined).travelGrouping, {enabled: true, radiusKm: 5, maxDeferDays: 3});
+    assert.deepEqual(DEFAULTS.travelGrouping, {enabled: true, radiusKm: 5, maxDeferDays: 3});
+  });
+  it("keeps stored values and falls back per field for unusable ones", () => {
+    assert.deepEqual(mergeSettings({travelGrouping: {enabled: false, radiusKm: 12.5, maxDeferDays: 0}}).travelGrouping, {enabled: false, radiusKm: 12.5, maxDeferDays: 0});
+    assert.deepEqual(mergeSettings({travelGrouping: {enabled: "yes", radiusKm: 500, maxDeferDays: 2.5}}).travelGrouping, DEFAULTS.travelGrouping);
+    assert.deepEqual(mergeSettings({travelGrouping: {radiusKm: 8}}).travelGrouping, {enabled: true, radiusKm: 8, maxDeferDays: 3});
+    assert.deepEqual(mergeSettings({travelGrouping: "on"}).travelGrouping, DEFAULTS.travelGrouping);
+  });
+  it("does not let a returned object change the defaults", () => {
+    const s = mergeSettings(undefined);
+    s.travelGrouping.enabled = false;
+    assert.equal(DEFAULTS.travelGrouping.enabled, true);
+  });
+  it("updates one field without touching the others, accepting the limits", () => {
+    const current = mergeSettings({travelGrouping: {enabled: true, radiusKm: 7, maxDeferDays: 2}});
+    assert.deepEqual(applySettingsUpdate(current, {travelGrouping: {enabled: false}}).settings.travelGrouping, {enabled: false, radiusKm: 7, maxDeferDays: 2});
+    assert.deepEqual(applySettingsUpdate(current, {travelGrouping: {radiusKm: 20}}).settings.travelGrouping, {enabled: true, radiusKm: 20, maxDeferDays: 2});
+    for (const radiusKm of [MIN_GROUPING_RADIUS_KM, MAX_GROUPING_RADIUS_KM, 2.5]) assert.equal(applySettingsUpdate(current, {travelGrouping: {radiusKm}}).settings.travelGrouping.radiusKm, radiusKm);
+    for (const maxDeferDays of [MIN_DEFER_DAYS, MAX_DEFER_DAYS]) assert.equal(applySettingsUpdate(current, {travelGrouping: {maxDeferDays}}).settings.travelGrouping.maxDeferDays, maxDeferDays);
+  });
+  it("rejects bad values and saves nothing", () => {
+    const current = mergeSettings(undefined);
+    for (const [patch, pattern] of [
+      [{travelGrouping: {enabled: "yes"}}, /travelGrouping\.enabled/], [{travelGrouping: {enabled: 1}}, /travelGrouping\.enabled/],
+      [{travelGrouping: {radiusKm: 0.4}}, /travelGrouping\.radiusKm/], [{travelGrouping: {radiusKm: 101}}, /travelGrouping\.radiusKm/], [{travelGrouping: {radiusKm: "5"}}, /travelGrouping\.radiusKm/], [{travelGrouping: {radiusKm: NaN}}, /travelGrouping\.radiusKm/],
+      [{travelGrouping: {maxDeferDays: -1}}, /travelGrouping\.maxDeferDays/], [{travelGrouping: {maxDeferDays: 15}}, /travelGrouping\.maxDeferDays/], [{travelGrouping: {maxDeferDays: 1.5}}, /travelGrouping\.maxDeferDays/],
+      [{travelGrouping: "on"}, /travelGrouping must be an object/],
+    ]) {
+      const r = applySettingsUpdate(current, patch);
+      assert.match(r.error, pattern, JSON.stringify(patch));
+      assert.equal(r.settings, undefined);
+    }
+    assert.match(applySettingsUpdate(current, {gapMinutes: 10, travelGrouping: {radiusKm: 0}}).error, /travelGrouping\.radiusKm/);
   });
 });

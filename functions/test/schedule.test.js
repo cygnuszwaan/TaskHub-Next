@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {validateSchedule, repairSchedule, checkProjectOrder, buildFixedSlots, matchLockedEvents, DAY_START_MIN, DAY_END_MIN} = require("../schedule");
+const {validateSchedule, repairSchedule, checkProjectOrder, buildFixedSlots, buildAnchors, matchLockedEvents, DAY_START_MIN, DAY_END_MIN} = require("../schedule");
 
 // "now" is 07:00 NZDT on Thursday 22 Oct 2026; the horizon is seven days later.
 // These tests were written for a 8:00-19:00 day; the library default is 9:00-17:00, so they ask for the wide one
@@ -517,5 +517,40 @@ describe("schedule.js: gap between tasks", () => {
   it("keeps saying overlaps for slots that actually overlap", () => {
     const r = repair([a, slot("b", "2026-10-22T09:20:00+13:00", "2026-10-22T10:00:00+13:00")], 10);
     assert.deepEqual(r.dropped, [{taskId: "b", reason: "overlaps another scheduled task"}]);
+  });
+});
+
+describe("buildAnchors", () => {
+  const ZONE = "Pacific/Auckland";
+  const P = {latitude: -36.63, longitude: 174.78};
+  const Q = {latitude: -36.85, longitude: 174.76};
+  const at = (id, scheduledStart, extra = {}) => ({id, scheduledStart, scheduledEnd: scheduledStart, ...extra});
+  const run = (over) => buildAnchors({tasks: [], replacedIds: new Set(), lockedWindows: new Map(), locations: {}, timeZone: ZONE, ...over});
+
+  it("takes the tasks the run leaves in place that have coordinates and a slot, as local dates", () => {
+    const tasks = [at("a", "2026-10-23T09:00:00+13:00"), at("b", "2026-10-24"), at("c", "2026-10-22T23:30:00+13:00"), at("d", "2026-10-25T09:00:00+13:00")];
+    const out = run({tasks, locations: {a: P, b: Q, c: P}, replacedIds: new Set(["d"])});
+    assert.deepEqual(out, [{date: "2026-10-22", ...P}, {date: "2026-10-23", ...P}, {date: "2026-10-24", ...Q}]);
+  });
+  it("uses the local date even when the instant falls on another UTC day", () => {
+    assert.deepEqual(run({tasks: [at("a", "2026-10-23T08:00:00+13:00")], locations: {a: P}}), [{date: "2026-10-23", ...P}]);
+  });
+  it("leaves out replaced tasks, tasks without coordinates and tasks without a usable slot", () => {
+    const tasks = [at("rep", "2026-10-23T09:00:00+13:00"), at("noLoc", "2026-10-23T09:00:00+13:00"), {id: "unscheduled"}, at("bad", "soon"), at("badDate", "2026-02-31")];
+    assert.deepEqual(run({tasks, locations: {rep: P, unscheduled: P, bad: P, badDate: P}, replacedIds: new Set(["rep"])}), []);
+  });
+  it("uses a pinned task's event window instead of its stored slot", () => {
+    const tasks = [at("l", "2026-10-23T09:00:00+13:00")];
+    const lockedWindows = new Map([["l", {start: "2026-10-26T09:00:00+13:00", end: "2026-10-26T10:00:00+13:00"}]]);
+    assert.deepEqual(run({tasks, lockedWindows, locations: {l: P}}), [{date: "2026-10-26", ...P}]);
+  });
+  it("is sorted by date and then task id, and carries only the date and the coordinates", () => {
+    const tasks = [at("z", "2026-10-23T09:00:00+13:00"), at("a", "2026-10-23T10:00:00+13:00"), at("m", "2026-10-22T10:00:00+13:00")];
+    const out = run({tasks, locations: {z: Q, a: P, m: P}});
+    assert.deepEqual(out, [{date: "2026-10-22", ...P}, {date: "2026-10-23", ...P}, {date: "2026-10-23", ...Q}]);
+    assert.deepEqual(Object.keys(out[0]), ["date", "latitude", "longitude"]);
+  });
+  it("gives nothing without locations", () => {
+    assert.deepEqual(run({tasks: [at("a", "2026-10-23T09:00:00+13:00")], locations: null}), []);
   });
 });

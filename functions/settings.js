@@ -22,6 +22,11 @@ const MIN_GAP_MINUTES = 0;
 const MAX_GAP_MINUTES = 60;
 const MIN_TIMER_WARN_HOURS = 1;
 const MAX_TIMER_WARN_HOURS = 48;
+// The planner's area preference: how close (km) two tasks must be to count as the same area, and how many days a task may wait to join one.
+const MIN_GROUPING_RADIUS_KM = 0.5;
+const MAX_GROUPING_RADIUS_KM = 100;
+const MIN_DEFER_DAYS = 0;
+const MAX_DEFER_DAYS = 14;
 const MIN_LUNCH_MINUTES = 5;
 const MAX_LUNCH_MINUTES = 180;
 
@@ -44,6 +49,7 @@ const DEFAULTS = Object.freeze({
   scheduleOrder: "URGENCY",
   day: Object.freeze({start: "09:00", end: "17:00"}),
   lunch: Object.freeze({enabled: false, time: "12:00", minutes: 30}),
+  travelGrouping: Object.freeze({enabled: true, radiusKm: 5, maxDeferDays: 3}),
   schedule: Object.freeze({enabled: true, frequency: "DAILY", time: "20:00", intervalMinutes: 60}),
   jobSheet: Object.freeze({contractorInfo: "", hourlyRate: null, travelRate: 1.2}),
   notify: Object.freeze({runFailed: true, weatherMoved: true, taskStarting: true, leadMinutes: 30}),
@@ -112,6 +118,22 @@ const SCHEDULE_ORDERS = ["URGENCY", "NUMBER"];
 
 function checkScheduleOrder(v) {
   if (!SCHEDULE_ORDERS.includes(v)) throw new Error(`scheduleOrder must be one of ${SCHEDULE_ORDERS.join(", ")}`);
+  return v;
+}
+
+function checkGroupingEnabled(v) {
+  if (typeof v !== "boolean") throw new Error("travelGrouping.enabled must be true or false");
+  return v;
+}
+
+function checkGroupingRadius(v) {
+  return checkNumber(v, "travelGrouping.radiusKm", MIN_GROUPING_RADIUS_KM, MAX_GROUPING_RADIUS_KM);
+}
+
+function checkGroupingDefer(v) {
+  if (!Number.isInteger(v) || v < MIN_DEFER_DAYS || v > MAX_DEFER_DAYS) {
+    throw new Error(`travelGrouping.maxDeferDays must be a whole number from ${MIN_DEFER_DAYS} to ${MAX_DEFER_DAYS}`);
+  }
   return v;
 }
 
@@ -224,6 +246,9 @@ const EDITABLE = [
   ["lunch", "enabled", checkLunchEnabled],
   ["lunch", "time", checkLunchTime],
   ["lunch", "minutes", checkLunchMinutes],
+  ["travelGrouping", "enabled", checkGroupingEnabled],
+  ["travelGrouping", "radiusKm", checkGroupingRadius],
+  ["travelGrouping", "maxDeferDays", checkGroupingDefer],
   ["schedule", "enabled", checkEnabled],
   ["schedule", "frequency", checkFrequency],
   ["schedule", "time", checkTime],
@@ -254,7 +279,7 @@ function isoOrNull(v) {
 // Full settings from whatever is stored (possibly nothing). A missing or unusable stored field falls back to
 // its default, so a hand-edited document can never break the app. Pure: returns a new object.
 function mergeSettings(stored) {
-  const out = {location: {...DEFAULTS.location}, timeZone: DEFAULTS.timeZone, scheduleDays: DEFAULTS.scheduleDays, gapMinutes: DEFAULTS.gapMinutes, timerWarnHours: DEFAULTS.timerWarnHours, scheduleOrder: DEFAULTS.scheduleOrder, day: {...DEFAULTS.day}, lunch: {...DEFAULTS.lunch}, schedule: {...DEFAULTS.schedule}, jobSheet: {...DEFAULTS.jobSheet}, notify: {...DEFAULTS.notify}};
+  const out = {location: {...DEFAULTS.location}, timeZone: DEFAULTS.timeZone, scheduleDays: DEFAULTS.scheduleDays, gapMinutes: DEFAULTS.gapMinutes, timerWarnHours: DEFAULTS.timerWarnHours, scheduleOrder: DEFAULTS.scheduleOrder, day: {...DEFAULTS.day}, lunch: {...DEFAULTS.lunch}, travelGrouping: {...DEFAULTS.travelGrouping}, schedule: {...DEFAULTS.schedule}, jobSheet: {...DEFAULTS.jobSheet}, notify: {...DEFAULTS.notify}};
   for (const [group, key, check] of EDITABLE) {
     const value = readField(stored, group, key);
     if (value === undefined) continue;
@@ -282,7 +307,7 @@ function mergeSettings(stored) {
 // tokens (never editable here, see push.js) are carried over.
 function applySettingsUpdate(current, patch) {
   if (!isPlainObject(patch)) return {error: "Settings update must be an object"};
-  for (const group of ["location", "day", "lunch", "schedule", "jobSheet", "notify"]) {
+  for (const group of ["location", "day", "lunch", "travelGrouping", "schedule", "jobSheet", "notify"]) {
     if (patch[group] !== undefined && !isPlainObject(patch[group])) return {error: `${group} must be an object`};
   }
   const next = mergeSettings(current);
@@ -338,4 +363,4 @@ function claimRun(settings, now = new Date()) {
   return {due: true, settings: {...settings, lastAutoRunAt: now.toISOString()}};
 }
 
-module.exports = {REMINDER_LEADS, MAX_CONTRACTOR_INFO, MIN_DAY_MINUTES, dayWindowMinutes, MIN_SCHEDULE_DAYS, MAX_SCHEDULE_DAYS, MIN_GAP_MINUTES, MAX_GAP_MINUTES, MIN_LUNCH_MINUTES, MAX_LUNCH_MINUTES, INTERVALS, FREQUENCIES, TICK_GRACE_MS, DEFAULTS, mergeSettings, applySettingsUpdate, isRunDue, claimRun};
+module.exports = {REMINDER_LEADS, MAX_CONTRACTOR_INFO, MIN_DAY_MINUTES, dayWindowMinutes, MIN_SCHEDULE_DAYS, MAX_SCHEDULE_DAYS, MIN_GAP_MINUTES, MAX_GAP_MINUTES, MIN_LUNCH_MINUTES, MAX_LUNCH_MINUTES, MIN_GROUPING_RADIUS_KM, MAX_GROUPING_RADIUS_KM, MIN_DEFER_DAYS, MAX_DEFER_DAYS, INTERVALS, FREQUENCIES, TICK_GRACE_MS, DEFAULTS, mergeSettings, applySettingsUpdate, isRunDue, claimRun};
