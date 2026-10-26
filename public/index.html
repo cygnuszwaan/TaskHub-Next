@@ -93,6 +93,13 @@
     .swipe-row.lifted { z-index: 4; transition: none; background: var(--surface); box-shadow: 0 8px 20px rgba(0,0,0,0.28), 0 0 0 2px var(--primary); cursor: grabbing; }
     .batch-status { font-size: 13px; margin-top: 8px; color: var(--text-strong); }
     .batch-status:empty { display: none; }
+    .add-queue { margin-bottom: 12px; }
+    .add-queue[hidden] { display: none; }
+    .add-queue-card { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; padding: 8px 10px; border: 1px solid var(--border-chip); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 14px; }
+    .add-queue-card.failed { border-color: var(--danger); }
+    .add-queue-label { font-weight: 600; overflow-wrap: anywhere; }
+    .add-queue-status { margin-top: 2px; font-size: 13px; color: var(--text-faint); overflow-wrap: anywhere; }
+    .add-queue-card.failed .add-queue-status { color: var(--error); }
     .select-mark { flex: none; font-size: 20px; line-height: 1.1; margin-right: 10px; color: var(--primary); }
     .swipe-row .task-item.selected, .swipe-row .task-item.selected:hover { background: var(--flash); box-shadow: inset 0 0 0 2px var(--primary); }
     .batch-bar { position: sticky; bottom: 0; z-index: 5; margin-top: 12px; padding: 10px 0 4px; background: var(--surface); border-top: 1px solid var(--header-border); }
@@ -426,6 +433,7 @@
   </div>
 
   <div class="card" id="queueCard">
+      <div class="add-queue" id="addQueueBox" aria-live="polite" hidden></div>
       <div class="active-task-box" id="activeTaskBox" hidden>
         <div class="summary-label">Active task</div>
         <div id="activeTask"></div>
@@ -3145,6 +3153,25 @@
       }
       return { queue: items.filter(Boolean), sent, stopped };
     }
+
+    // What a queue card shows for an item: {label, failed, text}. A PENDING item says it is waiting to send; a FAILED one
+    // shows its error. Anything that is not a FAILED item counts as PENDING, and a missing label reads "Added task".
+    function queueCardView(item) {
+      const failed = !!item && typeof item === "object" && item.status === "FAILED";
+      const label = item && typeof item.label === "string" && item.label.trim() ? item.label.trim() : "Added task";
+      const error = failed && typeof item.error === "string" && item.error.trim() ? item.error.trim() : "Not sent";
+      return { label, failed, text: failed ? error : "Waiting to send" };
+    }
+
+    // The confirmation text for discarding a queued add.
+    function queueDiscardPrompt(item) {
+      return `Discard${quotedTitle(queueCardView(item).label)}? It has not been sent, so it will not be added.`;
+    }
+
+    // The queue with the item that has this request id taken out (the rest in order). The input is not changed.
+    function queueWithout(queue, requestId) {
+      return (Array.isArray(queue) ? queue : []).filter(item => item && item.requestId !== requestId);
+    }
     // </pure-helpers>
 
     // The page's own dialogs, in place of the browser's confirm(), prompt() and alert(). `askConfirm(text, { tone,
@@ -3555,6 +3582,12 @@
       });
 
       updateRecurUnit("manual"); // hides the interval controls until a frequency is chosen
+      loadAddQueue();
+      renderAddQueue();
+      document.getElementById("addQueueBox").addEventListener("click", e => {
+        const btn = e.target.closest("[data-queue-discard]");
+        if (btn) discardQueuedAdd(btn.dataset.queueDiscard);
+      });
       initAuth();
       // The service worker caches only the app shell (see sw.js); the page works without it.
       if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -6513,6 +6546,55 @@
       document.getElementById("batchNewProjectBox").hidden = e.target.value !== NEW_PROJECT;
     });
     document.getElementById("batchProjectSetBtn").addEventListener("click", batchSetProject);
+
+    // The offline add queue on the page (the model is in the pure helpers above). `addQueue` mirrors localStorage; every access to
+    // storage is in try/catch, and when storage cannot be used `addQueueUsable` is false (nothing can be queued then).
+    let addQueue = [];
+    let addQueueUsable = true;
+    function loadAddQueue() {
+      try {
+        addQueue = parseQueue(localStorage.getItem(ADD_QUEUE_KEY));
+        addQueueUsable = true;
+      } catch (e) {
+        addQueue = [];
+        addQueueUsable = false;
+      }
+    }
+    // Keeps `queue` as the queue and writes it to storage; false (and the queue unusable) when the write fails.
+    function saveAddQueue(queue) {
+      addQueue = cleanQueue(queue);
+      try {
+        if (addQueue.length) localStorage.setItem(ADD_QUEUE_KEY, serializeQueue(addQueue));
+        else localStorage.removeItem(ADD_QUEUE_KEY);
+        addQueueUsable = true;
+        return true;
+      } catch (e) {
+        addQueueUsable = false;
+        return false;
+      }
+    }
+    // Draws the queue's items as cards at the top of the Queue; the box is hidden while the queue is empty.
+    function renderAddQueue() {
+      const box = document.getElementById("addQueueBox");
+      if (!box) return;
+      box.hidden = addQueue.length === 0;
+      box.innerHTML = addQueue.map(item => {
+        const view = queueCardView(item);
+        return `<div class="add-queue-card${view.failed ? " failed" : ""}" data-request-id="${esc(item.requestId)}">` +
+          `<div><div class="add-queue-label">${esc(view.label)}</div><div class="add-queue-status">${esc(view.text)}</div></div>` +
+          `<button type="button" class="btn-secondary" data-queue-discard="${esc(item.requestId)}">Discard</button></div>`;
+      }).join("");
+    }
+    // Discard on a card: after a confirmation the item leaves the queue. The queue is read again after the question, so an item
+    // another tab sent or discarded meanwhile is not brought back.
+    async function discardQueuedAdd(requestId) {
+      const item = addQueue.find(i => i.requestId === requestId);
+      if (!item) return;
+      if (!await askConfirm(queueDiscardPrompt(item), { tone: "danger", confirmLabel: "Discard" })) return;
+      loadAddQueue();
+      saveAddQueue(queueWithout(addQueue, requestId));
+      renderAddQueue();
+    }
 
     function setLoading(isLoading) {
       document.getElementById("addBtn").disabled = isLoading;
