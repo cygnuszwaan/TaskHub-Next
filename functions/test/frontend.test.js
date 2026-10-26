@@ -2404,6 +2404,20 @@ describe("public/index.html helpers", () => {
       assert.equal(clientSummary({name: "Jo", hourlyRate: 0}), "$0.00/h");
       for (const hourlyRate of [undefined, null, -1, "95", NaN]) assert.equal(clientSummary({name: "Jo", hourlyRate}), "");
     });
+    it("sends the form's location only with a name, its coordinates only when both are numbers", () => {
+      const {clientFormBody} = load();
+      assert.deepEqual(clientFormBody({name: "Jo", location: {name: "  1 Beach Rd ", latitude: -36.6, longitude: 174.7}}).location, {name: "1 Beach Rd", latitude: -36.6, longitude: 174.7});
+      assert.deepEqual(clientFormBody({name: "Jo", location: {name: "Smith's yard"}}).location, {name: "Smith's yard"});
+      assert.deepEqual(clientFormBody({name: "Jo", location: {name: "A", latitude: -36.6}}).location, {name: "A"});
+      assert.deepEqual(clientFormBody({name: "Jo", location: {name: "A", latitude: "x", longitude: 174.7}}).location, {name: "A"});
+      for (const location of [undefined, null, {}, {name: "  "}, {name: "", latitude: -36.6, longitude: 174.7}, "Beach Rd"]) assert.equal(clientFormBody({name: "Jo", location}).location, null, JSON.stringify(location));
+    });
+    it("shows a client's location in the summary, after the address", () => {
+      const {clientSummary} = load();
+      assert.equal(clientSummary({name: "Jo", address: "1 Beach Rd", location: {name: "Orewa", latitude: -36.6, longitude: 174.7}, phone: "021"}), "1 Beach Rd · 📍 Orewa · 021");
+      assert.equal(clientSummary({name: "Jo", location: {name: "Orewa"}}), "📍 Orewa");
+      assert.equal(clientSummary({name: "Jo", location: null}), "");
+    });
     it("marks a WhatsApp client in the summary", () => {
       const {clientSummary} = load();
       assert.equal(clientSummary({name: "Jo", phone: "021", useWhatsApp: true, email: "jo@x.nz"}), "021 · WhatsApp · jo@x.nz");
@@ -2411,9 +2425,9 @@ describe("public/index.html helpers", () => {
     });
     it("builds the form body, trimming the name only", () => {
       const {clientFormBody} = load();
-      assert.deepEqual(clientFormBody({name: "  Jo ", address: "1 Rd\n", phone: " 1", email: "a@b.nz", hourlyRate: " 95.50 "}), {name: "Jo", address: "1 Rd\n", phone: " 1", email: "a@b.nz", hourlyRate: "95.50", useWhatsApp: false});
-      assert.deepEqual(clientFormBody({name: "Jo", hourlyRate: null}), {name: "Jo", address: "", phone: "", email: "", hourlyRate: "", useWhatsApp: false});
-      assert.deepEqual(clientFormBody(undefined), {name: "", address: "", phone: "", email: "", hourlyRate: "", useWhatsApp: false});
+      assert.deepEqual(clientFormBody({name: "  Jo ", address: "1 Rd\n", phone: " 1", email: "a@b.nz", hourlyRate: " 95.50 "}), {name: "Jo", address: "1 Rd\n", phone: " 1", email: "a@b.nz", hourlyRate: "95.50", useWhatsApp: false, location: null});
+      assert.deepEqual(clientFormBody({name: "Jo", hourlyRate: null}), {name: "Jo", address: "", phone: "", email: "", hourlyRate: "", useWhatsApp: false, location: null});
+      assert.deepEqual(clientFormBody(undefined), {name: "", address: "", phone: "", email: "", hourlyRate: "", useWhatsApp: false, location: null});
       assert.equal(clientFormBody({name: "Jo", useWhatsApp: true}).useWhatsApp, true);
       assert.equal(clientFormBody({name: "Jo", useWhatsApp: "yes"}).useWhatsApp, false);
     });
@@ -2910,6 +2924,22 @@ describe("public/index.html helpers", () => {
       assert.match(fn, /await askAlert\("Enter a name for the new project, or choose another project\.", \{ tone: "warning" \}\);\s*document\.getElementById\("manualNewProject"\)\.focus\(\);/);
       const edit = html.slice(html.indexOf("async function saveTaskEdits"), html.indexOf("async function snoozeFromModal"));
       assert.match(edit, /await askAlert\("Enter a name for the new project\.", \{ tone: "warning" \}\);\s*document\.getElementById\("editNewProject"\)\.focus\(\);\s*return false;/);
+    });
+    it("runs the Settings location and the Clients form through one place search", () => {
+      assert.equal((html.match(/function makePlaceSearch\(/g) || []).length, 1);
+      assert.equal((html.match(/fetch\(geocodeUrl\(/g) || []).length, 1, "one geocoding call in the page");
+      assert.match(html, /makePlaceSearch\(\{ queryId: "placeQuery", buttonId: "placeSearchBtn", resultsId: "placeResults", showZone: true/);
+      assert.match(html, /makePlaceSearch\(\{ queryId: "clientPlaceQuery", buttonId: "clientPlaceSearchBtn", resultsId: "clientPlaceResults", showZone: false/);
+      assert.doesNotMatch(html, /searchPlaces/);
+      const shared = html.slice(html.indexOf("function makePlaceSearch("), html.indexOf("// Save a Blob as a file download."));
+      assert.match(shared, /await fetch\(geocodeUrl\(query\)\)/, "a plain fetch, never apiFetch: no Firebase token goes to the geocoder");
+      assert.doesNotMatch(shared, /apiFetch/);
+    });
+    it("fills a client's location text from a found place only when it is empty, and always takes its coordinates", () => {
+      const at = html.indexOf("makePlaceSearch({ queryId: \"clientPlaceQuery\"");
+      const pick = html.slice(at, html.indexOf("addEventListener(\"click\"", at + 100));
+      assert.match(pick, /clientCoords = \{ latitude: place\.latitude, longitude: place\.longitude \};/);
+      assert.match(pick, /if \(!box\.value\.trim\(\)\) box\.value = place\.name;/);
     });
     it("lets the edit modal create a project: a last choice, a name field, and the name sent as newProject", () => {
       assert.match(html, /<input type="text" id="editNewProject"[^>]*hidden>/);

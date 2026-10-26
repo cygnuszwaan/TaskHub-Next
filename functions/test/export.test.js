@@ -24,6 +24,8 @@ describe("export.js buildExport", () => {
   it("includes the clients, an empty list when none are given", () => {
     const clients = [{id: "c1", name: "Smith"}];
     assert.deepEqual(buildExport({tasks, projects, clients, settings, completed: [], now}).clients, clients);
+    const placed = [{id: "c1", name: "Smith", location: {name: "1 Beach Rd", latitude: -36.6, longitude: 174.7}}];
+    assert.deepEqual(buildExport({tasks, projects, clients: placed, settings, completed: [], now}).clients, placed, "a client's location is exported");
     for (const c of [undefined, null, "x"]) assert.deepEqual(buildExport({tasks, projects, clients: c, settings, completed: [], now}).clients, []);
   });
   it("includes the project templates, an empty list when none are given", () => {

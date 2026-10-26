@@ -4,6 +4,7 @@
 // Pure: no I/O.
 
 const {normalizeMoney, MAX_HOURLY_RATE} = require("./money");
+const {normalizeLocation, MAX_LOCATION_NAME_LENGTH} = require("./location");
 
 const MAX_NAME_LENGTH = 100;
 const MAX_ADDRESS_LENGTH = 300;
@@ -27,8 +28,10 @@ function oneLine(value, label, max) {
 // characters). A missing or null optional field is empty. `hourlyRate` (dollars, 0.01..10000, a number or plain decimal text) overrides
 // the global hourly rate on this client's job sheets; 0 is a real rate ($0.00, for unpaid work); null, empty text or a missing value means
 // none (the global rate applies), and then the key is absent from the client. `useWhatsApp` (a boolean) says the client's Call and Text
-// buttons open WhatsApp instead of the phone; false, null or a missing value means no and the key is absent. Returns
-// {client: {name, address, phone, email, hourlyRate?, useWhatsApp?}} or {error}.
+// buttons open WhatsApp instead of the phone; false, null or a missing value means no and the key is absent.
+// `location` (see location.js: `{name, latitude?, longitude?}`; null, blank text or an empty object means none) is where the client is, the
+// name shown and used for navigation, the coordinates the scheduler's only input; the key is absent for none. Returns
+// {client: {name, address, phone, email, hourlyRate?, useWhatsApp?, location?}} or {error}.
 function normalizeClientFields(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {error: "client must be an object"};
   const name = oneLine(value.name, "name", MAX_NAME_LENGTH);
@@ -54,6 +57,11 @@ function normalizeClientFields(value) {
   if (value.useWhatsApp !== undefined && value.useWhatsApp !== null) {
     if (typeof value.useWhatsApp !== "boolean") return {error: "useWhatsApp must be true or false"};
     if (value.useWhatsApp) client.useWhatsApp = true;
+  }
+  if (value.location !== undefined) {
+    const location = normalizeLocation(value.location);
+    if (location === undefined) return {error: `location must be a name of at most ${MAX_LOCATION_NAME_LENGTH} characters, with latitude and longitude either both given (in range) or both left out`};
+    if (location !== null) client.location = location;
   }
   return {client};
 }

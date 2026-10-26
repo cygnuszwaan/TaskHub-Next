@@ -643,6 +643,17 @@
       <textarea id="clientAddress" rows="3" maxlength="300"></textarea>
     </div>
     <div class="form-group" style="margin:10px 0 0;">
+      <label for="clientLocation">Location</label>
+      <input type="text" id="clientLocation" maxlength="200" placeholder="Address or place, used for navigation">
+      <div class="input-row" style="margin-top: 6px;">
+        <input type="text" id="clientPlaceQuery" placeholder="Find a place, e.g. Orewa">
+        <button type="button" id="clientPlaceSearchBtn" class="btn-secondary">Find place</button>
+      </div>
+      <div id="clientPlaceResults" class="place-results"></div>
+      <p class="settings-note" id="clientCoordsNote"></p>
+      <button type="button" id="clientClearCoordsBtn" class="btn-secondary" style="margin-top: 6px;" hidden>Clear coordinates</button>
+    </div>
+    <div class="form-group" style="margin:10px 0 0;">
       <label for="clientPhone">Phone</label>
       <input type="tel" id="clientPhone" maxlength="40">
     </div>
@@ -1740,13 +1751,14 @@
         return words.every(w => text.includes(w));
       });
     }
-    // One line under a client's name in the Clients list: address (lines joined), phone, "WhatsApp" when it uses it, email and own hourly rate that exist.
+    // One line under a client's name in the Clients list: address (lines joined), location (with a 📍), phone, "WhatsApp" when it uses it, email and own hourly rate that exist.
     function clientSummary(client) {
       const text = (v) => (typeof v === "string" ? v.trim() : "");
       const address = text(client && client.address).split(/\n+/).map(l => l.trim()).filter(Boolean).join(", ");
       const rate = client && typeof client.hourlyRate === "number" && Number.isFinite(client.hourlyRate) && client.hourlyRate >= 0 ? "$" + client.hourlyRate.toFixed(2) + "/h" : "";
       const whatsApp = client && client.useWhatsApp === true ? "WhatsApp" : "";
-      return [address, text(client && client.phone), whatsApp, text(client && client.email), rate].filter(Boolean).join(" · ");
+      const place = text(client && client.location && client.location.name);
+      return [address, place ? `📍 ${place}` : "", text(client && client.phone), whatsApp, text(client && client.email), rate].filter(Boolean).join(" · ");
     }
     // The updateClient `client` object for the Clients form's fields; `hourlyRate` is the box as typed (trimmed), "" for none, which
     // the server reads as the global rate.
@@ -1754,7 +1766,11 @@
       const v = values || {};
       const text = (x) => (typeof x === "string" ? x : "");
       const rate = v.hourlyRate === undefined || v.hourlyRate === null ? "" : String(v.hourlyRate).trim();
-      return { name: text(v.name).trim(), address: text(v.address), phone: text(v.phone), email: text(v.email), hourlyRate: rate, useWhatsApp: v.useWhatsApp === true };
+      // `location` is {name, latitude, longitude} as the form holds it: null without a name (the coordinates go with it), the coordinates only when both are numbers
+      const where = v.location && typeof v.location === "object" ? v.location : {};
+      const placeName = text(where.name).trim();
+      const coords = Number.isFinite(where.latitude) && Number.isFinite(where.longitude) ? { latitude: where.latitude, longitude: where.longitude } : {};
+      return { name: text(v.name).trim(), address: text(v.address), phone: text(v.phone), email: text(v.email), hourlyRate: rate, useWhatsApp: v.useWhatsApp === true, location: placeName ? { name: placeName, ...coords } : null };
     }
     // The confirmation before deleting a client; `projects` is how many of the owner's projects belong to it.
     function deleteClientPrompt(name, projects) {
@@ -5187,9 +5203,25 @@
           </div>`).join("");
     }
 
+    // The coordinates the form holds for the location text ({latitude, longitude}), set by Find place, null for none
+    let clientCoords = null;
+    function renderClientCoords() {
+      const note = document.getElementById("clientCoordsNote");
+      note.textContent = clientCoords
+        ? `Coordinates: ${clientCoords.latitude.toFixed(4)}, ${clientCoords.longitude.toFixed(4)}. The scheduler uses them to group nearby jobs.`
+        : "No coordinates. Finding a place sets them, so the scheduler can group nearby jobs.";
+      document.getElementById("clientClearCoordsBtn").hidden = !clientCoords;
+    }
+
     // Fill the form from a client (editing) or empty it (adding), and set the buttons to match.
     function fillClientForm(client) {
       editingClientId = client ? client.id : null;
+      const where = client && client.location ? client.location : null;
+      document.getElementById("clientLocation").value = where ? where.name : "";
+      clientCoords = where && Number.isFinite(where.latitude) && Number.isFinite(where.longitude) ? { latitude: where.latitude, longitude: where.longitude } : null;
+      document.getElementById("clientPlaceQuery").value = "";
+      document.getElementById("clientPlaceResults").textContent = "";
+      renderClientCoords();
       document.getElementById("clientName").value = client ? client.name : "";
       document.getElementById("clientAddress").value = client ? client.address || "" : "";
       document.getElementById("clientPhone").value = client ? client.phone || "" : "";
@@ -5249,7 +5281,8 @@
         phone: document.getElementById("clientPhone").value,
         email: document.getElementById("clientEmail").value,
         hourlyRate: document.getElementById("clientHourlyRate").value,
-        useWhatsApp: document.getElementById("clientUseWhatsApp").checked
+        useWhatsApp: document.getElementById("clientUseWhatsApp").checked,
+        location: { name: document.getElementById("clientLocation").value, ...(clientCoords || {}) }
       });
       if (!client.name) { setClientsStatus("Enter a name."); return; }
       const editing = editingClientId;
@@ -5280,7 +5313,6 @@
     // Settings: location (with place search), time zone and the automatic schedule.
     let currentSettings = null; // as last read from the server; null until they load
     let pendingLocation = null; // a place picked from the search and not saved yet, else null
-    let placeMatches = [];
 
     function chosenPlace() {
       if (pendingLocation) return pendingLocation;
@@ -5377,21 +5409,40 @@
       }
     }
 
-    async function searchPlaces() {
-      const query = document.getElementById("placeQuery").value.trim();
-      const box = document.getElementById("placeResults");
-      if (!query) return;
-      box.textContent = "Searching...";
-      try {
-        const res = await fetch(geocodeUrl(query)); // plain fetch: the Firebase token must not go to a third party
-        if (!res.ok) throw new Error(`Request failed (${res.status})`);
-        placeMatches = placesFromGeocode(await res.json());
-        box.innerHTML = placeMatches.length
-          ? placeMatches.map((p, i) => `<button type="button" class="place-option" data-index="${i}">${esc(p.name)} · ${esc(p.timeZone)}</button>`).join("")
-          : "No places found.";
-      } catch (err) {
-        box.textContent = "Place search failed: " + err.message;
+    // A place search: the Search button, or Enter in the query box, looks the text up with Open-Meteo's geocoder and lists the matches
+    // under it; tapping one calls `onPick(place)` ({name, latitude, longitude, timeZone}) and empties the box and the list. The
+    // Settings location and the Clients form both use it. `showZone` adds each match's time zone to its line.
+    function makePlaceSearch({ queryId, buttonId, resultsId, showZone, onPick }) {
+      const queryBox = document.getElementById(queryId);
+      const results = document.getElementById(resultsId);
+      let matches = [];
+      async function search() {
+        const query = queryBox.value.trim();
+        if (!query) return;
+        results.textContent = "Searching...";
+        try {
+          const res = await fetch(geocodeUrl(query)); // plain fetch: the Firebase token must not go to a third party
+          if (!res.ok) throw new Error(`Request failed (${res.status})`);
+          matches = placesFromGeocode(await res.json());
+          results.innerHTML = matches.length
+            ? matches.map((p, i) => `<button type="button" class="place-option" data-index="${i}">${esc(p.name)}${showZone ? ` · ${esc(p.timeZone)}` : ""}</button>`).join("")
+            : "No places found.";
+        } catch (err) {
+          results.textContent = "Place search failed: " + err.message;
+        }
       }
+      document.getElementById(buttonId).addEventListener("click", search);
+      queryBox.addEventListener("keydown", e => {
+        if (e.key === "Enter") { e.preventDefault(); search(); }
+      });
+      results.addEventListener("click", e => {
+        const option = e.target.closest(".place-option");
+        if (!option || !matches[Number(option.dataset.index)]) return;
+        const place = matches[Number(option.dataset.index)];
+        results.textContent = "";
+        queryBox.value = "";
+        onPick(place);
+      });
     }
 
     // Save a Blob as a file download.
@@ -5771,18 +5822,22 @@
       const option = e.target.closest(".template-option");
       if (option && shownTemplates[Number(option.dataset.index)]) useTemplate(shownTemplates[Number(option.dataset.index)]);
     });
-    document.getElementById("placeSearchBtn").addEventListener("click", searchPlaces);
-    document.getElementById("placeQuery").addEventListener("keydown", e => {
-      if (e.key === "Enter") { e.preventDefault(); searchPlaces(); }
-    });
-    document.getElementById("placeResults").addEventListener("click", e => {
-      const option = e.target.closest(".place-option");
-      if (!option || !placeMatches[Number(option.dataset.index)]) return;
-      pendingLocation = placeMatches[Number(option.dataset.index)];
-      document.getElementById("placeResults").textContent = "";
-      document.getElementById("placeQuery").value = "";
+    makePlaceSearch({ queryId: "placeQuery", buttonId: "placeSearchBtn", resultsId: "placeResults", showZone: true, onPick: place => {
+      pendingLocation = place;
       renderLocation();
+    } });
+    // Picking a place for a client sets its coordinates, and fills the location text when that is still empty
+    makePlaceSearch({ queryId: "clientPlaceQuery", buttonId: "clientPlaceSearchBtn", resultsId: "clientPlaceResults", showZone: false, onPick: place => {
+      clientCoords = { latitude: place.latitude, longitude: place.longitude };
+      const box = document.getElementById("clientLocation");
+      if (!box.value.trim()) box.value = place.name;
+      renderClientCoords();
+    } });
+    document.getElementById("clientClearCoordsBtn").addEventListener("click", () => {
+      clientCoords = null;
+      renderClientCoords();
     });
+    renderClientCoords();
     document.getElementById("saveSettingsBtn").addEventListener("click", saveSettings);
     document.getElementById("saveJobSheetBtn").addEventListener("click", saveJobSheetSettings);
     document.getElementById("pushOnBtn").addEventListener("click", enablePush);

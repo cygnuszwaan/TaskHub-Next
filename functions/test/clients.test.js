@@ -29,6 +29,16 @@ describe("clients.js", () => {
       for (const useWhatsApp of [undefined, null, false]) assert.equal("useWhatsApp" in normalizeClientFields({name: "Jo", useWhatsApp}).client, false, String(useWhatsApp));
       for (const useWhatsApp of ["yes", 1, 0, "", {}, []]) assert.match(normalizeClientFields({name: "Jo", useWhatsApp}).error, /useWhatsApp must be true or false/, String(useWhatsApp));
     });
+    it("keeps a normalized location and leaves the key out for none", () => {
+      assert.deepEqual(normalizeClientFields({name: "Jo", location: {name: " 1  Beach Rd ", latitude: -36.63, longitude: 174.78}}).client.location, {name: "1 Beach Rd", latitude: -36.63, longitude: 174.78});
+      assert.deepEqual(normalizeClientFields({name: "Jo", location: {name: "Smith's yard"}}).client.location, {name: "Smith's yard"});
+      for (const location of [undefined, null, "", {name: ""}]) assert.equal("location" in normalizeClientFields({name: "Jo", location}).client, false, JSON.stringify(location));
+    });
+    it("rejects an unusable location", () => {
+      for (const location of ["Beach Rd", 5, [], {name: "A", latitude: 1}, {name: "A", latitude: 99, longitude: 0}, {name: "x".repeat(201)}, {latitude: 1, longitude: 2}]) {
+        assert.match(normalizeClientFields({name: "Jo", location}).error, /location must be a name/, JSON.stringify(location));
+      }
+    });
     it("needs an object with a name", () => {
       for (const v of [undefined, null, "x", [], 5]) assert.match(normalizeClientFields(v).error, /must be an object/);
       for (const name of [undefined, null, "", "   "]) assert.match(normalizeClientFields({name}).error, /name must be a non-empty string/);
@@ -84,6 +94,14 @@ describe("clients.js", () => {
       assert.equal(on.client.useWhatsApp, true);
       assert.equal("useWhatsApp" in updateClient(on.clients, "c1", {name: "Smith Family", useWhatsApp: false}).client, false);
       assert.equal("useWhatsApp" in updateClient(on.clients, "c1", {name: "Smith Family"}).client, false);
+    });
+    it("sets, changes and clears the location (an update replaces the fields)", () => {
+      const placed = updateClient(list, "c1", {name: "Smith Family", location: {name: "1 Beach Rd", latitude: -36.6, longitude: 174.7}});
+      assert.deepEqual(placed.client.location, {name: "1 Beach Rd", latitude: -36.6, longitude: 174.7});
+      assert.deepEqual(updateClient(placed.clients, "c1", {name: "Smith Family", location: {name: "2 Hill St"}}).client.location, {name: "2 Hill St"});
+      assert.equal("location" in updateClient(placed.clients, "c1", {name: "Smith Family", location: null}).client, false);
+      assert.equal("location" in updateClient(placed.clients, "c1", {name: "Smith Family"}).client, false);
+      assert.match(updateClient(list, "c1", {name: "Smith Family", location: {name: "A", longitude: 1}}).error, /location/);
     });
     it("lets a client keep its own name, in other letters", () => {
       assert.equal(updateClient(list, "c1", {name: "SMITH FAMILY"}).client.name, "SMITH FAMILY");
