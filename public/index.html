@@ -152,6 +152,7 @@
     .shopping-add { padding-top: 0; }
     .material-group { padding: 8px 0; border-bottom: 1px solid var(--divider); }
     .material-group-title { font-weight: 600; font-size: 14px; cursor: pointer; }
+    .material-group-title.plain-title { cursor: default; }
     .summary { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--divider); }
     .summary-total { font-size: 14px; margin-bottom: 10px; }
     .hours-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 3px 0; border-bottom: 1px solid var(--divider); }
@@ -465,16 +466,16 @@
   <div class="card">
     <h3 style="margin-top:0; margin-bottom:12px;">Materials to get</h3>
     <div id="materialsList"></div>
-    <div id="materialsStatus" class="settings-status"></div>
-  </div>
-  <div class="card">
-    <h3 style="margin-top:0; margin-bottom:12px;">Miscellaneous</h3>
-    <div class="material-row shopping-add">
-      <input type="text" id="shoppingInput" maxlength="100" placeholder="Add an item to get" aria-label="Add an item to get" autocomplete="off" enterkeyhint="done">
-      <button type="button" id="shoppingAddBtn">Add</button>
+    <div class="material-group" id="shoppingSection">
+      <div class="material-group-title plain-title">Miscellaneous</div>
+      <div class="material-row shopping-add">
+        <input type="text" id="shoppingInput" maxlength="100" placeholder="Add an item to get" aria-label="Add an item to get" autocomplete="off" enterkeyhint="done">
+        <button type="button" id="shoppingAddBtn">Add</button>
+      </div>
+      <div id="shoppingList"></div>
+      <div id="shoppingStatus" class="settings-status"></div>
     </div>
-    <div id="shoppingList"></div>
-    <div id="shoppingStatus" class="settings-status"></div>
+    <div id="materialsStatus" class="settings-status"></div>
   </div>
   </main>
 
@@ -1201,10 +1202,17 @@
     let sortDescending = false;
     let editMaterials = []; // the materials list being edited in the modal: [{id, text, checked}]
     let manualMaterials = []; // the materials list of the add form's own entry, same shape
-    let materialsBusy = false; // true while a check-off from the Materials card is being saved
-    let shoppingItems = []; // the Miscellaneous list, [{id, text}], as the server last sent it
+    // Check-offs on the Materials card show at once and are saved one after another in the background: the count is how
+    // many have not been answered yet, and the chain keeps them in order.
+    let materialsPending = 0;
+    let materialsChain = Promise.resolve();
+    let shoppingItems = []; // the Miscellaneous list, [{id, text}], as the page shows it: the server's list plus changes not yet saved
     let shoppingLoaded = false; // true once the server has answered, so a list that failed to load is not shown as empty
-    let shoppingBusy = false; // true while an add or a check-off on the Miscellaneous card is being saved
+    // Adds and check-offs on the Miscellaneous list show at once and are saved in order in the background.
+    let shoppingPending = 0; // how many have not been answered yet
+    let shoppingChain = Promise.resolve();
+    let shoppingTempCount = 0; // numbers the ids of items added but not yet saved
+    const shoppingRealIds = new Map(); // id of an item added here ("pending-1") -> the id the server gave it
     let allProjects = [];
     let projectsLoaded = false; // set once getProjects has answered; until then the edit form leaves project fields alone
     let allClients = []; // {id, name, address, phone, email}, sorted by name; filled by getClients
@@ -2099,6 +2107,39 @@
     // The text of a Miscellaneous item as typed: inner whitespace collapsed and trimmed, "" when blank. The server checks the rest.
     function shoppingItemText(value) {
       return String(value === undefined || value === null ? "" : value).replace(/\s+/g, " ").trim();
+    }
+
+    // The Miscellaneous list after adding an item, worked out on the page so the item shows before the server answers (the
+    // server applies the same rules). Returns {items, item, added: true}; {items, item: the one already there, added: false}
+    // when the text is on the list ignoring case; or {error} for a blank text or a full list. `tempId` is the new item's id until saved.
+    const MAX_SHOPPING_ITEMS = 100;
+    function shoppingWithAdded(items, text, tempId) {
+      const clean = shoppingItemText(text);
+      if (!clean) return { error: "Type an item to add." };
+      const existing = items.find(i => i.text.toLowerCase() === clean.toLowerCase());
+      if (existing) return { items, item: existing, added: false };
+      if (items.length >= MAX_SHOPPING_ITEMS) return { error: `The list is full (${MAX_SHOPPING_ITEMS} items).` };
+      const item = { id: tempId, text: clean };
+      return { items: [...items, item], item, added: true };
+    }
+
+    // The list without one item, and where it was: {items, item, index}; item is null (list unchanged) for an id that is not there.
+    function shoppingWithout(items, id) {
+      const index = items.findIndex(i => i.id === id);
+      if (index < 0) return { items, item: null, index: -1 };
+      return { items: items.filter((_, n) => n !== index), item: items[index], index };
+    }
+
+    // The list with a removed item put back at its old place (at the end when the list is now shorter), unless it is already there.
+    function shoppingWithRestored(items, item, index) {
+      if (!item || items.some(i => i.id === item.id)) return items;
+      const at = Math.max(0, Math.min(index, items.length));
+      return [...items.slice(0, at), item, ...items.slice(at)];
+    }
+
+    // The task list with one task's material set checked or unchecked (the other tasks are the same objects).
+    function withTaskMaterialChecked(tasks, taskId, materialId, checked) {
+      return tasks.map(t => (t.id === taskId ? { ...t, materials: withMaterialChecked(t, materialId, checked) } : t));
     }
 
     // What an export holds, in words: "12 tasks, 1 project, 340 completed" (and a note when the archive was cut off).
@@ -3425,7 +3466,7 @@
       const count = openMaterialCount(allTasks);
       document.getElementById("materialsCount").textContent = count === 0 ? "" : `(${count})`;
       document.getElementById("materialsList").innerHTML = groups.length === 0 ?
-        "<p style='color:var(--text-faint); margin:0;'>Nothing to get.</p>" :
+        "<p style='color:var(--text-faint); margin:0;'>No task materials to get.</p>" :
         groups.map(g => `
           <div class="material-group">
             <div class="material-group-title" data-open-task="${esc(g.taskId)}" title="Open this task">${esc(g.title)}</div>
@@ -3460,68 +3501,104 @@
       }
     }
 
-    // Sends one updateShoppingList request and shows the new list; returns true when it was saved.
-    async function sendShopping(body) {
+    // Sends one change to the Miscellaneous list in the background, after the ones before it. The page already shows the
+    // change; `undo` takes it back if the save fails, and `onSaved(data)` learns the server's answer. Once nothing is
+    // left to save the server's list replaces the page's, so the two agree again.
+    function queueShopping(body, undo, onSaved) {
       const status = document.getElementById("shoppingStatus");
-      shoppingBusy = true;
-      status.textContent = "Saving...";
-      try {
-        const res = await apiFetch(UPDATE_SHOPPING_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body)
-        });
-        const data = await res.json();
-        shoppingItems = data.items || shoppingItems;
-        shoppingLoaded = true;
-        status.textContent = "";
-        return true;
-      } catch (err) {
-        status.textContent = "Not saved: " + err.message;
-        return false;
-      } finally {
-        shoppingBusy = false;
-        renderShoppingList(); // also puts back a box that was ticked for an item that is still on the list
-      }
+      shoppingPending++;
+      status.textContent = "";
+      shoppingChain = shoppingChain.then(async () => {
+        try {
+          if (body.action === "REMOVE") {
+            const known = shoppingRealIds.get(body.itemId);
+            if (!known && body.itemId.startsWith("pending-")) { shoppingPending--; return; } // its add failed and the item is already gone
+            body = { ...body, itemId: known || body.itemId };
+          }
+          const res = await apiFetch(UPDATE_SHOPPING_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+          });
+          const data = await res.json();
+          if (onSaved) onSaved(data);
+          shoppingPending--;
+          if (shoppingPending === 0 && Array.isArray(data.items)) shoppingItems = data.items;
+        } catch (err) {
+          shoppingPending--;
+          undo();
+          status.textContent = "Not saved: " + err.message;
+        } finally {
+          renderShoppingList();
+        }
+      });
     }
 
-    async function addShoppingItemFromInput() {
+    function addShoppingItemFromInput() {
       const input = document.getElementById("shoppingInput");
+      const status = document.getElementById("shoppingStatus");
       const text = shoppingItemText(input.value);
-      if (shoppingBusy) return;
       if (!text) { input.value = ""; return; }
-      if (await sendShopping({ action: "ADD", text })) input.value = "";
+      if (!shoppingLoaded) { status.textContent = "The list has not loaded yet, trying again."; loadShoppingList(); return; }
+      const tempId = `pending-${++shoppingTempCount}`;
+      const result = shoppingWithAdded(shoppingItems, text, tempId);
+      if (result.error) { status.textContent = result.error; return; }
+      input.value = "";
       input.focus();
+      if (!result.added) return; // already on the list
+      shoppingItems = result.items;
+      renderShoppingList();
+      queueShopping({ action: "ADD", text }, () => {
+        shoppingItems = shoppingWithout(shoppingItems, tempId).items;
+        if (!input.value) input.value = text; // give the text back so it need not be typed again
+      }, data => {
+        const realId = data.item && data.item.id;
+        if (!realId) return;
+        shoppingRealIds.set(tempId, realId);
+        shoppingItems = shoppingItems.map(i => (i.id === tempId ? { ...i, id: realId } : i));
+      });
     }
 
     function checkShoppingItem(itemId) {
-      if (shoppingBusy) return renderShoppingList();
-      sendShopping({ action: "REMOVE", itemId });
+      const removed = shoppingWithout(shoppingItems, itemId);
+      if (!removed.item) return renderShoppingList();
+      shoppingItems = removed.items;
+      renderShoppingList();
+      queueShopping({ action: "REMOVE", itemId }, () => {
+        shoppingItems = shoppingWithRestored(shoppingItems, removed.item, removed.index);
+      });
     }
 
-    async function checkMaterial(taskId, materialId, checked) {
-      const task = allTasks.find(t => t.id === taskId);
+    // Checking a material shows it gone at once; the save runs in the background, one after another, and a failed one puts the box back.
+    function checkMaterial(taskId, materialId, checked) {
+      if (!allTasks.some(t => t.id === taskId)) return renderMaterialsCard();
       const status = document.getElementById("materialsStatus");
-      if (!task || materialsBusy) return renderMaterialsCard(); // redraw so the box matches the stored state
-      materialsBusy = true;
-      status.textContent = "Saving...";
-      try {
-        const res = await apiFetch(DIRECT_UPDATE_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ taskId, action: "UPDATE", updatedFields: { materials: withMaterialChecked(task, materialId, checked) } })
-        });
-        const data = await res.json();
-        setTasks(data.tasks || allTasks);
-        status.textContent = "";
-        renderFilterBar();
-        renderTasks();
-      } catch (err) {
-        status.textContent = "Could not save: " + err.message;
-        renderMaterialsCard();
-      } finally {
-        materialsBusy = false;
-      }
+      allTasks = withTaskMaterialChecked(allTasks, taskId, materialId, checked);
+      renderFilterBar();
+      renderTasks();
+      materialsPending++;
+      status.textContent = "";
+      materialsChain = materialsChain.then(async () => {
+        try {
+          const task = allTasks.find(t => t.id === taskId);
+          if (!task) { materialsPending--; return; } // deleted or completed meanwhile
+          const res = await apiFetch(DIRECT_UPDATE_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ taskId, action: "UPDATE", updatedFields: { materials: task.materials } })
+          });
+          const data = await res.json();
+          materialsPending--;
+          if (materialsPending === 0) setTasks(data.tasks || allTasks);
+        } catch (err) {
+          materialsPending--;
+          allTasks = withTaskMaterialChecked(allTasks, taskId, materialId, !checked);
+          status.textContent = "Could not save: " + err.message;
+        } finally {
+          renderFilterBar();
+          renderTasks();
+        }
+      });
     }
 
     // Shows a task's job number in a form's read-only line, or hides the line when it has none.

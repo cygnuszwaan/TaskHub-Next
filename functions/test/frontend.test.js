@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {confirmView, failureText, shoppingItemText, CONFIRM_TONES, TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText};`)();
+    return {confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -2709,14 +2709,61 @@ describe("public/index.html helpers", () => {
       for (const v of ["", "  \n ", null, undefined]) assert.equal(shoppingItemText(v), "");
       assert.equal(shoppingItemText(42), "42");
     });
-    it("sits under the Materials card on the Materials page, with an add field and the list", () => {
+    it("is a section at the bottom of the Materials to get card, laid out like a task's materials", () => {
       const page = html.slice(html.indexOf("<main id=\"pageMaterials\""), html.indexOf("</main>", html.indexOf("<main id=\"pageMaterials\"")));
+      assert.equal((page.match(/<div class="card">/g) || []).length, 1, "one card, not two");
       assert.ok(page.indexOf("id=\"materialsList\"") < page.indexOf("Miscellaneous"), "below the task materials");
-      assert.match(page, /<h3[^>]*>Miscellaneous<\/h3>/);
+      assert.match(page, /<div class="material-group" id="shoppingSection">\s*<div class="material-group-title plain-title">Miscellaneous<\/div>/);
+      assert.doesNotMatch(page, /<h3[^>]*>Miscellaneous<\/h3>/);
       assert.match(page, /<input type="text" id="shoppingInput" maxlength="100"/);
       assert.match(page, /id="shoppingAddBtn"/);
       assert.match(page, /id="shoppingList"/);
       assert.match(page, /id="shoppingStatus"/);
+      assert.ok(page.indexOf("id=\"shoppingSection\"") < page.indexOf("id=\"materialsStatus\""), "inside the card, before its status line");
+    });
+    it("shoppingWithAdded: appends the cleaned text with the given id, like the server", () => {
+      const {shoppingWithAdded} = load();
+      const r = shoppingWithAdded([{id: "a", text: "Glue"}], "  Duct \n tape ", "pending-1");
+      assert.equal(r.added, true);
+      assert.deepEqual(r.items, [{id: "a", text: "Glue"}, {id: "pending-1", text: "Duct tape"}]);
+      assert.deepEqual(r.item, {id: "pending-1", text: "Duct tape"});
+    });
+    it("shoppingWithAdded: an item already there (ignoring case) is not added twice; a blank text or a full list is an error", () => {
+      const {shoppingWithAdded, MAX_SHOPPING_ITEMS} = load();
+      const items = [{id: "a", text: "Glue"}];
+      const dup = shoppingWithAdded(items, "GLUE", "pending-1");
+      assert.equal(dup.added, false);
+      assert.equal(dup.items, items);
+      assert.deepEqual(dup.item, {id: "a", text: "Glue"});
+      assert.ok(shoppingWithAdded(items, "   ", "pending-1").error);
+      const full = Array.from({length: MAX_SHOPPING_ITEMS}, (_, n) => ({id: `i${n}`, text: `Item ${n}`}));
+      assert.match(shoppingWithAdded(full, "One more", "pending-1").error, /full/);
+      assert.equal(MAX_SHOPPING_ITEMS, 100);
+    });
+    it("shoppingWithout and shoppingWithRestored: take an item off and put it back where it was", () => {
+      const {shoppingWithout, shoppingWithRestored} = load();
+      const items = [{id: "a", text: "A"}, {id: "b", text: "B"}, {id: "c", text: "C"}];
+      const r = shoppingWithout(items, "b");
+      assert.deepEqual(r.items.map((i) => i.id), ["a", "c"]);
+      assert.equal(r.index, 1);
+      assert.deepEqual(r.item, {id: "b", text: "B"});
+      assert.deepEqual(shoppingWithRestored(r.items, r.item, r.index), items);
+      assert.deepEqual(shoppingWithRestored([{id: "a", text: "A"}], r.item, 5).map((i) => i.id), ["a", "b"], "clamped to the end");
+      assert.equal(shoppingWithRestored(items, r.item, 1), items, "not added twice");
+      const none = shoppingWithout(items, "zzz");
+      assert.equal(none.item, null);
+      assert.equal(none.items, items);
+      assert.equal(shoppingWithRestored(items, null, 0), items);
+    });
+    it("withTaskMaterialChecked: sets one material of one task and leaves the other tasks as they were", () => {
+      const {withTaskMaterialChecked} = load();
+      const t1 = {id: "t1", materials: [{id: "m1", text: "Nails", checked: false}, {id: "m2", text: "Paint", checked: false}]};
+      const t2 = {id: "t2", materials: [{id: "m1", text: "Nails", checked: false}]};
+      const out = withTaskMaterialChecked([t1, t2], "t1", "m1", true);
+      assert.deepEqual(out[0].materials.map((m) => m.checked), [true, false]);
+      assert.equal(out[1], t2);
+      assert.equal(t1.materials[0].checked, false, "the original is not changed");
+      assert.deepEqual(withTaskMaterialChecked(out, "t1", "m1", false)[0].materials.map((m) => m.checked), [false, false]);
     });
     it("loads after sign-in through getShoppingList and changes only through updateShoppingList", () => {
       assert.match(html, /const SHOPPING_URL = endpoint\("getShoppingList"\);/);
@@ -2726,19 +2773,40 @@ describe("public/index.html helpers", () => {
       assert.match(html, /apiFetch\(SHOPPING_URL\)/);
       assert.match(html, /apiFetch\(UPDATE_SHOPPING_URL/);
     });
-    it("adds on the button or Enter, empties the field only after the add was saved, and a tick removes the item", () => {
-      const add = html.slice(html.indexOf("async function addShoppingItemFromInput"), html.indexOf("function checkShoppingItem"));
+    it("adds on the button or Enter and a tick removes the item, each shown at once before the save", () => {
+      const add = html.slice(html.indexOf("function addShoppingItemFromInput"), html.indexOf("function checkShoppingItem"));
       assert.match(add, /shoppingItemText\(input\.value\)/);
-      assert.match(add, /if \(await sendShopping\(\{ action: "ADD", text \}\)\) input\.value = "";/);
+      assert.match(add, /shoppingWithAdded\(shoppingItems, text, tempId\)/);
+      assert.match(add, /input\.value = "";[\s\S]*shoppingItems = result\.items;\s*renderShoppingList\(\);\s*queueShopping\(\{ action: "ADD", text \}/);
       assert.match(html, /getElementById\("shoppingInput"\)\.addEventListener\("keydown", e => \{\s*if \(e\.key === "Enter" && !e\.isComposing\)/);
-      assert.match(html, /sendShopping\(\{ action: "REMOVE", itemId \}\)/);
+      assert.match(html, /getElementById\("shoppingAddBtn"\)\.addEventListener\("click", addShoppingItemFromInput\)/);
+      const check = html.slice(html.indexOf("function checkShoppingItem"), html.indexOf("// Checking a material shows it gone at once"));
+      assert.match(check, /shoppingItems = removed\.items;\s*renderShoppingList\(\);\s*queueShopping\(\{ action: "REMOVE", itemId \}/);
       assert.match(html, /getElementById\("shoppingList"\)\.addEventListener\("change"/);
     });
-    it("redraws from the server's list after every save, so a failed one leaves the list as stored", () => {
-      const fn = html.slice(html.indexOf("async function sendShopping"), html.indexOf("async function addShoppingItemFromInput"));
-      assert.match(fn, /shoppingItems = data\.items \|\| shoppingItems;/);
-      assert.match(fn, /finally \{\s*shoppingBusy = false;\s*renderShoppingList\(\);/);
+    it("saves in order in the background, takes a failed change back and shows the server's list once nothing is waiting", () => {
+      const fn = html.slice(html.indexOf("function queueShopping"), html.indexOf("function addShoppingItemFromInput"));
+      assert.match(fn, /shoppingChain = shoppingChain\.then\(/);
+      assert.match(fn, /apiFetch\(UPDATE_SHOPPING_URL/);
+      assert.match(fn, /if \(shoppingPending === 0 && Array\.isArray\(data\.items\)\) shoppingItems = data\.items;/);
+      assert.match(fn, /catch \(err\) \{\s*shoppingPending--;\s*undo\(\);/);
       assert.match(fn, /"Not saved: " \+ err\.message/);
+      assert.match(fn, /finally \{\s*renderShoppingList\(\);/);
+      assert.match(fn, /known \|\| body\.itemId/, "an item ticked before its add came back is removed under the id the server gave it");
+      assert.doesNotMatch(html, /shoppingBusy/);
+    });
+    it("gives the typed text back when an add fails", () => {
+      const fn = html.slice(html.indexOf("function addShoppingItemFromInput"), html.indexOf("function checkShoppingItem"));
+      assert.match(fn, /if \(!input\.value\) input\.value = text;/);
+    });
+    it("checking a task's material takes it off the Materials card at once and saves in the background", () => {
+      const fn = html.slice(html.indexOf("function checkMaterial"), html.indexOf("// Shows a task's job number"));
+      assert.match(fn, /allTasks = withTaskMaterialChecked\(allTasks, taskId, materialId, checked\);\s*renderFilterBar\(\);\s*renderTasks\(\);/);
+      assert.match(fn, /materialsChain = materialsChain\.then\(/);
+      assert.match(fn, /if \(materialsPending === 0\) setTasks\(data\.tasks \|\| allTasks\);/);
+      assert.match(fn, /allTasks = withTaskMaterialChecked\(allTasks, taskId, materialId, !checked\);/);
+      assert.match(fn, /"Could not save: " \+ err\.message/);
+      assert.doesNotMatch(html, /materialsBusy/);
     });
     it("sets the owner's text as escaped markup, and shows nothing until the list has loaded", () => {
       const fn = html.slice(html.indexOf("function renderShoppingList"), html.indexOf("async function loadShoppingList"));
