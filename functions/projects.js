@@ -1,6 +1,8 @@
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
 
+const {normalizeLocation, MAX_LOCATION_NAME_LENGTH} = require("./location");
+
 const MAX_NAME_LENGTH = 100;
 const MAX_PROJECT_ORDER = 999;
 
@@ -115,7 +117,22 @@ function renameProject(projects, projectId, rawName) {
   return {projects: sortProjects(projects.map((p) => (p.id === projectId ? project : p))), project};
 }
 
+// Set a project's own location, or take it off (null removes it; the project then inherits its client's). `location` is
+// `{name, latitude?, longitude?}` as location.js checks it. Returns {projects, project}, {notFound: true} for an unknown project or
+// {error} for a location that is missing or unusable. Pure: no I/O.
+function setProjectLocation(projects, projectId, location) {
+  const project = projects.find((p) => p.id === projectId);
+  if (!project) return {notFound: true};
+  const clean = normalizeLocation(location);
+  if (clean === undefined) return {error: `location must be null or a name of at most ${MAX_LOCATION_NAME_LENGTH} characters, with latitude and longitude either both given (in range) or both left out`};
+  const next = {...project};
+  if (clean === null) delete next.location;
+  else next.location = clean;
+  return {projects: projects.map((p) => (p.id === projectId ? next : p)), project: next};
+}
+
 module.exports = {
+  setProjectLocation,
   MAX_NAME_LENGTH,
   MAX_PROJECT_ORDER,
   normalizeProjectName,

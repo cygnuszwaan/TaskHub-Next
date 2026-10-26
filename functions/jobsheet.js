@@ -150,7 +150,7 @@ function byCompletion(a, b) {
 //   timeZone: the owner's zone; every date and time is on its clock
 //   now:      the Date of the sheet
 //   contractorInfo: the owner's contractor text (settings.jobSheet.contractorInfo), printed under the "Job sheet" title
-//   client:   the project's client {name, address, phone, email}, or null/absent for none; its lines (`clientLines`, cleaned by pdfText,
+//   client:   the project's client {name, phone, email, location?}, or null/absent for none; its lines (`clientLines`, cleaned by pdfText,
 //             [] with none) are printed under the contractor information
 //   hourlyRate: settings.jobSheet.hourlyRate (dollars, null or absent for none); a `client.hourlyRate` overrides it for that client's sheets, 0 included (labour at $0.00)
 //   travelRate: settings.jobSheet.travelRate (dollars per km, null or absent for none)

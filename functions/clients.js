@@ -7,7 +7,6 @@ const {normalizeMoney, MAX_HOURLY_RATE} = require("./money");
 const {normalizeLocation, MAX_LOCATION_NAME_LENGTH} = require("./location");
 
 const MAX_NAME_LENGTH = 100;
-const MAX_ADDRESS_LENGTH = 300;
 const MAX_PHONE_LENGTH = 40;
 const MAX_EMAIL_LENGTH = 100;
 
@@ -22,33 +21,26 @@ function oneLine(value, label, max) {
   return {text};
 }
 
-// The fields of a client from the owner: {name, address, phone, email, hourlyRate?}. The name is required (1..100 characters, inner
-// whitespace collapsed); the address may span lines (each line trimmed, blank lines dropped, at most 300 characters in
-// all); the phone is one line of at most 40 characters; the email, when given, must look like an address (at most 100
+// The fields of a client from the owner: {name, phone, email, hourlyRate?}. The name is required (1..100 characters, inner
+// whitespace collapsed); the phone is one line of at most 40 characters; the email, when given, must look like an address (at most 100
 // characters). A missing or null optional field is empty. `hourlyRate` (dollars, 0.01..10000, a number or plain decimal text) overrides
 // the global hourly rate on this client's job sheets; 0 is a real rate ($0.00, for unpaid work); null, empty text or a missing value means
 // none (the global rate applies), and then the key is absent from the client. `useWhatsApp` (a boolean) says the client's Call and Text
 // buttons open WhatsApp instead of the phone; false, null or a missing value means no and the key is absent.
 // `location` (see location.js: `{name, latitude?, longitude?}`; null, blank text or an empty object means none) is where the client is, the
 // name shown and used for navigation, the coordinates the scheduler's only input; the key is absent for none. Returns
-// {client: {name, address, phone, email, hourlyRate?, useWhatsApp?, location?}} or {error}.
+// {client: {name, phone, email, hourlyRate?, useWhatsApp?, location?}} or {error}. Any other key (an old `address`) is ignored.
 function normalizeClientFields(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {error: "client must be an object"};
   const name = oneLine(value.name, "name", MAX_NAME_LENGTH);
   if (name.error) return {error: name.error};
   if (!name.text) return {error: "name must be a non-empty string"};
-  let address = "";
-  if (value.address !== undefined && value.address !== null) {
-    if (typeof value.address !== "string") return {error: "address must be text"};
-    address = value.address.replace(/\r\n?/g, "\n").split("\n").map((l) => l.replace(/[^\S\n]+/g, " ").trim()).filter(Boolean).join("\n");
-    if (address.length > MAX_ADDRESS_LENGTH) return {error: `address must be at most ${MAX_ADDRESS_LENGTH} characters`};
-  }
   const phone = oneLine(value.phone, "phone", MAX_PHONE_LENGTH);
   if (phone.error) return {error: phone.error};
   const email = oneLine(value.email, "email", MAX_EMAIL_LENGTH);
   if (email.error) return {error: email.error};
   if (email.text && !EMAIL_PATTERN.test(email.text)) return {error: "email is not a valid address"};
-  const client = {name: name.text, address, phone: phone.text, email: email.text};
+  const client = {name: name.text, phone: phone.text, email: email.text};
   if (value.hourlyRate !== undefined) {
     const rate = normalizeMoney(value.hourlyRate, MAX_HOURLY_RATE);
     if (rate === undefined) return {error: `hourlyRate must be an amount from 0 to ${MAX_HOURLY_RATE}, or empty`};
@@ -118,12 +110,12 @@ function setProjectClient(projects, clients, projectId, clientId) {
   return {projects: projects.map((p) => (p.id === projectId ? next : p)), project: next};
 }
 
-// The lines a job sheet prints for a client: name, the address's lines, phone, email; nothing for a missing client.
+// The lines a job sheet prints for a client: name, the location's text (the address), phone, email; nothing for a missing client.
 function clientLines(client) {
   if (!client || typeof client !== "object") return [];
   const lines = [];
   if (client.name) lines.push(String(client.name));
-  if (client.address) lines.push(...String(client.address).split("\n"));
+  if (client.location && client.location.name) lines.push(String(client.location.name));
   if (client.phone) lines.push(String(client.phone));
   if (client.email) lines.push(String(client.email));
   return lines;
@@ -136,4 +128,4 @@ function clientHourlyRate(client, fallback) {
   return typeof own === "number" && Number.isFinite(own) && own >= 0 ? own : fallback;
 }
 
-module.exports = {clientHourlyRate, MAX_NAME_LENGTH, MAX_ADDRESS_LENGTH, MAX_PHONE_LENGTH, MAX_EMAIL_LENGTH, normalizeClientFields, sortClients, addClient, updateClient, removeClientFromProjects, setProjectClient, clientLines};
+module.exports = {clientHourlyRate, MAX_NAME_LENGTH, MAX_PHONE_LENGTH, MAX_EMAIL_LENGTH, normalizeClientFields, sortClients, addClient, updateClient, removeClientFromProjects, setProjectClient, clientLines};

@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {MAX_LOCATION_NAME_LENGTH, normalizeLocation} = require("../location");
+const {MAX_LOCATION_NAME_LENGTH, normalizeLocation, effectiveLocation} = require("../location");
 
 describe("location.js", () => {
   describe("normalizeLocation", () => {
@@ -47,6 +47,42 @@ describe("location.js", () => {
       const input = {name: " A ", latitude: 1, longitude: 2};
       normalizeLocation(input);
       assert.deepEqual(input, {name: " A ", latitude: 1, longitude: 2});
+    });
+  });
+
+  describe("effectiveLocation", () => {
+    const where = (name, lat = -36.6, lon = 174.7) => ({name, latitude: lat, longitude: lon});
+    const task = {id: "t1", title: "Fix gate", location: where("Task place")};
+    const project = {id: "p1", name: "Kitchen reno", location: where("Project place")};
+    const client = {id: "c1", name: "Smith Ltd", location: where("Client place")};
+    it("takes the first that is set: the task's, then its project's, then the client's, and says where it came from", () => {
+      assert.deepEqual(effectiveLocation(task, project, client), {location: where("Task place"), source: "task", from: "Fix gate"});
+      assert.deepEqual(effectiveLocation({id: "t1", title: "Fix gate"}, project, client), {location: where("Project place"), source: "project", from: "Kitchen reno"});
+      assert.deepEqual(effectiveLocation({id: "t1", title: "Fix gate"}, {id: "p1", name: "Kitchen reno"}, client), {location: where("Client place"), source: "client", from: "Smith Ltd"});
+    });
+    it("is null when none of them has one", () => {
+      assert.equal(effectiveLocation({title: "x"}, {name: "p"}, {name: "c"}), null);
+      for (const none of [null, undefined]) assert.equal(effectiveLocation(none, none, none), null);
+    });
+    it("lets a change to the client reach a project that has not set its own", () => {
+      const before = effectiveLocation(null, {name: "p"}, client);
+      const moved = {...client, location: where("New client place")};
+      assert.equal(before.location.name, "Client place");
+      assert.equal(effectiveLocation(null, {name: "p"}, moved).location.name, "New client place");
+      assert.equal(effectiveLocation(null, project, moved).location.name, "Project place", "an own location is the override");
+    });
+    it("works with a project or client alone, as the project's Location row does", () => {
+      assert.equal(effectiveLocation(null, project, null).source, "project");
+      assert.equal(effectiveLocation(undefined, undefined, client).source, "client");
+      assert.equal(effectiveLocation(null, null, null), null);
+    });
+    it("skips a stored location that does not pass the checks, and returns it cleaned", () => {
+      assert.equal(effectiveLocation(null, {name: "p", location: {name: "x", latitude: 5}}, null), null);
+      assert.equal(effectiveLocation(null, {name: "p", location: "text"}, client).source, "client");
+      assert.deepEqual(effectiveLocation(null, {name: "p", location: {name: "  A   B "}}, null).location, {name: "A B"});
+    });
+    it("allows a label with no position", () => {
+      assert.deepEqual(effectiveLocation(null, {name: "p", location: {name: "Smith's yard"}}, null), {location: {name: "Smith's yard"}, source: "project", from: "p"});
     });
   });
 });

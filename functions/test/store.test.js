@@ -515,8 +515,8 @@ describe("makeProjectStore", () => {
 });
 
 describe("clients in the stores", () => {
-  const smith = {id: "c1", name: "Smith", address: "1 Beach Rd", phone: "", email: ""};
-  const seeded = () => fakeDb({}, {p1: {id: "p1", name: "Alpha", clientId: "c1"}, p2: {id: "p2", name: "Beta", clientId: "c1"}, p3: {id: "p3", name: "Gamma"}}, {c1: smith, c2: {id: "c2", name: "acme", address: "", phone: "", email: ""}});
+  const smith = {id: "c1", name: "Smith", phone: "", email: ""};
+  const seeded = () => fakeDb({}, {p1: {id: "p1", name: "Alpha", clientId: "c1"}, p2: {id: "p2", name: "Beta", clientId: "c1"}, p3: {id: "p3", name: "Gamma"}}, {c1: smith, c2: {id: "c2", name: "acme", phone: "", email: ""}});
 
   it("getClients returns the clients sorted by name with their ids", async () => {
     assert.deepEqual((await makeClientStore(seeded()).getClients()).map((c) => c.id), ["c2", "c1"]);
@@ -525,7 +525,7 @@ describe("clients in the stores", () => {
   it("createClient stores the cleaned client under the generated id", async () => {
     const db = seeded();
     const r = await makeClientStore(db).createClient({name: " Jo  Bloggs ", email: "jo@x.nz"}, () => "c9");
-    assert.deepEqual(r.client, {id: "c9", name: "Jo Bloggs", address: "", phone: "", email: "jo@x.nz"});
+    assert.deepEqual(r.client, {id: "c9", name: "Jo Bloggs", phone: "", email: "jo@x.nz"});
     assert.deepEqual(db.data.clients.get("c9"), r.client);
     assert.deepEqual(db.log, ["set clients/c9"]);
   });
@@ -541,7 +541,7 @@ describe("clients in the stores", () => {
     const store = makeClientStore(db);
     await store.updateClient("c1", {name: "Smith", phone: "021"});
     assert.equal(db.data.clients.get("c1").phone, "021");
-    assert.equal(db.data.clients.get("c1").address, "");
+    assert.equal("address" in db.data.clients.get("c1"), false);
     assert.deepEqual(db.log, ["set clients/c1"]);
     db.log.length = 0;
     assert.deepEqual(await store.updateClient("zzz", {name: "x"}), {notFound: true});
@@ -583,6 +583,27 @@ describe("clients in the stores", () => {
     assert.deepEqual(await store.setProjectClient("zzz", "c1"), {notFound: true});
     assert.deepEqual(await store.setProjectClient("p1", "zzz"), {error: "Client not found"});
     assert.deepEqual(db.log, []);
+  });
+  it("setProjectLocation stores or clears the project's own location and keeps its client", async () => {
+    const db = seeded();
+    const store = makeProjectStore(db);
+    const place = {name: "12 Beach Road, Orewa", latitude: -36.58, longitude: 174.69};
+    assert.deepEqual((await store.setProjectLocation("p1", place)).project, {id: "p1", name: "Alpha", clientId: "c1", location: place});
+    assert.deepEqual(db.data.projects.get("p1").location, place);
+    assert.equal((await store.getProjects()).find((p) => p.id === "p1").location.name, "12 Beach Road, Orewa");
+    assert.equal("location" in (await store.setProjectLocation("p1", null)).project, false);
+    assert.equal("location" in db.data.projects.get("p1"), false);
+    assert.equal(db.data.projects.get("p1").clientId, "c1");
+    db.log.length = 0;
+    assert.deepEqual(await store.setProjectLocation("zzz", place), {notFound: true});
+    assert.match((await store.setProjectLocation("p1", {name: "x", latitude: 1})).error, /^location must be/);
+    assert.deepEqual(db.log, []);
+  });
+  it("renaming a project keeps its location", async () => {
+    const db = seeded();
+    const store = makeProjectStore(db);
+    await store.setProjectLocation("p2", {name: "Here"});
+    assert.deepEqual((await store.renameProject("p2", "Zeta")).project.location, {name: "Here"});
   });
 });
 

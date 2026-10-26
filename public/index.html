@@ -126,6 +126,9 @@
     .settings-card[open] > summary::after { transform: rotate(90deg); }
     .settings-card > summary h3 { margin: 0; }
     .settings-card[open] > summary { margin-bottom: 12px; }
+    .project-location { margin-top: 10px; }
+    .project-location label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: var(--text-muted); }
+    .project-location input { width: 100%; }
     .template-block { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--divider); }
     .template-block .template-title { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
     .template-block select { width: 100%; margin-bottom: 8px; }
@@ -451,6 +454,17 @@
         </div>
         <div class="project-list" id="projectFilterBar"></div>
         <div class="project-actions" id="projectActions"></div>
+        <div class="project-location" id="projectLocation" hidden>
+          <label for="projectLocationInput">Location</label>
+          <input type="text" id="projectLocationInput" maxlength="200" autocomplete="off" placeholder="Search for an address">
+          <div class="action-row" style="margin-top: 6px;">
+            <button type="button" id="projectPlaceSearchBtn" class="btn-secondary">Find on map</button>
+            <button type="button" id="projectLocationClearBtn" class="btn-secondary" hidden>Clear</button>
+          </div>
+          <div id="projectPlaceResults" class="place-results"></div>
+          <p class="settings-note" id="projectLocationNote"></p>
+        </div>
+        <div class="project-actions" id="projectTemplateAction"></div>
         <div class="template-block" id="templateBlock">
           <div class="template-title">Start from template</div>
           <div id="templateEmpty" class="settings-note" style="margin:0;">No templates yet. Choose a project above and tap Save as template.</div>
@@ -640,17 +654,11 @@
       <input type="text" id="clientName" maxlength="100" placeholder="e.g. Jo Smith">
     </div>
     <div class="form-group" style="margin:10px 0 0;">
-      <label for="clientAddress">Address</label>
-      <textarea id="clientAddress" rows="3" maxlength="300"></textarea>
-      <p class="settings-note">Printed on job sheets.</p>
-    </div>
-    <div class="form-group" style="margin:10px 0 0;">
       <label for="clientLocation">Location</label>
       <input type="text" id="clientLocation" maxlength="200" placeholder="e.g. 12 Beach Rd, Orewa">
-      <p class="settings-note" id="clientLocationNote">Where the work is, used for navigation. Tap Find on map to give it a position, so nearby jobs can be grouped.</p>
+      <p class="settings-note" id="clientLocationNote">The client's address: printed on job sheets and used for navigation. Tap Find on map to give it a position, so nearby jobs can be grouped.</p>
       <div class="action-row" style="margin-top: 6px;">
         <button type="button" id="clientPlaceSearchBtn" class="btn-secondary">Find on map</button>
-        <button type="button" id="clientUseAddressBtn" class="btn-secondary">Use address</button>
         <button type="button" id="clientClearCoordsBtn" class="btn-secondary" hidden>Clear position</button>
       </div>
       <div id="clientPlaceResults" class="place-results"></div>
@@ -1299,7 +1307,7 @@
     const shoppingRealIds = new Map(); // id of an item added here ("pending-1") -> the id the server gave it
     let allProjects = [];
     let projectsLoaded = false; // set once getProjects has answered; until then the edit form leaves project fields alone
-    let allClients = []; // {id, name, address, phone, email}, sorted by name; filled by getClients
+    let allClients = []; // {id, name, phone, email, hourlyRate?, useWhatsApp?, location?}, sorted by name; filled by getClients
     let clientsLoaded = false;
     let allTemplates = []; // project templates {id, name, steps}, sorted by name; filled by getProjectTemplates
     let editingClientId = null; // the client being edited in the Clients card, null when adding a new one
@@ -1472,11 +1480,6 @@
       }
       return out.slice(0, 4);
     }
-    // The client's address as a one-line location: its lines joined with commas, cut to the 200-character limit.
-    function addressAsLocation(address) {
-      const t = typeof address === "string" ? address : "";
-      return t.split(/\r?\n/).map(l => l.trim()).filter(Boolean).join(", ").slice(0, 200);
-    }
 
     // Google Places (New) address autocomplete, called straight from the browser with the restricted key in CONFIG.placesApiKey. An
     // autocomplete request suggests addresses as the owner types; a Place Details request for the chosen one returns its address and
@@ -1532,42 +1535,68 @@
       return out.slice(0, PLACES_MAX_SUGGESTIONS);
     }
 
-    // A Place Details response as {name, latitude, longitude, address}, or null when it lacks a position or an address. `name` is the
-    // formatted address without its country (at most 200 characters, the Location limit) and `address` the lines to print on a job
-    // sheet: street (a flat as "3/12 Beach Road"), suburb when it differs from the town, then town and postcode.
+    // A Place Details response as {name, latitude, longitude}, or null when it lacks a position or an address. `name` is the formatted
+    // address without its country (at most 200 characters, the Location limit).
     function placeFromDetails(data) {
       if (!data || typeof data !== "object") return null;
       const where = data.location;
       if (!where || !Number.isFinite(where.latitude) || !Number.isFinite(where.longitude)) return null;
       const formatted = typeof data.formattedAddress === "string" ? data.formattedAddress.replace(/\s+/g, " ").trim() : "";
       if (!formatted) return null;
-      const components = Array.isArray(data.addressComponents) ? data.addressComponents.filter(c => c && typeof c === "object" && Array.isArray(c.types)) : [];
-      const part = type => {
-        const found = components.find(c => c.types.includes(type) && typeof c.longText === "string" && c.longText.trim());
-        return found ? found.longText.trim() : "";
-      };
-      const country = part("country");
+      const components = Array.isArray(data.addressComponents) ? data.addressComponents : [];
+      const found = components.find(c => c && typeof c === "object" && Array.isArray(c.types) && c.types.includes("country") && typeof c.longText === "string" && c.longText.trim());
+      const country = found ? found.longText.trim() : "";
       const name = (country && formatted.endsWith(", " + country) ? formatted.slice(0, -(country.length + 2)) : formatted).slice(0, 200);
-      const number = part("street_number");
-      const flat = part("subpremise");
-      const numbers = flat && number ? `${flat}/${number}` : number || flat;
-      const street = [numbers, part("route")].filter(Boolean).join(" ");
-      const suburb = part("sublocality_level_1") || part("sublocality") || part("neighborhood");
-      const town = part("locality") || part("postal_town") || part("administrative_area_level_2") || part("administrative_area_level_1");
-      const lines = [street, suburb && suburb.toLowerCase() !== town.toLowerCase() ? suburb : "", [town, part("postal_code")].filter(Boolean).join(" ")].filter(Boolean);
-      const address = (lines.length ? lines : name.split(",").map(x => x.trim()).filter(Boolean)).join("\n").slice(0, 300);
-      return { name, latitude: where.latitude, longitude: where.longitude, address };
+      return { name, latitude: where.latitude, longitude: where.longitude };
     }
 
-    // What choosing a place does to the Clients form: the Location text and map position always, the Address lines only while the
-    // Address box is still empty (a typed address is never overwritten).
-    function clientFillFromPlace(place, currentAddress) {
-      const hasAddress = typeof currentAddress === "string" && currentAddress.trim() !== "";
-      return {
-        locationText: place.name,
-        coords: { latitude: place.latitude, longitude: place.longitude, label: place.name },
-        addressText: hasAddress || !place.address ? null : place.address
-      };
+    // The `location` object a picked place gives a project (or any other owner of a location): {name, latitude, longitude}.
+    function placeLocation(place) {
+      return { name: place.name, latitude: place.latitude, longitude: place.longitude };
+    }
+
+    // What choosing a place does to the Clients form: the Location text, and the map position (with `label`, the place it was found as).
+    function clientFillFromPlace(place) {
+      return { locationText: place.name, coords: { latitude: place.latitude, longitude: place.longitude, label: place.name } };
+    }
+
+    // Where a task is: the first location that is set of the task's own, its project's and the project's client's, with where it came
+    // from, or null when none has one. A copy of `effectiveLocation` in functions/location.js (a test keeps them equal); the page uses
+    // it with no task for a project. Returns {location, source: "task"|"project"|"client", from}, `from` the owner's title or name.
+    function effectiveLocation(task, project, client) {
+      const owners = [["task", task, task && task.title], ["project", project, project && project.name], ["client", client, client && client.name]];
+      for (const [source, owner, from] of owners) {
+        if (!owner || typeof owner !== "object" || owner.location === undefined || owner.location === null) continue;
+        const l = owner.location;
+        if (typeof l !== "object" || Array.isArray(l) || (l.name !== undefined && l.name !== null && typeof l.name !== "string")) continue;
+        const name = typeof l.name === "string" ? l.name.replace(/\s+/g, " ").trim() : "";
+        const hasLat = l.latitude !== undefined && l.latitude !== null;
+        const hasLon = l.longitude !== undefined && l.longitude !== null;
+        if (name === "" || name.length > 200 || hasLat !== hasLon) continue;
+        if (!hasLat) return { location: { name }, source, from: typeof from === "string" ? from : "" };
+        if (!Number.isFinite(l.latitude) || !Number.isFinite(l.longitude) || Math.abs(l.latitude) > 90 || Math.abs(l.longitude) > 180) continue;
+        return { location: { name, latitude: l.latitude, longitude: l.longitude }, source, from: typeof from === "string" ? from : "" };
+      }
+      return null;
+    }
+
+    // The Location row of the chosen project: `value` is the box's text (the project's own location, empty when it has none), `hasOwn`
+    // whether it has one (Clear shows only then) and `note` what is told under the box: whether the position is set, or where an
+    // inherited location comes from ("From client: Smith Ltd · 12 Beach Road, Orewa").
+    function projectLocationView(project, client) {
+      const found = effectiveLocation(null, project, client);
+      if (!found) return { value: "", hasOwn: false, note: "No location yet. Pick an address to set one." };
+      if (found.source === "project") {
+        const mapped = Number.isFinite(found.location.latitude) && Number.isFinite(found.location.longitude);
+        return { value: found.location.name, hasOwn: true, note: mapped ? "📍 Map position set." : "No map position: pick a suggestion to set one." };
+      }
+      return { value: "", hasOwn: false, note: `From client: ${found.from} · ${found.location.name}` };
+    }
+
+    // What the Location box currently shows is kept while this stays the same, so a redraw never wipes text being typed: the project and
+    // its own location.
+    function projectLocationKey(project) {
+      return project ? `${project.id}|${JSON.stringify(project.location || null)}` : "";
     }
 
     // The text for a failed Google request: Google's own message (it says what is wrong with the key or the restrictions), else the status.
@@ -1876,14 +1905,13 @@
         return words.every(w => text.includes(w));
       });
     }
-    // One line under a client's name in the Clients list: address (lines joined), location (with a 📍), phone, "WhatsApp" when it uses it, email and own hourly rate that exist.
+    // One line under a client's name in the Clients list: location (with a 📍), phone, "WhatsApp" when it uses it, email and own hourly rate that exist.
     function clientSummary(client) {
       const text = (v) => (typeof v === "string" ? v.trim() : "");
-      const address = text(client && client.address).split(/\n+/).map(l => l.trim()).filter(Boolean).join(", ");
       const rate = client && typeof client.hourlyRate === "number" && Number.isFinite(client.hourlyRate) && client.hourlyRate >= 0 ? "$" + client.hourlyRate.toFixed(2) + "/h" : "";
       const whatsApp = client && client.useWhatsApp === true ? "WhatsApp" : "";
       const place = text(client && client.location && client.location.name);
-      return [address, place ? `📍 ${place}` : "", text(client && client.phone), whatsApp, text(client && client.email), rate].filter(Boolean).join(" · ");
+      return [place ? `📍 ${place}` : "", text(client && client.phone), whatsApp, text(client && client.email), rate].filter(Boolean).join(" · ");
     }
     // The updateClient `client` object for the Clients form's fields; `hourlyRate` is the box as typed (trimmed), "" for none, which
     // the server reads as the global rate.
@@ -1895,7 +1923,7 @@
       const where = v.location && typeof v.location === "object" ? v.location : {};
       const placeName = text(where.name).trim();
       const coords = Number.isFinite(where.latitude) && Number.isFinite(where.longitude) ? { latitude: where.latitude, longitude: where.longitude } : {};
-      return { name: text(v.name).trim(), address: text(v.address), phone: text(v.phone), email: text(v.email), hourlyRate: rate, useWhatsApp: v.useWhatsApp === true, location: placeName ? { name: placeName, ...coords } : null };
+      return { name: text(v.name).trim(), phone: text(v.phone), email: text(v.email), hourlyRate: rate, useWhatsApp: v.useWhatsApp === true, location: placeName ? { name: placeName, ...coords } : null };
     }
     // The confirmation before deleting a client; `projects` is how many of the owner's projects belong to it.
     function deleteClientPrompt(name, projects) {
@@ -5097,6 +5125,8 @@
       if (allProjects.length === 0) {
         bar.innerHTML = "<div class=\"project-list-empty\">No projects yet.</div>";
         actions.innerHTML = "";
+        renderProjectLocation(null);
+        document.getElementById("projectTemplateAction").innerHTML = "";
         return;
       }
       const counts = projectTaskCounts(allTasks);
@@ -5113,10 +5143,36 @@
           <button type="button" class="btn-secondary" data-action="rename">Rename</button>
           <button type="button" class="btn-danger" data-action="delete">Delete</button>
         </div>
-        <div class="project-row" data-id="${esc(chosen.id)}">${clientPickerHtml(chosen)}</div>
+        <div class="project-row" data-id="${esc(chosen.id)}">${clientPickerHtml(chosen)}</div>` : "";
+      renderProjectLocation(chosen);
+      document.getElementById("projectTemplateAction").innerHTML = chosen ? `
         <div class="project-row" data-id="${esc(chosen.id)}">
           <button type="button" class="btn-secondary" data-action="saveTemplate">📋 Save as template</button>
         </div>` : "";
+    }
+
+    // The chosen project's Location row, whose markup is fixed (the address autocomplete is bound to it once). Its text is replaced only
+    // when the project or its own location changed (`projectLocationKey`); its note and Clear button follow every redraw, since an
+    // inherited location can change with the client.
+    let projectLocationShown = "";
+    let projectPlaces = null; // the Location row's address autocomplete when a Places key is set, else null
+    function renderProjectLocation(chosen) {
+      document.getElementById("projectLocation").hidden = !chosen;
+      if (!chosen) {
+        projectLocationShown = "";
+        if (projectPlaces) projectPlaces.close();
+        return;
+      }
+      const view = projectLocationView(chosen, allClients.find(c => c.id === chosen.clientId) || null);
+      const key = projectLocationKey(chosen);
+      if (key !== projectLocationShown) {
+        projectLocationShown = key;
+        document.getElementById("projectLocationInput").value = view.value;
+        document.getElementById("projectPlaceResults").textContent = "";
+        if (projectPlaces) projectPlaces.close();
+      }
+      document.getElementById("projectLocationNote").textContent = view.note;
+      document.getElementById("projectLocationClearBtn").hidden = !view.hasOwn;
     }
 
     // The Client line of the chosen project: a select of the clients (or a hint when there are none).
@@ -5203,14 +5259,22 @@
       const row = select && select.closest(".project-row");
       if (row) saveProject({ action: "SET_CLIENT", projectId: row.dataset.id, clientId: select.value || null }, "Saved.");
     });
-    document.getElementById("projectActions").addEventListener("click", e => {
-      const btn = e.target.closest("[data-action]");
-      const row = btn && btn.closest(".project-row");
-      if (!row) return;
-      if (btn.dataset.action === "rename") renameProject(row.dataset.id);
-      else if (btn.dataset.action === "delete") deleteProject(row.dataset.id);
-      else if (btn.dataset.action === "saveTemplate") saveAsTemplate(row.dataset.id);
-    });
+    for (const id of ["projectActions", "projectTemplateAction"]) {
+      document.getElementById(id).addEventListener("click", e => {
+        const btn = e.target.closest("[data-action]");
+        const row = btn && btn.closest(".project-row");
+        if (!row) return;
+        if (btn.dataset.action === "rename") renameProject(row.dataset.id);
+        else if (btn.dataset.action === "delete") deleteProject(row.dataset.id);
+        else if (btn.dataset.action === "saveTemplate") saveAsTemplate(row.dataset.id);
+      });
+    }
+    // Picking an address saves it as the project's own location at once; Clear takes it off, so the project inherits its client's again
+    function setProjectLocation(projectId, location) {
+      if (projectId === null || !allProjects.some(p => p.id === projectId)) return Promise.resolve(false);
+      return saveProject({ action: "SET_LOCATION", projectId, location }, location ? "Saved." : "Location cleared.");
+    }
+    document.getElementById("projectLocationClearBtn").addEventListener("click", () => setProjectLocation(selectedProjectFilter, null));
 
     // Project templates: saved from a project's queued tasks and started as a new project, through updateProjectTemplate.
     function renderTemplates() {
@@ -5352,7 +5416,6 @@
       if (clientPlaces) clientPlaces.close();
       renderClientCoords();
       document.getElementById("clientName").value = client ? client.name : "";
-      document.getElementById("clientAddress").value = client ? client.address || "" : "";
       document.getElementById("clientPhone").value = client ? client.phone || "" : "";
       document.getElementById("clientUseWhatsApp").checked = !!client && client.useWhatsApp === true;
       document.getElementById("clientEmail").value = client ? client.email || "" : "";
@@ -5406,7 +5469,6 @@
     async function saveClient() {
       const client = clientFormBody({
         name: document.getElementById("clientName").value,
-        address: document.getElementById("clientAddress").value,
         phone: document.getElementById("clientPhone").value,
         email: document.getElementById("clientEmail").value,
         hourlyRate: document.getElementById("clientHourlyRate").value,
@@ -5585,8 +5647,9 @@
     // Address autocomplete (Google Places): suggestions appear under the box as the owner types (after `PLACES_MIN_CHARS` characters and a
     // `PLACES_DEBOUNCE_MS` pause), and tapping one fetches its address and position and calls `onPick(place)` (see `placeFromDetails`),
     // which fills the form; the box keeps what was typed until `onPick` changes it. `getBias()` gives the position suggestions are ranked
-    // toward. Plain `fetch`, never `apiFetch`: no Firebase token goes to Google. Returns {suggestNow, close}.
-    function makePlacesAutocomplete({ queryId, resultsId, getBias, onPick }) {
+    // toward, and `getContext()` is read the moment a suggestion is tapped and handed on as `onPick(place, context)`, so a pick is applied to
+    // what was chosen then even if the owner moves on while Google answers. Plain `fetch`, never `apiFetch`: no Firebase token goes to Google. Returns {close}.
+    function makePlacesAutocomplete({ queryId, resultsId, getBias, getContext, onPick }) {
       const queryBox = document.getElementById(queryId);
       const results = document.getElementById(resultsId);
       let suggestions = [];
@@ -5638,6 +5701,7 @@
         const option = e.target.closest(".place-option");
         const chosen = option && suggestions[Number(option.dataset.index)];
         if (!chosen) return;
+        const context = getContext ? getContext() : undefined;
         const mine = ++latest;
         results.textContent = "Getting the address...";
         try {
@@ -5650,13 +5714,13 @@
           token = newSessionToken(); // the details request ends the session
           suggestions = [];
           results.textContent = "";
-          onPick(place);
+          onPick(place, context);
         } catch (err) {
           if (mine !== latest) return;
           render(`<div class="settings-note">Could not get that address: ${esc(err.message)}</div>`);
         }
       });
-      return { suggestNow: suggest, close };
+      return { close };
     }
 
     // Save a Blob as a file download.
@@ -6041,14 +6105,12 @@
       renderLocation();
     } });
     if (CONFIG.placesApiKey) {
-      // With a Places key the Location field suggests street addresses as the owner types; picking one sets the text and the map
-      // position, and fills the Address box when it is empty
+      // With a Places key the Location field suggests street addresses as the owner types; picking one sets the text and the map position
       document.getElementById("clientPlaceSearchBtn").hidden = true;
-      document.getElementById("clientLocationNote").textContent = "Where the work is, used for navigation. Start typing the street address and pick a suggestion: it gives the job a map position, so nearby jobs can be grouped, and fills in the Address above if that is empty.";
+      document.getElementById("clientLocationNote").textContent = "The client's address: printed on job sheets and used for navigation. Start typing the street address and pick a suggestion: it also gives the job a map position, so nearby jobs can be grouped.";
       clientPlaces = makePlacesAutocomplete({ queryId: "clientLocation", resultsId: "clientPlaceResults", getBias: () => currentSettings && currentSettings.location ? currentSettings.location : null, onPick: place => {
-        const fill = clientFillFromPlace(place, document.getElementById("clientAddress").value);
+        const fill = clientFillFromPlace(place);
         document.getElementById("clientLocation").value = fill.locationText;
-        if (fill.addressText) document.getElementById("clientAddress").value = fill.addressText;
         clientCoords = fill.coords;
         renderClientCoords();
       } });
@@ -6059,18 +6121,17 @@
         renderClientCoords();
       } });
     }
-    document.getElementById("clientUseAddressBtn").addEventListener("click", () => {
-      const text = addressAsLocation(document.getElementById("clientAddress").value);
-      if (!text) return;
-      document.getElementById("clientLocation").value = text;
-      document.getElementById("clientPlaceResults").textContent = "";
-      if (clientPlaces) clientPlaces.suggestNow();
-    });
     document.getElementById("clientClearCoordsBtn").addEventListener("click", () => {
       clientCoords = null;
       renderClientCoords();
     });
     renderClientCoords();
+    if (CONFIG.placesApiKey) {
+      document.getElementById("projectPlaceSearchBtn").hidden = true;
+      projectPlaces = makePlacesAutocomplete({ queryId: "projectLocationInput", resultsId: "projectPlaceResults", getBias: () => currentSettings && currentSettings.location ? currentSettings.location : null, getContext: () => selectedProjectFilter, onPick: (place, projectId) => setProjectLocation(projectId, placeLocation(place)) });
+    } else {
+      makePlaceSearch({ queryId: "projectLocationInput", buttonId: "projectPlaceSearchBtn", resultsId: "projectPlaceResults", showZone: false, queries: placeQueries, clearQuery: false, onPick: place => setProjectLocation(selectedProjectFilter, placeLocation(place)) });
+    }
     document.getElementById("saveSettingsBtn").addEventListener("click", saveSettings);
     document.getElementById("saveJobSheetBtn").addEventListener("click", saveJobSheetSettings);
     document.getElementById("pushOnBtn").addEventListener("click", enablePush);

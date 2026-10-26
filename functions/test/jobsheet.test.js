@@ -429,11 +429,11 @@ describe("jobsheet.js", () => {
   });
 
   describe("client details", () => {
-    const client = {id: "c1", name: "Jo Smith", address: "1 Beach Rd\nWhangaparāoa", phone: "021 000 000", email: "jo@example.co.nz"};
+    const client = {id: "c1", name: "Jo Smith", location: {name: "1 Beach Rd, Whangaparāoa"}, phone: "021 000 000", email: "jo@example.co.nz"};
     const withClient = (request, c) => buildJobSheet({request, rows: [row()], project, client: c, timeZone: NZ, now});
     it("carries the client's lines on project, week and task sheets", () => {
       for (const request of [{type: "PROJECT"}, {type: "WEEK", weekStart: "2026-10-19"}, {type: "TASK"}]) {
-        assert.deepEqual(withClient(request, client).clientLines, ["Jo Smith", "1 Beach Rd", "Whangaparāoa", "021 000 000", "jo@example.co.nz"]);
+        assert.deepEqual(withClient(request, client).clientLines, ["Jo Smith", "1 Beach Rd, Whangaparāoa", "021 000 000", "jo@example.co.nz"]);
       }
     });
     it("cleans the lines for the PDF font", () => {

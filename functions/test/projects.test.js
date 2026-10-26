@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {MAX_NAME_LENGTH, MAX_PROJECT_ORDER, normalizeProjectName, normalizeProjectOrder, applyProjectFields, projectFieldsOf, removeProjectFromTasks, sortProjects, addProject, withNewProject, renameProject} = require("../projects");
+const {MAX_NAME_LENGTH, MAX_PROJECT_ORDER, normalizeProjectName, normalizeProjectOrder, applyProjectFields, projectFieldsOf, removeProjectFromTasks, setProjectLocation, sortProjects, addProject, withNewProject, renameProject} = require("../projects");
 
 const task = (id, extra = {}) => ({id, title: `Task ${id}`, priority: "MEDIUM", dueDate: "", estimatedMinutes: 15, tags: [], status: "PENDING", ...extra});
 const ids = ["p1", "p2"];
@@ -180,6 +180,31 @@ describe("projects.js", () => {
     });
     it("rejects an unusable name", () => {
       assert.match(renameProject(list, "p1", 5).error, /non-empty/);
+    });
+  });
+
+  describe("setProjectLocation", () => {
+    const projects = [{id: "p1", name: "Alpha", clientId: "c1"}, {id: "p2", name: "Beta", location: {name: "Old", latitude: -36.5, longitude: 174.6}}];
+    it("sets the project's own location, keeping its other fields", () => {
+      const r = setProjectLocation(projects, "p1", {name: " 12 Beach Road,  Orewa ", latitude: -36.58, longitude: 174.69});
+      assert.deepEqual(r.project, {id: "p1", name: "Alpha", clientId: "c1", location: {name: "12 Beach Road, Orewa", latitude: -36.58, longitude: 174.69}});
+      assert.deepEqual(r.projects[0], r.project);
+      assert.equal(r.projects[1], projects[1], "other projects are untouched");
+      assert.equal("location" in projects[0], false, "the input is not modified");
+    });
+    it("replaces an existing location and allows a label with no position", () => {
+      assert.deepEqual(setProjectLocation(projects, "p2", {name: "Smith's yard"}).project.location, {name: "Smith's yard"});
+    });
+    it("takes it off for null, so the project inherits its client's again", () => {
+      const r = setProjectLocation(projects, "p2", null);
+      assert.equal("location" in r.project, false);
+      assert.equal(setProjectLocation(projects, "p1", null).project.clientId, "c1");
+    });
+    it("reports an unknown project and an unusable location", () => {
+      assert.deepEqual(setProjectLocation(projects, "zzz", null), {notFound: true});
+      for (const bad of [undefined, "text", 5, [], {name: "x", latitude: 5}, {name: "x", latitude: 99, longitude: 0}, {name: "x".repeat(201)}, {latitude: 1, longitude: 2}]) {
+        assert.match(setProjectLocation(projects, "p1", bad).error, /^location must be null or a name/, JSON.stringify(bad));
+      }
     });
   });
 });

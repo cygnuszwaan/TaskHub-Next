@@ -16,7 +16,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, addressAsLocation, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
+    return {confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -2369,7 +2369,7 @@ describe("public/index.html helpers", () => {
   });
 
   describe("clients", () => {
-    const clients = [{id: "c1", name: "Jo Smith", address: "1 Beach Rd\nWhangaparāoa", phone: "021 000", email: "jo@x.nz"}];
+    const clients = [{id: "c1", name: "Jo Smith", location: {name: "1 Beach Rd, Whangaparāoa"}, phone: "021 000", email: "jo@x.nz"}];
     const projects = [{id: "p1", name: "Deck", clientId: "c1"}, {id: "p2", name: "Fence"}, {id: "p3", name: "Shed", clientId: "gone"}];
     it("names a project's client, empty with none or an unknown one", () => {
       const {projectClientName} = load();
@@ -2392,8 +2392,9 @@ describe("public/index.html helpers", () => {
     });
     it("summarises a client on one line", () => {
       const {clientSummary} = load();
-      assert.equal(clientSummary(clients[0]), "1 Beach Rd, Whangaparāoa · 021 000 · jo@x.nz");
-      assert.equal(clientSummary({name: "Jo", address: "", phone: "021"}), "021");
+      assert.equal(clientSummary(clients[0]), "📍 1 Beach Rd, Whangaparāoa · 021 000 · jo@x.nz");
+      assert.equal(clientSummary({name: "Jo", phone: "021"}), "021");
+      assert.equal(clientSummary({name: "Jo", address: "1 Beach Rd", phone: "021"}), "021", "an old stored address is not shown");
       assert.equal(clientSummary({name: "Jo"}), "");
       assert.equal(clientSummary(null), "");
     });
@@ -2422,16 +2423,9 @@ describe("public/index.html helpers", () => {
       assert.equal(placeQueries("a, b, c, d, e, f").length, 4, "at most four searches");
       for (const none of ["", "   ", null, undefined]) assert.deepEqual(placeQueries(none), []);
     });
-    it("writes an address as a one-line location", () => {
-      const {addressAsLocation} = load();
-      assert.equal(addressAsLocation("1 Beach Rd\n  Orewa \r\n\nAuckland"), "1 Beach Rd, Orewa, Auckland");
-      assert.equal(addressAsLocation("Smith's yard"), "Smith's yard");
-      assert.equal(addressAsLocation("x".repeat(250)).length, 200);
-      for (const none of ["", " \n ", null, undefined, 5]) assert.equal(addressAsLocation(none), "");
-    });
-    it("shows a client's location in the summary, after the address", () => {
+    it("shows a client's location in the summary, first", () => {
       const {clientSummary} = load();
-      assert.equal(clientSummary({name: "Jo", address: "1 Beach Rd", location: {name: "Orewa", latitude: -36.6, longitude: 174.7}, phone: "021"}), "1 Beach Rd · 📍 Orewa · 021");
+      assert.equal(clientSummary({name: "Jo", location: {name: "Orewa", latitude: -36.6, longitude: 174.7}, phone: "021"}), "📍 Orewa · 021");
       assert.equal(clientSummary({name: "Jo", location: {name: "Orewa"}}), "📍 Orewa");
       assert.equal(clientSummary({name: "Jo", location: null}), "");
     });
@@ -2442,9 +2436,10 @@ describe("public/index.html helpers", () => {
     });
     it("builds the form body, trimming the name only", () => {
       const {clientFormBody} = load();
-      assert.deepEqual(clientFormBody({name: "  Jo ", address: "1 Rd\n", phone: " 1", email: "a@b.nz", hourlyRate: " 95.50 "}), {name: "Jo", address: "1 Rd\n", phone: " 1", email: "a@b.nz", hourlyRate: "95.50", useWhatsApp: false, location: null});
-      assert.deepEqual(clientFormBody({name: "Jo", hourlyRate: null}), {name: "Jo", address: "", phone: "", email: "", hourlyRate: "", useWhatsApp: false, location: null});
-      assert.deepEqual(clientFormBody(undefined), {name: "", address: "", phone: "", email: "", hourlyRate: "", useWhatsApp: false, location: null});
+      assert.deepEqual(clientFormBody({name: "  Jo ", phone: " 1", email: "a@b.nz", hourlyRate: " 95.50 "}), {name: "Jo", phone: " 1", email: "a@b.nz", hourlyRate: "95.50", useWhatsApp: false, location: null});
+      assert.deepEqual(clientFormBody({name: "Jo", hourlyRate: null}), {name: "Jo", phone: "", email: "", hourlyRate: "", useWhatsApp: false, location: null});
+      assert.deepEqual(clientFormBody(undefined), {name: "", phone: "", email: "", hourlyRate: "", useWhatsApp: false, location: null});
+      assert.equal("address" in clientFormBody({name: "Jo", address: "1 Rd"}), false, "no address is sent");
       assert.equal(clientFormBody({name: "Jo", useWhatsApp: true}).useWhatsApp, true);
       assert.equal(clientFormBody({name: "Jo", useWhatsApp: "yes"}).useWhatsApp, false);
     });
@@ -3287,35 +3282,16 @@ describe("Reorder mode", () => {
       assert.equal(suggestionsFromAutocomplete(many).length, 5);
       for (const none of [{}, {suggestions: null}, null, undefined, "x"]) assert.deepEqual(suggestionsFromAutocomplete(none), []);
     });
-    it("turns a place into a location name, a position and address lines", () => {
+    it("turns a place into a location name and a position, without the country", () => {
       const {placeFromDetails} = load();
-      assert.deepEqual(placeFromDetails(details), {
-        name: "12 Beach Road, Orewa, Auckland 0931",
-        latitude: -36.5871,
-        longitude: 174.6945,
-        address: "12 Beach Road\nOrewa\nAuckland 0931",
-      });
+      assert.deepEqual(placeFromDetails(details), {name: "12 Beach Road, Orewa, Auckland 0931", latitude: -36.5871, longitude: 174.6945});
     });
-    it("writes a flat as 3/12, and leaves out a suburb that repeats the town", () => {
-      const {placeFromDetails} = load();
-      const flat = {...details, addressComponents: [
-        {longText: "3", types: ["subpremise"]},
-        {longText: "12", types: ["street_number"]},
-        {longText: "Beach Road", types: ["route"]},
-        {longText: "orewa", types: ["sublocality_level_1"]},
-        {longText: "Orewa", types: ["locality"]},
-        {longText: "0931", types: ["postal_code"]},
-        {longText: "New Zealand", types: ["country"]},
-      ]};
-      assert.equal(placeFromDetails(flat).address, "3/12 Beach Road\nOrewa 0931");
-    });
-    it("falls back to the formatted address when it has no components, and keeps a name that does not end in the country", () => {
+    it("keeps the whole address when there is no country component or it does not end the address, and cuts to 200 characters", () => {
       const {placeFromDetails} = load();
       const bare = {formattedAddress: "Orewa Beach, Orewa 0931", location: {latitude: -36.58, longitude: 174.7}};
-      assert.deepEqual(placeFromDetails(bare), {name: "Orewa Beach, Orewa 0931", latitude: -36.58, longitude: 174.7, address: "Orewa Beach\nOrewa 0931"});
-      const long = {...bare, formattedAddress: "x".repeat(260)};
-      assert.equal(placeFromDetails(long).name.length, 200);
-      assert.ok(placeFromDetails(long).address.length <= 300);
+      assert.deepEqual(placeFromDetails(bare), {name: "Orewa Beach, Orewa 0931", latitude: -36.58, longitude: 174.7});
+      assert.equal(placeFromDetails({...details, formattedAddress: "12 Beach Road, New Zealand Post, Orewa"}).name, "12 Beach Road, New Zealand Post, Orewa");
+      assert.equal(placeFromDetails({...bare, formattedAddress: "x".repeat(260)}).name.length, 200);
     });
     it("refuses a place without a position or an address", () => {
       const {placeFromDetails} = load();
@@ -3326,16 +3302,11 @@ describe("Reorder mode", () => {
       for (const none of [null, undefined, "x", 5]) assert.equal(placeFromDetails(none), null);
       assert.ok(placeFromDetails({...details, addressComponents: "nope"}), "bad components are ignored, not fatal");
     });
-    it("fills the Address box only while it is empty", () => {
-      const {placeFromDetails, clientFillFromPlace} = load();
+    it("fills the Clients form's Location text and map position from a place, and never an Address", () => {
+      const {placeFromDetails, clientFillFromPlace, placeLocation} = load();
       const place = placeFromDetails(details);
-      const fresh = clientFillFromPlace(place, "  ");
-      assert.equal(fresh.locationText, "12 Beach Road, Orewa, Auckland 0931");
-      assert.deepEqual(fresh.coords, {latitude: -36.5871, longitude: 174.6945, label: "12 Beach Road, Orewa, Auckland 0931"});
-      assert.equal(fresh.addressText, "12 Beach Road\nOrewa\nAuckland 0931");
-      assert.equal(clientFillFromPlace(place, "Smith Ltd\n1 High St").addressText, null);
-      assert.equal(clientFillFromPlace(place, undefined).addressText, place.address);
-      assert.equal(clientFillFromPlace({...place, address: ""}, "").addressText, null);
+      assert.deepEqual(clientFillFromPlace(place), {locationText: "12 Beach Road, Orewa, Auckland 0931", coords: {latitude: -36.5871, longitude: 174.6945, label: "12 Beach Road, Orewa, Auckland 0931"}});
+      assert.deepEqual(placeLocation(place), {name: "12 Beach Road, Orewa, Auckland 0931", latitude: -36.5871, longitude: 174.6945});
     });
     it("shows Google's own error text, else the status", () => {
       const {placesErrorText} = load();
@@ -3349,6 +3320,8 @@ describe("Reorder mode", () => {
       assert.ok(widget.length > 100);
       assert.doesNotMatch(widget, /apiFetch|Authorization/);
       assert.equal((widget.match(/await fetch\(/g) || []).length, 2, "one autocomplete and one details request");
+      assert.match(widget, /const context = getContext \? getContext\(\) : undefined;/, "what was chosen is read when the suggestion is tapped, not when Google answers");
+      assert.match(widget, /onPick\(place, context\)/);
       assert.match(widget, /"X-Goog-Api-Key": CONFIG\.placesApiKey/);
       assert.match(widget, /"X-Goog-FieldMask": PLACES_DETAILS_FIELDS/);
       assert.match(widget, /token = newSessionToken\(\); \/\/ the details request ends the session/);
@@ -3359,6 +3332,71 @@ describe("Reorder mode", () => {
       assert.match(html, /placesRegion: "nz"/);
       assert.match(html, /if \(CONFIG\.placesApiKey\) \{\s*\/\/ With a Places key/);
       assert.equal((html.match(/places\.googleapis\.com/g) || []).length, 2, "the two Places endpoints, nowhere else");
+    });
+  });
+
+  describe("client Address field removed, project Location row", () => {
+    const where = (name) => ({name, latitude: -36.6, longitude: 174.7});
+    it("has no Address box, Use address button or address text in the Clients form", () => {
+      assert.doesNotMatch(html, /clientAddress|clientUseAddressBtn|addressAsLocation|addressText/);
+      assert.doesNotMatch(html, /<label for="clientAddress"/);
+      assert.match(html, /<label for="clientLocation">Location<\/label>/);
+    });
+    it("keeps effectiveLocation in the page equal to the one in functions/location.js", () => {
+      const {effectiveLocation} = load();
+      const server = require("../location").effectiveLocation;
+      const owners = [undefined, null, {}, {title: "T", name: "N"}, {title: "T", name: "N", location: where("Here")}, {name: "N", location: {name: "  A   B "}}, {name: "N", location: {name: "Label only"}},
+        {name: "N", location: {name: "x", latitude: 5}}, {name: "N", location: {name: "x", latitude: 99, longitude: 0}}, {name: "N", location: {name: "x".repeat(201)}},
+        {name: "N", location: "text"}, {name: "N", location: []}, {name: "N", location: {name: 5}}, {name: "N", location: {latitude: 1, longitude: 2}}, {title: "T", location: null}];
+      for (const a of owners) {
+        for (const b of owners) {
+          for (const c of [owners[0], owners[4], owners[6], owners[8]]) {
+            assert.deepEqual(effectiveLocation(a, b, c), server(a, b, c), JSON.stringify([a, b, c]));
+          }
+        }
+      }
+    });
+    it("shows the project's own location, with its map position", () => {
+      const {projectLocationView} = load();
+      assert.deepEqual(projectLocationView({id: "p1", name: "Reno", location: where("12 Beach Road")}, {name: "Smith Ltd", location: where("Client place")}), {value: "12 Beach Road", hasOwn: true, note: "📍 Map position set."});
+      assert.deepEqual(projectLocationView({id: "p1", name: "Reno", location: {name: "Smith's yard"}}, null), {value: "Smith's yard", hasOwn: true, note: "No map position: pick a suggestion to set one."});
+    });
+    it("says where an inherited location comes from, with the box left empty", () => {
+      const {projectLocationView} = load();
+      assert.deepEqual(projectLocationView({id: "p1", name: "Reno"}, {name: "Smith Ltd", location: where("12 Beach Road")}), {value: "", hasOwn: false, note: "From client: Smith Ltd · 12 Beach Road"});
+    });
+    it("has nothing to show when neither the project nor its client has a location", () => {
+      const {projectLocationView} = load();
+      const none = {value: "", hasOwn: false, note: "No location yet. Pick an address to set one."};
+      assert.deepEqual(projectLocationView({id: "p1", name: "Reno"}, null), none);
+      assert.deepEqual(projectLocationView({id: "p1", name: "Reno"}, {name: "Smith Ltd"}), none);
+      assert.deepEqual(projectLocationView(undefined, undefined), none);
+    });
+    it("changes the key that decides when the box is rewritten only for another project or its own location", () => {
+      const {projectLocationKey} = load();
+      const a = {id: "p1", name: "Reno"};
+      assert.equal(projectLocationKey({...a, name: "Renamed", clientId: "c2"}), projectLocationKey(a), "a rename or a client change leaves typed text alone");
+      assert.notEqual(projectLocationKey({...a, location: where("X")}), projectLocationKey(a));
+      assert.notEqual(projectLocationKey({...a, location: where("X")}), projectLocationKey({...a, location: where("Y")}));
+      assert.notEqual(projectLocationKey({id: "p2"}), projectLocationKey({id: "p1"}));
+      assert.equal(projectLocationKey(null), "");
+    });
+    it("has a fixed Location row under the chosen project, bound once", () => {
+      assert.match(html, /<div class="project-location" id="projectLocation" hidden>/);
+      assert.ok(html.indexOf("id=\"projectActions\"") < html.indexOf("id=\"projectLocation\"") && html.indexOf("id=\"projectLocation\"") < html.indexOf("id=\"projectTemplateAction\""), "after Client, before Save as template");
+      const render = html.slice(html.indexOf("function renderProjects()"), html.indexOf("let projectLocationShown"));
+      assert.doesNotMatch(render, /projectLocationInput/, "the markup is not rebuilt by a redraw");
+      assert.match(html, /if \(key !== projectLocationShown\) \{\s*projectLocationShown = key;\s*document\.getElementById\("projectLocationInput"\)\.value = view\.value;/);
+      assert.match(html, /projectPlaces = makePlacesAutocomplete\(\{ queryId: "projectLocationInput", resultsId: "projectPlaceResults"[^\n]*getContext: \(\) => selectedProjectFilter, onPick: \(place, projectId\) => setProjectLocation\(projectId, placeLocation\(place\)\)/);
+      assert.match(html, /makePlaceSearch\(\{ queryId: "projectLocationInput", buttonId: "projectPlaceSearchBtn", resultsId: "projectPlaceResults", showZone: false, queries: placeQueries, clearQuery: false/, "the Open-Meteo search stays as the fallback without a key");
+    });
+    it("saves a pick through SET_LOCATION and Clear sends null", () => {
+      assert.match(html, /saveProject\(\{ action: "SET_LOCATION", projectId, location \}, location \? "Saved\." : "Location cleared\."\)/);
+      assert.match(html, /projectLocationClearBtn"\)\.addEventListener\("click", \(\) => setProjectLocation\(selectedProjectFilter, null\)\)/);
+    });
+    it("keeps Rename, Delete and Save as template working from both containers", () => {
+      assert.match(html, /for \(const id of \["projectActions", "projectTemplateAction"\]\)/);
+      assert.match(html, /id="projectTemplateAction"/);
     });
   });
 });

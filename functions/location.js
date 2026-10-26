@@ -31,4 +31,18 @@ function normalizeLocation(value) {
   return {name, latitude: value.latitude, longitude: value.longitude};
 }
 
-module.exports = {MAX_LOCATION_NAME_LENGTH, normalizeLocation};
+// Where a task is: the first location that is set of the task's own, its project's and the project's client's, so a change to a client
+// reaches every project and task that has not set its own (setting one is the override; clearing it goes back to inheriting). Only
+// own locations are stored. Any of the three may be null or missing. Returns {location, source: "task"|"project"|"client", from}, the
+// location normalized and `from` the owner's title or name, or null when none of them has one.
+function effectiveLocation(task, project, client) {
+  const owners = [["task", task, task && task.title], ["project", project, project && project.name], ["client", client, client && client.name]];
+  for (const [source, owner, from] of owners) {
+    if (!owner || typeof owner !== "object" || owner.location === undefined || owner.location === null) continue;
+    const location = normalizeLocation(owner.location);
+    if (location) return {location, source, from: typeof from === "string" ? from : ""};
+  }
+  return null;
+}
+
+module.exports = {MAX_LOCATION_NAME_LENGTH, normalizeLocation, effectiveLocation};

@@ -109,7 +109,7 @@ describe("jobsheetPdf.js", () => {
     });
   });
   it("renders the client's details, with or without contractor information", async () => {
-    const client = {name: "Jo Smith", address: "1 Beach Rd\nWhangaparāoa", phone: "021 000 000", email: "jo@example.co.nz"};
+    const client = {name: "Jo Smith", location: {name: "1 Beach Rd, Whangaparāoa"}, phone: "021 000 000", email: "jo@example.co.nz"};
     const draw = (request, r, contractorInfo) => renderJobSheetPdf(buildJobSheet({request, rows: r, project, client, timeZone: NZ, now, contractorInfo}));
     for (const contractorInfo of [undefined, "A Builder Ltd\nPh 021 111 111"]) {
       const pdf = await draw({type: "PROJECT"}, rows(3), contractorInfo);

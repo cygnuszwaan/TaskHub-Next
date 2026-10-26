@@ -35,14 +35,25 @@ Push uses Firebase Cloud Messaging, which is on by default in a Firebase project
 
 **Address autocomplete** (optional; Google Places, billed on the Blaze plan's billing account but well inside its free monthly allowance for one person)
 
-The Clients form's Location field suggests street addresses as you type and fills in the map position and, when it is empty, the Address. Without a key it falls back to the town-level Open-Meteo search.
+The Location field of the Clients form and of the chosen project suggests street addresses as you type; picking one sets the text and the map position. A client's Location is its address, and is what job sheets print. Without a key both fall back to the town-level Open-Meteo search.
 
 1. In the Google Cloud console, open project `taskhub-next` (APIs & Services, Library) and enable **Places API (New)**. Billing must be linked to the project, which the Blaze plan already does.
 2. APIs & Services, Credentials, Create credentials, API key. Under Application restrictions choose Websites and add `https://taskhub-next.web.app/*` and `https://taskhub-next.firebaseapp.com/*`; under API restrictions choose Restrict key and tick only Places API (New).
 3. Limit what a stray request could cost: APIs & Services, Places API (New), Quotas & System Limits, and lower the per-day limits for autocomplete and place details requests to a few hundred. Then Billing, Budgets & alerts, and create a budget of a dollar or two with email alerts.
 4. Paste the key into `CONFIG.placesApiKey` in `public/index.html` and deploy hosting. A browser key is visible in the page source, which is normal: the website restriction and the quotas are what protect it.
 
-The page asks only for Place Details Essentials fields (address, components and position), which have a free allowance of 10,000 requests a month, and sends one session token per search so Google bills it once. If suggestions show "Address search failed" under the field, the message is Google's own: a blocked-referrer message means step 2's website list does not match the address you opened the page from, and a not-enabled message means step 1.
+The page asks only for Place Details Essentials fields (address, country and position), which have a free allowance of 10,000 requests a month, and sends one session token per search so Google bills it once. If suggestions show "Address search failed" under the field, the message is Google's own: a blocked-referrer message means step 2's website list does not match the address you opened the page from, and a not-enabled message means step 1.
+
+**Keeping stored client addresses** (one-off, only if your clients have addresses saved from before the Address field was removed)
+
+```
+cd functions
+gcloud auth application-default login      (once)
+npm run migrate-client-addresses            (dry run: prints what it would do)
+npm run migrate-client-addresses -- --apply
+```
+
+A client with no location gets its old address as its location text (pick the address in the Clients form to add a map position); a client that already has a location keeps it and the dry run lists the address being dropped, so you can copy it elsewhere first. Safe to run again.
 
 **Weekly backup** (needs the Blaze plan; a Firestore export is billed like any other storage and reads)
 

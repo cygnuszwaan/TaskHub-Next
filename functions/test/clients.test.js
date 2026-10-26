@@ -2,16 +2,20 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {MAX_NAME_LENGTH, MAX_ADDRESS_LENGTH, MAX_PHONE_LENGTH, MAX_EMAIL_LENGTH, normalizeClientFields, sortClients, addClient, updateClient, removeClientFromProjects, setProjectClient, clientLines, clientHourlyRate} = require("../clients");
+const {MAX_NAME_LENGTH, MAX_PHONE_LENGTH, MAX_EMAIL_LENGTH, normalizeClientFields, sortClients, addClient, updateClient, removeClientFromProjects, setProjectClient, clientLines, clientHourlyRate} = require("../clients");
 
-const list = [{id: "c1", name: "Smith Family", address: "1 Beach Rd", phone: "", email: ""}, {id: "c2", name: "acme Ltd", address: "", phone: "", email: ""}];
+const list = [{id: "c1", name: "Smith Family", phone: "", email: ""}, {id: "c2", name: "acme Ltd", phone: "", email: ""}];
 
 describe("clients.js", () => {
   describe("normalizeClientFields", () => {
     it("cleans every field and fills the optional ones with empty text", () => {
-      assert.deepEqual(normalizeClientFields({name: "  Jo \n Smith ", address: " 1 Beach Rd \r\n\r\n  Whangaparāoa  0930 ", phone: " 021  000 000 ", email: " jo@example.co.nz "}),
-          {client: {name: "Jo Smith", address: "1 Beach Rd\nWhangaparāoa 0930", phone: "021 000 000", email: "jo@example.co.nz"}});
-      assert.deepEqual(normalizeClientFields({name: "Jo", address: null}), {client: {name: "Jo", address: "", phone: "", email: ""}});
+      assert.deepEqual(normalizeClientFields({name: "  Jo \n Smith ", phone: " 021  000 000 ", email: " jo@example.co.nz "}),
+          {client: {name: "Jo Smith", phone: "021 000 000", email: "jo@example.co.nz"}});
+      assert.deepEqual(normalizeClientFields({name: "Jo", phone: null}), {client: {name: "Jo", phone: "", email: ""}});
+    });
+    it("no longer has an address: one sent by an old page is ignored, not stored or rejected", () => {
+      assert.deepEqual(normalizeClientFields({name: "Jo", address: "1 Beach Rd"}), {client: {name: "Jo", phone: "", email: ""}});
+      assert.deepEqual(normalizeClientFields({name: "Jo", address: 5}), {client: {name: "Jo", phone: "", email: ""}});
     });
     it("keeps an hourly rate rounded to cents and leaves the key out for none", () => {
       assert.equal(normalizeClientFields({name: "Jo", hourlyRate: 95}).client.hourlyRate, 95);
@@ -47,8 +51,6 @@ describe("clients.js", () => {
     it("rejects a field of the wrong type or length and an email that is not one", () => {
       assert.match(normalizeClientFields({name: "a".repeat(MAX_NAME_LENGTH + 1)}).error, /name must be at most 100/);
       assert.equal(normalizeClientFields({name: "a".repeat(MAX_NAME_LENGTH)}).client.name.length, MAX_NAME_LENGTH);
-      assert.match(normalizeClientFields({name: "a", address: "x".repeat(MAX_ADDRESS_LENGTH + 1)}).error, /address must be at most 300/);
-      assert.match(normalizeClientFields({name: "a", address: 5}).error, /address must be text/);
       assert.match(normalizeClientFields({name: "a", phone: "1".repeat(MAX_PHONE_LENGTH + 1)}).error, /phone must be at most 40/);
       assert.match(normalizeClientFields({name: "a", phone: 5}).error, /phone must be text/);
       assert.match(normalizeClientFields({name: "a", email: "e".repeat(MAX_EMAIL_LENGTH) + "@x.nz"}).error, /email must be at most 100/);
@@ -66,7 +68,7 @@ describe("clients.js", () => {
   describe("addClient", () => {
     it("adds a sorted client with a new id", () => {
       const r = addClient(list, {name: "  Bob "}, () => "c3");
-      assert.deepEqual(r.client, {id: "c3", name: "Bob", address: "", phone: "", email: ""});
+      assert.deepEqual(r.client, {id: "c3", name: "Bob", phone: "", email: ""});
       assert.deepEqual(r.clients.map((c) => c.id), ["c2", "c3", "c1"]);
     });
     it("rejects a taken name ignoring case and an unusable client", () => {
@@ -78,7 +80,7 @@ describe("clients.js", () => {
   describe("updateClient", () => {
     it("replaces the fields and keeps the id", () => {
       const r = updateClient(list, "c1", {name: "Smith", phone: "021"});
-      assert.deepEqual(r.client, {id: "c1", name: "Smith", address: "", phone: "021", email: ""});
+      assert.deepEqual(r.client, {id: "c1", name: "Smith", phone: "021", email: ""});
       assert.equal(r.clients.length, 2);
     });
     it("sets, changes and clears the hourly rate (an update replaces the fields)", () => {
@@ -150,9 +152,13 @@ describe("clients.js", () => {
   });
 
   describe("clientLines", () => {
-    it("lists the name, address lines, phone and email that exist", () => {
-      assert.deepEqual(clientLines({name: "Jo", address: "1 Beach Rd\nAuckland", phone: "021", email: "jo@x.nz"}), ["Jo", "1 Beach Rd", "Auckland", "021", "jo@x.nz"]);
-      assert.deepEqual(clientLines({name: "Jo", address: "", phone: "", email: ""}), ["Jo"]);
+    it("lists the name, location text, phone and email that exist", () => {
+      assert.deepEqual(clientLines({name: "Jo", location: {name: "12 Beach Road, Orewa, Auckland 0931", latitude: -36.58, longitude: 174.69}, phone: "021", email: "jo@x.nz"}), ["Jo", "12 Beach Road, Orewa, Auckland 0931", "021", "jo@x.nz"]);
+      assert.deepEqual(clientLines({name: "Jo", phone: "", email: ""}), ["Jo"]);
+      assert.deepEqual(clientLines({name: "Jo", location: {name: "Smith's yard"}}), ["Jo", "Smith's yard"], "a label without a position prints too");
+    });
+    it("does not print an old stored address", () => {
+      assert.deepEqual(clientLines({name: "Jo", address: "1 Beach Rd"}), ["Jo"]);
     });
     it("is empty for no client", () => {
       for (const v of [null, undefined, "x"]) assert.deepEqual(clientLines(v), []);

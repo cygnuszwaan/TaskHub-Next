@@ -5,7 +5,7 @@ const {mergeSettings, applySettingsUpdate, claimRun} = require("./settings");
 const {addPushToken, removePushTokens} = require("./push");
 const {reminderWindow} = require("./alerts");
 const {lastIssued} = require("./jobNumber");
-const {sortProjects, addProject, renameProject, removeProjectFromTasks} = require("./projects");
+const {sortProjects, addProject, renameProject, setProjectLocation, removeProjectFromTasks} = require("./projects");
 const {buildTemplateSteps, sortTemplates, addTemplate, renameTemplate} = require("./projectTemplates");
 const {normalizeShoppingItems, addShoppingItem, removeShoppingItem} = require("./shopping");
 const {sortClients, addClient, updateClient, removeClientFromProjects, setProjectClient} = require("./clients");
@@ -86,12 +86,13 @@ function makeTaskStore(db) {
   return {updateTaskList, getTasks};
 }
 
-// Projects in `projects/{id}` ({id, name}, the doc id being the project's id). `db` is a Firestore instance.
+// Projects in `projects/{id}` ({id, name, clientId?, location?}, the doc id being the project's id). `db` is a Firestore instance.
 //   getProjects()                -> all projects, sorted by name
 //   createProject(name, makeId)  -> {projects, project}, or {error} for an unusable or taken name (nothing is written then)
 //   renameProject(id, name)      -> {projects, project}, {notFound: true} or {error}; the project's other fields (its client) stay
 //   setProjectClient(id, clientId) -> {projects, project}, {notFound: true} (project) or {error} (client not stored); null or ""
 //                                   takes the client off. The client is checked in the same transaction.
+//   setProjectLocation(id, location) -> {projects, project}, {notFound: true} or {error}; null removes the project's own location
 //   deleteProject(id)            -> {projects, tasks} or {notFound: true}: in one transaction removes the project and
 //                                   takes every member task out of it (projectId and projectOrder removed); the tasks
 //                                   are otherwise untouched. `tasks` is the full list afterwards.
@@ -131,6 +132,14 @@ function makeProjectStore(db) {
     });
   }
 
+  async function setLocationOf(projectId, location) {
+    return db.runTransaction(async (tx) => {
+      const result = setProjectLocation(projectsFrom(await tx.get(projectsRef)), projectId, location);
+      if (result.project) tx.set(projectsRef.doc(projectId), result.project);
+      return result;
+    });
+  }
+
   async function deleteProject(projectId) {
     return db.runTransaction(async (tx) => {
       const projects = projectsFrom(await tx.get(projectsRef));
@@ -143,10 +152,10 @@ function makeProjectStore(db) {
     });
   }
 
-  return {getProjects, createProject, renameProject: renameProjectById, setProjectClient: setClientOf, deleteProject};
+  return {getProjects, createProject, renameProject: renameProjectById, setProjectClient: setClientOf, setProjectLocation: setLocationOf, deleteProject};
 }
 
-// Clients in `clients/{id}` ({id, name, address, phone, email}, the doc id being the client's id). `db` is a Firestore instance.
+// Clients in `clients/{id}` ({id, name, phone, email, hourlyRate?, useWhatsApp?, location?}, the doc id being the client's id). `db` is a Firestore instance.
 //   getClients()                  -> all clients, sorted by name
 //   createClient(fields, makeId)  -> {clients, client}, or {error} (nothing is written then)
 //   updateClient(id, fields)      -> {clients, client}, {notFound: true} or {error}
