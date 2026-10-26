@@ -17,7 +17,7 @@ function titleKey(title) {
 //   rows: archive rows as `serializeCompleted` returns them, newest first
 // A template is {title, priority, estimatedMinutes, tags, completedAt} plus, when the row had them, `recurrence`,
 // `projectId`, `projectOrder`, `materials` (`{text, cost?}` per item, no ids or checked state: a new task starts with every item unchecked) and
-// `comments` and `travelKm`. It carries no due date, schedule, timer or id: those belong to one instance.
+// `comments`, `travelKm`, `phone` and `email`. It carries no due date, schedule, timer or id: those belong to one instance.
 // The job's history (see history.js) comes with it: `completedCount` is the larger of the newest row's stored count and the
 // number of rows with that title, and `recentSeconds` the newest row's stored samples, or, for rows archived before
 // history was kept, the tracked times (over a second) of the latest rows with that title, oldest first. With any samples
@@ -64,6 +64,8 @@ function buildTemplates(rows, limit = MAX_TEMPLATES) {
     if (materials.length > 0) template.materials = materials;
     if (typeof row.comments === "string" && row.comments.trim()) template.comments = row.comments;
     if (typeof row.travelKm === "number" && row.travelKm > 0) template.travelKm = row.travelKm;
+    if (typeof row.phone === "string" && row.phone) template.phone = row.phone;
+    if (typeof row.email === "string" && row.email) template.email = row.email;
     out.push(template);
     if (out.length >= limit) break;
   }

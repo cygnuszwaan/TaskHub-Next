@@ -7,6 +7,7 @@ const {normalizeMaterials} = require("./materials");
 const {normalizeSnooze} = require("./snooze");
 const {normalizeComments} = require("./comments");
 const {normalizeTravelKm} = require("./travel");
+const {normalizePhone, normalizeEmail} = require("./contact");
 const {averageMinutes, normalizeHistory, recordCompletion} = require("./history");
 const {settleTimer} = require("./timer");
 const PRIORITIES = ["HIGH", "MEDIUM", "LOW"];
@@ -37,6 +38,7 @@ function normalizeRecurrence(value) {
 // items get ids from `makeId`); and `snoozedUntil`, validated by normalizeSnooze (null or an empty string removes it, an
 // unusable value leaves it as it was); and `comments`, validated by normalizeComments (null or empty text removes it, a
 // non-string leaves it as it was); and `travelKm`, validated by normalizeTravelKm (null, empty text or 0 removes it, an unusable value
+// leaves it as it was); and `phone` and `email`, validated by normalizePhone and normalizeEmail (null or empty text removes it, an unusable value
 // leaves it as it was). `addedAt`, `trackedSeconds`, `firstStartedAt`, `timerStartedAt`, `active`, `order` and `jobNumber` are never changed by an edit.
 // Pure apart from `makeId`: the input is not modified.
 function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
@@ -47,6 +49,8 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   delete rest.snoozedUntil;
   delete rest.comments;
   delete rest.travelKm;
+  delete rest.phone;
+  delete rest.email;
   delete rest.completedCount;
   delete rest.recentSeconds;
   delete rest.addedAt;
@@ -83,6 +87,16 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
     const travelKm = normalizeTravelKm(fields.travelKm);
     if (typeof travelKm === "number") next.travelKm = travelKm;
     else if (travelKm === null) delete next.travelKm;
+  }
+  if (fields && "phone" in fields) {
+    const phone = normalizePhone(fields.phone);
+    if (typeof phone === "string") next.phone = phone;
+    else if (phone === null) delete next.phone;
+  }
+  if (fields && "email" in fields) {
+    const email = normalizeEmail(fields.email);
+    if (typeof email === "string") next.email = email;
+    else if (email === null) delete next.email;
   }
   return applyProjectFields(next, fields, projectIds);
 }
@@ -126,18 +140,18 @@ function changeProjectFields(change, projectIds) {
 }
 
 // The new-task change for a task entered by hand, in the shape mergeTaskChanges takes. Pure: no I/O.
-//   manual: {title, priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?, comments?, travelKm?}
+//   manual: {title, priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?, comments?, travelKm?, phone?, email?}
 //           from the entry form
 // Returns null without a usable title. The fields are validated by the same rules as the model's (see cleanFields,
 // changeProjectFields), so an unusable priority, date, estimate, tag list, recurrence or project falls back to the
-// new-task default; a field the form did not send is left out of the change. `materials`, `comments` and `travelKm` are passed on as
+// new-task default; a field the form did not send is left out of the change. `materials`, `comments`, `travelKm`, `phone` and `email` are passed on as
 // sent and are only applied when mergeTaskChanges is told to (the model's changes never set them). There is no id (a manual
 // entry is always a new task) and no rank (it goes last).
 function manualTaskChange(manual) {
   if (!manual || typeof manual !== "object" || Array.isArray(manual)) return null;
   if (typeof manual.title !== "string" || !manual.title.trim()) return null;
   const change = {title: manual.title, priority: manual.priority, dueDate: manual.dueDate, estimatedMinutes: manual.estimatedMinutes, tags: manual.tags};
-  for (const key of ["recurrence", "projectId", "projectOrder", "materials", "comments", "travelKm", "history"]) {
+  for (const key of ["recurrence", "projectId", "projectOrder", "materials", "comments", "travelKm", "phone", "email", "history"]) {
     if (manual[key] !== undefined) change[key] = manual[key];
   }
   return change;
@@ -199,7 +213,7 @@ function placeAtRank(list, task, rank) {
 //             through applyProjectFields (see changeProjectFields for what counts).
 //   options:  {jobCounter: n} numbers each new task (`jobNumber`) from n + 1 on, in the order the changes are listed, and returns the
 //             last number issued as `jobCounter`; without it new tasks are not numbered. {history: true} lets a new task take the change's `history` (validated by normalizeHistory), {materials: true} lets a new task take the change's `materials` (validated by normalizeMaterials) and
-//             {comments: true} its `comments` (validated by normalizeComments) and {travelKm: true} its `travelKm` (validated by normalizeTravelKm); only a manual entry or a template sets them. Without
+//             {comments: true} its `comments` (validated by normalizeComments) and {travelKm: true} its `travelKm` (validated by normalizeTravelKm) and {contact: true} its `phone` and `email` (validated by normalizePhone and normalizeEmail); only a manual entry or a template sets them. Without
 //             the option, and for an update, the field is never read.
 // Untouched tasks, and every server-owned field of updated tasks, are preserved. A change naming an id that is
 // no longer stored is skipped. An existing task never moves: a rank on a change to one is ignored. A new task takes
@@ -253,6 +267,12 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
       if (options.travelKm === true) {
         const travelKm = normalizeTravelKm(change.travelKm);
         if (travelKm) task.travelKm = travelKm;
+      }
+      if (options.contact === true) {
+        const phone = normalizePhone(change.phone);
+        if (phone) task.phone = phone;
+        const email = normalizeEmail(change.email);
+        if (email) task.email = email;
       }
       if (options.history === true) {
         const history = normalizeHistory(change.history);
@@ -324,6 +344,8 @@ function completeInList(tasks, taskId, today, makeId, now, jobCounter) {
   }
   if (typeof completedTask.comments === "string" && completedTask.comments !== "") spawned.comments = completedTask.comments;
   if (typeof completedTask.travelKm === "number" && completedTask.travelKm > 0) spawned.travelKm = completedTask.travelKm;
+  if (typeof completedTask.phone === "string" && completedTask.phone !== "") spawned.phone = completedTask.phone;
+  if (typeof completedTask.email === "string" && completedTask.email !== "") spawned.email = completedTask.email;
   if (counting) spawned.jobNumber = jobCounter + 1;
   return {tasks: [...rest, spawned], completedTask, spawned, history, ...(counting ? {jobCounter: jobCounter + 1} : {})};
 }

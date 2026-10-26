@@ -65,7 +65,7 @@
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 680px; margin: 0 auto 20px; padding: 0 15px; background: var(--bg); color: var(--text); }
     .card { background: var(--surface); padding: 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 16px; }
     .input-row { display: flex; gap: 8px; }
-    input[type="text"], input[type="search"], input[type="number"], input[type="date"], input[type="time"], select { padding: 10px 12px; font-size: 15px; border: 1px solid var(--border-input); border-radius: 6px; box-sizing: border-box; }
+    input[type="text"], input[type="search"], input[type="number"], input[type="date"], input[type="time"], input[type="tel"], input[type="email"], select { padding: 10px 12px; font-size: 15px; border: 1px solid var(--border-input); border-radius: 6px; box-sizing: border-box; }
     input[type="text"] { flex: 1; min-width: 0; }
     textarea { padding: 10px 12px; font-size: 15px; font-family: inherit; border: 1px solid var(--border-input); border-radius: 6px; box-sizing: border-box; resize: vertical; background: var(--surface); color: var(--text); }
     button { padding: 10px 14px; font-size: 14px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; white-space: nowrap; }
@@ -298,6 +298,8 @@
     .proposal-steps li { margin-bottom: 6px; }
     .proposal-steps { margin: 0 0 14px; padding-left: 22px; font-size: 14px; line-height: 1.5; }
     .proposal-actions { display: flex; flex-direction: column; gap: 8px; }
+    .contact-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .contact-btn { display: inline-block; padding: 10px 14px; font-size: 14px; font-weight: 600; border-radius: 6px; text-decoration: none; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
     .modal-extra-actions { display: flex; gap: 8px; margin-top: 14px; align-items: center; }
     .timer-group { display: flex; gap: 8px; align-items: center; }
     .elapsed-time { font-size: 15px; font-variant-numeric: tabular-nums; color: var(--text-muted); min-width: 3.5em; }
@@ -392,6 +394,14 @@
       <div class="form-group">
         <label for="manualTravel">Travel (km)</label>
         <input type="number" id="manualTravel" min="0" max="10000" step="0.1" inputmode="decimal" placeholder="e.g. 12.5" style="max-width: 160px;">
+      </div>
+      <div class="form-group">
+        <label for="manualPhone">Phone <small style="font-weight:normal; color:var(--text-faint);">(empty uses the client's)</small></label>
+        <input type="tel" id="manualPhone" maxlength="40">
+      </div>
+      <div class="form-group">
+        <label for="manualEmail">Email <small style="font-weight:normal; color:var(--text-faint);">(empty uses the client's)</small></label>
+        <input type="email" id="manualEmail" maxlength="100" autocapitalize="off">
       </div>
 
       <div class="form-group">
@@ -790,6 +800,8 @@
         </div>
       </div>
 
+      <div class="contact-actions" id="editContactActions" hidden></div>
+
       <details class="extra-fields" id="editExtraFields">
         <summary>Extra fields</summary>
         <div class="form-group">
@@ -805,6 +817,16 @@
         <div class="form-group">
           <label for="editTravel">Travel (km)</label>
           <input type="number" id="editTravel" min="0" max="10000" step="0.1" inputmode="decimal" placeholder="e.g. 12.5" style="max-width: 160px;">
+        </div>
+
+        <div class="form-group">
+          <label for="editPhone">Phone <small style="font-weight:normal; color:var(--text-faint);">(empty uses the client's)</small></label>
+          <input type="tel" id="editPhone" maxlength="40" oninput="refreshContact('edit')">
+        </div>
+
+        <div class="form-group">
+          <label for="editEmail">Email <small style="font-weight:normal; color:var(--text-faint);">(empty uses the client's)</small></label>
+          <input type="email" id="editEmail" maxlength="100" autocapitalize="off" oninput="refreshContact('edit')">
         </div>
 
         <div class="form-group">
@@ -883,8 +905,10 @@
 
       <div class="form-group">
         <label>Project</label>
-        <select id="ceProject" style="width: 100%;"></select>
+        <select id="ceProject" style="width: 100%;" onchange="refreshContact('ce')"></select>
       </div>
+
+      <div class="contact-actions" id="ceContactActions" hidden></div>
 
       <details class="extra-fields" id="ceExtraFields">
         <summary>Extra fields</summary>
@@ -896,6 +920,16 @@
         <div class="form-group">
           <label for="ceTravel">Travel (km)</label>
           <input type="number" id="ceTravel" min="0" max="10000" step="0.1" inputmode="decimal" placeholder="e.g. 12.5" style="max-width: 160px;">
+        </div>
+
+        <div class="form-group">
+          <label for="cePhone">Phone <small style="font-weight:normal; color:var(--text-faint);">(empty uses the client's)</small></label>
+          <input type="tel" id="cePhone" maxlength="40" oninput="refreshContact('ce')">
+        </div>
+
+        <div class="form-group">
+          <label for="ceEmail">Email <small style="font-weight:normal; color:var(--text-faint);">(empty uses the client's)</small></label>
+          <input type="email" id="ceEmail" maxlength="100" autocapitalize="off" oninput="refreshContact('ce')">
         </div>
 
         <div class="form-group">
@@ -1454,6 +1488,68 @@
       return typeof km === "number" && Number.isFinite(km) && km > 0 ? String(km) : "";
     }
 
+    // Contact details. A task's own phone and email override its client's (the client of its project); an empty one uses the client's.
+    const INVALID_EMAIL = "Email must look like name@example.com, or be empty.";
+    const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // A typed Email box: null when empty, the trimmed address when it looks like one, undefined when not.
+    function parseEmailText(text) {
+      const t = String(text === undefined || text === null ? "" : text).trim();
+      if (t === "") return null;
+      return EMAIL_PATTERN.test(t) ? t : undefined;
+    }
+    // The phone number as dialled: digits with a leading + kept, "" when there are no digits.
+    function phoneDigits(phone) {
+      const t = String(phone === undefined || phone === null ? "" : phone).trim();
+      const digits = t.replace(/\D/g, "");
+      return digits ? (t.startsWith("+") ? "+" : "") + digits : "";
+    }
+    function phoneHref(phone) {
+      const n = phoneDigits(phone);
+      return n ? `tel:${n}` : "";
+    }
+    function smsHref(phone) {
+      const n = phoneDigits(phone);
+      return n ? `sms:${n}` : "";
+    }
+    // A mailto link whose subject is the task's title, with its job number when it has one; "" without an address.
+    function emailHref(email, task) {
+      const address = String(email === undefined || email === null ? "" : email).trim();
+      if (!address) return "";
+      const title = task && typeof task.title === "string" ? task.title.trim() : "";
+      const job = task && Number.isSafeInteger(task.jobNumber) && task.jobNumber >= 1 ? `Job ${task.jobNumber}` : "";
+      const subject = [title, job && (title ? `(${job})` : job)].filter(Boolean).join(" ");
+      return subject ? `mailto:${address}?subject=${encodeURIComponent(subject)}` : `mailto:${address}`;
+    }
+    // The phone and email a task answers to: its own when typed, else its client's (the client of the project it is in).
+    // `own` is {phone, email} as typed; the result also says where each came from ("task", "client", or "" for none).
+    function effectiveContact(own, projectId, projects, clients) {
+      const project = projectId ? (Array.isArray(projects) ? projects : []).find(p => p.id === projectId) : null;
+      const client = project && project.clientId ? (Array.isArray(clients) ? clients : []).find(c => c.id === project.clientId) : null;
+      const pick = (typed, key) => {
+        const mine = String(typed === undefined || typed === null ? "" : typed).trim();
+        if (mine) return { value: mine, from: "task" };
+        const theirs = client && typeof client[key] === "string" ? client[key].trim() : "";
+        return theirs ? { value: theirs, from: "client" } : { value: "", from: "" };
+      };
+      const phone = pick(own && own.phone, "phone");
+      const email = pick(own && own.email, "email");
+      return { phone: phone.value, phoneFrom: phone.from, email: email.value, emailFrom: email.from };
+    }
+    // The placeholder of a Phone ("phone") or Email ("email") box: the client's value while the box would inherit it.
+    function contactPlaceholder(effective, kind) {
+      if (effective[`${kind}From`] === "client") return `From client: ${effective[kind]}`;
+      return kind === "phone" ? "e.g. 021 123 4567" : "e.g. name@example.com";
+    }
+    // The Call, Text and Email buttons for an effective contact as {label, href} (only those it has the detail for).
+    function contactLinks(effective, task) {
+      const links = [
+        { label: "📞 Call", href: phoneHref(effective.phone) },
+        { label: "💬 Text", href: smsHref(effective.phone) },
+        { label: "✉️ Email", href: emailHref(effective.email, task) }
+      ];
+      return links.filter(l => l.href);
+    }
+
     // A typed money amount: null when empty, the number for a plain amount with at most two decimals, undefined when unusable.
     function parseCostText(text) {
       const t = String(text === undefined || text === null ? "" : text).trim();
@@ -1500,6 +1596,10 @@
       if (comments) manual.comments = comments;
       const travelKm = parseTravelText(form.travelKm);
       if (typeof travelKm === "number" && travelKm > 0) manual.travelKm = travelKm;
+      const phone = String(form.phone || "").trim();
+      if (phone) manual.phone = phone;
+      const email = parseEmailText(form.email);
+      if (email) manual.email = email;
       if (form.history) manual.history = form.history;
       return { manual };
     }
@@ -2002,6 +2102,8 @@
         materials: completedMaterialLines(row).join("\n"),
         comments: typeof row.comments === "string" ? row.comments : "",
         travelKm: travelBoxText(row.travelKm),
+        phone: typeof row.phone === "string" ? row.phone : "",
+        email: typeof row.email === "string" ? row.email : "",
         projectId: row.projectId || "",
         date: when.date,
         time: when.time
@@ -2028,6 +2130,11 @@
       const travel = parseTravelText(form.travelKm);
       if (travel === undefined) return { error: INVALID_TRAVEL };
       if ((travel || null) !== (parseTravelText(before.travelKm) || null)) fields.travelKm = travel || null;
+      const phone = String(form.phone === undefined || form.phone === null ? "" : form.phone).trim();
+      if (phone !== before.phone.trim()) fields.phone = phone === "" ? null : phone;
+      const email = parseEmailText(form.email);
+      if (email === undefined) return { error: INVALID_EMAIL };
+      if ((email || "") !== before.email.trim()) fields.email = email;
       if ((form.projectId || "") !== before.projectId) fields.projectId = form.projectId || null;
       if (form.date !== before.date || form.time !== before.time) {
         if (!DATE_ONLY.test(form.date || "") || !/^\d{2}:\d{2}$/.test(form.time || "")) return { error: "Enter the date and time of completion." };
@@ -2268,6 +2375,8 @@
         }),
         comments: typeof t.comments === "string" ? t.comments : "",
         travelKm: travelBoxText(t.travelKm),
+        phone: typeof t.phone === "string" ? t.phone : "",
+        email: typeof t.email === "string" ? t.email : "",
         history: historyOf(t)
       };
     }
@@ -3033,6 +3142,7 @@
       const badCost = manual ? invalidMaterialCost(manualMaterials) : null;
       if (badCost) { askAlert(`The cost of "${badCost}" is not an amount. Use a number such as 12.50, or leave it empty.`, { tone: "warning" }); return; }
       if (manual && parseTravelText(document.getElementById("manualTravel").value) === undefined) { askAlert(INVALID_TRAVEL, { tone: "warning" }); return; }
+      if (manual && parseEmailText(document.getElementById("manualEmail").value) === undefined) { askAlert(INVALID_EMAIL, { tone: "warning" }); return; }
       setLoading(true);
       try {
         const body = manual ? manualTaskBody({
@@ -3050,6 +3160,8 @@
           materials: manualMaterials,
           comments: document.getElementById("manualComments").value,
           travelKm: document.getElementById("manualTravel").value,
+          phone: document.getElementById("manualPhone").value,
+          email: document.getElementById("manualEmail").value,
           history: historyForTitle(copiedHistory, input)
         }) : freeTextBody(input);
         Object.assign(body, addTaskExtras({ startNow: document.getElementById("startNow").checked }));
@@ -3202,10 +3314,13 @@
       renderManualMaterials();
       document.getElementById("manualComments").value = v.comments;
       document.getElementById("manualTravel").value = v.travelKm;
+      document.getElementById("manualPhone").value = v.phone;
+      document.getElementById("manualEmail").value = v.email;
+      refreshContact("manual");
       document.getElementById("templateResults").hidden = true; // the form replaces the list
     }
 
-    // Repeats, project, materials, travel and comments belong to one task, so they are cleared after each manual add
+    // Repeats, project, materials, travel, phone, email and comments belong to one task, so they are cleared after each manual add
     function resetManualExtras() {
       copiedHistory = null;
       document.getElementById("manualRecurFreq").value = "NONE";
@@ -3217,6 +3332,9 @@
       manualMaterials = [];
       document.getElementById("manualComments").value = "";
       document.getElementById("manualTravel").value = "";
+      document.getElementById("manualPhone").value = "";
+      document.getElementById("manualEmail").value = "";
+      refreshContact("manual");
       document.getElementById("manualNewMaterialText").value = "";
       document.getElementById("manualNewMaterialCost").value = "";
       renderManualMaterials();
@@ -3783,6 +3901,9 @@
       document.getElementById("newMaterialCost").value = "";
       renderEditMaterials();
       document.getElementById("editTravel").value = travelBoxText(task.travelKm);
+      document.getElementById("editPhone").value = typeof task.phone === "string" ? task.phone : "";
+      document.getElementById("editEmail").value = typeof task.email === "string" ? task.email : "";
+      refreshContact("edit");
       document.getElementById("editComments").value = typeof task.comments === "string" ? task.comments : "";
 
       showEditTimer();
@@ -3824,6 +3945,24 @@
         nameBox.hidden = document.getElementById(`${prefix}Project`).value !== NEW_PROJECT;
         if (nameBox.hidden) nameBox.value = "";
       }
+      refreshContact(prefix); // the client, and so the inherited phone and email, follows the project
+    }
+
+    // Brings a form's Phone and Email placeholders and its Call, Text and Email buttons (the edit and completed forms have them)
+    // in line with what is typed and the chosen project's client. `prefix` is "edit", "manual" or "ce".
+    function refreshContact(prefix) {
+      const phoneBox = document.getElementById(`${prefix}Phone`);
+      const emailBox = document.getElementById(`${prefix}Email`);
+      if (!phoneBox || !emailBox) return;
+      const projectId = document.getElementById(`${prefix}Project`).value;
+      const effective = effectiveContact({ phone: phoneBox.value, email: emailBox.value }, projectId, allProjects, allClients);
+      phoneBox.placeholder = contactPlaceholder(effective, "phone");
+      emailBox.placeholder = contactPlaceholder(effective, "email");
+      const actions = document.getElementById(`${prefix}ContactActions`);
+      if (!actions) return;
+      const task = prefix === "edit" ? allTasks.find(t => t.id === document.getElementById("editTaskId").value) : prefix === "ce" ? completedRows.get(document.getElementById("ceId").value) : null;
+      actions.innerHTML = contactLinks(effective, task).map(l => `<a class="contact-btn btn-secondary" href="${esc(l.href)}">${l.label}</a>`).join("");
+      actions.hidden = actions.innerHTML === "";
     }
 
     function clearEditDueDate() {
@@ -3958,9 +4097,11 @@
       if (badCost) { askAlert(`The cost of "${badCost}" is not an amount. Use a number such as 12.50, or leave it empty.`, { tone: "warning" }); return false; }
       const travelKm = parseTravelText(document.getElementById("editTravel").value);
       if (travelKm === undefined) { askAlert(INVALID_TRAVEL, { tone: "warning" }); return false; }
+      const email = parseEmailText(document.getElementById("editEmail").value);
+      if (email === undefined) { askAlert(INVALID_EMAIL, { tone: "warning" }); return false; }
       const tags = tagsRaw.split(",").map(s => s.trim()).filter(Boolean);
       const recurrence = recurrenceFields(document.getElementById("editRecurFreq").value, document.getElementById("editRecurInterval").value);
-      const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence, materials: materialsFields(editMaterials), travelKm, comments: document.getElementById("editComments").value };
+      const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence, materials: materialsFields(editMaterials), travelKm, phone: document.getElementById("editPhone").value.trim(), email, comments: document.getElementById("editComments").value };
       // Only a changed task number is sent; the server moves the task there and closes up the rest
       const queueNumber = queueNumberChange(document.getElementById("editNumber").value, taskNumbers.get(taskId), allTasks.length);
       if (queueNumber !== null) updatedFields.queueNumber = queueNumber;
@@ -4427,11 +4568,14 @@
       document.getElementById("ceMaterials").value = values.materials;
       document.getElementById("ceComments").value = values.comments;
       document.getElementById("ceTravel").value = values.travelKm;
+      document.getElementById("cePhone").value = values.phone;
+      document.getElementById("ceEmail").value = values.email;
       const projectSelect = document.getElementById("ceProject");
       projectSelect.replaceChildren(new Option("No project", ""), ...allProjects.map(p => new Option(p.name, p.id)));
       // A project that no longer exists stays selectable, so saving leaves the entry's project as it was
       if (row.projectId && !allProjects.some(p => p.id === row.projectId)) projectSelect.add(new Option("Deleted project", row.projectId));
       projectSelect.value = values.projectId;
+      refreshContact("ce");
       document.getElementById("ceDate").value = values.date;
       document.getElementById("ceTime").value = values.time;
       document.getElementById("completedEditModal").style.display = "flex";
@@ -4456,6 +4600,8 @@
         materials: document.getElementById("ceMaterials").value,
         comments: document.getElementById("ceComments").value,
         travelKm: document.getElementById("ceTravel").value,
+        phone: document.getElementById("cePhone").value,
+        email: document.getElementById("ceEmail").value,
         projectId: document.getElementById("ceProject").value,
         date: document.getElementById("ceDate").value,
         time: document.getElementById("ceTime").value

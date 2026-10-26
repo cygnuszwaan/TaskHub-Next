@@ -16,7 +16,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
+    return {confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -1259,6 +1259,106 @@ describe("public/index.html helpers", () => {
     });
   });
 
+  describe("contact details", () => {
+    const clients = [{id: "c1", name: "Smith Ltd", phone: "09 555 0000", email: "office@smith.example"}, {id: "c2", name: "Bare"}];
+    const projects = [{id: "p1", name: "Kitchen", clientId: "c1"}, {id: "p2", name: "Shed", clientId: "c2"}, {id: "p3", name: "Own"}];
+    it("parses a typed email: empty is none, an address is kept trimmed, anything else is unusable", () => {
+      const h = load();
+      assert.equal(h.parseEmailText("  "), null);
+      assert.equal(h.parseEmailText(" mo@example.com "), "mo@example.com");
+      for (const v of ["mo", "mo@", "mo@example", "mo @example.com"]) assert.equal(h.parseEmailText(v), undefined, v);
+      assert.match(h.INVALID_EMAIL, /name@example\.com/);
+    });
+    it("cleans a phone number for dialling, keeping a leading +", () => {
+      const h = load();
+      assert.equal(h.phoneDigits(" +64 (9) 555-1234 "), "+6495551234");
+      assert.equal(h.phoneDigits("021 555 1234"), "0215551234");
+      assert.equal(h.phoneDigits("call me"), "");
+      assert.equal(h.phoneHref("021 555 1234"), "tel:0215551234");
+      assert.equal(h.smsHref("+64 21 555 1234"), "sms:+64215551234");
+      assert.equal(h.phoneHref(""), "");
+      assert.equal(h.smsHref(null), "");
+    });
+    it("builds a mailto link whose subject is the title and job number", () => {
+      const h = load();
+      assert.equal(h.emailHref("mo@example.com", {title: "Fit tap & seal", jobNumber: 123}), "mailto:mo@example.com?subject=Fit%20tap%20%26%20seal%20(Job%20123)");
+      assert.equal(h.emailHref("mo@example.com", {title: "Fit tap"}), "mailto:mo@example.com?subject=Fit%20tap");
+      assert.equal(h.emailHref("mo@example.com", null), "mailto:mo@example.com");
+      assert.equal(h.emailHref("  ", {title: "x"}), "");
+    });
+    it("uses the task's own details, else its client's, each on its own", () => {
+      const h = load();
+      assert.deepEqual(h.effectiveContact({phone: "", email: ""}, "p1", projects, clients), {phone: "09 555 0000", phoneFrom: "client", email: "office@smith.example", emailFrom: "client"});
+      assert.deepEqual(h.effectiveContact({phone: " 021 111 2222 ", email: ""}, "p1", projects, clients), {phone: "021 111 2222", phoneFrom: "task", email: "office@smith.example", emailFrom: "client"});
+      assert.deepEqual(h.effectiveContact({phone: "1", email: "a@b.co"}, "p1", projects, clients), {phone: "1", phoneFrom: "task", email: "a@b.co", emailFrom: "task"});
+    });
+    it("has nothing to inherit without a project, a client or a client's detail", () => {
+      const h = load();
+      const none = {phone: "", phoneFrom: "", email: "", emailFrom: ""};
+      assert.deepEqual(h.effectiveContact({}, "", projects, clients), none);
+      assert.deepEqual(h.effectiveContact({}, "p3", projects, clients), none);
+      assert.deepEqual(h.effectiveContact({}, "p2", projects, clients), none);
+      assert.deepEqual(h.effectiveContact({}, "gone", projects, clients), none);
+      assert.deepEqual(h.effectiveContact(undefined, "p1", undefined, undefined), none);
+    });
+    it("shows the inherited value as the placeholder only while it would be inherited", () => {
+      const h = load();
+      assert.equal(h.contactPlaceholder(h.effectiveContact({}, "p1", projects, clients), "phone"), "From client: 09 555 0000");
+      assert.equal(h.contactPlaceholder(h.effectiveContact({email: "a@b.co"}, "p1", projects, clients), "email"), "e.g. name@example.com");
+      assert.equal(h.contactPlaceholder(h.effectiveContact({}, "", projects, clients), "phone"), "e.g. 021 123 4567");
+    });
+    it("offers Call, Text and Email only for the details it has", () => {
+      const h = load();
+      const task = {title: "Fit tap", jobNumber: 7};
+      const labels = (eff) => h.contactLinks(eff, task).map((l) => l.label);
+      assert.deepEqual(labels(h.effectiveContact({}, "p1", projects, clients)), ["📞 Call", "💬 Text", "✉️ Email"]);
+      assert.deepEqual(labels(h.effectiveContact({phone: "021 1"}, "p2", projects, clients)), ["📞 Call", "💬 Text"]);
+      assert.deepEqual(labels(h.effectiveContact({email: "a@b.co"}, "", projects, clients)), ["✉️ Email"]);
+      assert.deepEqual(labels(h.effectiveContact({}, "", projects, clients)), []);
+      assert.equal(h.contactLinks(h.effectiveContact({email: "a@b.co"}, "", projects, clients), task)[0].href, "mailto:a@b.co?subject=Fit%20tap%20(Job%207)");
+    });
+    it("sends phone and email on a manual entry only when given", () => {
+      const h = load();
+      const form = {title: "T", priority: "LOW", estimatedMinutes: "", tags: "", dueDate: ""};
+      assert.deepEqual(h.manualTaskBody({...form, phone: " 021 555 1234 ", email: " mo@example.com "}).manual.phone, "021 555 1234");
+      assert.equal(h.manualTaskBody({...form, phone: " 021 555 1234 ", email: " mo@example.com "}).manual.email, "mo@example.com");
+      const bare = h.manualTaskBody({...form, phone: "  ", email: ""}).manual;
+      assert.equal("phone" in bare, false);
+      assert.equal("email" in bare, false);
+    });
+    it("completedChanges sends phone and email only when they differ, null to clear, and an error for a bad email", () => {
+      const {completedChanges, completedFormValues} = load();
+      const row = {title: "Fit tap", priority: "LOW", estimatedMinutes: 30, phone: "021 1", email: "a@b.co", completedAt: "2026-10-20T01:00:00.000Z"};
+      const form = () => ({...completedFormValues(row, "Pacific/Auckland")});
+      assert.deepEqual(completedChanges(row, form(), "Pacific/Auckland"), {fields: {}});
+      assert.deepEqual(completedChanges(row, {...form(), phone: "09 555 0000", email: "new@b.co"}, "Pacific/Auckland"), {fields: {phone: "09 555 0000", email: "new@b.co"}});
+      assert.deepEqual(completedChanges(row, {...form(), phone: "  ", email: ""}, "Pacific/Auckland"), {fields: {phone: null, email: null}});
+      assert.match(completedChanges(row, {...form(), email: "nope"}, "Pacific/Auckland").error, /Email/);
+      const bare = {...row};
+      delete bare.phone;
+      delete bare.email;
+      assert.deepEqual(completedChanges(bare, {...completedFormValues(bare, "Pacific/Auckland")}, "Pacific/Auckland"), {fields: {}});
+    });
+    it("copies a completed task's phone and email into the add form values", () => {
+      const v = load().templateFormValues({title: "T", phone: "021 1", email: "a@b.co"});
+      assert.equal(v.phone, "021 1");
+      assert.equal(v.email, "a@b.co");
+      assert.equal(load().templateFormValues({title: "T"}).phone, "");
+    });
+    it("puts Phone and Email inside both Extra fields sections and the buttons outside them, above", () => {
+      for (const [details, prefix] of [["editExtraFields", "edit"], ["ceExtraFields", "ce"]]) {
+        const i = html.indexOf(`id="${details}"`);
+        const close = html.indexOf("</details>", i);
+        for (const id of [`${prefix}Phone`, `${prefix}Email`]) {
+          const at = html.indexOf(`id="${id}"`);
+          assert.ok(at > i && at < close, `${id} is in ${details}`);
+        }
+        const buttons = html.indexOf(`id="${prefix}ContactActions"`);
+        assert.ok(buttons > 0 && buttons < i, `${prefix} buttons sit above Extra fields`);
+      }
+      assert.ok(html.indexOf("id=\"manualPhone\"") > 0 && html.indexOf("id=\"manualEmail\"") > 0);
+    });
+  });
   describe("manualTaskBody", () => {
     const form = {title: "  Mow lawn ", priority: "HIGH", estimatedMinutes: "45", tags: "Outdoor, ,Physical ", dueDate: "2026-10-30"};
     it("builds the addOrUpdateTask body for a task entered by hand", () => {
@@ -1537,7 +1637,7 @@ describe("public/index.html helpers", () => {
 
       it("completedFormValues: starts the form from the row, with the time in minutes and the completion on the zone's clock", () => {
         const {completedFormValues} = load();
-        assert.deepEqual(completedFormValues(row, NZ), {priority: "LOW", trackedMinutes: 2, tags: "Garden, Outdoor", materials: "", comments: "Front only", travelKm: "", projectId: "p1", date: "2026-10-18", time: "09:30"});
+        assert.deepEqual(completedFormValues(row, NZ), {priority: "LOW", trackedMinutes: 2, tags: "Garden, Outdoor", materials: "", comments: "Front only", travelKm: "", phone: "", email: "", projectId: "p1", date: "2026-10-18", time: "09:30"});
       });
       it("reopenPrompt: names the task, says it returns with its tracked time and leaves History", () => {
         const {reopenPrompt} = load();
@@ -2044,7 +2144,7 @@ describe("public/index.html helpers", () => {
     it("fills the form with the old details but no due date, and every material unchecked", () => {
       const {templateFormValues} = load();
       const v = templateFormValues(templates[0], ["p1"]);
-      assert.deepEqual(v, {title: "Mow lawn", priority: "LOW", estimatedMinutes: 45, tags: "Outdoor, Garden", dueDate: "", recurFreq: "WEEKLY", recurInterval: 2, projectId: "p1", projectOrder: 2, materials: [{id: "", text: "Petrol", checked: false}, {id: "", text: "Oil", checked: false}], comments: "Check the blade", travelKm: "18", history: null});
+      assert.deepEqual(v, {title: "Mow lawn", priority: "LOW", estimatedMinutes: 45, tags: "Outdoor, Garden", dueDate: "", recurFreq: "WEEKLY", recurInterval: 2, projectId: "p1", projectOrder: 2, materials: [{id: "", text: "Petrol", checked: false}, {id: "", text: "Oil", checked: false}], comments: "Check the blade", phone: "", email: "", travelKm: "18", history: null});
     });
     it("drops a project that no longer exists, with its order number", () => {
       const {templateFormValues} = load();
@@ -2077,7 +2177,7 @@ describe("public/index.html helpers", () => {
     });
     it("falls back to the form's defaults for a bare template", () => {
       const {templateFormValues} = load();
-      assert.deepEqual(templateFormValues({title: "x"}), {title: "x", priority: "MEDIUM", estimatedMinutes: 15, tags: "", dueDate: "", recurFreq: "NONE", recurInterval: 1, projectId: "", projectOrder: "", materials: [], comments: "", travelKm: "", history: null});
+      assert.deepEqual(templateFormValues({title: "x"}), {title: "x", priority: "MEDIUM", estimatedMinutes: 15, tags: "", dueDate: "", recurFreq: "NONE", recurInterval: 1, projectId: "", projectOrder: "", materials: [], comments: "", phone: "", email: "", travelKm: "", history: null});
     });
     it("posts startNow only when ticked", () => {
       const {addTaskExtras} = load();
@@ -2739,11 +2839,11 @@ describe("public/index.html helpers", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(code, /(?<![\w.])alert\(/, "a native alert() is left");
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
-      assert.equal(calls.length, 32, "the thirty-two messages the page shows");
+      assert.equal(calls.length, 34, "the thirty-four messages the page shows");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 16, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
-      assert.equal(warnings.length, 16, "every validation message is a warning alert");
+      assert.equal(warnings.length, 18, "every validation message is a warning alert");
     });
     it("hides Cancel for an alert, shows it again for a question and focuses the button", () => {
       const fn = html.slice(html.indexOf("function openConfirm"), html.indexOf("function askConfirm"));
