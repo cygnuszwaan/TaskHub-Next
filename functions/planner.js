@@ -6,8 +6,9 @@
 const {localDate, localInstant, localDayStart, formatLocalISO, addDays} = require("./time");
 const {DAY_START_MIN, DAY_END_MIN, tierOf} = require("./schedule");
 const {isWeatherSensitive} = require("./weather");
-const {daysUntilDue} = require("./due");
+const {daysUntilDue, isOverdue} = require("./due");
 const {snoozeDate} = require("./snooze");
+const {coordsOf, sameArea} = require("./geo");
 
 // Timed slots start on multiples of this many minutes (when a gap opens at an odd minute, the slot waits for the next one).
 const SNAP_MINUTES = 5;
@@ -87,6 +88,23 @@ function firstFit(win, durMs, busy, minStartMs, maxEndMs) {
   return cursor + durMs <= limit ? cursor : null;
 }
 
+// The area preference as {radiusKm, maxDeferDays}, or null (off) when `grouping` is missing or unusable: a radius that is a
+// positive number of kilometres and a whole number of days, 0 or more, that a task may wait to join a neighbour.
+function normalizeGrouping(grouping) {
+  if (!grouping || typeof grouping !== "object") return null;
+  const {radiusKm, maxDeferDays} = grouping;
+  if (typeof radiusKm !== "number" || !Number.isFinite(radiusKm) || radiusKm <= 0) return null;
+  if (typeof maxDeferDays !== "number" || !Number.isFinite(maxDeferDays) || maxDeferDays < 0) return null;
+  return {radiusKm, maxDeferDays: Math.floor(maxDeferDays)};
+}
+
+// The usable coordinates of a task from `locations` (a Map or a plain object keyed by task id), or null.
+function coordsFor(locations, taskId) {
+  if (!locations) return null;
+  if (locations instanceof Map) return coordsOf(locations.get(taskId));
+  return Object.prototype.hasOwnProperty.call(locations, taskId) ? coordsOf(locations[taskId]) : null;
+}
+
 function reasonFor(task, today, byNumber = false) {
   if (byNumber) return "Earliest open gap, in task number order.";
   const days = daysUntilDue(task, today);
@@ -108,14 +126,22 @@ function reasonFor(task, today, byNumber = false) {
 //   gapMinutes: free minutes kept between the tasks the run places (default 0): each placed task also blocks that long
 //             before and after itself for the tasks that follow. Busy windows are not padded here: the engine widens
 //             them by the gap before they arrive.
+//   locations: optional {taskId: {latitude, longitude}} (or a Map), the coordinates of the tasks that have them
+//   grouping: optional {radiusKm, maxDeferDays}, the area preference (off without it, and then `locations` is ignored): a
+//             task that is not overdue and not HIGH priority, has coordinates and goes in a timed slot, goes instead on the
+//             earliest day that has a gap for it, is within `maxDeferDays` days of its earliest feasible day, is on or before
+//             its due date, and already holds a task of this run within `radiusKm` of it. Without such a day it is placed as
+//             before. Every other rule (weather, snooze, project order, the gap) applies to the day it picks as it does to any.
 // Tasks are taken most urgent first (see sortByUrgency), or in task number order when `scheduleOrder` is "NUMBER" (see sortByNumber), and each goes in the earliest gap that fits, so a short task can
 // fill a gap a longer, more urgent one did not fit. Within a project, a task starts only after every lower-numbered
 // member has ended (and ends before any fixed higher-numbered member starts); a task whose lower-numbered member has no
 // slot is left out. A task with a snooze date (`snoozedUntil`) goes on that local date or later. A task longer than the working day becomes an all-day reminder on the earliest day allowed.
 // Returns {items, unplaced}: `items` in the shape of Gemini's scheduledTasks, `unplaced` [{taskId, reason}] for every
 // task that got no slot.
-function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = [], gapMinutes = 0, dayStartMin = DAY_START_MIN, dayEndMin = DAY_END_MIN, scheduleOrder = "URGENCY"}) {
+function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = tasks, fixed = [], gapMinutes = 0, dayStartMin = DAY_START_MIN, dayEndMin = DAY_END_MIN, scheduleOrder = "URGENCY", locations = null, grouping = null}) {
   const byNumber = scheduleOrder === "NUMBER";
+  const area = normalizeGrouping(grouping);
+  const dayAreas = new Map(); // local date -> coordinates of the run's own tasks placed on it
   const dayMinutes = dayEndMin - dayStartMin;
   const gapMs = Number.isFinite(gapMinutes) && gapMinutes > 0 ? Math.round(gapMinutes) * 60000 : 0;
   const today = localDate(timeZone, now);
@@ -181,6 +207,7 @@ function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = 
     const allowed = days.filter((d) => !(notBefore && d.date < notBefore) && !(sensitive && weather && (d.date > weather.lastDate || (weather.rainyDates || []).includes(d.date))));
     const minutes = durationMinutes(task);
     const base = {taskId: task.id, title: task.title, reasoning: reasonFor(task, today, byNumber)};
+    const where = area ? coordsFor(locations, task.id) : null;
 
     if (minutes > dayMinutes) {
       const day = allowed.find((d) => localDayStart(timeZone, d.date).getTime() >= minStartMs && localDayStart(timeZone, addDays(d.date, 1)).getTime() <= maxEndMs);
@@ -191,15 +218,39 @@ function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = 
       const startMs = localDayStart(timeZone, day.date).getTime();
       const endMs = localDayStart(timeZone, addDays(day.date, 1)).getTime();
       placed.set(task.id, {startMs, endMs});
+      if (where) dayAreas.set(day.date, [...(dayAreas.get(day.date) || []), where]);
       items.push({...base, startISO: day.date, endISO: addDays(day.date, 1), transparency: "transparent", isAllDay: true});
       continue;
     }
 
     const durMs = minutes * 60000;
     let startMs = null;
+    let placedDay = null;
     for (const day of allowed) {
       startMs = firstFit(day, durMs, busyMs, minStartMs, maxEndMs);
-      if (startMs !== null) break;
+      if (startMs !== null) {
+        placedDay = day;
+        break;
+      }
+    }
+    if (startMs !== null && where && task.priority !== "HIGH" && !isOverdue(task, today)) {
+      // Area preference: unless the earliest day already holds a neighbour, look a few days on for one that does
+      const near = (date) => (dayAreas.get(date) || []).some((c) => sameArea(c, where, area.radiusKm));
+      if (!near(placedDay.date)) {
+        const lastDeferDate = addDays(placedDay.date, area.maxDeferDays);
+        const dueDate = daysUntilDue(task, today) === null ? null : task.dueDate;
+        for (const day of allowed) {
+          if (day.date <= placedDay.date) continue;
+          if (day.date > lastDeferDate || (dueDate !== null && day.date > dueDate)) break;
+          if (!near(day.date)) continue;
+          const joined = firstFit(day, durMs, busyMs, minStartMs, maxEndMs);
+          if (joined === null) continue;
+          startMs = joined;
+          placedDay = day;
+          base.reasoning = `Grouped with a nearby task on ${day.date}; earliest open gap that day.`;
+          break;
+        }
+      }
     }
     if (startMs === null) {
       unplaced.push({taskId: task.id, reason: (sensitive ? `no gap of ${minutes} minutes left on a dry day inside the forecast window` : `no gap of ${minutes} minutes left before the horizon or its project order allows`) + snoozeNote});
@@ -207,6 +258,7 @@ function planSchedule({tasks, busy, now, horizon, timeZone, weather, allTasks = 
     }
     const endMs = startMs + durMs;
     placed.set(task.id, {startMs, endMs});
+    if (where) dayAreas.set(placedDay.date, [...(dayAreas.get(placedDay.date) || []), where]);
     busyMs.push({startMs: startMs - gapMs, endMs: endMs + gapMs});
     busyMs.sort((a, b) => a.startMs - b.startMs);
     items.push({

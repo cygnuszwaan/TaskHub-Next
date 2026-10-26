@@ -631,4 +631,149 @@ describe("planner.js: daily window", () => {
       assert.match(validateSchedule({...args, busy: padWindows(events, 15)}).errors[0], /overlaps a busy window/);
     });
   });
+
+  describe("area preference (grouping)", () => {
+    const HOME = {latitude: -36.63, longitude: 174.78}; // Whangaparaoa
+    const NEIGHBOUR = {latitude: -36.5859, longitude: 174.6945}; // Orewa, about 9 km away
+    const FAR = {latitude: -36.8485, longitude: 174.7633}; // Auckland CBD, about 25 km away
+    const GROUP = {radiusKm: 10, maxDeferDays: 3};
+    const FRI = "2026-10-23";
+    const SAT = "2026-10-24";
+    const SUN = "2026-10-25";
+    // `n` is the neighbour: HIGH priority (so never moved itself) and snoozed to `date`, which is where it lands. `b` is the
+    // task under test: MEDIUM and undated, and without grouping the first one on Thursday morning.
+    const neighbour = (date, extra = {}) => task("n", {priority: "HIGH", snoozedUntil: date, order: 1, ...extra});
+    const subject = (extra = {}) => task("b", {order: 2, ...extra});
+    const where = (b = HOME, n = NEIGHBOUR) => ({b, n});
+    const THU_START = ["2026-10-22T08:00:00+13:00", "2026-10-22T08:30:00+13:00"];
+
+    describe("when it is off", () => {
+      it("leaves the output unchanged without grouping, with or without locations", () => {
+        const tasks = [neighbour(FRI), subject()];
+        const base = plan(tasks);
+        assert.deepEqual(times(base, "b"), THU_START);
+        assert.deepEqual(plan(tasks, {locations: where()}), base);
+        assert.deepEqual(plan(tasks, {grouping: GROUP}), base);
+        assert.deepEqual(plan(tasks, {locations: where(), grouping: null}), base);
+      });
+      it("ignores a grouping with an unusable radius or deferral", () => {
+        const tasks = [neighbour(FRI), subject()];
+        const base = plan(tasks);
+        for (const grouping of [{radiusKm: 0, maxDeferDays: 3}, {radiusKm: -1, maxDeferDays: 3}, {radiusKm: "10", maxDeferDays: 3}, {radiusKm: 10, maxDeferDays: -1}, {radiusKm: 10}, {maxDeferDays: 3}, "on", 5]) {
+          assert.deepEqual(plan(tasks, {locations: where(), grouping}), base, JSON.stringify(grouping));
+        }
+      });
+    });
+
+    describe("joining a neighbour's day", () => {
+      it("puts an undated MEDIUM task on the day that already holds a task in its area", () => {
+        const result = plan([neighbour(FRI), subject()], {locations: where(), grouping: GROUP});
+        assert.deepEqual(times(result, "n"), ["2026-10-23T08:00:00+13:00", "2026-10-23T08:30:00+13:00"]);
+        assert.deepEqual(times(result, "b"), ["2026-10-23T08:30:00+13:00", "2026-10-23T09:00:00+13:00"]);
+        assert.match(slotOf(result, "b").reasoning, /Grouped with a nearby task on 2026-10-23/);
+        assert.deepEqual(result.unplaced, []);
+      });
+      it("accepts the locations as a Map", () => {
+        const plain = plan([neighbour(FRI), subject()], {locations: where(), grouping: GROUP});
+        const map = plan([neighbour(FRI), subject()], {locations: new Map([["b", HOME], ["n", NEIGHBOUR]]), grouping: GROUP});
+        assert.deepEqual(map, plain);
+      });
+      it("also applies to a LOW task and to one with a distant due date", () => {
+        assert.deepEqual(times(plan([neighbour(FRI), subject({priority: "LOW"})], {locations: where(), grouping: GROUP}), "b")[0], "2026-10-23T08:30:00+13:00");
+        assert.deepEqual(times(plan([neighbour(FRI), subject({dueDate: "2026-10-28"})], {locations: where(), grouping: GROUP, scheduleOrder: "NUMBER"}), "b")[0], "2026-10-23T08:30:00+13:00");
+      });
+      it("is placed as before when the earliest day already holds a neighbour", () => {
+        const result = plan([neighbour("2026-10-22"), subject()], {locations: where(), grouping: GROUP});
+        assert.deepEqual(times(result, "b"), ["2026-10-22T08:30:00+13:00", "2026-10-22T09:00:00+13:00"]);
+        assert.doesNotMatch(slotOf(result, "b").reasoning, /Grouped/);
+      });
+      it("picks the earliest day that holds a neighbour", () => {
+        const tasks = [neighbour(SAT), task("n2", {priority: "HIGH", snoozedUntil: FRI, order: 1}), subject()];
+        const result = plan(tasks, {locations: {b: HOME, n: NEIGHBOUR, n2: NEIGHBOUR}, grouping: GROUP});
+        assert.equal(slotOf(result, "b").startISO.slice(0, 10), FRI);
+      });
+      it("is not drawn to a task outside the radius", () => {
+        assert.deepEqual(times(plan([neighbour(FRI), subject()], {locations: where(HOME, FAR), grouping: GROUP}), "b"), THU_START);
+        assert.deepEqual(times(plan([neighbour(FRI), subject()], {locations: where(HOME, NEIGHBOUR), grouping: {radiusKm: 5, maxDeferDays: 3}}), "b"), THU_START);
+      });
+      it("places a task without usable coordinates as before", () => {
+        assert.deepEqual(times(plan([neighbour(FRI), subject()], {locations: {n: NEIGHBOUR}, grouping: GROUP}), "b"), THU_START);
+        assert.deepEqual(times(plan([neighbour(FRI), subject()], {locations: {n: NEIGHBOUR, b: {latitude: 95, longitude: 0}}, grouping: GROUP}), "b"), THU_START);
+        // and a neighbour without coordinates does not hold its day for anyone
+        assert.deepEqual(times(plan([neighbour(FRI), subject()], {locations: {b: HOME}, grouping: GROUP}), "b"), THU_START);
+      });
+      it("counts an all-day task as holding its day", () => {
+        const tasks = [neighbour(FRI, {estimatedMinutes: 900}), subject()];
+        const result = plan(tasks, {locations: where(), grouping: GROUP});
+        assert.equal(slotOf(result, "n").isAllDay, true);
+        assert.equal(slotOf(result, "b").startISO.slice(0, 10), FRI);
+      });
+    });
+
+    describe("what it never overrides", () => {
+      it("leaves a HIGH priority task on its earliest day", () => {
+        const result = plan([neighbour(FRI), subject({priority: "HIGH"})], {locations: where(), grouping: GROUP});
+        assert.deepEqual(times(result, "b"), THU_START);
+      });
+      it("leaves an overdue task on its earliest day", () => {
+        const tasks = [neighbour(FRI), subject({dueDate: "2026-10-21"})];
+        assert.deepEqual(times(plan(tasks, {locations: where(), grouping: GROUP, scheduleOrder: "NUMBER"}), "b"), THU_START);
+        // the same task due on the neighbour's day is not overdue, and joins it
+        const notYet = [neighbour(FRI), subject({dueDate: FRI})];
+        assert.equal(slotOf(plan(notYet, {locations: where(), grouping: GROUP, scheduleOrder: "NUMBER"}), "b").startISO.slice(0, 10), FRI);
+      });
+      it("never goes past the due date", () => {
+        const opts = {locations: where(), grouping: GROUP, scheduleOrder: "NUMBER"};
+        assert.deepEqual(times(plan([neighbour(SAT), subject({dueDate: FRI})], opts), "b"), THU_START);
+        assert.deepEqual(times(plan([neighbour(SAT), subject({dueDate: "2026-10-22"})], opts), "b"), THU_START);
+        assert.equal(slotOf(plan([neighbour(SAT), subject({dueDate: SAT})], opts), "b").startISO.slice(0, 10), SAT);
+      });
+      it("respects maxDeferDays, counted from the earliest feasible day", () => {
+        const tasks = [neighbour(SAT), subject()];
+        const day = (maxDeferDays, extra = {}) => slotOf(plan(tasks, {locations: where(), grouping: {radiusKm: 10, maxDeferDays}, ...extra}), "b").startISO.slice(0, 10);
+        assert.equal(day(0), "2026-10-22");
+        assert.equal(day(1), "2026-10-22");
+        assert.equal(day(2), SAT);
+        assert.equal(day(2.9), SAT);
+        // Thursday is full, so the earliest feasible day is Friday and Sunday is two days on from it
+        const thursdayFull = [win("2026-10-22T07:00:00+13:00", "2026-10-22T20:00:00+13:00")];
+        const sunday = [neighbour(SUN), subject()];
+        const dayFull = (maxDeferDays) => slotOf(plan(sunday, {locations: where(), grouping: {radiusKm: 10, maxDeferDays}, busy: thursdayFull}), "b").startISO.slice(0, 10);
+        assert.equal(dayFull(1), FRI);
+        assert.equal(dayFull(2), SUN);
+      });
+      it("keeps the weather rule: an Outdoor task does not follow a neighbour onto a rainy day", () => {
+        const weather = {lastDate: "2026-10-29", rainyDates: [FRI]};
+        const result = plan([neighbour(FRI), subject({tags: ["Outdoor"]})], {locations: where(), grouping: GROUP, weather});
+        assert.deepEqual(times(result, "b"), THU_START);
+      });
+      it("keeps the snooze rule: a snoozed task is not placed before its date, and only later days are considered", () => {
+        const result = plan([neighbour(FRI), subject({snoozedUntil: SAT})], {locations: where(), grouping: GROUP});
+        assert.deepEqual(times(result, "b"), ["2026-10-24T08:00:00+13:00", "2026-10-24T08:30:00+13:00"]);
+      });
+      it("keeps project order: a task cannot move past a fixed later step", () => {
+        const first = subject({projectId: "P", projectOrder: 1});
+        const later = task("later", {projectId: "P", projectOrder: 2});
+        const slot = {taskId: "later", start: "2026-10-22T10:00:00+13:00", end: "2026-10-22T10:30:00+13:00"};
+        const result = plan([neighbour(FRI), first], {allTasks: [neighbour(FRI), first, later], fixed: [slot], busy: [win(slot.start, slot.end)], locations: where(), grouping: GROUP});
+        assert.deepEqual(times(result, "b"), THU_START);
+      });
+      it("keeps project order: a later step still follows its earlier one", () => {
+        const first = subject({projectId: "P", projectOrder: 1});
+        const second = task("c", {projectId: "P", projectOrder: 2, order: 3});
+        const result = plan([neighbour(FRI), first, second], {locations: {b: HOME, c: HOME, n: NEIGHBOUR}, grouping: GROUP, scheduleOrder: "NUMBER"});
+        assert.deepEqual(times(result, "b")[0], "2026-10-23T08:30:00+13:00");
+        assert.ok(slotOf(result, "c").startISO >= slotOf(result, "b").endISO);
+      });
+      it("keeps the gap between tasks on the day it joins", () => {
+        const result = plan([neighbour(FRI), subject()], {locations: where(), grouping: GROUP, gapMinutes: 15});
+        assert.deepEqual(times(result, "b"), ["2026-10-23T08:45:00+13:00", "2026-10-23T09:15:00+13:00"]);
+      });
+      it("places the task as before when the neighbour's day has no gap for it", () => {
+        const fridayFull = [win("2026-10-23T08:30:00+13:00", "2026-10-23T19:00:00+13:00")];
+        const result = plan([neighbour(FRI), subject({estimatedMinutes: 60})], {locations: where(), grouping: GROUP, busy: fridayFull});
+        assert.deepEqual(times(result, "b"), ["2026-10-22T08:00:00+13:00", "2026-10-22T09:00:00+13:00"]);
+      });
+    });
+  });
 });
