@@ -19,6 +19,8 @@ This file is a snapshot of the project's present state and intended direction. I
 - End every turn that changes files by supplying a git patch of those changes, `PROJECT.md` updates included. Make it with `git format-patch` so it applies with `git am` from the repo root, with a short imperative commit message.
 - Verify the patch applies cleanly to the previous state before delivering it.
 - The patch contains only changed files: no `node_modules`, `__MACOSX` or unchanged files.
+- Lint before delivering. The deploy's predeploy step runs `npm run lint` in `functions/` and a single error stops the whole deploy, so run it, with `npm test`, before every patch and deliver nothing until it reports no errors. It covers `functions/test/` as well as the source files. If `functions/node_modules` is missing, `npm install --no-save --no-package-lock` there installs ESLint and the rest without touching `package.json` or the lockfile. Fix what it reports with `npx eslint --fix <file>` and run the tests again.
+- Write new JavaScript in `functions/` to the lint rules from the start (`.eslintrc.js`: `eslint:recommended` and the Google style). The ones that keep failing: strings in double quotes, never single (a string that contains double quotes is a template literal or has them escaped; in tests this is mostly HTML and regex text); parentheses around an arrow function's parameter, `(m) => m[1]`, never `m => m[1]`; two-space indent, semicolons, trailing commas in multi-line literals and calls. Long lines are fine: the files open with `/* eslint-disable max-len */` and `/* eslint-disable require-jsdoc */`, so a new file starts with them too. `public/index.html` is not linted and keeps its own style.
 
 ## Stack
 

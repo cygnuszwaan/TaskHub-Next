@@ -2252,7 +2252,7 @@ describe("public/index.html helpers", () => {
     });
     it("declares every function in the page once, so one never replaces another of the same name", () => {
       const code = html.replace(/\/\/.*$/gm, "");
-      const names = [...code.matchAll(/(?:^|\s)(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/gm)].map(m => m[1]);
+      const names = [...code.matchAll(/(?:^|\s)(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/gm)].map((m) => m[1]);
       const repeated = names.filter((n, i) => names.indexOf(n) !== i);
       assert.deepEqual([...new Set(repeated)], []);
     });
@@ -2710,8 +2710,8 @@ describe("public/index.html helpers", () => {
       assert.equal(shoppingItemText(42), "42");
     });
     it("sits under the Materials card on the Materials page, with an add field and the list", () => {
-      const page = html.slice(html.indexOf('<main id="pageMaterials"'), html.indexOf("</main>", html.indexOf('<main id="pageMaterials"')));
-      assert.ok(page.indexOf('id="materialsList"') < page.indexOf("Miscellaneous"), "below the task materials");
+      const page = html.slice(html.indexOf("<main id=\"pageMaterials\""), html.indexOf("</main>", html.indexOf("<main id=\"pageMaterials\"")));
+      assert.ok(page.indexOf("id=\"materialsList\"") < page.indexOf("Miscellaneous"), "below the task materials");
       assert.match(page, /<h3[^>]*>Miscellaneous<\/h3>/);
       assert.match(page, /<input type="text" id="shoppingInput" maxlength="100"/);
       assert.match(page, /id="shoppingAddBtn"/);
