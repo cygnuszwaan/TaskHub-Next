@@ -93,6 +93,8 @@
     .swipe-row.lifted { z-index: 4; transition: none; background: var(--surface); box-shadow: 0 8px 20px rgba(0,0,0,0.28), 0 0 0 2px var(--primary); cursor: grabbing; }
     .batch-status { font-size: 13px; margin-top: 8px; color: var(--text-strong); }
     .batch-status:empty { display: none; }
+    .offline-note { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; padding: 8px 10px; border: 1px solid var(--border-chip); border-radius: 6px; background: var(--surface); color: var(--text-faint); font-size: 13px; }
+    .offline-note[hidden] { display: none; }
     .add-queue { margin-bottom: 12px; }
     .add-queue[hidden] { display: none; }
     .add-queue-card { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; padding: 8px 10px; border: 1px solid var(--border-chip); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 14px; }
@@ -434,6 +436,7 @@
   </div>
 
   <div class="card" id="queueCard">
+      <div class="offline-note" id="offlineNote" aria-live="polite" hidden><span id="offlineNoteText"></span> <button type="button" id="offlineRetryBtn">Retry</button></div>
       <div class="add-queue" id="addQueueBox" aria-live="polite" hidden></div>
       <div class="active-task-box" id="activeTaskBox" hidden>
         <div class="summary-label">Active task</div>
@@ -1266,6 +1269,7 @@
             loadSettings();
             refreshPushToken();
           } else {
+            clearTaskCache(); // signed out: no copy of the owner's tasks stays on this device
             showGate("");
           }
         });
@@ -1332,6 +1336,32 @@
     const pendingRemovals = new Set();
     function setTasks(list) {
       allTasks = withoutTasks(list, pendingRemovals);
+      lastSyncAt = Date.now();
+      showSavedListNote(null); // a list from the server replaces any saved copy on screen
+      saveTaskCache(allTasks);
+    }
+    // The time the page last had the server's list; while the saved copy is on screen (savedListAt) its own time shows instead.
+    let lastSyncAt = 0;
+    let savedListAt = null;
+    function saveTaskCache(tasks) {
+      const user = firebaseAuth && firebaseAuth.currentUser;
+      if (!user) return;
+      try { localStorage.setItem(TASK_CACHE_KEY, serializeTaskCache(user.uid, tasks, lastSyncAt)); } catch (e) { clearTaskCache(); }
+    }
+    function readTaskCache() {
+      const user = firebaseAuth && firebaseAuth.currentUser;
+      try { return user ? parseTaskCache(localStorage.getItem(TASK_CACHE_KEY), user.uid) : null; } catch (e) { return null; }
+    }
+    function clearTaskCache() {
+      try { localStorage.removeItem(TASK_CACHE_KEY); } catch (e) { /* storage unavailable */ }
+    }
+    // Shows the note above the Queue for a list saved at `savedAt` (ms), or hides it for null.
+    function showSavedListNote(savedAt) {
+      savedListAt = savedAt;
+      const note = document.getElementById("offlineNote");
+      if (!note) return;
+      note.hidden = savedAt === null;
+      if (savedAt !== null) document.getElementById("offlineNoteText").textContent = offlineNoteText(savedAt, Date.now());
     }
     let tasksLoaded = false; // set once the list has been drawn
     let selectedTagFilters = []; // the tags chosen in the Tags filter; empty = show all
@@ -3122,6 +3152,35 @@
       return err.name === "TypeError" && /failed to fetch|networkerror|load failed|network request failed|network connection was lost|internet connection appears to be offline/i.test(String(err.message || ""));
     }
 
+    // The saved copy of the task list, kept in localStorage under TASK_CACHE_KEY so the Queue can still show the last list the
+    // server sent when the connection is down. It belongs to one signed-in account (`uid`) and is only ever read back for it.
+    const TASK_CACHE_KEY = "taskhub-task-cache";
+    function serializeTaskCache(uid, tasks, savedAt) {
+      return JSON.stringify({ v: 1, uid: String(uid || ""), savedAt, tasks: Array.isArray(tasks) ? tasks : [] });
+    }
+    // {tasks, savedAt} for a stored copy that is well formed and belongs to `uid`, else null.
+    function parseTaskCache(text, uid) {
+      if (typeof text !== "string" || !text || !uid) return null;
+      try {
+        const data = JSON.parse(text);
+        if (!data || data.v !== 1 || data.uid !== uid || !Array.isArray(data.tasks) || !Number.isFinite(data.savedAt)) return null;
+        return { tasks: data.tasks.filter(t => t && typeof t === "object" && typeof t.id === "string"), savedAt: data.savedAt };
+      } catch (e) { return null; }
+    }
+    // How long ago a copy was saved, in words: "just now", "5 minutes ago", "3 hours ago", "2 days ago".
+    function cacheAgeText(savedAt, now) {
+      const minutes = Math.max(0, Math.floor((now - savedAt) / 60000));
+      if (minutes < 1) return "just now";
+      const unit = (n, word) => `${n} ${word}${n === 1 ? "" : "s"} ago`;
+      if (minutes < 60) return unit(minutes, "minute");
+      if (minutes < 1440) return unit(Math.floor(minutes / 60), "hour");
+      return unit(Math.floor(minutes / 1440), "day");
+    }
+    // The note shown above the Queue while it is the saved list that is on screen.
+    function offlineNoteText(savedAt, now) {
+      return `You're offline. Showing the list as it was ${cacheAgeText(savedAt, now)}. Changes need a connection.`;
+    }
+
     // The reason shown for a failed add: the error's own text, cut to QUEUE_ERROR_MAX.
     function queueErrorText(err) {
       const text = err && typeof err.message === "string" ? err.message.trim() : typeof err === "string" ? err.trim() : "";
@@ -3618,7 +3677,8 @@
         const retry = e.target.closest("[data-queue-retry]");
         if (retry) retryQueuedAdd(retry.dataset.queueRetry);
       });
-      window.addEventListener("online", drainAddQueue);
+      window.addEventListener("online", () => { if (savedListAt !== null) fetchTasks().then(drainAddQueue); else drainAddQueue(); });
+      document.getElementById("offlineRetryBtn").addEventListener("click", fetchTasks);
       initAuth();
       // The service worker caches only the app shell (see sw.js); the page works without it.
       if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -3633,6 +3693,18 @@
         renderFilterBar();
         renderTasks();
       } catch (err) {
+        // No connection: keep what is on screen, or else show the list saved on this device, rather than an error.
+        if (isNetworkError(err, navigator.onLine)) {
+          if (tasksLoaded) { showSavedListNote(savedListAt !== null ? savedListAt : lastSyncAt); return; }
+          const saved = readTaskCache();
+          if (saved) {
+            allTasks = withoutTasks(saved.tasks, pendingRemovals);
+            renderFilterBar();
+            renderTasks();
+            showSavedListNote(saved.savedAt);
+            return;
+          }
+        }
         listContainer.innerHTML = "<p>Error loading tasks: " + esc(err.message) + "</p>";
       }
     }
