@@ -83,8 +83,14 @@
     .sort-row { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
     .sort-row label { font-size: 13px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
     .sort-row select { flex: 1; min-width: 0; }
-    .select-row { margin-top: 10px; }
-    .select-row button { width: 100%; }
+    .select-row { display: flex; gap: 6px; margin-top: 10px; }
+    .select-row button { flex: 1; min-width: 0; }
+    .reorder-hint { margin-top: 8px; font-size: 13px; color: var(--text-muted); }
+    .reorder-hint[hidden] { display: none; }
+    .reorder-mark { flex: none; font-size: 18px; line-height: 1.2; margin-right: 10px; color: var(--primary); }
+    .task-item.reordering { cursor: grab; }
+    .swipe-row.shifting { transition: transform 0.15s ease; }
+    .swipe-row.lifted { z-index: 4; transition: none; background: var(--surface); box-shadow: 0 8px 20px rgba(0,0,0,0.28), 0 0 0 2px var(--primary); cursor: grabbing; }
     .batch-status { font-size: 13px; margin-top: 8px; color: var(--text-strong); }
     .batch-status:empty { display: none; }
     .select-mark { flex: none; font-size: 20px; line-height: 1.1; margin-right: 10px; color: var(--primary); }
@@ -408,8 +414,10 @@
         <button type="button" class="btn-secondary" id="sortDirBtn"></button>
       </div>
       <div class="select-row">
+        <button type="button" class="btn-secondary" id="reorderModeBtn" aria-pressed="false">↕️ Reorder</button>
         <button type="button" class="btn-secondary" id="selectModeBtn" aria-pressed="false">☑️ Select tasks</button>
       </div>
+      <div class="reorder-hint" id="reorderHint" role="status" hidden>Sorted by task number. Press and hold a card, then drag it up or down. It takes the task number of the card it lands on.</div>
       <div class="batch-status" id="batchStatus" role="status"></div>
       <details class="filter-section" id="tagsDetails">
         <summary>Tags <small id="tagsActive"></small></summary>
@@ -1200,6 +1208,15 @@
     let taskNumbers = new Map(); // task id -> task number, refreshed on every redraw of the list (queueNumbers)
     let sortKey = "scheduled"; // the Queue's "Sort by" choice (see SORT_OPTIONS)
     let sortDescending = false;
+    // Reorder mode on the Queue: the list is forced to Task number ascending (the sort chosen before is kept in
+    // `sortBeforeReorder` and comes back when the mode ends) and a held queued card can be dragged to a new place.
+    let reorderMode = false;
+    let sortBeforeReorder = null; // {key, descending}
+    let reorderDrag = null; // the card being held or dragged, see the Reorder block below
+    // Moves are shown at once and saved one after another in the background; the count is how many have not been answered yet.
+    let reorderPending = 0;
+    let reorderFailed = false; // a save failed while others were waiting: the list is read again from the server once none is
+    let reorderChain = Promise.resolve();
     let editMaterials = []; // the materials list being edited in the modal: [{id, text, checked}]
     let manualMaterials = []; // the materials list of the add form's own entry, same shape
     // Check-offs on the Materials card show at once and are saved one after another in the background: the count is how
@@ -2501,6 +2518,44 @@
       const reason = err && typeof err.message === "string" ? err.message : typeof err === "string" ? err : "";
       return reason.trim() ? `${what}\n\n${reason.trim()}` : String(what);
     }
+
+    // Reorder mode. A card dragged to a new place takes the task number of the card it lands on (what typing that number in
+    // the edit form does), so it works on a filtered list too: hidden tasks keep their relative places.
+    const REORDER_HOLD_MS = 250; // a touch must rest this long before the card lifts; moving sooner scrolls the list
+    const REORDER_MOUSE_PX = 4; // a mouse drag starts once the pointer has moved this far
+    // Where a card dragged to `centre` ends up: its index in the list once placed. `mids` are the cards' midpoints in list
+    // order as they were before the drag (the dragged card's included, at index `from`), in the same coordinates as `centre`.
+    function dragTargetIndex(mids, from, centre) {
+      let to = 0;
+      (mids || []).forEach((m, i) => { if (i !== from && m < centre) to++; });
+      return to;
+    }
+    // The `queueNumber` to send for moving the card at index `from` of `ids` (the shown task ids, in list order) to index
+    // `to`: the number of the card now at `to`, which the moved task takes (`numbers` maps task id to task number). null
+    // when nothing moves or a number is unknown.
+    function reorderQueueNumber(ids, from, to, numbers) {
+      if (!Array.isArray(ids) || !(numbers instanceof Map)) return null;
+      if (!Number.isInteger(from) || !Number.isInteger(to) || from === to) return null;
+      if (from < 0 || to < 0 || from >= ids.length || to >= ids.length) return null;
+      const n = numbers.get(ids[to]);
+      return Number.isInteger(n) ? n : null;
+    }
+    // The list as the server will leave it after `queueNumber` moves a task (moveToQueueNumber in functions/tasks.js): the
+    // tasks in queue order with that one at place `number` (held to 1..n) and every `order` renumbered 1..n. null when no
+    // task has that id or `number` is not a whole number. Pure: the input is not modified.
+    function moveToQueueNumberInList(tasks, taskId, number) {
+      if (!Number.isInteger(number)) return null;
+      const list = (tasks || []).map((t, i) => [t, i]).sort((a, b) => (a[0].order || 0) - (b[0].order || 0) || a[1] - b[1]).map(pair => pair[0]);
+      const task = list.find(t => t.id === taskId);
+      if (!task) return null;
+      const rest = list.filter(t => t.id !== taskId);
+      rest.splice(Math.min(Math.max(number - 1, 0), rest.length), 0, task);
+      return rest.map((t, i) => ({ ...t, order: i + 1 }));
+    }
+    // The Undo footnote's text after a move: Moved “Fix gate” to #3
+    function reorderMessage(title, number) {
+      return `Moved${quotedTitle(title) || " task"} to #${number}`;
+    }
     // </pure-helpers>
 
     // The page's own dialogs, in place of the browser's confirm(), prompt() and alert(). `askConfirm(text, { tone,
@@ -2724,18 +2779,14 @@
       sortSelect.innerHTML = SORT_OPTIONS.map(([key, label]) => `<option value="${key}">${label}</option>`).join("");
       sortSelect.value = sortKey;
       const sortDirBtn = document.getElementById("sortDirBtn");
-      const showSortDirection = () => {
-        sortDirBtn.textContent = sortDescending ? "↓ Descending" : "↑ Ascending";
-        sortDirBtn.setAttribute("aria-label", sortDescending ? "Descending order; tap for ascending" : "Ascending order; tap for descending");
-      };
-      showSortDirection();
+      syncSortControls();
       sortSelect.addEventListener("change", () => {
         sortKey = normalizeSortKey(sortSelect.value);
         renderTasks();
       });
       sortDirBtn.addEventListener("click", () => {
         sortDescending = !sortDescending;
-        showSortDirection();
+        syncSortControls();
         renderTasks();
       });
       document.getElementById("tagFilterBar").addEventListener("click", e => {
@@ -2784,6 +2835,7 @@
         pressFired = false;
         swiped = false;
         if (selectMode && !item.closest("#activeTaskBox")) { swipe = null; return; } // Multi-Select: a queued card only takes taps
+        if (reorderMode && !item.closest("#activeTaskBox")) { swipe = null; startReorderPress(e, item); return; } // Reorder: a queued card is held, then dragged
         cancelPress();
         pressStart = { x: e.clientX, y: e.clientY };
         const taskId = item.dataset.id;
@@ -2846,14 +2898,19 @@
         if (swiped) { swiped = false; return; }
         if (pressFired) { pressFired = false; return; }
         if (selectMode && !item.closest("#activeTaskBox")) return toggleSelected(item.dataset.id);
+        if (reorderMode && !item.closest("#activeTaskBox")) return; // Reorder: a queued card takes no taps
         openEditModal(item.dataset.id);
       };
+      document.addEventListener("keydown", e => { if (e.key === "Escape" && reorderDrag) endReorderDrag(false); });
       for (const id of ["taskList", "activeTaskBox"]) {
         const box = document.getElementById(id);
         box.addEventListener("pointerdown", onTaskRowDown);
         box.addEventListener("pointermove", onTaskRowMove);
         for (const type of ["pointerup", "pointercancel"]) box.addEventListener(type, onTaskRowUp);
         box.addEventListener("pointerleave", cancelPress);
+        box.addEventListener("pointermove", onReorderMove);
+        for (const type of ["pointerup", "pointercancel"]) box.addEventListener(type, onReorderUp);
+        box.addEventListener("touchmove", onReorderTouchMove, { passive: false });
         box.addEventListener("click", onTaskRowClick);
         box.addEventListener("contextmenu", e => { if (cardOf(e)) e.preventDefault(); }); // no menu after a long press
       }
@@ -3320,9 +3377,11 @@
     function taskItemHtml(t, isActive = false) {
       const picking = selectMode && !isActive; // Multi-Select: a queued card shows a tick box and takes taps to toggle
       const picked = picking && selectedIds.has(t.id);
-      const classes = ["task-item", isActive ? "" : dueClass(t), picking ? "selecting" : "", picked ? "selected" : ""].filter(Boolean).join(" ");
+      const moving = reorderMode && !isActive; // Reorder: a queued card shows a grip and is dragged, never tapped
+      const classes = ["task-item", isActive ? "" : dueClass(t), picking ? "selecting" : "", picked ? "selected" : "", moving ? "reordering" : ""].filter(Boolean).join(" ");
       return `        <div class="${classes}" data-id="${esc(t.id)}"${picking ? ` role="checkbox" aria-checked="${picked}"` : ""}>
           ${picking ? `<span class="select-mark" aria-hidden="true">${picked ? "☑" : "☐"}</span>` : ""}
+          ${moving ? `<span class="reorder-mark" aria-hidden="true">↕</span>` : ""}
           <div style="flex:1; min-width:0;">
             <strong>${esc(t.title)}</strong>
             <div class="task-meta">
@@ -3349,7 +3408,7 @@
     // A task's row: the card inside a wrapper that shows the action under it while it is dragged sideways (Snooze and
     // Delete for a queued task, Complete and Abort for the Active task)
     function swipeRowHtml(t, isActive = false) {
-      if (selectMode && !isActive) return `<div class="swipe-row">${taskItemHtml(t)}</div>`; // no swiping while selecting
+      if ((selectMode || reorderMode) && !isActive) return `<div class="swipe-row">${taskItemHtml(t)}</div>`; // no swiping while selecting or reordering
       const right = isActive ? `<div class="swipe-bg swipe-complete" aria-hidden="true">✅ Complete</div>` : `<div class="swipe-bg swipe-snooze" aria-hidden="true">😴 Snooze</div>`;
       const left = isActive ? `<div class="swipe-bg swipe-abort" aria-hidden="true">↩️ Abort</div>` : `<div class="swipe-bg swipe-del" aria-hidden="true">🗑️ Delete</div>`;
       return `<div class="swipe-row">${right}${left}${taskItemHtml(t, isActive)}</div>`;
@@ -3933,6 +3992,171 @@
       await removeTask(taskId, "DELETE", DIRECT_UPDATE_URL, { taskId, action: "DELETE" });
     }
 
+    // Reorder mode. The sort controls show what is forced: Task number, ascending, disabled while the mode is on.
+    function syncSortControls() {
+      document.getElementById("sortBy").value = sortKey;
+      const dir = document.getElementById("sortDirBtn");
+      dir.textContent = sortDescending ? "↓ Descending" : "↑ Ascending";
+      dir.setAttribute("aria-label", sortDescending ? "Descending order; tap for ascending" : "Ascending order; tap for descending");
+      document.getElementById("sortBy").disabled = reorderMode;
+      dir.disabled = reorderMode;
+    }
+    function setReorderMode(on) {
+      if (on === reorderMode) return;
+      if (on && selectMode) setSelectMode(false);
+      if (reorderDrag) endReorderDrag(false);
+      reorderMode = on;
+      if (on) {
+        sortBeforeReorder = { key: sortKey, descending: sortDescending };
+        sortKey = "number";
+        sortDescending = false;
+      } else if (sortBeforeReorder) {
+        sortKey = sortBeforeReorder.key;
+        sortDescending = sortBeforeReorder.descending;
+        sortBeforeReorder = null;
+      }
+      const btn = document.getElementById("reorderModeBtn");
+      btn.textContent = on ? "✓ Done" : "↕️ Reorder";
+      btn.setAttribute("aria-pressed", String(on));
+      document.getElementById("reorderHint").hidden = !on;
+      syncSortControls();
+      renderTasks();
+    }
+
+    // A queued card in Reorder mode: a touch must rest on it for REORDER_HOLD_MS before it lifts (moving sooner scrolls the
+    // list as usual), a mouse drags once the pointer has moved. The lifted card follows the pointer, the cards it passes
+    // slide aside, and releasing sends the move (reorderTask). The page scrolls itself when the pointer nears its top or
+    // bottom edge, and Escape or a cancelled touch drops the card where it was. `reorderDrag` is
+    // {id, item, row, pointerId, pointerType, startX, startY, clientY, lifted, timer, rows, mids, from, to, height, startDocY, raf}.
+    function startReorderPress(e, item) {
+      if (reorderDrag) endReorderDrag(false);
+      const d = { id: item.dataset.id, item, row: item.closest(".swipe-row"), pointerId: e.pointerId, pointerType: e.pointerType, startX: e.clientX, startY: e.clientY, clientY: e.clientY, lifted: false, timer: null, rows: [], mids: [], from: -1, to: -1, height: 0, startDocY: 0, raf: null };
+      if (!d.row) return;
+      reorderDrag = d;
+      if (e.pointerType !== "mouse") d.timer = setTimeout(() => { d.timer = null; liftReorderCard(d); }, REORDER_HOLD_MS);
+    }
+    function liftReorderCard(d) {
+      if (reorderDrag !== d || !d.row.isConnected) return;
+      d.rows = [...document.querySelectorAll("#taskList .swipe-row")];
+      d.from = d.rows.indexOf(d.row);
+      if (d.from < 0) return endReorderDrag(false);
+      d.mids = d.rows.map(r => { const b = r.getBoundingClientRect(); return b.top + window.scrollY + b.height / 2; });
+      d.height = d.row.getBoundingClientRect().height;
+      d.startDocY = d.clientY + window.scrollY;
+      d.to = d.from;
+      d.lifted = true;
+      try { d.item.setPointerCapture(d.pointerId); } catch (err) { /* the drag still works without it */ }
+      for (const r of d.rows) r.classList.add(r === d.row ? "lifted" : "shifting");
+      if (navigator.vibrate) navigator.vibrate(20);
+      paintReorder(d);
+      d.raf = requestAnimationFrame(() => reorderScrollStep(d));
+    }
+    // Draws the lifted card at the pointer and slides the cards between its old and new place by its height.
+    function paintReorder(d) {
+      const dy = d.clientY + window.scrollY - d.startDocY;
+      d.row.style.transform = `translateY(${dy}px) scale(1.02)`;
+      d.to = dragTargetIndex(d.mids, d.from, d.mids[d.from] + dy);
+      d.rows.forEach((r, i) => {
+        if (i === d.from) return;
+        const up = d.from < d.to && i > d.from && i <= d.to;
+        const down = d.from > d.to && i >= d.to && i < d.from;
+        r.style.transform = up ? `translateY(${-d.height}px)` : down ? `translateY(${d.height}px)` : "";
+      });
+    }
+    // While a card is lifted, scrolls the page when the pointer is near the bottom edge or just under the pinned header.
+    function reorderScrollStep(d) {
+      if (reorderDrag !== d || !d.lifted) return;
+      const EDGE = 64, MAX = 16;
+      const top = document.querySelector(".app-header").getBoundingClientRect().bottom;
+      const bottom = window.innerHeight - EDGE;
+      const speed = d.clientY < top + EDGE ? -Math.min(MAX, (top + EDGE - d.clientY) / 4) : d.clientY > bottom ? Math.min(MAX, (d.clientY - bottom) / 4) : 0;
+      if (speed !== 0) {
+        window.scrollBy(0, speed);
+        paintReorder(d);
+      }
+      d.raf = requestAnimationFrame(() => reorderScrollStep(d));
+    }
+    function onReorderMove(e) {
+      const d = reorderDrag;
+      if (!d || e.pointerId !== d.pointerId) return;
+      d.clientY = e.clientY;
+      if (!d.lifted) {
+        if (d.pointerType === "mouse") {
+          if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > REORDER_MOUSE_PX) liftReorderCard(d);
+        } else if (pressMoved(e.clientX - d.startX, e.clientY - d.startY)) {
+          endReorderDrag(false); // the finger moved before the card lifted: the list scrolls instead
+        }
+        return;
+      }
+      if (!d.row.isConnected) return endReorderDrag(false); // the list was redrawn under the drag
+      paintReorder(d);
+    }
+    // A lifted card holds the page still: stops the scroll a touch drag would start (the listener is not passive).
+    function onReorderTouchMove(e) {
+      if (reorderDrag && reorderDrag.lifted && e.cancelable) e.preventDefault();
+    }
+    function onReorderUp(e) {
+      const d = reorderDrag;
+      if (!d || e.pointerId !== d.pointerId) return;
+      endReorderDrag(e.type === "pointerup");
+    }
+    // Ends a press or drag: puts every card back and, when `drop` is true and the card moved, sends the move.
+    function endReorderDrag(drop) {
+      const d = reorderDrag;
+      reorderDrag = null;
+      if (!d) return;
+      if (d.timer !== null) clearTimeout(d.timer);
+      if (d.raf !== null) cancelAnimationFrame(d.raf);
+      if (!d.lifted) return;
+      for (const r of d.rows) { r.classList.remove("lifted", "shifting"); r.style.transform = ""; }
+      const ids = d.rows.map(r => r.querySelector(".task-item").dataset.id);
+      const number = drop && d.row.isConnected ? reorderQueueNumber(ids, d.from, d.to, taskNumbers) : null;
+      if (number !== null) reorderTask(d.id, number);
+    }
+
+    // Moves a task to a queue number: the page shows it at once, the save follows in order, and the Undo footnote puts it back
+    // at its old number (`opts.noUndo` leaves the footnote alone). A failed save alerts and reads the list from the server.
+    function reorderTask(taskId, number, opts = {}) {
+      const task = allTasks.find(t => t.id === taskId);
+      const oldNumber = taskNumbers.get(taskId);
+      const moved = task ? moveToQueueNumberInList(allTasks, taskId, number) : null;
+      if (!moved) return;
+      allTasks = moved;
+      renderTasks();
+      if (!opts.noUndo && Number.isInteger(oldNumber)) {
+        const key = `reorder:${taskId}`;
+        undoNoteKey = key;
+        openUndoNote(reorderMessage(task.title, taskNumbers.get(taskId)), () => {
+          hideUndoNote();
+          if (!allTasks.some(t => t.id === taskId)) return askAlert("That task is no longer on the list.", { tone: "warning" });
+          reorderTask(taskId, oldNumber, { noUndo: true });
+        });
+      }
+      reorderPending++;
+      reorderChain = reorderChain.then(async () => {
+        try {
+          if (!allTasks.some(t => t.id === taskId)) { reorderPending--; return; } // deleted or completed meanwhile
+          const res = await apiFetch(DIRECT_UPDATE_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ taskId, action: "UPDATE", updatedFields: { queueNumber: number } })
+          });
+          const data = await res.json();
+          reorderPending--;
+          if (reorderPending === 0 && !reorderFailed) setTasks(data.tasks || allTasks);
+        } catch (err) {
+          reorderPending--;
+          reorderFailed = true;
+          if (undoNoteKey === `reorder:${taskId}`) hideUndoNote();
+          askAlert(failureText("Error moving task", err), { tone: "error" });
+        } finally {
+          if (reorderPending === 0 && reorderFailed) { reorderFailed = false; await fetchTasks(); } // the page's order may differ from the server's
+          else { renderFilterBar(); renderTasks(); }
+        }
+      });
+      return reorderChain;
+    }
+
     // Multi-Select. The selected tasks, in queue order (the Active task is never in the selection).
     function selectedTasks() {
       return sortTasks(allTasks.filter(t => selectedIds.has(t.id)), "number", false);
@@ -3941,6 +4165,7 @@
       document.getElementById("batchStatus").textContent = text || "";
     }
     function setSelectMode(on) {
+      if (on && reorderMode) setReorderMode(false);
       selectMode = on;
       selectedIds = new Set();
       batchBusy = false;
@@ -5342,6 +5567,7 @@
     document.getElementById("unsnoozeBtn").addEventListener("click", () => snoozeTask(document.getElementById("snoozeTaskId").value, null));
 
     document.getElementById("selectModeBtn").addEventListener("click", () => setSelectMode(!selectMode));
+    document.getElementById("reorderModeBtn").addEventListener("click", () => setReorderMode(!reorderMode));
     document.getElementById("batchAllBtn").addEventListener("click", () => { selectedIds = new Set([...selectedIds, ...shownIds]); renderTasks(); });
     document.getElementById("batchNoneBtn").addEventListener("click", () => { selectedIds = new Set(); renderTasks(); });
     document.getElementById("batchBar").addEventListener("click", e => {
