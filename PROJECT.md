@@ -138,7 +138,13 @@ The cron and the manual trigger run the full engine and both use `USER_CALENDAR_
 
 Each step fits in one turn. Do them in order unless told otherwise. Each step adds tests for any new pure logic.
 
-None planned; the next work comes from the stretch goals or the owner.
+Offline adds: a task added with no connection is kept on the device, shown on the Queue as waiting, and sent once the connection returns, once each and in order. Free-text and manual adds both queue; a queued add never starts a timer (`startNow` is dropped) and a queued free-text add is sent without `allowProposal`, so it never opens the project dialog.
+
+1. Idempotent adds (server): `addOrUpdateTask` accepts `requestId` (8..64 characters of letters, digits, `-` and `_`) on a manual or free-text body. `settings/addRequests` (`{ids}`, the newest 200, oldest dropped) is read and written in the same transaction as the add (a `withAddRequests` option on `updateTaskList`, pure helpers in a new `addRequests.js`), so a retry that races its first attempt adds nothing and takes no job number; it responds `{success, tasks, added: 0, duplicate: true}` with the current list. A body without `requestId` behaves as before. The free-text path may still call the model twice for a raced retry, but commits once. Not in `exportData`. Tests for the helpers and the duplicate path.
+2. Queue model (page, pure): in the pure-helpers block, `newRequestId`, `makeQueuedAdd` (`{requestId, kind: "MANUAL"|"TEXT", body, label, queuedAt, status: "PENDING"|"FAILED", error?}`; the body carries its `requestId`), `parseQueue` and `serializeQueue` (storage key `taskhub-add-queue`; unusable stored text gives an empty queue, bad items are dropped, at most 50), `isNetworkError` (a failed `fetch`, `navigator.onLine` false, or Firebase `auth/network-request-failed` from `getIdToken`; never a server error reply), and `drainQueue(queue, send)` (sends PENDING items oldest first, one at a time; removes an item on success or `duplicate`, stops and keeps the rest on a network error, marks an item FAILED with the server's message on any other error and carries on). No UI change. Tests in `frontend.test.js`.
+3. Queue display (page): read and write the queue in `localStorage` (every access in try/catch; unavailable storage means no queueing), and draw its items at the top of the Queue as cards: "Waiting to send" for PENDING, the error text for FAILED, each with Discard (after a confirmation). A small pure render helper for the card text. Nothing is queued yet, so the page looks the same.
+4. Sending (page): `drainQueue` wired to the page (one run at a time): on sign-in, on the window's `online` event, after any successful call, and from a Retry button on FAILED cards (resets it to PENDING and drains). A sent add updates the list with the response (`setTasks`), as `finishAdd` does; the cards update as each item finishes.
+5. Go live (page): `submitTask` queues the add instead of alerting when the failure `isNetworkError` (the form clears as after an add; a full queue refuses with an alert), and the queue's cards show even when the task list failed to load.
 
 ## Stretch goals (unplanned)
 
@@ -147,11 +153,6 @@ Ideas kept in sight, not started and not committed to. Each goal's steps are in 
 ### Archive scale
 
 1. Only when the archive nears 1000 completions, or a job done rarely drops out of the completed-task search (`getCompletedTemplates` and the History summary each read at most the newest 1000 `completed_tasks` rows; the History project hours also read every archived row of each current project, up to 5000 each, on every load, which the same step can avoid by keeping each project's weekly totals on its own document): add a `jobs/{titleKey}` summary document, one per distinct title (`titleKey` from `templates.js`), `{title, priority, estimatedMinutes, tags, recurrence, projectId, projectOrder, materials, comments, completedCount, recentSeconds, lastCompletedAt}`. `completeTask` updates it in the same transaction as the archive write, `undoRemove` rolls it back, and `getCompletedTemplates` reads it instead of scanning the archive (one read per job, no 1000-row cap). Add a one-off backfill from the existing archive and include `jobs` in `exportData`. `completed_tasks` stays one append-only row per completion, since the History tab queries by `completedAt` and the per-completion snapshots depend on it; do not merge a job's completions into one document with an array (unbounded growth against the 1 MiB document limit, a whole-document rewrite per completion, no range queries over elements).
-
-### Offline adds
-
-1. Queue tasks added without a connection in the page (kept in `localStorage`, shown on the list as pending) and send them when the connection returns, once each and in order.
-2. Show and retry or discard failed queued adds, and keep a manual add's job number from being issued twice if a retry races its first attempt.
 
 ### GST on invoices
 
@@ -180,6 +181,7 @@ Target: one hosted copy that anyone signs into with Google and grants Calendar a
 
 ## Open questions
 
+- Should the page keep the last task list and show it offline? Offline adds queue only the adds; with no connection the Queue shows the load error and the waiting adds, not the tasks.
 - Should Navigate follow the device's default maps app (the Navigate button)? A `geo:` link on Android or an Apple Maps link on iOS opens whatever app the device prefers, but shows the place rather than starting directions; the Google Maps link starts directions and opens in the app where it is installed. The plan uses the Google Maps link; change it if default-app behaviour matters more.
 - Is the project suggestion reliable? A large multi-step job once skipped the dialog and was added as plain tasks, then worked after the prompt was reworded to say that stages the input lists itself still count (a model run-to-run difference is not ruled out). If a multi-stage job is added with no dialog, run `npm run logs` in `functions/` and find the line `No project suggestion (…)`: its reason says which check dropped it (the model returned no `projectProposal`, the name is unusable, too few or too many steps, the name matches an existing project, or the input names an existing project). "The model returned no projectProposal" means the prompt (`PROPOSAL_INSTRUCTIONS` in `prompts.js`) needs tuning; any other reason points at that check in `checkProposal`. No such line means the add did not reach the suggestion code (a free-text add with `allowProposal`), so check the request. Remove this question once it has held up over normal use.
 - Does Google sign-in work in the installed Android window? The popup is tried first and the redirect fallback is in place, both untested there. If redirect sign-in fails on `taskhub-next.web.app`, set `authDomain` to the page's own host (that host's `/__/auth/handler` must then be an authorized redirect URI of the OAuth client).
