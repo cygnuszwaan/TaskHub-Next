@@ -3015,6 +3015,136 @@
     function reorderMessage(title, number) {
       return `Moved${quotedTitle(title) || " task"} to #${number}`;
     }
+
+    // Offline adds. An add that cannot reach the server is kept as a queue item and sent later, once each and in order (see
+    // drainQueue). The queue is an array of items in the order they were added, kept in localStorage as JSON under ADD_QUEUE_KEY:
+    // {requestId, kind: "MANUAL"|"TEXT", body, label, queuedAt, status: "PENDING"|"FAILED", error?}. `body` is the post for
+    // addOrUpdateTask ({manual, requestId} or {input, requestId}: never `startNow` or `allowProposal`, so a queued add starts no
+    // timer and opens no project dialog) and its `requestId` is what makes a second attempt a no-op on the server.
+    const ADD_QUEUE_KEY = "taskhub-add-queue";
+    const ADD_QUEUE_MAX = 50;
+    const QUEUE_LABEL_MAX = 100;
+    const QUEUE_ERROR_MAX = 300;
+    const REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+
+    // A fresh request id the server accepts (8 to 64 letters, digits, - and _). `randomUUID` is injectable for tests.
+    function newRequestId(randomUUID) {
+      const make = typeof randomUUID === "function" ? randomUUID
+        : typeof crypto !== "undefined" && crypto && typeof crypto.randomUUID === "function" ? () => crypto.randomUUID()
+        : () => "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
+      const id = make();
+      return typeof id === "string" && REQUEST_ID_PATTERN.test(id) ? id : "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+    }
+
+    // The text a queue card shows for an add: its title or text on one line, cut to QUEUE_LABEL_MAX; "" when there is none.
+    function queueLabel(kind, body) {
+      const text = kind === "MANUAL" ? (body && body.manual && body.manual.title) : (body && body.input);
+      const line = typeof text === "string" ? text.replace(/\s+/g, " ").trim() : "";
+      return line.length > QUEUE_LABEL_MAX ? line.slice(0, QUEUE_LABEL_MAX - 1).trimEnd() + "…" : line;
+    }
+
+    // The post a queued add sends: only the entry and the request id (a TEXT add carries no `allowProposal`, no add carries
+    // `startNow`). null when the body has no usable entry, or its request id is not usable.
+    function queuedBody(kind, body, requestId) {
+      if (typeof requestId !== "string" || !REQUEST_ID_PATTERN.test(requestId)) return null;
+      if (kind === "MANUAL") {
+        const manual = body && body.manual;
+        return manual && typeof manual === "object" && !Array.isArray(manual) && typeof manual.title === "string" && manual.title.trim() ? { manual, requestId } : null;
+      }
+      if (kind === "TEXT") return body && typeof body.input === "string" && body.input.trim() ? { input: body.input, requestId } : null;
+      return null;
+    }
+
+    // A new PENDING queue item for an add: `kind` "MANUAL" (body from manualTaskBody) or "TEXT" (body from freeTextBody),
+    // `now` the ISO time it was queued, `requestId` optional (a new one is made). null when the add is unusable.
+    function makeQueuedAdd({ kind, body, now, requestId }) {
+      const id = requestId === undefined ? newRequestId() : requestId;
+      const post = queuedBody(kind, body, id);
+      if (!post) return null;
+      const label = queueLabel(kind, post);
+      return { requestId: id, kind, body: post, label: label || "Added task", queuedAt: typeof now === "string" ? now : "", status: "PENDING" };
+    }
+
+    // One stored item cleaned up, or null when it cannot be used (not an object, an unknown kind or status, no usable entry,
+    // or a body whose request id differs from the item's). Pure.
+    function normalizeQueuedAdd(item) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+      if (item.status !== "PENDING" && item.status !== "FAILED") return null;
+      const post = queuedBody(item.kind, item.body, item.requestId);
+      if (!post || !item.body || item.body.requestId !== item.requestId) return null;
+      const label = typeof item.label === "string" && item.label.trim() ? item.label.replace(/\s+/g, " ").trim().slice(0, QUEUE_LABEL_MAX) : queueLabel(item.kind, post) || "Added task";
+      const clean = { requestId: item.requestId, kind: item.kind, body: post, label, queuedAt: typeof item.queuedAt === "string" ? item.queuedAt : "", status: item.status };
+      if (item.status === "FAILED") clean.error = typeof item.error === "string" && item.error.trim() ? item.error.trim().slice(0, QUEUE_ERROR_MAX) : "Not sent";
+      return clean;
+    }
+
+    // A queue from a list: unusable items and repeated request ids dropped, at most ADD_QUEUE_MAX kept (the oldest).
+    function cleanQueue(list) {
+      const seen = new Set();
+      const queue = [];
+      for (const item of Array.isArray(list) ? list : []) {
+        const clean = normalizeQueuedAdd(item);
+        if (!clean || seen.has(clean.requestId)) continue;
+        seen.add(clean.requestId);
+        if (queue.length < ADD_QUEUE_MAX) queue.push(clean);
+      }
+      return queue;
+    }
+
+    // The queue stored as text: an empty queue for nothing, text that is not JSON or JSON that is not a list.
+    function parseQueue(text) {
+      if (typeof text !== "string" || !text) return [];
+      try { return cleanQueue(JSON.parse(text)); } catch (e) { return []; }
+    }
+
+    // The queue as the text to store.
+    function serializeQueue(queue) {
+      return JSON.stringify(cleanQueue(queue));
+    }
+
+    // Whether a failed call is the connection's fault (so the add should wait and try again) and not the server's answer:
+    // the browser reports itself offline (`online` false, from navigator.onLine), fetch itself failed (a TypeError, worded
+    // differently by each browser), or Firebase could not reach Auth for a token. An error built from a server reply is never one.
+    function isNetworkError(err, online) {
+      if (online === false) return true;
+      if (!err || typeof err !== "object") return false;
+      if (err.code === "auth/network-request-failed") return true;
+      return err.name === "TypeError" && /failed to fetch|networkerror|load failed|network request failed|network connection was lost|internet connection appears to be offline/i.test(String(err.message || ""));
+    }
+
+    // The reason shown for a failed add: the error's own text, cut to QUEUE_ERROR_MAX.
+    function queueErrorText(err) {
+      const text = err && typeof err.message === "string" ? err.message.trim() : typeof err === "string" ? err.trim() : "";
+      return text ? text.slice(0, QUEUE_ERROR_MAX) : "Not sent";
+    }
+
+    // Sends the PENDING items of `queue`, oldest first and one at a time, with `send(item)` (resolves with the server's answer; a
+    // reply marked `duplicate` is an add that already went through, and counts as sent). A sent item leaves the queue. A network
+    // error (isNetworkError, with `isOnline()` as its `online` argument) stops the run and keeps that item and every later one
+    // as they were, as does an error `send` marks with `keepQueued: true` (the add is fine but cannot be sent now, e.g. the
+    // sign-in was lost); any other error marks that item FAILED with its message and the run carries on. FAILED items are left
+    // alone. Resolves with {queue, sent: [{item, data}], stopped}: the queue afterwards, what was sent, and whether the run
+    // stopped with items kept. The input is not changed.
+    async function drainQueue(queue, send, isOnline) {
+      const items = (Array.isArray(queue) ? queue : []).map(item => ({ ...item }));
+      const sent = [];
+      let stopped = false;
+      for (let i = 0; i < items.length && !stopped; i++) {
+        if (items[i].status !== "PENDING") continue;
+        try {
+          const data = await send(items[i]);
+          sent.push({ item: items[i], data });
+          items[i] = null;
+        } catch (err) {
+          if ((err && err.keepQueued === true) || isNetworkError(err, typeof isOnline === "function" ? isOnline() : undefined)) stopped = true;
+          else {
+            const { error, ...rest } = items[i];
+            items[i] = { ...rest, status: "FAILED", error: queueErrorText(err) };
+          }
+        }
+      }
+      return { queue: items.filter(Boolean), sent, stopped };
+    }
     // </pure-helpers>
 
     // The page's own dialogs, in place of the browser's confirm(), prompt() and alert(). `askConfirm(text, { tone,

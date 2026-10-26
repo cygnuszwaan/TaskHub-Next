@@ -16,7 +16,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
+    return {ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -3542,6 +3542,293 @@ describe("Reorder mode", () => {
     it("keeps Rename, Delete and Save as template working from both containers", () => {
       assert.match(html, /for \(const id of \["projectActions", "projectTemplateAction"\]\)/);
       assert.match(html, /id="projectTemplateAction"/);
+    });
+  });
+});
+
+describe("offline add queue (page)", () => {
+  const {ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue} = load();
+  const ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+  const rid = (n) => `req-${String(n).padStart(6, "0")}`;
+  const manualAdd = (n, extra = {}) => makeQueuedAdd({kind: "MANUAL", body: {manual: {title: `Task ${n}`, priority: "HIGH"}}, now: "2026-10-27T08:00:00.000Z", requestId: rid(n), ...extra});
+  const textAdd = (n) => makeQueuedAdd({kind: "TEXT", body: {input: `Add thing ${n}`, allowProposal: true}, now: "2026-10-27T08:00:00.000Z", requestId: rid(n)});
+  const netError = () => Object.assign(new TypeError("Failed to fetch"), {});
+
+  it("keeps the queue under one storage key, 50 items at most", () => {
+    assert.equal(ADD_QUEUE_KEY, "taskhub-add-queue");
+    assert.equal(ADD_QUEUE_MAX, 50);
+  });
+
+  describe("newRequestId", () => {
+    it("makes an id the server accepts, a different one each time", () => {
+      const a = newRequestId();
+      const b = newRequestId();
+      assert.match(a, ID_PATTERN);
+      assert.match(b, ID_PATTERN);
+      assert.notEqual(a, b);
+    });
+    it("uses the given generator, and falls back when it gives something the server would refuse", () => {
+      assert.equal(newRequestId(() => "3f2b8c1e-5d4a-4e7b-9c0d-1a2b3c4d5e6f"), "3f2b8c1e-5d4a-4e7b-9c0d-1a2b3c4d5e6f");
+      assert.match(newRequestId(() => "no good!"), ID_PATTERN);
+      assert.match(newRequestId(() => 42), ID_PATTERN);
+    });
+  });
+
+  describe("makeQueuedAdd", () => {
+    it("queues a manual entry as a PENDING item whose body carries the entry and the request id only", () => {
+      const item = makeQueuedAdd({kind: "MANUAL", body: {manual: {title: "Fix gate", priority: "HIGH"}, startNow: true, allowProposal: true}, now: "2026-10-27T08:00:00.000Z", requestId: rid(1)});
+      assert.deepEqual(item, {requestId: rid(1), kind: "MANUAL", body: {manual: {title: "Fix gate", priority: "HIGH"}, requestId: rid(1)}, label: "Fix gate", queuedAt: "2026-10-27T08:00:00.000Z", status: "PENDING"});
+    });
+    it("queues free text without allowProposal or startNow", () => {
+      const item = makeQueuedAdd({kind: "TEXT", body: {input: "Mow the lawn friday", allowProposal: true, startNow: true}, now: "2026-10-27T08:00:00.000Z", requestId: rid(2)});
+      assert.deepEqual(item.body, {input: "Mow the lawn friday", requestId: rid(2)});
+      assert.equal(item.kind, "TEXT");
+      assert.equal(item.label, "Mow the lawn friday");
+      assert.equal(item.status, "PENDING");
+      assert.equal("error" in item, false);
+    });
+    it("makes a request id when none is given, and has no time without one", () => {
+      const item = makeQueuedAdd({kind: "TEXT", body: {input: "x y z"}});
+      assert.match(item.requestId, ID_PATTERN);
+      assert.equal(item.body.requestId, item.requestId);
+      assert.equal(item.queuedAt, "");
+    });
+    it("shows the title on one line, cut to 100 characters", () => {
+      assert.equal(manualAdd(1, {body: {manual: {title: "  Fix   the\n gate  "}}}).label, "Fix the gate");
+      const long = makeQueuedAdd({kind: "TEXT", body: {input: "a".repeat(150)}, requestId: rid(3)});
+      assert.equal(long.label.length, 100);
+      assert.ok(long.label.endsWith("…"));
+    });
+    it("is null for an add that cannot be sent", () => {
+      for (const args of [
+        {kind: "MANUAL", body: {manual: {title: "  "}}},
+        {kind: "MANUAL", body: {manual: "x"}},
+        {kind: "MANUAL", body: {manual: [{title: "a"}]}},
+        {kind: "MANUAL", body: {input: "text"}},
+        {kind: "TEXT", body: {input: "   "}},
+        {kind: "TEXT", body: {manual: {title: "a"}}},
+        {kind: "OTHER", body: {input: "a"}},
+        {kind: "TEXT", body: null},
+        {kind: "TEXT", body: {input: "ok"}, requestId: "short"},
+        {kind: "TEXT", body: {input: "ok"}, requestId: 12345678},
+      ]) assert.equal(makeQueuedAdd({now: "x", ...args}), null, JSON.stringify(args));
+    });
+  });
+
+  describe("parseQueue and serializeQueue", () => {
+    it("round-trips a queue of both kinds, in order", () => {
+      const queue = [manualAdd(1), textAdd(2), {...manualAdd(3), status: "FAILED", error: "A project named \"X\" already exists"}];
+      assert.deepEqual(parseQueue(serializeQueue(queue)), queue);
+    });
+    it("stores nothing but an empty list for an empty queue", () => {
+      assert.equal(serializeQueue([]), "[]");
+      assert.equal(serializeQueue(undefined), "[]");
+      assert.deepEqual(parseQueue("[]"), []);
+    });
+    it("gives an empty queue for missing, unusable or non-list text", () => {
+      for (const text of [undefined, null, "", "not json", "{", "{}", "42", "null", "\"x\"", "{\"a\":1}"]) assert.deepEqual(parseQueue(text), [], String(text));
+    });
+    it("drops items that cannot be sent and keeps the rest", () => {
+      const good = manualAdd(1);
+      const stored = JSON.stringify([
+        null, 7, "x", [], {},
+        {...good, requestId: rid(10), body: {...good.body, requestId: rid(10)}, status: "DONE"},
+        {...good, requestId: rid(11)}, // body carries another id
+        {...good, requestId: rid(12), body: {manual: {title: ""}, requestId: rid(12)}},
+        {...good, requestId: rid(13), kind: "ELSE", body: {...good.body, requestId: rid(13)}},
+        good,
+      ]);
+      assert.deepEqual(parseQueue(stored), [good]);
+    });
+    it("keeps only the first of a repeated request id", () => {
+      const a = manualAdd(1);
+      const queue = parseQueue(JSON.stringify([a, {...a, label: "again"}]));
+      assert.equal(queue.length, 1);
+      assert.equal(queue[0].label, a.label);
+    });
+    it("keeps the oldest 50 when there are more", () => {
+      const many = Array.from({length: ADD_QUEUE_MAX + 5}, (_, i) => manualAdd(i + 1));
+      const queue = parseQueue(JSON.stringify(many));
+      assert.equal(queue.length, ADD_QUEUE_MAX);
+      assert.equal(queue[0].requestId, rid(1));
+      assert.equal(queue[ADD_QUEUE_MAX - 1].requestId, rid(ADD_QUEUE_MAX));
+      assert.equal(JSON.parse(serializeQueue(many)).length, ADD_QUEUE_MAX);
+    });
+    it("keeps the error of a FAILED item only, with a default when it has none", () => {
+      const failed = {...manualAdd(1), status: "FAILED"};
+      assert.equal(parseQueue(JSON.stringify([failed]))[0].error, "Not sent");
+      assert.equal(parseQueue(JSON.stringify([{...failed, error: "  Nope  "}]))[0].error, "Nope");
+      assert.equal(parseQueue(JSON.stringify([{...failed, error: "e".repeat(500)}]))[0].error.length, 300);
+      assert.equal("error" in parseQueue(JSON.stringify([{...manualAdd(2), error: "stale"}]))[0], false);
+    });
+    it("rebuilds the body from its entry and request id, so stored extras do not get sent", () => {
+      const item = manualAdd(1);
+      const stored = {...item, body: {...item.body, startNow: true, allowProposal: true, apply: {changes: []}}};
+      assert.deepEqual(parseQueue(JSON.stringify([stored]))[0].body, item.body);
+    });
+    it("supplies a label and time when the stored ones are unusable", () => {
+      const item = manualAdd(1);
+      const [clean] = parseQueue(JSON.stringify([{...item, label: 5, queuedAt: 7}]));
+      assert.equal(clean.label, "Task 1");
+      assert.equal(clean.queuedAt, "");
+    });
+  });
+
+  describe("isNetworkError", () => {
+    it("is true for a failed fetch in any browser's words", () => {
+      for (const message of ["Failed to fetch", "NetworkError when attempting to fetch resource.", "Load failed", "Network request failed", "The network connection was lost.", "The Internet connection appears to be offline."]) {
+        assert.equal(isNetworkError(new TypeError(message)), true, message);
+      }
+    });
+    it("is true when Firebase could not reach Auth for a token", () => {
+      assert.equal(isNetworkError(Object.assign(new Error("Firebase: Error (auth/network-request-failed)."), {code: "auth/network-request-failed"})), true);
+    });
+    it("is true for any error while the browser says it is offline", () => {
+      assert.equal(isNetworkError(new Error("anything"), false), true);
+      assert.equal(isNetworkError(null, false), true);
+    });
+    it("is false for the server's answers", () => {
+      for (const message of ["Request failed (500)", "A manual entry needs a title", "Your sign-in was rejected. Please sign in again.", "Not signed in", "Failed to fetch"]) {
+        assert.equal(isNetworkError(new Error(message)), false, message);
+        assert.equal(isNetworkError(new Error(message), true), false, message);
+      }
+    });
+    it("is false for a TypeError that is a bug and not a failed fetch, and for non-errors", () => {
+      assert.equal(isNetworkError(new TypeError("Cannot read properties of undefined (reading 'x')")), false);
+      for (const v of [undefined, null, "Failed to fetch", 0, {}]) assert.equal(isNetworkError(v), false, String(v));
+      assert.equal(isNetworkError(new Error("auth/other"), true), false);
+      assert.equal(isNetworkError(Object.assign(new Error("x"), {code: "auth/user-token-expired"})), false);
+    });
+  });
+
+  describe("drainQueue", () => {
+    it("sends the PENDING items oldest first, one at a time, and empties the queue", async () => {
+      const queue = [manualAdd(1), textAdd(2), manualAdd(3)];
+      const order = [];
+      let running = 0;
+      let overlap = false;
+      const send = async (item) => {
+        if (++running > 1) overlap = true;
+        order.push(item.requestId);
+        await Promise.resolve();
+        running--;
+        return {success: true, tasks: [{id: item.requestId}]};
+      };
+      const out = await drainQueue(queue, send);
+      assert.deepEqual(order, [rid(1), rid(2), rid(3)]);
+      assert.equal(overlap, false);
+      assert.deepEqual(out.queue, []);
+      assert.equal(out.stopped, false);
+      assert.deepEqual(out.sent.map((s) => s.item.requestId), [rid(1), rid(2), rid(3)]);
+      assert.deepEqual(out.sent[2].data.tasks, [{id: rid(3)}]);
+    });
+    it("sends the item as queued, request id included", async () => {
+      let seen;
+      await drainQueue([textAdd(1)], async (item) => {
+        seen = item.body;
+        return {success: true};
+      });
+      assert.deepEqual(seen, {input: "Add thing 1", requestId: rid(1)});
+    });
+    it("counts a duplicate answer as sent", async () => {
+      const out = await drainQueue([manualAdd(1)], async () => ({success: true, duplicate: true, added: 0, tasks: []}));
+      assert.deepEqual(out.queue, []);
+      assert.equal(out.sent.length, 1);
+      assert.equal(out.sent[0].data.duplicate, true);
+    });
+    it("stops at a network error and keeps that item and the later ones as they were", async () => {
+      const queue = [manualAdd(1), manualAdd(2), manualAdd(3), manualAdd(4)];
+      const calls = [];
+      const out = await drainQueue(queue, async (item) => {
+        calls.push(item.requestId);
+        if (item.requestId === rid(2)) throw netError();
+        return {success: true};
+      });
+      assert.deepEqual(calls, [rid(1), rid(2)]);
+      assert.equal(out.stopped, true);
+      assert.deepEqual(out.queue, [queue[1], queue[2], queue[3]]);
+      assert.deepEqual(out.sent.map((s) => s.item.requestId), [rid(1)]);
+    });
+    it("stops and keeps the item, FAILED mark left off, for an error marked keepQueued", async () => {
+      const queue = [manualAdd(1), manualAdd(2)];
+      const out = await drainQueue(queue, async () => {
+        throw Object.assign(new Error("Your sign-in was rejected. Please sign in again."), {keepQueued: true});
+      });
+      assert.equal(out.stopped, true);
+      assert.deepEqual(out.queue, queue);
+      assert.deepEqual(out.sent, []);
+    });
+    it("does not keep an item for keepQueued set to anything but true", async () => {
+      const out = await drainQueue([manualAdd(1)], async () => {
+        throw Object.assign(new Error("odd"), {keepQueued: "yes"});
+      });
+      assert.equal(out.stopped, false);
+      assert.equal(out.queue[0].status, "FAILED");
+    });
+    it("marks an item FAILED with the server's message and carries on", async () => {
+      const queue = [manualAdd(1), manualAdd(2), manualAdd(3)];
+      const out = await drainQueue(queue, async (item) => {
+        if (item.requestId === rid(2)) throw new Error("A project named \"Deck\" already exists");
+        return {success: true};
+      });
+      assert.equal(out.stopped, false);
+      assert.equal(out.queue.length, 1);
+      assert.deepEqual(out.queue[0], {...queue[1], status: "FAILED", error: "A project named \"Deck\" already exists"});
+      assert.deepEqual(out.sent.map((s) => s.item.requestId), [rid(1), rid(3)]);
+    });
+    it("gives an error without text the default reason", async () => {
+      const out = await drainQueue([manualAdd(1)], async () => {
+        throw new Error("  ");
+      });
+      assert.equal(out.queue[0].status, "FAILED");
+      assert.equal(out.queue[0].error, "Not sent");
+    });
+    it("leaves FAILED items alone, and a retried one (PENDING again, error removed) is sent", async () => {
+      const failed = {...manualAdd(1), status: "FAILED", error: "No"};
+      const calls = [];
+      const send = async (item) => {
+        calls.push(item.requestId);
+        return {success: true};
+      };
+      const first = await drainQueue([failed, manualAdd(2)], send);
+      assert.deepEqual(calls, [rid(2)]);
+      assert.deepEqual(first.queue, [failed]);
+      const {error, ...retried} = {...failed, status: "PENDING"};
+      assert.equal(error, "No");
+      const second = await drainQueue([retried], send);
+      assert.deepEqual(calls, [rid(2), rid(1)]);
+      assert.deepEqual(second.queue, []);
+    });
+    it("clears an old error when an item fails again for another reason", async () => {
+      const out = await drainQueue([{...manualAdd(1), error: "stale"}], async () => {
+        throw new Error("new reason");
+      });
+      assert.equal(out.queue[0].error, "new reason");
+    });
+    it("treats any error as a network error while the browser reports offline", async () => {
+      const queue = [manualAdd(1), manualAdd(2)];
+      const out = await drainQueue(queue, async () => {
+        throw new Error("Request failed (0)");
+      }, () => false);
+      assert.equal(out.stopped, true);
+      assert.deepEqual(out.queue, queue);
+    });
+    it("does not change the queue it is given", async () => {
+      const queue = [manualAdd(1), manualAdd(2)];
+      const before = JSON.parse(JSON.stringify(queue));
+      await drainQueue(queue, async (item) => {
+        if (item.requestId === rid(1)) throw new Error("bad");
+        return {success: true};
+      });
+      assert.deepEqual(queue, before);
+    });
+    it("handles an empty or missing queue without calling send", async () => {
+      for (const queue of [[], undefined, null]) {
+        const out = await drainQueue(queue, async () => {
+          throw new Error("must not be called");
+        });
+        assert.deepEqual(out, {queue: [], sent: [], stopped: false});
+      }
     });
   });
 });
