@@ -16,7 +16,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
+    return {confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -495,7 +495,7 @@ describe("public/index.html helpers", () => {
       assert.match(html.slice(html.lastIndexOf("<input", search), html.indexOf(">", search)), /type="search"[^>]*placeholder="Search tasks"/);
       const input = html.slice(html.indexOf(`getElementById("taskSearch").addEventListener("input"`), html.indexOf(`getElementById("clearSearchBtn").addEventListener("click"`));
       assert.match(input, /renderTasks\(\)/);
-      assert.match(html, /filterTasks\(rest, selectedTagFilter, selectedProjectFilter, document\.getElementById\("taskSearch"\)\.value\)/);
+      assert.match(html, /filterTasks\(rest, selectedTagFilters, selectedProjectFilter, document\.getElementById\("taskSearch"\)\.value\)/);
     });
     it("shows a Clear button beside the search box only while it holds text", () => {
       const row = html.slice(at(`class="search-row"`), at("</div>", at(`class="search-row"`)));
@@ -1109,6 +1109,32 @@ describe("public/index.html helpers", () => {
       assert.deepEqual(ids(h.filterTasks(list, "Outdoor", "p1", "mow")), ["a"]);
       assert.deepEqual(ids(h.filterTasks(list, "Indoor", null, "mow")), []);
       assert.deepEqual(ids(h.filterTasks(list, null, null, "   ")), ["a", "b", "c"]);
+    });
+    it("matches any of several tags (OR), and an empty list means no tag filter", () => {
+      const h = load();
+      assert.deepEqual(ids(h.filterTasks(tasks, ["Garden", "Indoor"], null)), ["b", "c"]);
+      assert.deepEqual(ids(h.filterTasks(tasks, ["Outdoor", "Garden"], null)), ["a", "b"]);
+      assert.deepEqual(ids(h.filterTasks(tasks, ["Outdoor", "Indoor"], "p1")), ["a", "c"]);
+      assert.deepEqual(ids(h.filterTasks(tasks, [], null)), ["a", "b", "c", "d", "e"]);
+    });
+    it("toggles a tag in and out of the tag filter without changing the old list", () => {
+      const h = load();
+      const one = h.toggleTagFilter([], "Outdoor");
+      assert.deepEqual(one, ["Outdoor"]);
+      const two = h.toggleTagFilter(one, "Garden");
+      assert.deepEqual(two, ["Outdoor", "Garden"]);
+      assert.deepEqual(h.toggleTagFilter(two, "Outdoor"), ["Garden"]);
+      assert.deepEqual(one, ["Outdoor"]);
+    });
+    it("drops chosen tags no task carries any more", () => {
+      assert.deepEqual(load().pruneTagFilter(["Outdoor", "Gone"], tasks), ["Outdoor"]);
+      assert.deepEqual(load().pruneTagFilter([], tasks), []);
+    });
+    it("labels the filter in the Tags heading", () => {
+      const h = load();
+      assert.equal(h.tagFilterLabel([]), "");
+      assert.equal(h.tagFilterLabel(["Outdoor"]), "· Outdoor");
+      assert.equal(h.tagFilterLabel(["Outdoor", "Garden"]), "· Outdoor, Garden");
     });
     it("copes with tasks without tags, and does not modify its input", () => {
       const copy = JSON.stringify(tasks);

@@ -1198,7 +1198,7 @@
       allTasks = withoutTasks(list, pendingRemovals);
     }
     let tasksLoaded = false; // set once the list has been drawn
-    let selectedTagFilter = null; // null = show all
+    let selectedTagFilters = []; // the tags chosen in the Tags filter; empty = show all
     // Multi-Select mode on the Queue: queued cards are tapped to toggle membership of `selectedIds`; the Active task is never selectable.
     let selectMode = false;
     let selectedIds = new Set();
@@ -1644,11 +1644,28 @@
       return words.every(w => title.includes(w));
     }
 
-    // The tasks the Queue shows: those carrying the chosen tag (null = any), belonging to the chosen project
-    // (a project id, null = any) and whose title matches the search text (see matchesSearch). All three apply
-    // together. Pure: the input is not modified.
-    function filterTasks(tasks, tag, projectId, query = "") {
-      return tasks.filter(t => (tag === null || (t.tags || []).includes(tag)) && (projectId === null || t.projectId === projectId) && matchesSearch(t, query));
+    // The tag filter after a tap on `tag`: added when absent, removed when present. Pure: a new list.
+    function toggleTagFilter(selected, tag) {
+      return selected.includes(tag) ? selected.filter(t => t !== tag) : [...selected, tag];
+    }
+
+    // The tag filter kept to the tags that still exist on some task (a tag whose last task went is dropped).
+    function pruneTagFilter(selected, tasks) {
+      const present = new Set(tasks.flatMap(t => t.tags || []));
+      return selected.filter(t => present.has(t));
+    }
+
+    // The heading text for the tag filter: "· Outdoor, Garden", empty when nothing is chosen.
+    function tagFilterLabel(selected) {
+      return selected.length === 0 ? "" : `· ${selected.join(", ")}`;
+    }
+
+    // The tasks the Queue shows: those carrying any of the chosen tags (OR; an empty list or null = any), belonging
+    // to the chosen project (a project id, null = any) and whose title matches the search text (see matchesSearch).
+    // All three apply together. A single tag name is accepted as a list of one. Pure: the input is not modified.
+    function filterTasks(tasks, tags, projectId, query = "") {
+      const wanted = tags === null || tags === undefined ? [] : Array.isArray(tags) ? tags : [tags];
+      return tasks.filter(t => (wanted.length === 0 || wanted.some(tag => (t.tags || []).includes(tag))) && (projectId === null || t.projectId === projectId) && matchesSearch(t, query));
     }
 
     // The confirmation text for deleting a project with `count` member tasks.
@@ -3327,18 +3344,20 @@
 
     function renderFilterBar() {
       const bar = document.getElementById("tagFilterBar");
-      let html = `<div class="filter-chip ${selectedTagFilter === null ? 'active' : ''}" data-all="1">All (${allTasks.length})</div>`;
+      selectedTagFilters = pruneTagFilter(selectedTagFilters, allTasks);
+      let html = `<div class="filter-chip ${selectedTagFilters.length === 0 ? 'active' : ''}" data-all="1">All (${allTasks.length})</div>`;
       sortedTags(allTasks).forEach(tag => {
         const count = allTasks.filter(t => (t.tags || []).includes(tag)).length;
-        html += `<div class="filter-chip ${selectedTagFilter === tag ? 'active' : ''}" data-tag="${esc(tag)}">${esc(tag)} (${count})</div>`;
+        html += `<div class="filter-chip ${selectedTagFilters.includes(tag) ? 'active' : ''}" data-tag="${esc(tag)}">${esc(tag)} (${count})</div>`;
       });
       bar.innerHTML = html;
       // Shown in the heading so a filter stays visible while its section is collapsed
-      document.getElementById("tagsActive").textContent = selectedTagFilter === null ? "" : `· ${selectedTagFilter}`;
+      document.getElementById("tagsActive").textContent = tagFilterLabel(selectedTagFilters);
     }
 
+    // A tap on a tag chip toggles that tag in the filter; All (null) clears it.
     function setFilter(tag) {
-      selectedTagFilter = tag;
+      selectedTagFilters = tag === null ? [] : toggleTagFilter(selectedTagFilters, tag);
       renderFilterBar();
       renderTasks();
     }
@@ -3489,7 +3508,7 @@
 
       const rest = allTasks.filter(t => t !== active);
       selectedIds = pruneSelection(selectedIds, rest);
-      let filtered = filterTasks(rest, selectedTagFilter, selectedProjectFilter, document.getElementById("taskSearch").value);
+      let filtered = filterTasks(rest, selectedTagFilters, selectedProjectFilter, document.getElementById("taskSearch").value);
       shownIds = new Set(filtered.map(t => t.id));
       updateBatchBar();
 
