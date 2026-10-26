@@ -16,7 +16,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
+    return {ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -3834,17 +3834,17 @@ describe("offline add queue (page)", () => {
 });
 
 describe("offline add queue display (page)", () => {
-  const {ADD_QUEUE_KEY, makeQueuedAdd, parseQueue, queueCardView, queueDiscardPrompt, queueWithout} = load();
+  const {ADD_QUEUE_KEY, makeQueuedAdd, parseQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, drainQueue} = load();
   const rid = (n) => `req-${String(n).padStart(6, "0")}`;
   const add = (n, title = `Task ${n}`) => makeQueuedAdd({kind: "MANUAL", body: {manual: {title}}, now: "2026-10-27T08:00:00.000Z", requestId: rid(n)});
 
   describe("queueCardView", () => {
     it("says a PENDING item is waiting to send", () => {
-      assert.deepEqual(queueCardView(add(1, "Fix gate")), {label: "Fix gate", failed: false, text: "Waiting to send"});
+      assert.deepEqual(queueCardView(add(1, "Fix gate")), {label: "Fix gate", failed: false, sending: false, text: "Waiting to send"});
     });
     it("shows the error of a FAILED item", () => {
       const item = {...add(1, "Fix gate"), status: "FAILED", error: "Title is too long"};
-      assert.deepEqual(queueCardView(item), {label: "Fix gate", failed: true, text: "Title is too long"});
+      assert.deepEqual(queueCardView(item), {label: "Fix gate", failed: true, sending: false, text: "Title is too long"});
     });
     it("falls back to Not sent for a FAILED item with no usable error", () => {
       for (const error of [undefined, "", "   ", 5]) {
@@ -3859,7 +3859,7 @@ describe("offline add queue display (page)", () => {
     it("treats anything that is not FAILED as waiting, and survives a missing item", () => {
       assert.equal(queueCardView({...add(1), status: "SOMETHING"}).failed, false);
       for (const item of [null, undefined, "x", 3]) {
-        assert.deepEqual(queueCardView(item), {label: "Added task", failed: false, text: "Waiting to send"});
+        assert.deepEqual(queueCardView(item), {label: "Added task", failed: false, sending: false, text: "Waiting to send"});
       }
     });
     it("does not show the error of a PENDING item", () => {
@@ -3868,7 +3868,7 @@ describe("offline add queue display (page)", () => {
     it("shows the same text for a stored item after it is parsed back", () => {
       const failed = {...add(2, "Mow lawn"), status: "FAILED", error: "Bad request"};
       const [parsed] = parseQueue(JSON.stringify([failed]));
-      assert.deepEqual(queueCardView(parsed), {label: "Mow lawn", failed: true, text: "Bad request"});
+      assert.deepEqual(queueCardView(parsed), {label: "Mow lawn", failed: true, sending: false, text: "Bad request"});
     });
   });
 
@@ -3940,9 +3940,147 @@ describe("offline add queue display (page)", () => {
       assert.ok(start > 0 && start < html.indexOf("      initAuth();\n"));
       assert.equal(html.split("\"[data-queue-discard]\"").length - 1, 1);
     });
-    it("queues nothing yet: nothing calls saveAddQueue but the discard", () => {
-      const calls = html.match(/saveAddQueue\(/g) || [];
-      assert.equal(calls.length, 2, "the definition and the discard");
+  });
+
+  describe("queueCardView while sending", () => {
+    it("says Sending… for the item on its way, and never shows it as failed", () => {
+      assert.deepEqual(queueCardView(add(1, "Fix gate"), true), {label: "Fix gate", failed: false, sending: true, text: "Sending…"});
+      const failed = {...add(1, "Fix gate"), status: "FAILED", error: "old"};
+      assert.deepEqual(queueCardView(failed, true), {label: "Fix gate", failed: false, sending: true, text: "Sending…"});
+    });
+    it("treats anything but true as not sending", () => {
+      for (const sending of [undefined, false, 1, "yes"]) assert.equal(queueCardView(add(1), sending).sending, false);
+    });
+  });
+
+  describe("queueRetry", () => {
+    const failed = (n) => ({...add(n), status: "FAILED", error: "Bad request"});
+    it("makes the FAILED item PENDING again without its error and leaves the others as they were", () => {
+      const queue = [add(1), failed(2), failed(3)];
+      const out = queueRetry(queue, rid(2));
+      assert.deepEqual(out[0], queue[0]);
+      assert.equal(out[1].status, "PENDING");
+      assert.equal("error" in out[1], false);
+      assert.deepEqual(out[2], queue[2]);
+      assert.deepEqual(out[1].body, queue[1].body);
+    });
+    it("does nothing for a PENDING item, an unknown id or a missing queue", () => {
+      const queue = [add(1), failed(2)];
+      assert.deepEqual(queueRetry(queue, rid(1)), queue);
+      assert.deepEqual(queueRetry(queue, "nope"), queue);
+      assert.deepEqual(queueRetry(undefined, rid(1)), []);
+    });
+    it("does not change the queue it is given", () => {
+      const queue = [failed(1)];
+      const before = JSON.parse(JSON.stringify(queue));
+      queueRetry(queue, rid(1));
+      assert.deepEqual(queue, before);
+    });
+    it("gives a queue parseQueue keeps whole", () => {
+      const out = queueRetry([failed(1)], rid(1));
+      assert.deepEqual(parseQueue(JSON.stringify(out)), out);
+    });
+  });
+
+  describe("drainQueue onItem", () => {
+    it("reports each item as it is settled: null when sent, the FAILED item when not", async () => {
+      const queue = [add(1), add(2), add(3)];
+      const seen = [];
+      await drainQueue(queue, async (item) => {
+        if (item.requestId === rid(2)) throw new Error("Bad request");
+        return {success: true};
+      }, undefined, (change) => seen.push(change));
+      assert.equal(seen.length, 3);
+      assert.deepEqual(seen[0], {requestId: rid(1), item: null});
+      assert.equal(seen[1].requestId, rid(2));
+      assert.equal(seen[1].item.status, "FAILED");
+      assert.equal(seen[1].item.error, "Bad request");
+      assert.deepEqual(seen[2], {requestId: rid(3), item: null});
+    });
+    it("reports an item before the next one is sent", async () => {
+      const log = [];
+      await drainQueue([add(1), add(2)], async (item) => {
+        log.push(`send ${item.requestId}`);
+        return {};
+      }, undefined, (change) => log.push(`done ${change.requestId}`));
+      assert.deepEqual(log, [`send ${rid(1)}`, `done ${rid(1)}`, `send ${rid(2)}`, `done ${rid(2)}`]);
+    });
+    it("reports nothing for an item kept after a network error, or one that was not PENDING", async () => {
+      const seen = [];
+      const failed = {...add(1), status: "FAILED", error: "x"};
+      const out = await drainQueue([failed, add(2)], async () => {
+        throw new TypeError("Failed to fetch");
+      }, undefined, (change) => seen.push(change));
+      assert.deepEqual(seen, []);
+      assert.equal(out.stopped, true);
+    });
+    it("keeps sending when onItem throws, and works without it", async () => {
+      const out = await drainQueue([add(1), add(2)], async () => ({}), undefined, () => {
+        throw new Error("display broke");
+      });
+      assert.deepEqual(out.queue, []);
+      assert.equal(out.sent.length, 2);
+      const plain = await drainQueue([add(1)], async () => ({}));
+      assert.deepEqual(plain.queue, []);
+    });
+  });
+
+  describe("sending (page)", () => {
+    const body = (name) => {
+      const from = html.indexOf(`function ${name}(`);
+      assert.ok(from > 0, `${name} not found`);
+      return html.slice(from, html.indexOf("\n    }\n", from));
+    };
+    it("posts the item's body to the add endpoint with apiFetch", () => {
+      const send = body("sendQueuedAdd");
+      assert.match(send, /apiFetch\(ADD_TASK_URL, \{\s*method: "POST",[\s\S]*JSON\.stringify\(item\.body\)/);
+      assert.doesNotMatch(send, /startNow|allowProposal/);
+    });
+    it("keeps the item PENDING when the sign-in is gone, and shows it as sending only while it is on its way", () => {
+      const send = body("sendQueuedAdd");
+      assert.match(send, /!\(firebaseAuth && firebaseAuth\.currentUser\)[^\n]*keepQueued = true/);
+      assert.match(send, /sendingRequestId = item\.requestId/);
+      assert.match(send, /finally \{\s*sendingRequestId = "";/);
+    });
+    it("updates the list with the response as finishAdd does, without touching the add card", () => {
+      const apply = body("applyQueuedAddResult");
+      assert.match(apply, /setTasks\(data\.tasks\)/);
+      assert.match(apply, /allProjects = data\.projects/);
+      assert.match(apply, /renderTasks\(\)/);
+      assert.doesNotMatch(apply, /taskInput|manualToggle|startNow/);
+    });
+    it("runs one drain at a time and not without a signed-in user", () => {
+      const drain = body("drainAddQueue");
+      assert.match(drain, /if \(draining \|\| !firebaseAuth \|\| !firebaseAuth\.currentUser\) return;/);
+      assert.match(drain, /draining = true;[\s\S]*finally \{\s*draining = false;/);
+      assert.match(drain, /drainQueue\(addQueue, sendQueuedAdd, \(\) => navigator\.onLine, settleQueuedAdd\)/);
+    });
+    it("settles each item on the queue as stored now, so an add queued meanwhile is kept", () => {
+      const settle = body("settleQueuedAdd");
+      assert.ok(settle.indexOf("loadAddQueue()") < settle.indexOf("saveAddQueue("));
+      assert.match(settle, /queueWithout\(addQueue, requestId\)/);
+    });
+    it("drains on sign-in after the first list, on the online event and after any successful call", () => {
+      assert.match(html, /fetchTasks\(\)\.then\(drainAddQueue\);/);
+      assert.match(html, /window\.addEventListener\("online", drainAddQueue\);/);
+      const api = body("apiFetch").replace(/^[\s\S]*?if \(!res\.ok\)/, "");
+      assert.match(api, /setTimeout\(drainAddQueue, 0\)[\s\S]*return res;/);
+    });
+    it("has a Retry button on FAILED cards that resets the item and drains", () => {
+      assert.match(body("renderAddQueue"), /view\.failed \? `<button[^`]*data-queue-retry/);
+      const retry = body("retryQueuedAdd");
+      assert.match(retry, /queueRetry\(addQueue, requestId\)/);
+      assert.ok(retry.indexOf("saveAddQueue(") < retry.indexOf("drainAddQueue()"));
+      assert.equal(html.split("\"[data-queue-retry]\"").length - 1, 1);
+    });
+    it("does not let the item on its way be discarded", () => {
+      assert.match(body("renderAddQueue"), /data-queue-discard="\$\{id\}"\$\{off\}/);
+      const discard = body("discardQueuedAdd");
+      assert.equal((discard.match(/sendingRequestId === requestId\) return;/g) || []).length, 2);
+    });
+    it("still queues nothing: submitTask does not touch the queue yet", () => {
+      const submit = body("submitTask");
+      assert.doesNotMatch(submit, /makeQueuedAdd|saveAddQueue|addQueue/);
     });
   });
 });

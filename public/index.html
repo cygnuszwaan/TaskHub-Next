@@ -97,6 +97,7 @@
     .add-queue[hidden] { display: none; }
     .add-queue-card { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; padding: 8px 10px; border: 1px solid var(--border-chip); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 14px; }
     .add-queue-card.failed { border-color: var(--danger); }
+    .add-queue-actions { display: flex; gap: 6px; flex-shrink: 0; }
     .add-queue-label { font-weight: 600; overflow-wrap: anywhere; }
     .add-queue-status { margin-top: 2px; font-size: 13px; color: var(--text-faint); overflow-wrap: anywhere; }
     .add-queue-card.failed .add-queue-status { color: var(--error); }
@@ -1257,7 +1258,7 @@
           if (user) {
             showApp();
             applyPendingShare();
-            fetchTasks();
+            fetchTasks().then(drainAddQueue); // after the list, so an older list cannot replace a task the queue adds
             loadProjects();
             loadClients();
             loadProjectTemplates();
@@ -1321,6 +1322,7 @@
         } catch (e) { /* non-JSON error body */ }
         throw new Error(message);
       }
+      if (addQueue.some(i => i.status === "PENDING")) setTimeout(drainAddQueue, 0); // a call got through: send what is waiting
       return res;
     }
 
@@ -3132,35 +3134,43 @@
     // as they were, as does an error `send` marks with `keepQueued: true` (the add is fine but cannot be sent now, e.g. the
     // sign-in was lost); any other error marks that item FAILED with its message and the run carries on. FAILED items are left
     // alone. Resolves with {queue, sent: [{item, data}], stopped}: the queue afterwards, what was sent, and whether the run
-    // stopped with items kept. The input is not changed.
-    async function drainQueue(queue, send, isOnline) {
+    // stopped with items kept. The input is not changed. The optional `onItem({requestId, item})` is called as each item is
+    // settled, `item` null for one that was sent and the FAILED item for one that was not; an error it throws is ignored.
+    async function drainQueue(queue, send, isOnline, onItem) {
       const items = (Array.isArray(queue) ? queue : []).map(item => ({ ...item }));
       const sent = [];
       let stopped = false;
+      const settled = (requestId, item) => {
+        if (typeof onItem !== "function") return;
+        try { onItem({ requestId, item }); } catch (e) { /* the caller's display must not stop the sending */ }
+      };
       for (let i = 0; i < items.length && !stopped; i++) {
         if (items[i].status !== "PENDING") continue;
         try {
           const data = await send(items[i]);
           sent.push({ item: items[i], data });
+          settled(items[i].requestId, null);
           items[i] = null;
         } catch (err) {
           if ((err && err.keepQueued === true) || isNetworkError(err, typeof isOnline === "function" ? isOnline() : undefined)) stopped = true;
           else {
             const { error, ...rest } = items[i];
             items[i] = { ...rest, status: "FAILED", error: queueErrorText(err) };
+            settled(items[i].requestId, items[i]);
           }
         }
       }
       return { queue: items.filter(Boolean), sent, stopped };
     }
 
-    // What a queue card shows for an item: {label, failed, text}. A PENDING item says it is waiting to send; a FAILED one
-    // shows its error. Anything that is not a FAILED item counts as PENDING, and a missing label reads "Added task".
-    function queueCardView(item) {
-      const failed = !!item && typeof item === "object" && item.status === "FAILED";
+    // What a queue card shows for an item: {label, failed, sending, text}. A PENDING item says it is waiting to send, or
+    // "Sending…" while `sending` is true (the item is on its way: it is never failed then); a FAILED one shows its error.
+    // Anything that is not a FAILED item counts as PENDING, and a missing label reads "Added task".
+    function queueCardView(item, sending) {
+      const failed = sending !== true && !!item && typeof item === "object" && item.status === "FAILED";
       const label = item && typeof item.label === "string" && item.label.trim() ? item.label.trim() : "Added task";
       const error = failed && typeof item.error === "string" && item.error.trim() ? item.error.trim() : "Not sent";
-      return { label, failed, text: failed ? error : "Waiting to send" };
+      return { label, failed, sending: sending === true, text: failed ? error : sending === true ? "Sending…" : "Waiting to send" };
     }
 
     // The confirmation text for discarding a queued add.
@@ -3171,6 +3181,16 @@
     // The queue with the item that has this request id taken out (the rest in order). The input is not changed.
     function queueWithout(queue, requestId) {
       return (Array.isArray(queue) ? queue : []).filter(item => item && item.requestId !== requestId);
+    }
+
+    // The queue with the FAILED item that has this request id made PENDING again (its error dropped); every other item as it was.
+    // The input is not changed.
+    function queueRetry(queue, requestId) {
+      return (Array.isArray(queue) ? queue : []).map(item => {
+        if (!item || item.requestId !== requestId || item.status !== "FAILED") return item;
+        const { error, ...rest } = item;
+        return { ...rest, status: "PENDING" };
+      });
     }
     // </pure-helpers>
 
@@ -3585,9 +3605,12 @@
       loadAddQueue();
       renderAddQueue();
       document.getElementById("addQueueBox").addEventListener("click", e => {
-        const btn = e.target.closest("[data-queue-discard]");
-        if (btn) discardQueuedAdd(btn.dataset.queueDiscard);
+        const discard = e.target.closest("[data-queue-discard]");
+        if (discard) return discardQueuedAdd(discard.dataset.queueDiscard);
+        const retry = e.target.closest("[data-queue-retry]");
+        if (retry) retryQueuedAdd(retry.dataset.queueRetry);
       });
+      window.addEventListener("online", drainAddQueue);
       initAuth();
       // The service worker caches only the app shell (see sw.js); the page works without it.
       if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -6551,6 +6574,8 @@
     // storage is in try/catch, and when storage cannot be used `addQueueUsable` is false (nothing can be queued then).
     let addQueue = [];
     let addQueueUsable = true;
+    let sendingRequestId = ""; // the request id of the add on its way to the server ("" when none)
+    let draining = false; // true while drainAddQueue runs: one run at a time
     function loadAddQueue() {
       try {
         addQueue = parseQueue(localStorage.getItem(ADD_QUEUE_KEY));
@@ -6579,21 +6604,84 @@
       if (!box) return;
       box.hidden = addQueue.length === 0;
       box.innerHTML = addQueue.map(item => {
-        const view = queueCardView(item);
-        return `<div class="add-queue-card${view.failed ? " failed" : ""}" data-request-id="${esc(item.requestId)}">` +
+        const view = queueCardView(item, item.requestId === sendingRequestId);
+        const id = esc(item.requestId);
+        const off = view.sending ? " disabled" : "";
+        return `<div class="add-queue-card${view.failed ? " failed" : ""}" data-request-id="${id}">` +
           `<div><div class="add-queue-label">${esc(view.label)}</div><div class="add-queue-status">${esc(view.text)}</div></div>` +
-          `<button type="button" class="btn-secondary" data-queue-discard="${esc(item.requestId)}">Discard</button></div>`;
+          `<div class="add-queue-actions">${view.failed ? `<button type="button" class="btn-secondary" data-queue-retry="${id}">Retry</button>` : ""}` +
+          `<button type="button" class="btn-secondary" data-queue-discard="${id}"${off}>Discard</button></div></div>`;
       }).join("");
     }
     // Discard on a card: after a confirmation the item leaves the queue. The queue is read again after the question, so an item
     // another tab sent or discarded meanwhile is not brought back.
     async function discardQueuedAdd(requestId) {
       const item = addQueue.find(i => i.requestId === requestId);
-      if (!item) return;
+      if (!item || sendingRequestId === requestId) return;
       if (!await askConfirm(queueDiscardPrompt(item), { tone: "danger", confirmLabel: "Discard" })) return;
+      if (sendingRequestId === requestId) return; // it went out while the question was open: too late to discard
       loadAddQueue();
       saveAddQueue(queueWithout(addQueue, requestId));
       renderAddQueue();
+    }
+
+    // One queued add posted to the server. A lost or rejected sign-in (apiFetch signs the user out on a 401 or 403) keeps the
+    // item PENDING for after the next sign-in. A sent add updates the list as finishAdd does, without touching the add card.
+    async function sendQueuedAdd(item) {
+      sendingRequestId = item.requestId;
+      renderAddQueue();
+      try {
+        const res = await apiFetch(ADD_TASK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(item.body)
+        });
+        const data = await res.json();
+        applyQueuedAddResult(data);
+        return data;
+      } catch (err) {
+        if (!(firebaseAuth && firebaseAuth.currentUser) && err && typeof err === "object") err.keepQueued = true;
+        throw err;
+      } finally {
+        sendingRequestId = "";
+      }
+    }
+    function applyQueuedAddResult(data) {
+      if (!data || !Array.isArray(data.tasks)) return;
+      setTasks(data.tasks);
+      if (data.project && data.projects) allProjects = data.projects;
+      renderFilterBar();
+      renderTasks();
+    }
+    // One item settled by drainQueue: it leaves the stored queue (sent) or is replaced by its FAILED copy. The change is made on
+    // the queue as stored now, so an add queued while the run is going is kept.
+    function settleQueuedAdd({ requestId, item }) {
+      loadAddQueue();
+      const next = item ? addQueue.map(i => i.requestId === requestId ? item : i) : queueWithout(addQueue, requestId);
+      saveAddQueue(next);
+      renderAddQueue();
+    }
+    // Sends the waiting adds, oldest first, one run at a time. Does nothing without a signed-in user or a waiting add.
+    // Called on sign-in, when the connection returns, after any successful call and from a Retry button.
+    async function drainAddQueue() {
+      if (draining || !firebaseAuth || !firebaseAuth.currentUser) return;
+      loadAddQueue();
+      if (!addQueue.some(i => i.status === "PENDING")) return;
+      draining = true;
+      try {
+        await drainQueue(addQueue, sendQueuedAdd, () => navigator.onLine, settleQueuedAdd);
+      } finally {
+        draining = false;
+        sendingRequestId = "";
+        renderAddQueue();
+      }
+    }
+    // Retry on a FAILED card: it becomes PENDING again and the queue is sent.
+    function retryQueuedAdd(requestId) {
+      loadAddQueue();
+      saveAddQueue(queueRetry(addQueue, requestId));
+      renderAddQueue();
+      drainAddQueue();
     }
 
     function setLoading(isLoading) {
