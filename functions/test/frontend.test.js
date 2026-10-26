@@ -16,7 +16,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
+    return {formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -1676,7 +1676,7 @@ describe("public/index.html helpers", () => {
 
       it("completedFormValues: starts the form from the row, with the time in minutes and the completion on the zone's clock", () => {
         const {completedFormValues} = load();
-        assert.deepEqual(completedFormValues(row, NZ), {priority: "LOW", trackedMinutes: 2, tags: "Garden, Outdoor", materials: "", comments: "Front only", travelKm: "", phone: "", email: "", projectId: "p1", date: "2026-10-18", time: "09:30"});
+        assert.deepEqual(completedFormValues(row, NZ), {priority: "LOW", trackedMinutes: 2, tags: "Garden, Outdoor", materials: "", comments: "Front only", travelKm: "", location: null, phone: "", email: "", projectId: "p1", date: "2026-10-18", time: "09:30"});
       });
       it("reopenPrompt: names the task, says it returns with its tracked time and leaves History", () => {
         const {reopenPrompt} = load();
@@ -3415,6 +3415,50 @@ describe("Reorder mode", () => {
       assert.deepEqual(taskLocationChip({id: "t", title: "Tap", projectId: "p1"}, projects, clients), {text: "12 Beach Road", title: "From client: Smith Ltd"});
       assert.equal(taskLocationChip({id: "t", title: "Tap"}, projects, clients), null);
       assert.equal(taskLocationChip(null, [], []), null);
+    });
+    it("builds a Google Maps directions link from a location's text, else its coordinates, else nothing", () => {
+      const {navigationHref} = load();
+      const base = "https://www.google.com/maps/dir/?api=1&destination=";
+      assert.equal(navigationHref(where("12 Beach Road, Orewa")), base + encodeURIComponent("12 Beach Road, Orewa"));
+      assert.equal(navigationHref({name: "  Smith's   yard & shed "}), base + encodeURIComponent("Smith's yard & shed"));
+      assert.equal(navigationHref({name: " ", latitude: -36.6, longitude: 174.7}), base + encodeURIComponent("-36.6,174.7"));
+      for (const v of [null, undefined, "text", 5, {}, {name: "  "}, {name: 5}, {name: "", latitude: -36.6}]) assert.equal(navigationHref(v), "", JSON.stringify(v));
+    });
+    it("points a task form at its own location, else its project's, else its client's", () => {
+      const {formLocation} = load();
+      const projects = [{id: "p1", name: "Reno", clientId: "c1"}, {id: "p2", name: "Deck", clientId: "c1", location: where("Deck site")}, {id: "p3", name: "Solo"}];
+      const clients = [{id: "c1", name: "Smith Ltd", location: where("12 Beach Road")}];
+      assert.deepEqual(formLocation(where("Garage"), "p2", projects, clients), where("Garage"));
+      assert.deepEqual(formLocation(null, "p2", projects, clients), where("Deck site"));
+      assert.deepEqual(formLocation(null, "p1", projects, clients), where("12 Beach Road"));
+      assert.equal(formLocation(null, "p3", projects, clients), null);
+      assert.equal(formLocation(null, "", projects, clients), null);
+      assert.equal(formLocation(null, "p1", undefined, undefined), null);
+    });
+    it("starts the completed task form from the row's own location and sends it only when it differs", () => {
+      const {completedChanges, completedFormValues} = load();
+      const zone = "Pacific/Auckland";
+      const row = {title: "Fit tap", priority: "LOW", estimatedMinutes: 30, trackedSeconds: 0, location: where("12 Beach Road"), completedAt: "2026-10-17T20:30:00.000Z"};
+      const form = () => ({...completedFormValues(row, zone)});
+      assert.deepEqual(form().location, where("12 Beach Road"));
+      assert.deepEqual(completedChanges(row, form(), zone), {fields: {}});
+      assert.deepEqual(completedChanges(row, {...form(), location: where("14 Beach Road")}, zone), {fields: {location: where("14 Beach Road")}});
+      assert.deepEqual(completedChanges(row, {...form(), location: {name: "Garage"}}, zone), {fields: {location: {name: "Garage"}}});
+      assert.deepEqual(completedChanges(row, {...form(), location: null}, zone), {fields: {location: null}});
+      const {location, ...bare} = row; // eslint-disable-line no-unused-vars
+      assert.equal(completedFormValues(bare, zone).location, null);
+      assert.deepEqual(completedChanges(bare, {...completedFormValues(bare, zone), location: null}, zone), {fields: {}});
+      assert.deepEqual(completedChanges(row, (({location: l, ...rest}) => rest)(form()), zone), {fields: {}}, "a form without the key leaves it alone");
+    });
+    it("has a Navigate button in both edit modals, and a Location field in the completed task's form", () => {
+      for (const prefix of ["edit", "ce"]) {
+        assert.match(html, new RegExp(`id="${prefix}Navigate" class="contact-btn btn-secondary"`));
+        assert.match(html, new RegExp(`id="${prefix}NavigateActions" hidden`));
+      }
+      assert.doesNotMatch(html, /id="manualNavigate"/);
+      assert.match(html, /<label for="ceLocation">Location<\/label>/);
+      assert.match(html, /location: locationFromBox\(document\.getElementById\("ceLocation"\)\.value, pickedLocation\.ce\),/);
+      assert.match(html, /link\.href = href \|\| "#";/);
     });
     it("puts a Location field in the add form and the edit modal, and the 📍 chip on task rows", () => {
       for (const prefix of ["manual", "edit"]) {

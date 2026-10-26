@@ -6,6 +6,8 @@ const {MAX_LOCATION_NAME_LENGTH, normalizeLocation, effectiveLocation} = require
 const {applyDirectUpdate, completeInList, mergeTaskChanges, manualTaskChange} = require("../tasks");
 const {buildTemplates} = require("../templates");
 const {stepFromTask} = require("../projectTemplates");
+const {applyCompletedEdit} = require("../completedEdit");
+const {reopenTask} = require("../reopen");
 
 describe("location.js", () => {
   describe("normalizeLocation", () => {
@@ -168,5 +170,27 @@ describe("location on a task", () => {
     it("do not keep a step's location", () => {
       assert.equal("location" in stepFromTask(withLocation()), false);
     });
+  });
+});
+
+describe("location on a completed task", () => {
+  const row = {title: "Fit tap", priority: "LOW", estimatedMinutes: 30, location: SMITH, completedAt: new Date("2026-10-20T01:00:00Z")};
+  const opts = {projectIds: [], timeZone: "Pacific/Auckland", now: new Date("2026-10-24T02:00:00Z")};
+  it("is corrected to a normalized location", () => {
+    assert.deepEqual(applyCompletedEdit(row, {location: {name: "  14   Beach Rd ", latitude: -36.6, longitude: 174.7}}, opts), {set: {location: {name: "14 Beach Rd", latitude: -36.6, longitude: 174.7}}, remove: []});
+    assert.deepEqual(applyCompletedEdit(row, {location: {name: "Garage"}}, opts), {set: {location: {name: "Garage"}}, remove: []});
+  });
+  it("is removed by null, blank text or an empty object when the row has one, else there is nothing to change", () => {
+    for (const v of [null, "", "  ", {}]) assert.deepEqual(applyCompletedEdit(row, {location: v}, opts), {set: {}, remove: ["location"]}, JSON.stringify(v));
+    const {location, ...bare} = row; // eslint-disable-line no-unused-vars
+    assert.deepEqual(applyCompletedEdit(bare, {location: null}, opts), {error: "Nothing to change"});
+  });
+  it("is refused when unusable", () => {
+    for (const v of [42, [], {name: 5}, {name: "x", latitude: 1}, {name: "x".repeat(MAX_LOCATION_NAME_LENGTH + 1)}, {latitude: 1, longitude: 2}]) {
+      assert.match(applyCompletedEdit(row, {location: v}, opts).error, /^Location must be/, JSON.stringify(v));
+    }
+  });
+  it("comes back with a reopened task", () => {
+    assert.deepEqual(reopenTask([], {...row, id: "t1"}, {makeId: () => "new1"}).task.location, SMITH);
   });
 });

@@ -6,6 +6,7 @@ const {randomUUID} = require("crypto");
 const {normalizeComments} = require("./comments");
 const {normalizeTravelKm} = require("./travel");
 const {normalizePhone, normalizeEmail} = require("./contact");
+const {normalizeLocation, MAX_LOCATION_NAME_LENGTH} = require("./location");
 const {normalizeMaterials} = require("./materials");
 
 const PRIORITIES = ["HIGH", "MEDIUM", "LOW"];
@@ -30,7 +31,7 @@ function isArchiveId(id) {
 //            priority (HIGH, MEDIUM or LOW), estimatedMinutes (a whole number from 1 to MAX_ESTIMATE_MINUTES),
 //            trackedSeconds (0 to MAX_TRACKED_SECONDS, whole seconds; 0 makes the estimate count), tags (a list, cleaned
 //            as the model's tags are, at most MAX_TAGS), comments (text, trimmed and cut to 2000 characters; null or empty
-//            text removes them), travelKm (kilometres, at most one decimal, 0.1 to 10000; null, empty or 0 removes it), phone and email (as a task's, see contact.js: null or empty text removes them), materials (a list of texts, or of {text, cost?} objects, a plain record of what was used: each trimmed and cut
+//            text removes them), travelKm (kilometres, at most one decimal, 0.1 to 10000; null, empty or 0 removes it), location ({name, latitude?, longitude?} as location.js checks it; null, blank text or an empty object removes it), phone and email (as a task's, see contact.js: null or empty text removes them), materials (a list of texts, or of {text, cost?} objects, a plain record of what was used: each trimmed and cut
 //            to 100 characters, blanks dropped, at most 30, a cost kept when usable as in materials.js; null or an empty list removes them; stored as a task's materials are,
 //            every item checked), projectId (a current project, or null or "" for none; the id the row
 //            already has counts as unchanged even when that project is gone), and the completion time as the two
@@ -80,6 +81,15 @@ function applyCompletedEdit(row, fields, options) {
       if (row && row[key] !== undefined) remove.push(key);
     } else {
       set[key] = value;
+    }
+  }
+  if ("location" in fields) {
+    const location = normalizeLocation(fields.location);
+    if (location === undefined) return {error: `Location must be a name of at most ${MAX_LOCATION_NAME_LENGTH} characters, with latitude and longitude either both given (in range) or both left out`};
+    if (location === null) {
+      if (row && row.location !== undefined) remove.push("location");
+    } else {
+      set.location = location;
     }
   }
   if ("travelKm" in fields) {

@@ -837,6 +837,9 @@
         <input type="text" id="editNewProject" maxlength="100" placeholder="Name of the new project (created when you save)" style="margin-top: 6px;" hidden>
       </div>
 
+      <div class="contact-actions" id="editNavigateActions" hidden>
+        <a id="editNavigate" class="contact-btn btn-secondary" href="#" target="_blank" rel="noopener noreferrer">🧭 Navigate</a>
+      </div>
       <div class="contact-actions" id="editContactActions" hidden></div>
 
       <details class="extra-fields" id="editExtraFields">
@@ -956,6 +959,9 @@
         <select id="ceProject" style="width: 100%;" onchange="refreshContact('ce')"></select>
       </div>
 
+      <div class="contact-actions" id="ceNavigateActions" hidden>
+        <a id="ceNavigate" class="contact-btn btn-secondary" href="#" target="_blank" rel="noopener noreferrer">🧭 Navigate</a>
+      </div>
       <div class="contact-actions" id="ceContactActions" hidden></div>
 
       <details class="extra-fields" id="ceExtraFields">
@@ -968,6 +974,17 @@
         <div class="form-group">
           <label for="ceTravel">Travel (km)</label>
           <input type="number" id="ceTravel" min="0" max="10000" step="0.1" inputmode="decimal" placeholder="e.g. 12.5" style="max-width: 160px;">
+        </div>
+
+        <div class="form-group">
+          <label for="ceLocation">Location</label>
+          <input type="text" id="ceLocation" maxlength="200" autocomplete="off" placeholder="Search for an address">
+          <div class="action-row" style="margin-top: 6px;">
+            <button type="button" id="cePlaceSearchBtn" class="btn-secondary">Find on map</button>
+            <button type="button" id="ceLocationClearBtn" class="btn-secondary" hidden>Clear</button>
+          </div>
+          <div id="cePlaceResults" class="place-results"></div>
+          <p class="settings-note" id="ceLocationNote"></p>
         </div>
 
         <div class="form-group">
@@ -1641,6 +1658,26 @@
       const client = project && project.clientId ? (Array.isArray(clients) ? clients : []).find(c => c.id === project.clientId) : null;
       const found = effectiveLocation(null, project || null, client || null);
       return found ? { note: `From ${found.source}: ${found.from}`, address: found.location.name } : { note: "", address: "" };
+    }
+
+    // The location a task form points at: the one in its Location box (`own`, null for none), else the chosen project's, else that project's
+    // client's. Null when none has one.
+    function formLocation(own, projectId, projects, clients) {
+      if (own) return own;
+      const project = projectId ? (Array.isArray(projects) ? projects : []).find(p => p.id === projectId) : null;
+      const client = project && project.clientId ? (Array.isArray(clients) ? clients : []).find(c => c.id === project.clientId) : null;
+      const found = effectiveLocation(null, project || null, client || null);
+      return found ? found.location : null;
+    }
+
+    // A Google Maps directions link to a location: its text as the destination, else its coordinates; "" for none. Google Maps' own link
+    // opens in the app where it is installed, else in the browser, and starts directions from where the device is.
+    function navigationHref(location) {
+      if (!location || typeof location !== "object") return "";
+      const name = typeof location.name === "string" ? location.name.replace(/\s+/g, " ").trim() : "";
+      const mapped = Number.isFinite(location.latitude) && Number.isFinite(location.longitude);
+      const destination = name || (mapped ? `${location.latitude},${location.longitude}` : "");
+      return destination ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}` : "";
     }
 
     // The 📍 chip of a task row: its effective location's text, and where it comes from. Null when the task has no location.
@@ -2353,6 +2390,7 @@
         materials: completedMaterialLines(row).join("\n"),
         comments: typeof row.comments === "string" ? row.comments : "",
         travelKm: travelBoxText(row.travelKm),
+        location: effectiveLocation(row, null, null) ? effectiveLocation(row, null, null).location : null,
         phone: typeof row.phone === "string" ? row.phone : "",
         email: typeof row.email === "string" ? row.email : "",
         projectId: row.projectId || "",
@@ -2381,6 +2419,7 @@
       const travel = parseTravelText(form.travelKm);
       if (travel === undefined) return { error: INVALID_TRAVEL };
       if ((travel || null) !== (parseTravelText(before.travelKm) || null)) fields.travelKm = travel || null;
+      if ("location" in form && JSON.stringify(form.location || null) !== JSON.stringify(before.location)) fields.location = form.location || null;
       const phone = String(form.phone === undefined || form.phone === null ? "" : form.phone).trim();
       if (phone !== before.phone.trim()) fields.phone = phone === "" ? null : phone;
       const email = parseEmailText(form.email);
@@ -4212,8 +4251,8 @@
       refreshContact(prefix); // the client, and so the inherited phone and email, follows the project
     }
 
-    // The place last picked into each task form's Location box (the add form and the edit modal), with its map position, or null.
-    const pickedLocation = { manual: null, edit: null };
+    // The place last picked into each task form's Location box (the add form, the edit modal and the completed task's form), with its map position, or null.
+    const pickedLocation = { manual: null, edit: null, ce: null };
 
     // Puts `location` ({name, latitude?, longitude?} or null) in a task form's Location box.
     function setLocationBox(prefix, location) {
@@ -4234,6 +4273,12 @@
       box.placeholder = view.address ? view.address : "Search for an address";
       document.getElementById(`${prefix}LocationNote`).textContent = view.note;
       document.getElementById(`${prefix}LocationClearBtn`).hidden = box.value.trim() === "";
+      const link = document.getElementById(`${prefix}Navigate`); // the edit modals have a Navigate button
+      if (link) {
+        const href = navigationHref(formLocation(locationFromBox(box.value, pickedLocation[prefix]), projectId, allProjects, allClients));
+        document.getElementById(`${prefix}NavigateActions`).hidden = href === "";
+        link.href = href || "#";
+      }
     }
 
     // Brings a form's Phone and Email placeholders and its Call, Text and Email buttons (the edit and completed forms have them)
@@ -4877,6 +4922,7 @@
       document.getElementById("ceMaterials").value = values.materials;
       document.getElementById("ceComments").value = values.comments;
       document.getElementById("ceTravel").value = values.travelKm;
+      setLocationBox("ce", values.location);
       document.getElementById("cePhone").value = values.phone;
       document.getElementById("ceEmail").value = values.email;
       const projectSelect = document.getElementById("ceProject");
@@ -4909,6 +4955,7 @@
         materials: document.getElementById("ceMaterials").value,
         comments: document.getElementById("ceComments").value,
         travelKm: document.getElementById("ceTravel").value,
+        location: locationFromBox(document.getElementById("ceLocation").value, pickedLocation.ce),
         phone: document.getElementById("cePhone").value,
         email: document.getElementById("ceEmail").value,
         projectId: document.getElementById("ceProject").value,
@@ -6228,7 +6275,7 @@
     } else {
       makePlaceSearch({ queryId: "projectLocationInput", buttonId: "projectPlaceSearchBtn", resultsId: "projectPlaceResults", showZone: false, queries: placeQueries, clearQuery: false, onPick: place => setProjectLocation(selectedProjectFilter, placeLocation(place)) });
     }
-    for (const prefix of ["manual", "edit"]) {
+    for (const prefix of ["manual", "edit", "ce"]) {
       const onPick = place => {
         pickedLocation[prefix] = placeLocation(place);
         document.getElementById(`${prefix}Location`).value = place.name;
