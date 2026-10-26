@@ -5,6 +5,7 @@ const {mergeSettings, applySettingsUpdate, claimRun} = require("./settings");
 const {addPushToken, removePushTokens} = require("./push");
 const {reminderWindow} = require("./alerts");
 const {lastIssued} = require("./jobNumber");
+const {requestIdsOf, normalizeRequestId, recordRequest} = require("./addRequests");
 const {sortProjects, addProject, renameProject, setProjectLocation, removeProjectFromTasks} = require("./projects");
 const {buildTemplateSteps, sortTemplates, addTemplate, renameTemplate} = require("./projectTemplates");
 const {normalizeShoppingItems, addShoppingItem, removeShoppingItem} = require("./shopping");
@@ -16,6 +17,7 @@ const CLIENTS_COLLECTION = "clients";
 const TEMPLATES_COLLECTION = "project_templates";
 const SETTINGS_DOC = "settings/app";
 const JOB_COUNTER_DOC = "settings/jobCounter";
+const ADD_REQUESTS_DOC = "settings/addRequests";
 const SHOPPING_DOC = "settings/shoppingList";
 
 // Doc ids are task ids: non-empty strings, no "/" and not "." or ".." (Firestore rules), and unique within a list.
@@ -56,20 +58,29 @@ function diffTasks(before, after) {
 // to mutate as a third argument, so a task can be checked against the projects that exist at commit time.
 // With `{withJobCounter: true}` it also reads the job number counter (`settings/jobCounter`) and passes `{jobCounter}`, the last number
 // issued (0 at the start); when the result carries a larger `jobCounter` it is stored in the same transaction (see jobNumber.js).
+// With `{withAddRequests: true}` it also reads the add request ids (`settings/addRequests`) and passes `{addRequests}`, the ids used so far (oldest first);
+// when the result carries an `addRequestId` that is usable and not yet there, it is recorded in the same transaction (see addRequests.js).
 function makeTaskStore(db) {
   const collection = db.collection(COLLECTION);
   const fromSnapshot = (snap) => sortTasks(snap.docs.map((d) => ({...d.data(), id: d.id})));
 
-  async function updateTaskList(mutate, {withProjects = false, withJobCounter = false} = {}) {
+  async function updateTaskList(mutate, {withProjects = false, withJobCounter = false, withAddRequests = false} = {}) {
     return db.runTransaction(async (tx) => {
       const before = fromSnapshot(await tx.get(collection));
       const projects = withProjects ? sortProjects((await tx.get(db.collection(PROJECTS_COLLECTION))).docs.map((d) => ({...d.data(), id: d.id}))) : undefined;
       const counterRef = withJobCounter ? db.doc(JOB_COUNTER_DOC) : null;
       const counterSnap = counterRef ? await tx.get(counterRef) : null;
       const jobCounter = counterSnap ? lastIssued(counterSnap.exists ? counterSnap.data() : undefined) : undefined;
-      const result = mutate(before, tx, {projects, jobCounter});
+      const requestsRef = withAddRequests ? db.doc(ADD_REQUESTS_DOC) : null;
+      const requestsSnap = requestsRef ? await tx.get(requestsRef) : null;
+      const requestsData = requestsSnap && requestsSnap.exists ? requestsSnap.data() : undefined;
+      const addRequests = requestsRef ? requestIdsOf(requestsData) : undefined;
+      const result = mutate(before, tx, {projects, jobCounter, addRequests});
       // The counter only ever moves forward, in the same commit as the tasks that use the numbers
       if (counterRef && Number.isSafeInteger(result.jobCounter) && result.jobCounter > jobCounter) tx.set(counterRef, {last: result.jobCounter});
+      // The id of an add is recorded in the commit that makes the add, so a second attempt finds it
+      const requestId = requestsRef ? normalizeRequestId(result.addRequestId) : null;
+      if (requestId && !addRequests.includes(requestId)) tx.set(requestsRef, recordRequest(requestsData, requestId));
       if (result.tasks) {
         const {upserts, deletes} = diffTasks(before, result.tasks);
         for (const task of upserts) tx.set(collection.doc(task.id), task);
@@ -368,4 +379,4 @@ function makeSettingsStore(db) {
   return {getSettings, updateSettings, claimAutoRun, setRunFingerprint, addDeviceToken, removeDeviceTokens, claimReminderWindow};
 }
 
-module.exports = {COLLECTION, PROJECTS_COLLECTION, CLIENTS_COLLECTION, TEMPLATES_COLLECTION, SETTINGS_DOC, JOB_COUNTER_DOC, SHOPPING_DOC, checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore};
+module.exports = {COLLECTION, PROJECTS_COLLECTION, CLIENTS_COLLECTION, TEMPLATES_COLLECTION, SETTINGS_DOC, JOB_COUNTER_DOC, ADD_REQUESTS_DOC, SHOPPING_DOC, checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore};

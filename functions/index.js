@@ -38,6 +38,7 @@ const {renderJobSheetPdf} = require("./jobsheetPdf");
 const {makeOwnerOnly} = require("./auth");
 const {dayWindowMinutes} = require("./settings");
 const {lastIssued} = require("./jobNumber");
+const {normalizeRequestId, isRepeatedRequest} = require("./addRequests");
 const {randomUUID} = require("crypto");
 const {v1: firestoreV1} = require("@google-cloud/firestore");
 const {BACKUP_ROOT, normalizeBucketName, runBackup} = require("./backup");
@@ -569,11 +570,16 @@ exports.rescheduleTask = onRequest({
 // and `projects` as well; `apply: {changes}` merges the declined suggestion's `singleChanges` like any model output.
 // The model's own changes never carry a project or an order number (withoutProjectFields): that is the only way a
 // task joins a project here, apart from a manual entry.
+// A body may carry a `requestId` (8 to 64 letters, digits, `-` and `_`; 400 otherwise). On a manual, free-text or `apply` body the id is recorded
+// with the add, and a second body with the same id adds nothing and takes no job number: it responds {success, tasks, added: 0, updated: 0, skipped: 0, duplicate: true}.
 exports.addOrUpdateTask = onRequest({
   secrets: ["GEMINI_API_KEY"], cors: ALLOWED_ORIGINS, timeoutSeconds: 120,
 }, ownerOnly(async (req, res) => {
   try {
     const body = req.body || {};
+    // An add the page may send twice carries a requestId (see addRequests.js): refused up front when it is unusable
+    const requestId = normalizeRequestId(body.requestId);
+    if (body.requestId !== undefined && requestId === null) return res.status(400).send({error: "requestId must be 8 to 64 letters, digits, - or _"});
     // The owner accepted a suggested project: it is checked again and committed with its steps, no model call
     if (body.acceptProposal !== undefined) {
       const accepted = await updateTaskList((tasks, tx, {projects: stored, jobCounter}) => {
@@ -651,7 +657,9 @@ exports.addOrUpdateTask = onRequest({
 
     // Merge into the list as it is now, not as it was when the model was asked. The projects are read in the same
     // transaction, so a task only joins a project that still exists at commit time.
-    const result = await updateTaskList((tasks, tx, {projects: stored, jobCounter}) => {
+    const result = await updateTaskList((tasks, tx, {projects: stored, jobCounter, addRequests}) => {
+      // An add already made under this requestId is not made again: nothing is written and no job number is taken
+      if (isRepeatedRequest({ids: addRequests}, requestId)) return {current: tasks, duplicate: true, added: 0, updated: 0, skipped: 0};
       // A manual entry's new project is created in the same commit as the task, so nothing is left behind if the add fails
       let entry = changes;
       let created = null;
@@ -669,8 +677,8 @@ exports.addOrUpdateTask = onRequest({
         if (firstNew) list = setTimerInList(list, firstNew, "START", Date.now()).tasks;
       }
       if (created && changed) tx.set(db.collection(PROJECTS_COLLECTION).doc(created.project.id), created.project);
-      return {...merged, tasks: changed ? list : null, current: changed ? list : tasks, project: changed && created ? created.project : null, projects: changed && created ? created.projects : null};
-    }, {withProjects: true, withJobCounter: true});
+      return {...merged, tasks: changed ? list : null, current: changed ? list : tasks, project: changed && created ? created.project : null, projects: changed && created ? created.projects : null, addRequestId: changed ? requestId : null};
+    }, {withProjects: true, withJobCounter: true, withAddRequests: true});
     if (result.error) return res.status(400).send({error: result.error});
     // A request that adds this many tasks at once is unusual: leave a trace of how it came about
     if (result.added > 3) console.warn(`addOrUpdateTask added ${result.added} tasks (${body.manual !== undefined ? "manual" : body.apply !== undefined ? "apply" : "free text"}, ${changes.length} change(s), ${result.updated} updated, ${result.skipped} skipped)`);
@@ -681,6 +689,7 @@ exports.addOrUpdateTask = onRequest({
       added: result.added,
       updated: result.updated,
       skipped: result.skipped,
+      ...(result.duplicate ? {duplicate: true} : {}),
       ...(result.project ? {project: result.project, projects: result.projects} : {}),
     });
   } catch (err) {

@@ -708,3 +708,74 @@ describe("store.js makeShoppingStore", () => {
     assert.deepEqual(db.data.settings.get("app"), {timeZone: "Pacific/Auckland"});
   });
 });
+
+describe("makeTaskStore: withAddRequests", () => {
+  const rid = (n) => `req-${String(n).padStart(6, "0")}`;
+  // What addOrUpdateTask does: skip a repeated request, else add a task with the next job number and record the id.
+  const addOnce = (store, requestId, taskId) => store.updateTaskList((tasks, tx, {jobCounter, addRequests}) => {
+    if (addRequests.includes(requestId)) return {current: tasks, duplicate: true};
+    const next = jobCounter + 1;
+    const list = [...tasks, task(taskId, tasks.length + 1, {jobNumber: next})];
+    return {tasks: list, current: list, jobCounter: next, addRequestId: requestId};
+  }, {withJobCounter: true, withAddRequests: true});
+
+  it("passes the ids used so far (none at the start) and passes none unless asked", async () => {
+    const db = fakeDb({a: task("a", 1)});
+    let seen = "unset";
+    await makeTaskStore(db).updateTaskList((tasks, tx, extra) => {
+      seen = extra.addRequests;
+      return {};
+    }, {withAddRequests: true});
+    assert.deepEqual(seen, []);
+    db.data.settings.set("addRequests", {ids: [rid(1), rid(2)]});
+    await makeTaskStore(db).updateTaskList((tasks, tx, extra) => {
+      seen = extra.addRequests;
+      return {};
+    }, {withAddRequests: true});
+    assert.deepEqual(seen, [rid(1), rid(2)]);
+    await makeTaskStore(db).updateTaskList((tasks, tx, extra) => {
+      seen = extra.addRequests;
+      return {};
+    });
+    assert.equal(seen, undefined);
+  });
+  it("records the id in the same commit as the task and its job number", async () => {
+    const db = fakeDb({});
+    await addOnce(makeTaskStore(db), rid(1), "a");
+    assert.deepEqual(db.data.settings.get("addRequests"), {ids: [rid(1)]});
+    assert.deepEqual([...db.log].sort(), ["set settings/addRequests", "set settings/jobCounter", "set tasks/a"]);
+  });
+  it("a repeated request adds nothing, takes no job number and writes nothing", async () => {
+    const db = fakeDb({});
+    const store = makeTaskStore(db);
+    const first = await addOnce(store, rid(1), "a");
+    db.log.length = 0;
+    const again = await addOnce(store, rid(1), "b");
+    assert.equal(again.duplicate, true);
+    assert.deepEqual(again.current.map((t) => t.id), ["a"]);
+    assert.deepEqual(db.log, []);
+    assert.equal(db.data.settings.get("jobCounter").last, 1);
+    assert.equal(first.current[0].jobNumber, 1);
+    await addOnce(store, rid(2), "c");
+    assert.deepEqual(db.data.tasks.get("c").jobNumber, 2);
+    assert.deepEqual(db.data.settings.get("addRequests"), {ids: [rid(1), rid(2)]});
+  });
+  it("records nothing when the result carries no usable id, and ignores one when the ids were not asked for", async () => {
+    const db = fakeDb({a: task("a", 1)});
+    const store = makeTaskStore(db);
+    await store.updateTaskList((tasks) => ({tasks, addRequestId: null}), {withAddRequests: true});
+    await store.updateTaskList((tasks) => ({tasks, addRequestId: "bad"}), {withAddRequests: true});
+    await store.updateTaskList((tasks) => ({tasks, addRequestId: rid(1)}));
+    assert.equal(db.data.settings.has("addRequests"), false);
+    assert.deepEqual(db.log, []);
+  });
+  it("keeps the newest 200 ids", async () => {
+    const db = fakeDb({});
+    db.data.settings.set("addRequests", {ids: Array.from({length: 200}, (_, i) => rid(i))});
+    await addOnce(makeTaskStore(db), rid(9999), "a");
+    const {ids} = db.data.settings.get("addRequests");
+    assert.equal(ids.length, 200);
+    assert.equal(ids[0], rid(1));
+    assert.equal(ids[199], rid(9999));
+  });
+});
