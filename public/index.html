@@ -1338,7 +1338,7 @@
       allTasks = withoutTasks(list, pendingRemovals);
       lastSyncAt = Date.now();
       showSavedListNote(null); // a list from the server replaces any saved copy on screen
-      saveTaskCache(allTasks);
+      saveTaskCache(list); // the server's list as it came, never the one shown with waiting changes on it
     }
     // The time the page last had the server's list; while the saved copy is on screen (savedListAt) its own time shows instead.
     let lastSyncAt = 0;
@@ -3258,6 +3258,368 @@
       if (usable === false) return "This browser cannot keep an add for later, so nothing was saved. Check your connection and try again.";
       if (count >= ADD_QUEUE_MAX) return `${ADD_QUEUE_MAX} adds are already waiting to be sent, so this one was not saved. Wait for the connection or discard some, then try again.`;
       return "";
+    }
+
+    // Offline changes made on site: a change that cannot reach the server is kept as an action and sent later, in order (the
+    // model is here, the page's use of it follows the add queue's). The queue is an array of actions in the order they were
+    // made, kept in localStorage as JSON under ACTION_QUEUE_KEY:
+    // {requestId, kind, taskId?, archiveId?, title, fields?, at, status: "PENDING"|"FAILED", error?}.
+    //   TIMER:    taskId, fields {action: "START"|"PAUSE"|"ABORT", capSeconds?} (capSeconds only with PAUSE)
+    //   COMPLETE: taskId and archiveId, the id the page gave the History entry (the server uses it as the row's id)
+    //   REOPEN:   archiveId (the entry) and taskId (the entry's own `id`, the task that comes back)
+    //   EDIT:     taskId (a queued task) or archiveId (an entry), fields {comments} (EDIT_FIELDS: the fields that can be held)
+    // `at` is when the change was made, in epoch milliseconds on the server's clock (the device's corrected by `clockOffsetFrom`),
+    // because the server books that instant and not the time it arrived; `title` is the task's, for the cards. `requestId` is
+    // what makes a second attempt a no-op on the server. Only PENDING actions change what the page shows (withPendingActions).
+    const ACTION_QUEUE_KEY = "taskhub-action-queue";
+    const ACTION_QUEUE_MAX = 50;
+    const ACTION_KINDS = ["TIMER", "COMPLETE", "REOPEN", "EDIT"];
+    const TIMER_ACTIONS = ["START", "PAUSE", "ABORT"];
+    const EDIT_FIELDS = ["comments"];
+    const MAX_COMMENTS_LENGTH = 2000;
+
+    // A new id for a History entry made on the page: the server takes it as the id of the row (8 to 64 letters, digits, - and _).
+    function newArchiveId(randomUUID) {
+      return newRequestId(randomUUID);
+    }
+    // Whether an id can be an archive row's id (the same rule as the server's normalizeArchiveId: the pattern, and not __x__).
+    function usableArchiveId(value) {
+      return typeof value === "string" && REQUEST_ID_PATTERN.test(value) && !/^__.*__$/.test(value);
+    }
+
+    // How far the server's clock is ahead of this device's, in milliseconds: the `serverTime` an endpoint returned less the
+    // device's clock when the reply arrived. null when either is not a number.
+    function clockOffsetFrom(serverTime, deviceNow) {
+      return Number.isFinite(serverTime) && Number.isFinite(deviceNow) ? Math.round(serverTime - deviceNow) : null;
+    }
+
+    // The task's history and timer, as the server works them out. Copies of functions/history.js and functions/timer.js, kept
+    // equal to them by a test: the page shows a waiting change as the server will make it.
+    const HISTORY_ROLLING_WINDOW = 5;
+    const HISTORY_MAX_COUNT = 1000000;
+    function normalizeSamples(raw) {
+      if (!Array.isArray(raw)) return [];
+      return raw.filter(s => Number.isFinite(s) && s >= 0.5).map(s => Math.round(s)).slice(-HISTORY_ROLLING_WINDOW);
+    }
+    function normalizeCount(raw) {
+      return Number.isInteger(raw) && raw >= 1 && raw <= HISTORY_MAX_COUNT ? raw : 0;
+    }
+    function recordCompletion(task) {
+      const samples = normalizeSamples(task && task.recentSeconds);
+      const tracked = task && task.trackedSeconds;
+      if (Number.isFinite(tracked) && tracked >= 0.5) samples.push(Math.round(tracked));
+      const out = { completedCount: normalizeCount(task && task.completedCount) + 1 };
+      if (samples.length > 0) out.recentSeconds = samples.slice(-HISTORY_ROLLING_WINDOW);
+      return out;
+    }
+    function savedSeconds(task) {
+      const s = task && task.trackedSeconds;
+      return Number.isFinite(s) && s > 0 ? Math.round(s) : 0;
+    }
+    function timerStretch(task, nowMs) {
+      const start = Date.parse(task && task.timerStartedAt);
+      return !Number.isNaN(start) && Number.isFinite(nowMs) && nowMs > start ? Math.round((nowMs - start) / 1000) : 0;
+    }
+    function clearActive(task) {
+      if (!task || !task.active) return task;
+      const next = { ...task };
+      delete next.active;
+      return next;
+    }
+    function pauseTimer(task, nowMs, capSeconds) {
+      if (!isTimerRunning(task)) return task;
+      const stretch = timerStretch(task, nowMs);
+      const counted = Number.isInteger(capSeconds) && capSeconds >= 0 ? Math.min(stretch, capSeconds) : stretch;
+      const next = { ...task, trackedSeconds: savedSeconds(task) + counted };
+      delete next.timerStartedAt;
+      return next;
+    }
+    function abortTimer(task) {
+      const next = { ...clearActive(task) };
+      delete next.timerStartedAt;
+      delete next.firstStartedAt;
+      delete next.trackedSeconds;
+      return next;
+    }
+    function startTimer(task, nowMs) {
+      if (isTimerRunning(task) || !Number.isFinite(nowMs)) return task;
+      const iso = new Date(nowMs).toISOString();
+      const next = { ...task, timerStartedAt: iso, active: true };
+      if (Number.isNaN(Date.parse(task && task.firstStartedAt))) next.firstStartedAt = iso;
+      return next;
+    }
+    // Start, pause or abort one task's timer on the list at `nowMs` (toggleTimer's setTimerInList): {tasks, task}, or null for an
+    // unknown action or task. Starting pauses every other running timer and takes the active mark from every other task.
+    function setTimerInList(tasks, taskId, action, nowMs, options = {}) {
+      const verb = typeof action === "string" ? action.trim().toUpperCase() : "";
+      if ((verb !== "START" && verb !== "PAUSE" && verb !== "ABORT") || !tasks.some(t => t.id === taskId)) return null;
+      let changed = null;
+      const next = tasks.map(t => {
+        if (t.id === taskId) {
+          changed = verb === "START" ? startTimer(t, nowMs) : verb === "ABORT" ? abortTimer(t) : pauseTimer(t, nowMs, options.capSeconds);
+          return changed;
+        }
+        return verb === "START" ? clearActive(pauseTimer(t, nowMs)) : t;
+      });
+      return { tasks: next, task: changed };
+    }
+    // A task as it is archived: its timer stopped, `trackedSeconds` holding everything accrued and no active mark.
+    function settleTimer(task, nowMs) {
+      const paused = pauseTimer(task, nowMs);
+      return { ...clearActive(paused), trackedSeconds: savedSeconds(paused) };
+    }
+
+    // The History entry a completion makes, as getCompletedTasks will return it (completeInList's completed task and history, and
+    // `completedAt` as ISO text), with the `archiveId` the page chose. The next occurrence of a repeating task is not part of it.
+    function completedRowOf(task, nowMs, archiveId) {
+      const settled = settleTimer(task, nowMs);
+      return { ...settled, ...recordCompletion(settled), completedAt: new Date(nowMs).toISOString(), archiveId };
+    }
+
+    // The job history from before the completion on `row` (functions/reopen.js historyBefore), and the task a reopened entry
+    // becomes (reopenTask there): {tasks, task, droppedRecurrence}, or {error} for a row with no title. `projectIds` are the
+    // current projects; `makeId` makes the id when the row's own is not free.
+    const REOPEN_NOT_RESTORED = ["archiveId", "completedAt", "completedCount", "recentSeconds", "timerStartedAt", "active", "recurrence"];
+    function historyBefore(row) {
+      const count = normalizeCount(row && row.completedCount) - 1;
+      const samples = normalizeSamples(row && row.recentSeconds);
+      const tracked = row && row.trackedSeconds;
+      if (Number.isFinite(tracked) && tracked >= 0.5 && samples.length > 0 && samples[samples.length - 1] === Math.round(tracked)) samples.pop();
+      const out = {};
+      if (count >= 1) out.completedCount = count;
+      if (samples.length > 0) out.recentSeconds = samples;
+      return out;
+    }
+    function reopenTask(tasks, row, { projectIds = [], makeId } = {}) {
+      if (!row || typeof row !== "object" || typeof row.title !== "string" || !row.title.trim()) {
+        return { error: "This completed task has no title, so it cannot be reopened" };
+      }
+      const list = Array.isArray(tasks) ? tasks : [];
+      const task = { ...row };
+      for (const key of REOPEN_NOT_RESTORED) delete task[key];
+      task.id = typeof row.id === "string" && row.id !== "" && !list.some(t => t.id === row.id) ? row.id : makeId();
+      task.status = "PENDING";
+      task.order = list.reduce((max, t) => (Number.isFinite(t.order) && t.order > max ? t.order : max), 0) + 1;
+      if (Number.isFinite(row.trackedSeconds) && row.trackedSeconds > 0) task.trackedSeconds = Math.round(row.trackedSeconds);
+      else delete task.trackedSeconds;
+      if (!task.locked) {
+        delete task.googleCalendarEventId;
+        delete task.scheduledStart;
+        delete task.scheduledEnd;
+      }
+      if (task.projectId && !projectIds.includes(task.projectId)) {
+        delete task.projectId;
+        delete task.projectOrder;
+      }
+      Object.assign(task, historyBefore(row));
+      return { tasks: [...list, task], task, droppedRecurrence: Boolean(row.recurrence) };
+    }
+
+    // A `comments` value as the server reads it (functions/comments.js): undefined for an unusable value, null for none (null or
+    // text empty once trimmed), else the text trimmed and cut to 2000 characters.
+    function normalizeComments(value) {
+      if (value === null) return null;
+      if (typeof value !== "string") return undefined;
+      const text = value.trim().slice(0, MAX_COMMENTS_LENGTH).trim();
+      return text === "" ? null : text;
+    }
+    // A task or History entry with the held `fields` of an EDIT applied, as the server will apply them: a text sets `comments`,
+    // null takes the key away.
+    function applyEditFields(target, fields) {
+      const next = { ...target };
+      if (fields && "comments" in fields) {
+        const comments = normalizeComments(fields.comments);
+        if (typeof comments === "string") next.comments = comments;
+        else if (comments === null) delete next.comments;
+      }
+      return next;
+    }
+
+    // One action's `fields` cleaned for its kind: an object, or null when unusable (see the model above).
+    function cleanActionFields(kind, fields) {
+      if (kind === "TIMER") {
+        const action = fields && typeof fields.action === "string" ? fields.action.trim().toUpperCase() : "";
+        if (!TIMER_ACTIONS.includes(action)) return null;
+        const cap = fields.capSeconds;
+        if (cap === undefined || cap === null) return { action };
+        return action === "PAUSE" && Number.isInteger(cap) && cap >= 0 ? { action, capSeconds: cap } : null;
+      }
+      if (kind === "EDIT") {
+        if (!fields || typeof fields !== "object" || Array.isArray(fields)) return null;
+        const keys = Object.keys(fields);
+        if (keys.length === 0 || keys.some(k => !EDIT_FIELDS.includes(k))) return null;
+        const out = {};
+        if ("comments" in fields) {
+          const comments = normalizeComments(fields.comments);
+          if (comments === undefined) return null;
+          out.comments = comments;
+        }
+        return out;
+      }
+      return undefined; // COMPLETE and REOPEN carry no fields
+    }
+
+    // One stored action cleaned up, or null when it cannot be used: not an object, an unknown kind or status, a request id or
+    // time that is not usable, or the ids and fields its kind needs missing or wrong. A FAILED one always has an error text.
+    function normalizeQueuedAction(item) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+      if (item.status !== "PENDING" && item.status !== "FAILED") return null;
+      if (!ACTION_KINDS.includes(item.kind)) return null;
+      if (typeof item.requestId !== "string" || !REQUEST_ID_PATTERN.test(item.requestId)) return null;
+      if (!Number.isSafeInteger(item.at) || item.at <= 0) return null;
+      const hasTask = typeof item.taskId === "string" && item.taskId !== "";
+      const hasEntry = usableArchiveId(item.archiveId);
+      const fields = cleanActionFields(item.kind, item.fields);
+      if (fields === null) return null;
+      const clean = { requestId: item.requestId, kind: item.kind };
+      if (item.kind === "TIMER") {
+        if (!hasTask) return null;
+        clean.taskId = item.taskId;
+      } else if (item.kind === "COMPLETE" || item.kind === "REOPEN") {
+        if (!hasTask || !hasEntry) return null;
+        clean.taskId = item.taskId;
+        clean.archiveId = item.archiveId;
+      } else {
+        if (hasTask === hasEntry) return null; // an edit names one target
+        if (hasTask) clean.taskId = item.taskId;
+        else clean.archiveId = item.archiveId;
+      }
+      const title = typeof item.title === "string" ? item.title.replace(/\s+/g, " ").trim() : "";
+      clean.title = title.length > QUEUE_LABEL_MAX ? title.slice(0, QUEUE_LABEL_MAX - 1).trimEnd() + "…" : title;
+      if (fields) clean.fields = fields;
+      clean.at = item.at;
+      clean.status = item.status;
+      if (item.status === "FAILED") clean.error = typeof item.error === "string" && item.error.trim() ? item.error.trim().slice(0, QUEUE_ERROR_MAX) : "Not sent";
+      return clean;
+    }
+
+    // A new PENDING action. `kind`, the ids and `fields` as the model above says; `title` the task's; `now` the device's clock in
+    // milliseconds and `offset` its correction to the server's (`clockOffsetFrom`, 0 when unknown), which together make `at`;
+    // `requestId` optional (a new one is made). null when the action is unusable.
+    function makeQueuedAction({ kind, taskId, archiveId, title, fields, now, offset, requestId }) {
+      if (!Number.isFinite(now)) return null;
+      return normalizeQueuedAction({
+        requestId: requestId === undefined ? newRequestId() : requestId,
+        kind, taskId, archiveId, title, fields,
+        at: Math.round(now + (Number.isFinite(offset) ? offset : 0)),
+        status: "PENDING",
+      });
+    }
+
+    // A queue from a list: unusable actions and repeated request ids dropped, at most ACTION_QUEUE_MAX kept (the oldest).
+    function cleanActionQueue(list) {
+      const seen = new Set();
+      const queue = [];
+      for (const item of Array.isArray(list) ? list : []) {
+        const clean = normalizeQueuedAction(item);
+        if (!clean || seen.has(clean.requestId)) continue;
+        seen.add(clean.requestId);
+        if (queue.length < ACTION_QUEUE_MAX) queue.push(clean);
+      }
+      return queue;
+    }
+    // The queue from its stored text: an empty queue for nothing, text that is not JSON or JSON that is not a list.
+    function parseActionQueue(text) {
+      if (typeof text !== "string" || !text) return [];
+      try { return cleanActionQueue(JSON.parse(text)); } catch (e) { return []; }
+    }
+    // The queue as the text to store.
+    function serializeActionQueue(queue) {
+      return JSON.stringify(cleanActionQueue(queue));
+    }
+
+    // The server's lists with the waiting actions shown on top of them: {tasks, completed} for the Queue and for History
+    // (`completed` newest first). Only PENDING actions count (a FAILED one was refused and changes nothing), in queue order, and an
+    // action whose target is not in the lists is skipped. A TIMER action is the server's setTimerInList at the action's `at`; a
+    // COMPLETE takes the task off the Queue and puts its entry in History in place by time, marked `waitingRequestId` (no next
+    // occurrence of a repeating task: the server makes that); a REOPEN takes the entry out and adds the task at the end of the
+    // Queue as reopenTask builds it (`options.projectIds`: the current projects, else the task keeps its project); an EDIT applies
+    // its fields to the task or entry. Pure: the inputs are not modified. The lists passed in are the server's, never the result.
+    function withPendingActions(tasks, completed, actions, options = {}) {
+      let list = Array.isArray(tasks) ? tasks.slice() : [];
+      let done = Array.isArray(completed) ? completed.slice() : [];
+      const known = Array.isArray(options && options.projectIds) ? options.projectIds : null;
+      for (const action of Array.isArray(actions) ? actions : []) {
+        if (!action || action.status !== "PENDING") continue;
+        if (action.kind === "TIMER") {
+          const result = setTimerInList(list, action.taskId, action.fields.action, action.at, { capSeconds: action.fields.capSeconds });
+          if (result) list = result.tasks;
+        } else if (action.kind === "COMPLETE") {
+          const task = list.find(t => t.id === action.taskId);
+          if (!task) continue;
+          list = list.filter(t => t.id !== action.taskId);
+          if (done.some(r => r.archiveId === action.archiveId)) continue;
+          const row = { ...completedRowOf(task, action.at, action.archiveId), waitingRequestId: action.requestId };
+          const index = done.findIndex(r => !(Date.parse(r.completedAt) > action.at));
+          done.splice(index === -1 ? done.length : index, 0, row);
+        } else if (action.kind === "REOPEN") {
+          const row = done.find(r => r.archiveId === action.archiveId);
+          if (!row) continue;
+          const { waitingRequestId, ...entry } = row;
+          const result = reopenTask(list, entry, { projectIds: known || (entry.projectId ? [entry.projectId] : []), makeId: () => "pending-" + action.requestId });
+          if (result.error) continue;
+          list = result.tasks;
+          done = done.filter(r => r !== row);
+        } else if (action.kind === "EDIT") {
+          if (action.taskId) list = list.map(t => (t.id === action.taskId ? applyEditFields(t, action.fields) : t));
+          else done = done.map(r => (r.archiveId === action.archiveId ? applyEditFields(r, action.fields) : r));
+        }
+      }
+      return { tasks: list, completed: done };
+    }
+
+    // Whether `later` can only make sense after `earlier`: a COMPLETE gives the entry its archive id (a REOPEN or EDIT of that
+    // entry follows it), a REOPEN gives the task back (any later action on that task follows it).
+    function actionDependsOn(later, earlier) {
+      if (earlier.kind === "COMPLETE") return later.archiveId !== undefined && later.archiveId === earlier.archiveId;
+      if (earlier.kind === "REOPEN") return later.taskId !== undefined && later.taskId === earlier.taskId;
+      return false;
+    }
+    // The queue without the action that has this request id and every later action that depends on it, directly or through
+    // another (undoing a completion that is still waiting leaves no trace of it, nor of what was done to its entry): {actions,
+    // cancelled}, the actions left in order and the ones taken out. An unknown request id changes nothing. The input is not changed.
+    function cancelActions(actions, requestId) {
+      const list = Array.isArray(actions) ? actions : [];
+      const start = list.findIndex(a => a && a.requestId === requestId);
+      if (start === -1) return { actions: list.slice(), cancelled: [] };
+      const gone = new Set([start]);
+      for (let i = start + 1; i < list.length; i++) {
+        if (!list[i]) continue;
+        for (const j of gone) {
+          if (actionDependsOn(list[i], list[j])) {
+            gone.add(i);
+            break;
+          }
+        }
+      }
+      return { actions: list.filter((a, i) => !gone.has(i)), cancelled: list.filter((a, i) => gone.has(i)) };
+    }
+
+    // What an action's card says it does: "Complete “Fix gate”", "Start timer for “Fix gate”", "Update comments on “Fix gate”".
+    function actionLabel(action) {
+      const task = quotedTitle(action && action.title) || " task";
+      if (!action) return "Change" + task;
+      if (action.kind === "TIMER") {
+        const verb = action.fields && action.fields.action;
+        return (verb === "START" ? "Start timer for" : verb === "PAUSE" ? "Pause timer for" : verb === "ABORT" ? "Abort timer for" : "Change timer for") + task;
+      }
+      if (action.kind === "COMPLETE") return "Complete" + task;
+      if (action.kind === "REOPEN") return "Reopen" + task;
+      if (action.kind === "EDIT") return `Update ${Object.keys(action.fields || {}).join(", ") || "details"} on` + task;
+      return "Change" + task;
+    }
+    // What an action card shows: {label, failed, sending, text}, as queueCardView does for an add ("Waiting to send", "Sending…"
+    // while `sending` is true, or the error of a FAILED one).
+    function actionCardView(action, sending) {
+      const failed = sending !== true && !!action && typeof action === "object" && action.status === "FAILED";
+      const error = failed && typeof action.error === "string" && action.error.trim() ? action.error.trim() : "Not sent";
+      return { label: actionLabel(action), failed, sending: sending === true, text: failed ? error : sending === true ? "Sending…" : "Waiting to send" };
+    }
+    // The confirmation text for discarding an action; `dependents` is how many later actions go with it (cancelActions).
+    function actionDiscardPrompt(action, dependents) {
+      const failed = !!action && action.status === "FAILED";
+      const extra = Number.isInteger(dependents) && dependents > 0 ? ` The ${dependents === 1 ? "change" : dependents + " changes"} made after it on the same task will be discarded too.` : "";
+      return `Discard this change (${actionLabel(action)})? ${failed ? "The server did not accept it, so nothing more will be sent." : "It has not been sent, so the change will not be made."}${extra}`;
     }
     // </pure-helpers>
 

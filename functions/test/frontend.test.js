@@ -53,7 +53,8 @@ describe("public/index.html helpers", () => {
       assert.match(offlineNoteText(0, 5 * MIN), /offline.*5 minutes ago/);
     });
     it("is written by setTasks, cleared on sign-out and shown only for a connection failure", () => {
-      assert.match(html, /function setTasks\(list\) \{[^}]*saveTaskCache\(allTasks\)/);
+      assert.match(html, /function setTasks\(list\) \{[^}]*saveTaskCache\(list\)/);
+      assert.doesNotMatch(html.slice(html.indexOf("function setTasks(list)"), html.indexOf("let lastSyncAt")), /saveTaskCache\(allTasks\)/, "the saved copy holds the server's list, not the one shown with waiting changes on it");
       assert.match(html, /clearTaskCache\(\); \/\/ signed out/);
       const fetchBody = html.slice(html.indexOf("async function fetchTasks()"), html.indexOf("async function submitTask()"));
       assert.match(fetchBody, /isNetworkError\(err, navigator\.onLine\)/);
