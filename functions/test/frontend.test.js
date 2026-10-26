@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText};`)();
+    return {confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -2486,7 +2486,7 @@ describe("public/index.html helpers", () => {
       assert.match(fn, /selectedIds = new Set\(failedIds\)/);
       assert.match(html, /function selectedTasks\(\) \{\s*return sortTasks\(allTasks\.filter\(t => selectedIds\.has\(t\.id\)\), "number", false\);/);
       const remove = html.slice(html.indexOf("function removeTask("), html.indexOf("async function completeTask("));
-      assert.match(remove, /if \(!opts\.noUndo\) \{\s*undoNoteTaskId = taskId;\s*showUndoNote/);
+      assert.match(remove, /if \(!opts\.noUndo\) \{\s*undoNoteKey = taskId;\s*showUndoNote/);
       assert.match(remove, /if \(opts\.onError\) opts\.onError\(err, taskId\);\s*else askAlert/);
     });
     it("sends the other actions to batchUpdateTasks, leaves Multi-Select on success and keeps the selection on a failure", () => {
@@ -2677,11 +2677,11 @@ describe("public/index.html helpers", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(code, /(?<![\w.])alert\(/, "a native alert() is left");
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
-      assert.equal(calls.length, 29, "the twenty-nine messages the page shows");
+      assert.equal(calls.length, 30, "the thirty messages the page shows");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 15, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
-      assert.equal(warnings.length, 14, "every validation message is a warning alert");
+      assert.equal(warnings.length, 15, "every validation message is a warning alert");
     });
     it("hides Cancel for an alert, shows it again for a question and focuses the button", () => {
       const fn = html.slice(html.indexOf("function openConfirm"), html.indexOf("function askConfirm"));
@@ -2774,18 +2774,19 @@ describe("public/index.html helpers", () => {
       assert.match(html, /apiFetch\(UPDATE_SHOPPING_URL/);
     });
     it("adds on the button or Enter and a tick removes the item, each shown at once before the save", () => {
-      const add = html.slice(html.indexOf("function addShoppingItemFromInput"), html.indexOf("function checkShoppingItem"));
+      const add = html.slice(html.indexOf("function addShoppingText"), html.indexOf("function checkShoppingItem"));
       assert.match(add, /shoppingItemText\(input\.value\)/);
       assert.match(add, /shoppingWithAdded\(shoppingItems, text, tempId\)/);
-      assert.match(add, /input\.value = "";[\s\S]*shoppingItems = result\.items;\s*renderShoppingList\(\);\s*queueShopping\(\{ action: "ADD", text \}/);
+      assert.match(add, /shoppingItems = result\.items;\s*renderShoppingList\(\);\s*queueShopping\(\{ action: "ADD", text: result\.item\.text \}/);
+      assert.match(add, /if \(!addShoppingText\(text, true\)\) return;\s*input\.value = "";/);
       assert.match(html, /getElementById\("shoppingInput"\)\.addEventListener\("keydown", e => \{\s*if \(e\.key === "Enter" && !e\.isComposing\)/);
       assert.match(html, /getElementById\("shoppingAddBtn"\)\.addEventListener\("click", addShoppingItemFromInput\)/);
-      const check = html.slice(html.indexOf("function checkShoppingItem"), html.indexOf("// Checking a material shows it gone at once"));
-      assert.match(check, /shoppingItems = removed\.items;\s*renderShoppingList\(\);\s*queueShopping\(\{ action: "REMOVE", itemId \}/);
+      const check = html.slice(html.indexOf("function checkShoppingItem"), html.indexOf("// Ticking one offers Undo"));
+      assert.match(check, /shoppingItems = removed\.items;\s*renderShoppingList\(\);[\s\S]*queueShopping\(\{ action: "REMOVE", itemId \}/);
       assert.match(html, /getElementById\("shoppingList"\)\.addEventListener\("change"/);
     });
     it("saves in order in the background, takes a failed change back and shows the server's list once nothing is waiting", () => {
-      const fn = html.slice(html.indexOf("function queueShopping"), html.indexOf("function addShoppingItemFromInput"));
+      const fn = html.slice(html.indexOf("function queueShopping"), html.indexOf("function addShoppingText"));
       assert.match(fn, /shoppingChain = shoppingChain\.then\(/);
       assert.match(fn, /apiFetch\(UPDATE_SHOPPING_URL/);
       assert.match(fn, /if \(shoppingPending === 0 && Array\.isArray\(data\.items\)\) shoppingItems = data\.items;/);
@@ -2796,11 +2797,11 @@ describe("public/index.html helpers", () => {
       assert.doesNotMatch(html, /shoppingBusy/);
     });
     it("gives the typed text back when an add fails", () => {
-      const fn = html.slice(html.indexOf("function addShoppingItemFromInput"), html.indexOf("function checkShoppingItem"));
-      assert.match(fn, /if \(!input\.value\) input\.value = text;/);
+      const fn = html.slice(html.indexOf("function addShoppingText"), html.indexOf("function checkShoppingItem"));
+      assert.match(fn, /if \(restoreInput && !input\.value\) input\.value = text;/);
     });
     it("checking a task's material takes it off the Materials card at once and saves in the background", () => {
-      const fn = html.slice(html.indexOf("function checkMaterial"), html.indexOf("// Shows a task's job number"));
+      const fn = html.slice(html.indexOf("// Ticking one offers Undo"), html.indexOf("// Shows a task's job number"));
       assert.match(fn, /allTasks = withTaskMaterialChecked\(allTasks, taskId, materialId, checked\);\s*renderFilterBar\(\);\s*renderTasks\(\);/);
       assert.match(fn, /materialsChain = materialsChain\.then\(/);
       assert.match(fn, /if \(materialsPending === 0\) setTasks\(data\.tasks \|\| allTasks\);/);
@@ -2814,6 +2815,31 @@ describe("public/index.html helpers", () => {
       assert.match(fn, /\$\{esc\(i\.id\)\}/);
       assert.match(fn, /!shoppingLoaded \? ""/);
       assert.match(fn, /Nothing on the list\./);
+    });
+    it("checkOffMessage: the footnote text for a ticked item, cut like a removed task's title", () => {
+      const {checkOffMessage} = load();
+      assert.equal(checkOffMessage("Duct tape"), "Checked off “Duct tape”");
+      assert.equal(checkOffMessage(""), "Checked off item");
+      assert.equal(checkOffMessage(undefined), "Checked off item");
+      assert.equal(checkOffMessage("A".repeat(60)), `Checked off “${"A".repeat(39)}…”`);
+    });
+    it("ticking a Miscellaneous item offers Undo, which adds it again, and a failed save takes the footnote away", () => {
+      const fn = html.slice(html.indexOf("function checkShoppingItem"), html.indexOf("// Ticking one offers Undo"));
+      assert.match(fn, /openUndoNote\(checkOffMessage\(removed\.item\.text\), \(\) => \{\s*hideUndoNote\(\);\s*addShoppingText\(removed\.item\.text, false\);/);
+      assert.match(fn, /if \(undoNoteKey === key\) hideUndoNote\(\);/);
+    });
+    it("ticking a task's material offers Undo, which unticks it, and a failed save takes the footnote away", () => {
+      const fn = html.slice(html.indexOf("// Ticking one offers Undo"), html.indexOf("// Shows a task's job number"));
+      assert.match(fn, /if \(checked && material\) \{\s*undoNoteKey = key;\s*openUndoNote\(checkOffMessage\(material\.text\)/);
+      assert.match(fn, /checkMaterial\(taskId, materialId, false\);/);
+      assert.match(fn, /That task is no longer on the list\./);
+      assert.match(fn, /if \(undoNoteKey === key\) hideUndoNote\(\);/);
+    });
+    it("the footnote's Undo button runs whatever the footnote was opened for, and hiding it forgets that", () => {
+      assert.match(html, /getElementById\("undoNoteBtn"\)\.addEventListener\("click", \(\) => \{ if \(undoHandler\) undoHandler\(\); \}\);/);
+      const fn = html.slice(html.indexOf("function openUndoNote"), html.indexOf("async function undoRemoval"));
+      assert.match(fn, /function showUndoNote\(kind, title\) \{\s*openUndoNote\(removalMessage\(kind, title\), undoRemoval\);/);
+      assert.match(fn, /function hideUndoNote\(\) \{[^}]*undoNoteKey = null;[^}]*undoHandler = null;/);
     });
     it("leaves the Materials tab's count to the tasks' materials", () => {
       const fn = html.slice(html.indexOf("function renderMaterialsCard"), html.indexOf("function renderShoppingList"));

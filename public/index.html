@@ -1259,9 +1259,19 @@
     const UNDO_NOTE_MS = UNDO_WINDOW_MS - 10000;
     // The footnote text after a delete or completion: the task's title is shortened to 40 characters.
     function removalMessage(kind, title) {
+      return (kind === "COMPLETE" ? "Completed" : "Deleted") + (quotedTitle(title) || " task");
+    }
+
+    // A title for the Undo footnote: cut to 40 characters and set in curly quotes after a space (“Mow lawn”), "" when blank.
+    function quotedTitle(title) {
       const text = String(title || "").trim();
       const shown = text.length > 40 ? text.slice(0, 39).trimEnd() + "…" : text;
-      return (kind === "COMPLETE" ? "Completed" : "Deleted") + (shown ? ` “${shown}”` : " task");
+      return shown ? ` “${shown}”` : "";
+    }
+
+    // The Undo footnote's text after a material or Miscellaneous item is checked off from the Materials page.
+    function checkOffMessage(text) {
+      return "Checked off" + (quotedTitle(text) || " item");
     }
 
     const TABS = ["queue", "materials", "history", "settings"];
@@ -3129,19 +3139,27 @@
       updateProjectOrderField("manual");
     }
 
-    // The "Undo" footnote at the bottom of the page after a delete or completion: it stays until the next removal
-    // replaces it, an Undo or a failed removal clears it, or the server stops keeping the step (UNDO_WINDOW_MS).
-    // Undo asks the server to put the last removed task back (it keeps one step, see undoRemove).
+    // The "Undo" footnote at the bottom of the page: one slot, shown after a delete or completion (Undo asks the server to
+    // put the last removed task back, see undoRemove) or after a material or Miscellaneous item is checked off on the
+    // Materials page (Undo puts it back). It stays until the next one replaces it, an Undo or a failed save clears it,
+    // or UNDO_NOTE_MS passes.
     let undoTimer = null;
-    let undoNoteTaskId = null; // the task the footnote is about, so a failed removal can take its own footnote away
-    function showUndoNote(kind, title) {
-      document.getElementById("undoNoteText").textContent = removalMessage(kind, title) + ". ";
+    let undoNoteKey = null; // what the footnote is about (a task id, or "material:..." / "shopping:..."), so a failed save can take its own footnote away
+    let undoHandler = null; // what the Undo button does; it hides the footnote itself
+    function openUndoNote(text, handler) {
+      document.getElementById("undoNoteText").textContent = text + ". ";
       document.getElementById("undoNote").hidden = false;
+      undoHandler = handler;
       clearTimeout(undoTimer);
       undoTimer = setTimeout(hideUndoNote, UNDO_NOTE_MS);
     }
+    function showUndoNote(kind, title) {
+      openUndoNote(removalMessage(kind, title), undoRemoval);
+    }
     function hideUndoNote() {
       clearTimeout(undoTimer);
+      undoNoteKey = null;
+      undoHandler = null;
       document.getElementById("undoNote").hidden = true;
     }
     async function undoRemoval() {
@@ -3173,7 +3191,7 @@
       renderFilterBar();
       renderTasks();
       if (!opts.noUndo) {
-        undoNoteTaskId = taskId;
+        undoNoteKey = taskId;
         showUndoNote(kind, task.title);
       }
       const run = async () => {
@@ -3188,7 +3206,7 @@
         } catch (err) {
           pendingRemovals.delete(taskId);
           allTasks = insertTaskAt(allTasks, task, index);
-          if (undoNoteTaskId === taskId) hideUndoNote();
+          if (undoNoteKey === taskId) hideUndoNote();
           renderFilterBar();
           renderTasks();
           if (opts.onError) opts.onError(err, taskId);
@@ -3534,48 +3552,76 @@
       });
     }
 
-    function addShoppingItemFromInput() {
+    // Adds an item to the Miscellaneous list at once and saves it in the background; returns false when nothing was added
+    // for a reason shown under the section. `restoreInput` gives the text back to the add field if the save fails.
+    function addShoppingText(text, restoreInput) {
       const input = document.getElementById("shoppingInput");
       const status = document.getElementById("shoppingStatus");
-      const text = shoppingItemText(input.value);
-      if (!text) { input.value = ""; return; }
-      if (!shoppingLoaded) { status.textContent = "The list has not loaded yet, trying again."; loadShoppingList(); return; }
+      if (!shoppingLoaded) { status.textContent = "The list has not loaded yet, trying again."; loadShoppingList(); return false; }
       const tempId = `pending-${++shoppingTempCount}`;
       const result = shoppingWithAdded(shoppingItems, text, tempId);
-      if (result.error) { status.textContent = result.error; return; }
-      input.value = "";
-      input.focus();
-      if (!result.added) return; // already on the list
+      if (result.error) { status.textContent = result.error; return false; }
+      if (!result.added) return true; // already on the list
       shoppingItems = result.items;
       renderShoppingList();
-      queueShopping({ action: "ADD", text }, () => {
+      queueShopping({ action: "ADD", text: result.item.text }, () => {
         shoppingItems = shoppingWithout(shoppingItems, tempId).items;
-        if (!input.value) input.value = text; // give the text back so it need not be typed again
+        if (restoreInput && !input.value) input.value = text; // give the text back so it need not be typed again
       }, data => {
         const realId = data.item && data.item.id;
         if (!realId) return;
         shoppingRealIds.set(tempId, realId);
         shoppingItems = shoppingItems.map(i => (i.id === tempId ? { ...i, id: realId } : i));
       });
+      return true;
     }
 
+    function addShoppingItemFromInput() {
+      const input = document.getElementById("shoppingInput");
+      const text = shoppingItemText(input.value);
+      if (!text) { input.value = ""; return; }
+      if (!addShoppingText(text, true)) return;
+      input.value = "";
+      input.focus();
+    }
+
+    // Ticking an item takes it off the list at once and offers Undo, which adds it again (at the end of the list).
     function checkShoppingItem(itemId) {
       const removed = shoppingWithout(shoppingItems, itemId);
       if (!removed.item) return renderShoppingList();
       shoppingItems = removed.items;
       renderShoppingList();
+      const key = `shopping:${itemId}`;
+      undoNoteKey = key;
+      openUndoNote(checkOffMessage(removed.item.text), () => {
+        hideUndoNote();
+        addShoppingText(removed.item.text, false);
+      });
       queueShopping({ action: "REMOVE", itemId }, () => {
         shoppingItems = shoppingWithRestored(shoppingItems, removed.item, removed.index);
+        if (undoNoteKey === key) hideUndoNote();
       });
     }
 
     // Checking a material shows it gone at once; the save runs in the background, one after another, and a failed one puts the box back.
+    // Ticking one offers Undo, which unticks it again.
     function checkMaterial(taskId, materialId, checked) {
-      if (!allTasks.some(t => t.id === taskId)) return renderMaterialsCard();
+      const before = allTasks.find(t => t.id === taskId);
+      if (!before) return renderMaterialsCard();
       const status = document.getElementById("materialsStatus");
+      const material = (before.materials || []).find(m => m.id === materialId);
+      const key = `material:${taskId}:${materialId}`;
       allTasks = withTaskMaterialChecked(allTasks, taskId, materialId, checked);
       renderFilterBar();
       renderTasks();
+      if (checked && material) {
+        undoNoteKey = key;
+        openUndoNote(checkOffMessage(material.text), () => {
+          hideUndoNote();
+          if (!allTasks.some(t => t.id === taskId)) return askAlert("That task is no longer on the list.", { tone: "warning" });
+          checkMaterial(taskId, materialId, false);
+        });
+      }
       materialsPending++;
       status.textContent = "";
       materialsChain = materialsChain.then(async () => {
@@ -3593,6 +3639,7 @@
         } catch (err) {
           materialsPending--;
           allTasks = withTaskMaterialChecked(allTasks, taskId, materialId, !checked);
+          if (undoNoteKey === key) hideUndoNote();
           status.textContent = "Could not save: " + err.message;
         } finally {
           renderFilterBar();
@@ -5246,7 +5293,7 @@
       }
     }
 
-    document.getElementById("undoNoteBtn").addEventListener("click", undoRemoval);
+    document.getElementById("undoNoteBtn").addEventListener("click", () => { if (undoHandler) undoHandler(); });
     document.getElementById("tabBar").addEventListener("click", e => {
       const btn = e.target.closest("[data-tab]");
       if (btn) showTab(btn.dataset.tab);
