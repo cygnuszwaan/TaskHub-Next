@@ -1105,7 +1105,7 @@
             fetchTasks();
             loadProjects();
             loadClients();
-            loadTemplates();
+            loadProjectTemplates();
             loadSettings();
             refreshPushToken();
           } else {
@@ -4405,7 +4405,7 @@
       if (!nameInput.value) nameInput.placeholder = "New project name";
     }
 
-    async function loadTemplates() {
+    async function loadProjectTemplates() {
       try {
         const res = await apiFetch(GET_TEMPLATES_URL);
         allTemplates = (await res.json()).templates || [];

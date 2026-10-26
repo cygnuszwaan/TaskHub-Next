@@ -2250,10 +2250,22 @@ describe("public/index.html helpers", () => {
       assert.match(html, /endpoint\("getProjectTemplates"\)/);
       assert.match(html, /endpoint\("updateProjectTemplate"\)/);
     });
+    it("declares every function in the page once, so one never replaces another of the same name", () => {
+      const code = html.replace(/\/\/.*$/gm, "");
+      const names = [...code.matchAll(/(?:^|\s)(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/gm)].map(m => m[1]);
+      const repeated = names.filter((n, i) => names.indexOf(n) !== i);
+      assert.deepEqual([...new Set(repeated)], []);
+    });
+    it("keeps the add field's completed-task search and the project templates on separate loaders", () => {
+      assert.match(html, /async function searchTemplates\(\) \{[^}]*await loadTemplates\(\);/);
+      assert.match(html, /function loadTemplates\(\) \{\s*if \(templates\) return Promise\.resolve\(templates\);[\s\S]*?apiFetch\(TEMPLATES_URL\)/);
+      assert.match(html, /async function loadProjectTemplates\(\) \{\s*try \{\s*const res = await apiFetch\(GET_TEMPLATES_URL\);/);
+    });
     it("loads the templates after sign-in", () => {
       const from = html.indexOf("lib.onAuthStateChanged");
       const signedIn = html.slice(from, html.indexOf("showGate(", from));
-      assert.match(signedIn, /loadTemplates\(\);/);
+      assert.match(signedIn, /loadProjectTemplates\(\);/);
+      assert.doesNotMatch(signedIn, /(?<![A-Za-z])loadTemplates\(\)/, "the completed-task search loads on its first keystroke, not here");
     });
   });
 
