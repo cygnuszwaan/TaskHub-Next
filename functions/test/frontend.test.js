@@ -16,7 +16,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
+    return {TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -59,6 +59,92 @@ describe("public/index.html helpers", () => {
       const fetchBody = html.slice(html.indexOf("async function fetchTasks()"), html.indexOf("async function submitTask()"));
       assert.match(fetchBody, /isNetworkError\(err, navigator\.onLine\)/);
       assert.match(fetchBody, /readTaskCache\(\)/);
+    });
+  });
+  describe("saved completed list", () => {
+    const rowsOf = (n) => Array.from({length: n}, (_, i) => ({archiveId: `a${i}`, title: `Job ${i}`, completedAt: 1000 - i}));
+    it("round-trips for the account that saved it and for no other", () => {
+      const {serializeCompletedCache, parseCompletedCache} = load();
+      const text = serializeCompletedCache("u1", rowsOf(3), 5000, false);
+      assert.deepEqual(parseCompletedCache(text, "u1"), {rows: rowsOf(3), savedAt: 5000, limited: false});
+      assert.equal(parseCompletedCache(text, "u2"), null);
+      assert.equal(parseCompletedCache(text, ""), null);
+    });
+    it("keeps only the newest COMPLETED_CACHE_ROWS entries, in order, and says the copy is limited", () => {
+      const {serializeCompletedCache, parseCompletedCache, COMPLETED_CACHE_ROWS} = load();
+      assert.equal(COMPLETED_CACHE_ROWS, 200);
+      const text = serializeCompletedCache("u1", rowsOf(250), 1, false);
+      const copy = parseCompletedCache(text, "u1");
+      assert.equal(copy.rows.length, 200);
+      assert.deepEqual(copy.rows, rowsOf(250).slice(0, 200));
+      assert.equal(copy.limited, true);
+      assert.equal(parseCompletedCache(serializeCompletedCache("u1", rowsOf(200), 1, false), "u1").limited, false);
+      assert.equal(parseCompletedCache(serializeCompletedCache("u1", rowsOf(2), 1, true), "u1").limited, true, "a list the server already cut stays limited");
+    });
+    it("accepts an empty list and drops entries that are not objects", () => {
+      const {serializeCompletedCache, parseCompletedCache} = load();
+      assert.deepEqual(parseCompletedCache(serializeCompletedCache("u1", [], 7), "u1"), {rows: [], savedAt: 7, limited: false});
+      assert.deepEqual(parseCompletedCache(serializeCompletedCache("u1", [null, 5, "x", {archiveId: "a"}], 7), "u1").rows, [{archiveId: "a"}]);
+      assert.deepEqual(parseCompletedCache(serializeCompletedCache("u1", undefined, 7), "u1").rows, []);
+      const hand = JSON.stringify({v: 1, uid: "u1", savedAt: 7, rows: [null, {archiveId: "a"}, 3]});
+      assert.deepEqual(parseCompletedCache(hand, "u1").rows, [{archiveId: "a"}]);
+    });
+    it("reads nothing back from a missing, damaged or foreign copy", () => {
+      const {parseCompletedCache} = load();
+      for (const bad of [null, undefined, "", "not json", "{}", "[]", JSON.stringify({v: 2, uid: "u1", savedAt: 1, rows: []}), JSON.stringify({v: 1, uid: "u1", savedAt: "x", rows: []}), JSON.stringify({v: 1, uid: "u1", savedAt: 1}), JSON.stringify({v: 1, uid: "u1", savedAt: 1, rows: {}})]) {
+        assert.equal(parseCompletedCache(bad, "u1"), null, String(bad));
+      }
+    });
+    it("uses a key of its own, apart from the task copy", () => {
+      const {COMPLETED_CACHE_KEY, TASK_CACHE_KEY} = load();
+      assert.equal(COMPLETED_CACHE_KEY, "taskhub-completed-cache");
+      assert.notEqual(COMPLETED_CACHE_KEY, TASK_CACHE_KEY);
+    });
+    it("words the note with the age of the copy and what needs a connection", () => {
+      const {completedOfflineNoteText} = load();
+      const MIN = 60000;
+      assert.equal(completedOfflineNoteText(0, 5 * MIN), "You're offline. Showing the newest completed tasks as they were 5 minutes ago. Stats, Project hours and photos need a connection.");
+      assert.match(completedOfflineNoteText(0, 10 * 1000), /as they were just now\./);
+    });
+    it("leaves only the fields that can be saved offline enabled in the entry's form", () => {
+      const {COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled} = load();
+      assert.deepEqual(OFFLINE_COMPLETED_FIELDS, ["comments"]);
+      for (const field of new Set(Object.values(COMPLETED_FORM_CONTROLS))) {
+        assert.equal(completedFieldDisabled(field, false), false, `${field} online`);
+        assert.equal(completedFieldDisabled(field, undefined), false, `${field} unknown`);
+        assert.equal(completedFieldDisabled(field, true), field !== "comments", `${field} offline`);
+      }
+      const enabled = Object.entries(COMPLETED_FORM_CONTROLS).filter(([, field]) => !completedFieldDisabled(field, true)).map(([id]) => id);
+      assert.deepEqual(enabled, ["ceComments"]);
+    });
+    it("covers every control of the entry's form: each id exists on the page and each form field has a control", () => {
+      const {COMPLETED_FORM_CONTROLS} = load();
+      for (const id of Object.keys(COMPLETED_FORM_CONTROLS)) assert.match(html, new RegExp(`id="${id}"`), id);
+      const modal = html.slice(html.indexOf("id=\"completedEditModal\""), html.indexOf("id=\"completedEditModal\"") + 9000);
+      const formInputs = [...modal.matchAll(/<(?:input|select|textarea)\b[^>]*\bid="(ce[A-Za-z]+)"/g)].map((m) => m[1]).filter((id) => id !== "ceId");
+      for (const id of formInputs) assert.ok(id in COMPLETED_FORM_CONTROLS, `${id} is not covered by COMPLETED_FORM_CONTROLS`);
+    });
+    it("is written by fetchCompleted, cleared on sign-out, dropped before the task copy and shown only for a connection failure", () => {
+      const fetchBody = html.slice(html.indexOf("async function fetchCompleted()"), html.indexOf("// Projects: create, rename and delete through updateProject"));
+      assert.match(fetchBody, /saveCompletedCache\(tasks, data\.listTruncated === true\)/);
+      assert.match(fetchBody, /showSavedCompletedNote\(null\); \/\/ a list from the server replaces/);
+      assert.match(fetchBody, /isNetworkError\(err, navigator\.onLine\) \? readCompletedCache\(\) : null/);
+      assert.match(html, /clearCompletedCache\(\); \/\/ nor of the completed entries/);
+      const save = html.slice(html.indexOf("function saveTaskCache(tasks)"), html.indexOf("function readTaskCache()"));
+      assert.ok(save.indexOf("clearCompletedCache()") > 0 && save.indexOf("clearCompletedCache()") < save.indexOf("clearTaskCache()"), "the History copy goes first when storage is full");
+      const saveCompleted = html.slice(html.indexOf("function saveCompletedCache("), html.indexOf("function readCompletedCache()"));
+      assert.doesNotMatch(saveCompleted, /clearTaskCache/, "a full storage never costs the task copy for the History one");
+    });
+    it("marks Stats, Project hours and photos as needing a connection and reads the list again when the connection returns", () => {
+      const copy = html.slice(html.indexOf("function showCompletedCopy(saved)"), html.indexOf("async function fetchCompleted()"));
+      assert.match(copy, /Stats need a connection\./);
+      assert.match(copy, /Project hours need a connection\./);
+      const open = html.slice(html.indexOf("function openCompletedEditor(id)"), html.indexOf("function closeCompletedEditor()"));
+      assert.match(open, /Photos need a connection\./);
+      assert.match(open, /if \(offline\) .*Photos need a connection\.[^\n]*\n\s*else showPhotos\(id, "archiveId", "cePhotos"\)/);
+      assert.match(open, /completedFieldDisabled\(field, offline\)/);
+      assert.match(html, /window\.addEventListener\("online", \(\) => \{ if \(savedCompletedAt !== null\) fetchCompleted\(\); \}\);/);
+      assert.match(html, /getElementById\("completedRetryBtn"\)\.addEventListener\("click", fetchCompleted\)/);
     });
   });
   describe("task card gestures", () => {

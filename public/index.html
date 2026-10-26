@@ -544,6 +544,7 @@
   </main>
 
   <main id="pageHistory" data-page="history" hidden>
+  <div class="offline-note" id="completedOfflineNote" aria-live="polite" hidden><span id="completedOfflineNoteText"></span> <button type="button" id="completedRetryBtn">Retry</button></div>
   <details class="card settings-card" id="statsDetails" hidden>
     <summary><h3>Stats</h3></summary>
     <div id="statsSummary"></div>
@@ -1270,6 +1271,7 @@
             refreshPushToken();
           } else {
             clearTaskCache(); // signed out: no copy of the owner's tasks stays on this device
+            clearCompletedCache(); // nor of the completed entries
             showGate("");
           }
         });
@@ -1346,7 +1348,10 @@
     function saveTaskCache(tasks) {
       const user = firebaseAuth && firebaseAuth.currentUser;
       if (!user) return;
-      try { localStorage.setItem(TASK_CACHE_KEY, serializeTaskCache(user.uid, tasks, lastSyncAt)); } catch (e) { clearTaskCache(); }
+      const write = () => localStorage.setItem(TASK_CACHE_KEY, serializeTaskCache(user.uid, tasks, lastSyncAt));
+      try { write(); return; } catch (e) { /* storage may be full: the History copy is dropped first */ }
+      clearCompletedCache();
+      try { write(); } catch (e) { clearTaskCache(); }
     }
     function readTaskCache() {
       const user = firebaseAuth && firebaseAuth.currentUser;
@@ -1354,6 +1359,19 @@
     }
     function clearTaskCache() {
       try { localStorage.removeItem(TASK_CACHE_KEY); } catch (e) { /* storage unavailable */ }
+    }
+    // The saved copy of History's newest completed entries (COMPLETED_CACHE_KEY). A copy that cannot be written is dropped, never the task copy.
+    function saveCompletedCache(rows, truncated) {
+      const user = firebaseAuth && firebaseAuth.currentUser;
+      if (!user) return;
+      try { localStorage.setItem(COMPLETED_CACHE_KEY, serializeCompletedCache(user.uid, rows, Date.now(), truncated)); } catch (e) { clearCompletedCache(); }
+    }
+    function readCompletedCache() {
+      const user = firebaseAuth && firebaseAuth.currentUser;
+      try { return user ? parseCompletedCache(localStorage.getItem(COMPLETED_CACHE_KEY), user.uid) : null; } catch (e) { return null; }
+    }
+    function clearCompletedCache() {
+      try { localStorage.removeItem(COMPLETED_CACHE_KEY); } catch (e) { /* storage unavailable */ }
     }
     // Shows the note above the Queue for a list saved at `savedAt` (ms), or hides it for null.
     function showSavedListNote(savedAt) {
@@ -3181,6 +3199,40 @@
       return `You're offline. Showing the list as it was ${cacheAgeText(savedAt, now)}. Changes need a connection.`;
     }
 
+    // The saved copy of History's newest completed entries, kept in localStorage under COMPLETED_CACHE_KEY for the same signed-in
+    // account as the task copy. Only the newest COMPLETED_CACHE_ROWS entries (in the order the server lists them) are kept, and
+    // `limited` says the copy holds fewer than the server has (its own list was cut, or this one was).
+    const COMPLETED_CACHE_KEY = "taskhub-completed-cache";
+    const COMPLETED_CACHE_ROWS = 200;
+    function serializeCompletedCache(uid, rows, savedAt, truncated) {
+      const list = (Array.isArray(rows) ? rows : []).filter(r => r && typeof r === "object");
+      return JSON.stringify({ v: 1, uid: String(uid || ""), savedAt, limited: truncated === true || list.length > COMPLETED_CACHE_ROWS, rows: list.slice(0, COMPLETED_CACHE_ROWS) });
+    }
+    // {rows, savedAt, limited} for a stored copy that is well formed and belongs to `uid`, else null. An empty list is a valid copy.
+    function parseCompletedCache(text, uid) {
+      if (typeof text !== "string" || !text || !uid) return null;
+      try {
+        const data = JSON.parse(text);
+        if (!data || data.v !== 1 || data.uid !== uid || !Array.isArray(data.rows) || !Number.isFinite(data.savedAt)) return null;
+        const rows = data.rows.filter(r => r && typeof r === "object").slice(0, COMPLETED_CACHE_ROWS);
+        return { rows, savedAt: data.savedAt, limited: data.limited === true || data.rows.length > COMPLETED_CACHE_ROWS };
+      } catch (e) { return null; }
+    }
+    // The note shown above History while it is the saved copy that is on screen.
+    function completedOfflineNoteText(savedAt, now) {
+      return `You're offline. Showing the newest completed tasks as they were ${cacheAgeText(savedAt, now)}. Stats, Project hours and photos need a connection.`;
+    }
+    // The controls of the Edit Completed Task form and the entry field each one changes. While the saved copy is on screen only
+    // the fields in OFFLINE_COMPLETED_FIELDS (the ones a change made offline can be kept for) stay enabled.
+    const COMPLETED_FORM_CONTROLS = {
+      cePriority: "priority", ceTracked: "trackedMinutes", ceTags: "tags", ceProject: "projectId", ceMaterials: "materials", ceTravel: "travelKm",
+      ceLocation: "location", cePlaceSearchBtn: "location", ceLocationClearBtn: "location", cePhone: "phone", ceEmail: "email", ceComments: "comments", ceDate: "date", ceTime: "time"
+    };
+    const OFFLINE_COMPLETED_FIELDS = ["comments"];
+    function completedFieldDisabled(field, offline) {
+      return offline === true && !OFFLINE_COMPLETED_FIELDS.includes(field);
+    }
+
     // The reason shown for a failed add: the error's own text, cut to QUEUE_ERROR_MAX.
     function queueErrorText(err) {
       const text = err && typeof err.message === "string" ? err.message.trim() : typeof err === "string" ? err.trim() : "";
@@ -4040,7 +4092,9 @@
         if (retry) retryQueuedAdd(retry.dataset.queueRetry);
       });
       window.addEventListener("online", () => { if (savedListAt !== null) fetchTasks().then(drainAddQueue); else drainAddQueue(); });
+      window.addEventListener("online", () => { if (savedCompletedAt !== null) fetchCompleted(); }); // History's saved copy is replaced too
       document.getElementById("offlineRetryBtn").addEventListener("click", fetchTasks);
+      document.getElementById("completedRetryBtn").addEventListener("click", fetchCompleted);
       initAuth();
       // The service worker caches only the app shell (see sw.js); the page works without it.
       if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -5578,7 +5632,9 @@
       const row = completedRows.get(id);
       if (!row) return;
       const values = completedFormValues(row, appTimeZone);
+      const offline = savedCompletedAt !== null; // the saved copy is on screen
       document.getElementById("ceExtraFields").open = false; // Extra fields start collapsed
+      if (offline) document.getElementById("ceExtraFields").open = true; // but Comments, the one field left to edit offline, is in them
       document.getElementById("ceId").value = id;
       document.getElementById("ceTitle").textContent = row.title || "";
       showJobNumber("ceJobNumber", row.jobNumber);
@@ -5599,9 +5655,12 @@
       refreshContact("ce");
       document.getElementById("ceDate").value = values.date;
       document.getElementById("ceTime").value = values.time;
+      // With the saved copy on screen only the fields that can wait for a connection are enabled (completedFieldDisabled)
+      for (const [controlId, field] of Object.entries(COMPLETED_FORM_CONTROLS)) document.getElementById(controlId).disabled = completedFieldDisabled(field, offline);
       document.getElementById("completedEditModal").style.display = "flex";
       document.body.classList.add("modal-open");
-      showPhotos(id, "archiveId", "cePhotos");
+      if (offline) document.getElementById("cePhotos").innerHTML = '<div class="photo-note">Photos need a connection.</div>';
+      else showPhotos(id, "archiveId", "cePhotos");
     }
     function closeCompletedEditor() {
       photoPanels.delete(document.getElementById("ceId").value);
@@ -5883,6 +5942,36 @@
       }).join("");
       document.querySelectorAll("#completedBrowser [data-pager]").forEach(el => { el.innerHTML = pager; });
     }
+    // The time of the saved copy while it, and not the server's list, is what History shows; null otherwise.
+    let savedCompletedAt = null;
+    function showSavedCompletedNote(savedAt) {
+      savedCompletedAt = savedAt;
+      const note = document.getElementById("completedOfflineNote");
+      if (!note) return;
+      note.hidden = savedAt === null;
+      if (savedAt !== null) document.getElementById("completedOfflineNoteText").textContent = completedOfflineNoteText(savedAt, Date.now());
+    }
+    // History from the saved copy: the entries can be searched, paged and opened; what the server computes (Stats, Project hours) says it needs a connection.
+    function showCompletedCopy(saved) {
+      const list = document.getElementById("completedList");
+      const browser = document.getElementById("completedBrowser");
+      const stats = document.getElementById("statsDetails");
+      completedAll = saved.rows;
+      completedListLimited = saved.limited;
+      completedRows = new Map(saved.rows.filter(t => t.archiveId).map(t => [t.archiveId, t]));
+      showSavedCompletedNote(saved.savedAt);
+      if (saved.rows.length === 0) {
+        browser.hidden = true;
+        stats.hidden = true;
+        list.innerHTML = "<p style='color:var(--text-faint); margin:0;'>No completed tasks yet.</p>";
+        return;
+      }
+      document.getElementById("statsSummary").innerHTML = '<p class="settings-note">Stats need a connection.</p>';
+      stats.hidden = false;
+      list.innerHTML = '<p class="settings-note">Project hours need a connection.</p>';
+      browser.hidden = false;
+      renderCompletedRows();
+    }
     async function fetchCompleted() {
       const list = document.getElementById("completedList");
       const browser = document.getElementById("completedBrowser");
@@ -5892,6 +5981,8 @@
         const res = await apiFetch(`${COMPLETED_URL}?limit=${COMPLETED_FETCH_LIMIT}`);
         const data = await res.json();
         const tasks = data.tasks || [];
+        saveCompletedCache(tasks, data.listTruncated === true); // the server's list as it came
+        showSavedCompletedNote(null); // a list from the server replaces any saved copy on screen
         if (tasks.length === 0) {
           completedAll = [];
           completedRows = new Map();
@@ -5910,6 +6001,11 @@
         browser.hidden = false;
         renderCompletedRows();
       } catch (err) {
+        // No connection: show the saved copy rather than an error; any other failure still shows the error.
+        const saved = isNetworkError(err, navigator.onLine) ? readCompletedCache() : null;
+        if (saved) { showCompletedCopy(saved); return; }
+        showSavedCompletedNote(null);
+        browser.hidden = true;
         stats.hidden = true;
         list.innerHTML = "<p>Error loading completed tasks: " + esc(err.message) + "</p>";
       }
