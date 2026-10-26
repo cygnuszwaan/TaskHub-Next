@@ -641,17 +641,19 @@
     <div class="form-group" style="margin:10px 0 0;">
       <label for="clientAddress">Address</label>
       <textarea id="clientAddress" rows="3" maxlength="300"></textarea>
+      <p class="settings-note">Printed on job sheets.</p>
     </div>
     <div class="form-group" style="margin:10px 0 0;">
       <label for="clientLocation">Location</label>
-      <input type="text" id="clientLocation" maxlength="200" placeholder="Address or place, used for navigation">
-      <div class="input-row" style="margin-top: 6px;">
-        <input type="text" id="clientPlaceQuery" placeholder="Find a place, e.g. Orewa">
-        <button type="button" id="clientPlaceSearchBtn" class="btn-secondary">Find place</button>
+      <input type="text" id="clientLocation" maxlength="200" placeholder="e.g. 12 Beach Rd, Orewa">
+      <p class="settings-note">Where the work is, used for navigation. Tap Find on map to give it a position, so nearby jobs can be grouped.</p>
+      <div class="action-row" style="margin-top: 6px;">
+        <button type="button" id="clientPlaceSearchBtn" class="btn-secondary">Find on map</button>
+        <button type="button" id="clientUseAddressBtn" class="btn-secondary">Use address</button>
+        <button type="button" id="clientClearCoordsBtn" class="btn-secondary" hidden>Clear position</button>
       </div>
       <div id="clientPlaceResults" class="place-results"></div>
       <p class="settings-note" id="clientCoordsNote"></p>
-      <button type="button" id="clientClearCoordsBtn" class="btn-secondary" style="margin-top: 6px;" hidden>Clear coordinates</button>
     </div>
     <div class="form-group" style="margin:10px 0 0;">
       <label for="clientPhone">Phone</label>
@@ -1449,6 +1451,25 @@
 
     function placesFromGeocode(data) {
       return Array.isArray(data && data.results) ? data.results.map(placeFromGeocode).filter(Boolean) : [];
+    }
+
+    // The geocoder finds towns and suburbs, not street addresses, so a typed address is searched as it stands first and then by its
+    // town-like parts: each comma-separated part in order, leaving out those with a digit (street numbers, postcodes) or a street word.
+    // At most 4 searches, the typed text first; empty text has none.
+    const STREET_WORD = /\b(rd|road|st|street|ave|avenue|dr|drive|lane|ln|pl|place|crescent|cres|tce|terrace|way|hwy|highway|ct|court|close)\b/i;
+    function placeQueries(text) {
+      const whole = String(text === undefined || text === null ? "" : text).replace(/\s+/g, " ").trim();
+      if (!whole) return [];
+      const out = [whole];
+      for (const part of whole.split(",").map(x => x.trim())) {
+        if (part && !/\d/.test(part) && !STREET_WORD.test(part) && !out.some(q => q.toLowerCase() === part.toLowerCase())) out.push(part);
+      }
+      return out.slice(0, 4);
+    }
+    // The client's address as a one-line location: its lines joined with commas, cut to the 200-character limit.
+    function addressAsLocation(address) {
+      const t = typeof address === "string" ? address : "";
+      return t.split(/\r?\n/).map(l => l.trim()).filter(Boolean).join(", ").slice(0, 200);
     }
 
     // The updateSettings body for the settings form. Every schedule field is sent whatever the frequency, so the
@@ -5203,13 +5224,16 @@
           </div>`).join("");
     }
 
-    // The coordinates the form holds for the location text ({latitude, longitude}), set by Find place, null for none
+    // The map position the form holds for the location text ({latitude, longitude}, plus `label`, the place it was found as, until the
+    // form is reloaded), set by Find on map, null for none
     let clientCoords = null;
     function renderClientCoords() {
       const note = document.getElementById("clientCoordsNote");
-      note.textContent = clientCoords
-        ? `Coordinates: ${clientCoords.latitude.toFixed(4)}, ${clientCoords.longitude.toFixed(4)}. The scheduler uses them to group nearby jobs.`
-        : "No coordinates. Finding a place sets them, so the scheduler can group nearby jobs.";
+      note.textContent = !clientCoords
+        ? "No map position yet."
+        : clientCoords.label
+          ? `📍 Map position set: ${clientCoords.label}.`
+          : `📍 Map position saved (${clientCoords.latitude.toFixed(4)}, ${clientCoords.longitude.toFixed(4)}).`;
       document.getElementById("clientClearCoordsBtn").hidden = !clientCoords;
     }
 
@@ -5219,7 +5243,6 @@
       const where = client && client.location ? client.location : null;
       document.getElementById("clientLocation").value = where ? where.name : "";
       clientCoords = where && Number.isFinite(where.latitude) && Number.isFinite(where.longitude) ? { latitude: where.latitude, longitude: where.longitude } : null;
-      document.getElementById("clientPlaceQuery").value = "";
       document.getElementById("clientPlaceResults").textContent = "";
       renderClientCoords();
       document.getElementById("clientName").value = client ? client.name : "";
@@ -5282,7 +5305,7 @@
         email: document.getElementById("clientEmail").value,
         hourlyRate: document.getElementById("clientHourlyRate").value,
         useWhatsApp: document.getElementById("clientUseWhatsApp").checked,
-        location: { name: document.getElementById("clientLocation").value, ...(clientCoords || {}) }
+        location: { name: document.getElementById("clientLocation").value, ...(clientCoords ? { latitude: clientCoords.latitude, longitude: clientCoords.longitude } : {}) }
       });
       if (!client.name) { setClientsStatus("Enter a name."); return; }
       const editing = editingClientId;
@@ -5410,22 +5433,30 @@
     }
 
     // A place search: the Search button, or Enter in the query box, looks the text up with Open-Meteo's geocoder and lists the matches
-    // under it; tapping one calls `onPick(place)` ({name, latitude, longitude, timeZone}) and empties the box and the list. The
-    // Settings location and the Clients form both use it. `showZone` adds each match's time zone to its line.
-    function makePlaceSearch({ queryId, buttonId, resultsId, showZone, onPick }) {
+    // under it; tapping one calls `onPick(place)` ({name, latitude, longitude, timeZone}) and empties the list (and the box, unless
+    // `clearQuery` is false). `queries(text)` gives the searches to try in order until one finds places (the text itself by default);
+    // when a later one found them the list says so. The Settings location and the Clients form both use it. `showZone` adds each
+    // match's time zone to its line.
+    function makePlaceSearch({ queryId, buttonId, resultsId, showZone, queries = text => [text], clearQuery = true, onPick }) {
       const queryBox = document.getElementById(queryId);
       const results = document.getElementById(resultsId);
       let matches = [];
       async function search() {
-        const query = queryBox.value.trim();
-        if (!query) return;
+        const text = queryBox.value.trim();
+        if (!text) return;
         results.textContent = "Searching...";
         try {
-          const res = await fetch(geocodeUrl(query)); // plain fetch: the Firebase token must not go to a third party
-          if (!res.ok) throw new Error(`Request failed (${res.status})`);
-          matches = placesFromGeocode(await res.json());
+          let used = "";
+          matches = [];
+          for (const q of queries(text)) {
+            const res = await fetch(geocodeUrl(q)); // plain fetch: the Firebase token must not go to a third party
+            if (!res.ok) throw new Error(`Request failed (${res.status})`);
+            matches = placesFromGeocode(await res.json());
+            if (matches.length) { used = q; break; }
+          }
+          const lead = matches.length && used !== text ? `<div class="settings-note" style="margin-bottom: 4px;">Nothing found for “${esc(text)}”, so these are places called “${esc(used)}”:</div>` : "";
           results.innerHTML = matches.length
-            ? matches.map((p, i) => `<button type="button" class="place-option" data-index="${i}">${esc(p.name)}${showZone ? ` · ${esc(p.timeZone)}` : ""}</button>`).join("")
+            ? lead + matches.map((p, i) => `<button type="button" class="place-option" data-index="${i}">${esc(p.name)}${showZone ? ` · ${esc(p.timeZone)}` : ""}</button>`).join("")
             : "No places found.";
         } catch (err) {
           results.textContent = "Place search failed: " + err.message;
@@ -5440,7 +5471,7 @@
         if (!option || !matches[Number(option.dataset.index)]) return;
         const place = matches[Number(option.dataset.index)];
         results.textContent = "";
-        queryBox.value = "";
+        if (clearQuery) queryBox.value = "";
         onPick(place);
       });
     }
@@ -5826,13 +5857,17 @@
       pendingLocation = place;
       renderLocation();
     } });
-    // Picking a place for a client sets its coordinates, and fills the location text when that is still empty
-    makePlaceSearch({ queryId: "clientPlaceQuery", buttonId: "clientPlaceSearchBtn", resultsId: "clientPlaceResults", showZone: false, onPick: place => {
-      clientCoords = { latitude: place.latitude, longitude: place.longitude };
-      const box = document.getElementById("clientLocation");
-      if (!box.value.trim()) box.value = place.name;
+    // The Location text is the search text; picking a place gives the client a map position and leaves the text as typed
+    makePlaceSearch({ queryId: "clientLocation", buttonId: "clientPlaceSearchBtn", resultsId: "clientPlaceResults", showZone: false, queries: placeQueries, clearQuery: false, onPick: place => {
+      clientCoords = { latitude: place.latitude, longitude: place.longitude, label: place.name };
       renderClientCoords();
     } });
+    document.getElementById("clientUseAddressBtn").addEventListener("click", () => {
+      const text = addressAsLocation(document.getElementById("clientAddress").value);
+      if (!text) return;
+      document.getElementById("clientLocation").value = text;
+      document.getElementById("clientPlaceResults").textContent = "";
+    });
     document.getElementById("clientClearCoordsBtn").addEventListener("click", () => {
       clientCoords = null;
       renderClientCoords();

@@ -16,7 +16,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
+    return {confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, addressAsLocation, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -2412,6 +2412,23 @@ describe("public/index.html helpers", () => {
       assert.deepEqual(clientFormBody({name: "Jo", location: {name: "A", latitude: "x", longitude: 174.7}}).location, {name: "A"});
       for (const location of [undefined, null, {}, {name: "  "}, {name: "", latitude: -36.6, longitude: 174.7}, "Beach Rd"]) assert.equal(clientFormBody({name: "Jo", location}).location, null, JSON.stringify(location));
     });
+    it("searches a typed address as it stands, then by its town-like parts", () => {
+      const {placeQueries} = load();
+      assert.deepEqual(placeQueries("Orewa"), ["Orewa"]);
+      assert.deepEqual(placeQueries("  12 Beach Rd,   Orewa, Auckland 0931, New Zealand "), ["12 Beach Rd, Orewa, Auckland 0931, New Zealand", "Orewa", "New Zealand"]);
+      assert.deepEqual(placeQueries("Whangaparāoa, Auckland"), ["Whangaparāoa, Auckland", "Whangaparāoa", "Auckland"]);
+      assert.deepEqual(placeQueries("Orewa, orewa"), ["Orewa, orewa", "Orewa"], "a part already tried, in other letters, is not tried again");
+      assert.deepEqual(placeQueries("1 High St, 2 Low Rd"), ["1 High St, 2 Low Rd"], "no town-like part");
+      assert.equal(placeQueries("a, b, c, d, e, f").length, 4, "at most four searches");
+      for (const none of ["", "   ", null, undefined]) assert.deepEqual(placeQueries(none), []);
+    });
+    it("writes an address as a one-line location", () => {
+      const {addressAsLocation} = load();
+      assert.equal(addressAsLocation("1 Beach Rd\n  Orewa \r\n\nAuckland"), "1 Beach Rd, Orewa, Auckland");
+      assert.equal(addressAsLocation("Smith's yard"), "Smith's yard");
+      assert.equal(addressAsLocation("x".repeat(250)).length, 200);
+      for (const none of ["", " \n ", null, undefined, 5]) assert.equal(addressAsLocation(none), "");
+    });
     it("shows a client's location in the summary, after the address", () => {
       const {clientSummary} = load();
       assert.equal(clientSummary({name: "Jo", address: "1 Beach Rd", location: {name: "Orewa", latitude: -36.6, longitude: 174.7}, phone: "021"}), "1 Beach Rd · 📍 Orewa · 021");
@@ -2929,17 +2946,27 @@ describe("public/index.html helpers", () => {
       assert.equal((html.match(/function makePlaceSearch\(/g) || []).length, 1);
       assert.equal((html.match(/fetch\(geocodeUrl\(/g) || []).length, 1, "one geocoding call in the page");
       assert.match(html, /makePlaceSearch\(\{ queryId: "placeQuery", buttonId: "placeSearchBtn", resultsId: "placeResults", showZone: true/);
-      assert.match(html, /makePlaceSearch\(\{ queryId: "clientPlaceQuery", buttonId: "clientPlaceSearchBtn", resultsId: "clientPlaceResults", showZone: false/);
-      assert.doesNotMatch(html, /searchPlaces/);
+      assert.match(html, /makePlaceSearch\(\{ queryId: "clientLocation", buttonId: "clientPlaceSearchBtn", resultsId: "clientPlaceResults", showZone: false, queries: placeQueries, clearQuery: false/);
+      assert.doesNotMatch(html, /searchPlaces|clientPlaceQuery/);
       const shared = html.slice(html.indexOf("function makePlaceSearch("), html.indexOf("// Save a Blob as a file download."));
-      assert.match(shared, /await fetch\(geocodeUrl\(query\)\)/, "a plain fetch, never apiFetch: no Firebase token goes to the geocoder");
+      assert.match(shared, /await fetch\(geocodeUrl\(q\)\)/, "a plain fetch, never apiFetch: no Firebase token goes to the geocoder");
       assert.doesNotMatch(shared, /apiFetch/);
+      assert.match(shared, /if \(clearQuery\) queryBox\.value = "";/);
     });
-    it("fills a client's location text from a found place only when it is empty, and always takes its coordinates", () => {
-      const at = html.indexOf("makePlaceSearch({ queryId: \"clientPlaceQuery\"");
+    it("searches with the Location text itself, keeps it as typed and shows what was found", () => {
+      const at = html.indexOf("makePlaceSearch({ queryId: \"clientLocation\"");
       const pick = html.slice(at, html.indexOf("addEventListener(\"click\"", at + 100));
-      assert.match(pick, /clientCoords = \{ latitude: place\.latitude, longitude: place\.longitude \};/);
-      assert.match(pick, /if \(!box\.value\.trim\(\)\) box\.value = place\.name;/);
+      assert.match(pick, /clientCoords = \{ latitude: place\.latitude, longitude: place\.longitude, label: place\.name \};/);
+      assert.doesNotMatch(pick, /clientLocation"\)\.value/, "picking a place never rewrites the text");
+      const note = html.slice(html.indexOf("function renderClientCoords"), html.indexOf("// Fill the form from a client"));
+      assert.match(note, /Map position set: \$\{clientCoords\.label\}/);
+      assert.match(note, /Map position saved \(/);
+      assert.match(note, /No map position yet\./);
+      assert.doesNotMatch(html.slice(html.indexOf("async function saveClient()"), html.indexOf("async function deleteClient")), /label/, "the label is never sent");
+    });
+    it("tells the owner which search found the places when it was not the typed text", () => {
+      const shared = html.slice(html.indexOf("function makePlaceSearch("), html.indexOf("// Save a Blob as a file download."));
+      assert.match(shared, /Nothing found for “\$\{esc\(text\)\}”, so these are places called “\$\{esc\(used\)\}”/);
     });
     it("lets the edit modal create a project: a last choice, a name field, and the name sent as newProject", () => {
       assert.match(html, /<input type="text" id="editNewProject"[^>]*hidden>/);
