@@ -16,7 +16,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, addressAsLocation, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
+    return {confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, addressAsLocation, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -2946,9 +2946,9 @@ describe("public/index.html helpers", () => {
       assert.equal((html.match(/function makePlaceSearch\(/g) || []).length, 1);
       assert.equal((html.match(/fetch\(geocodeUrl\(/g) || []).length, 1, "one geocoding call in the page");
       assert.match(html, /makePlaceSearch\(\{ queryId: "placeQuery", buttonId: "placeSearchBtn", resultsId: "placeResults", showZone: true/);
-      assert.match(html, /makePlaceSearch\(\{ queryId: "clientLocation", buttonId: "clientPlaceSearchBtn", resultsId: "clientPlaceResults", showZone: false, queries: placeQueries, clearQuery: false/);
+      assert.match(html, /\} else \{[^}]*\n\s*makePlaceSearch\(\{ queryId: "clientLocation", buttonId: "clientPlaceSearchBtn", resultsId: "clientPlaceResults", showZone: false, queries: placeQueries, clearQuery: false/, "the Open-Meteo search stays as the Clients form's fallback when there is no Places key");
       assert.doesNotMatch(html, /searchPlaces|clientPlaceQuery/);
-      const shared = html.slice(html.indexOf("function makePlaceSearch("), html.indexOf("// Save a Blob as a file download."));
+      const shared = html.slice(html.indexOf("function makePlaceSearch("), html.indexOf("// Address autocomplete (Google Places)"));
       assert.match(shared, /await fetch\(geocodeUrl\(q\)\)/, "a plain fetch, never apiFetch: no Firebase token goes to the geocoder");
       assert.doesNotMatch(shared, /apiFetch/);
       assert.match(shared, /if \(clearQuery\) queryBox\.value = "";/);
@@ -3222,5 +3222,143 @@ describe("Reorder mode", () => {
     assert.match(fn, /DIRECT_UPDATE_URL/);
     assert.match(fn, /updatedFields: \{ queueNumber: number \}/);
     assert.match(fn, /reorderChain = reorderChain\.then/);
+  });
+
+  describe("address autocomplete (Google Places)", () => {
+    const details = {
+      id: "ChIJabc",
+      formattedAddress: "12 Beach Road, Orewa, Auckland 0931, New Zealand",
+      location: {latitude: -36.5871, longitude: 174.6945},
+      addressComponents: [
+        {longText: "12", types: ["street_number"]},
+        {longText: "Beach Road", types: ["route"]},
+        {longText: "Orewa", types: ["sublocality_level_1", "sublocality", "political"]},
+        {longText: "Auckland", types: ["locality", "political"]},
+        {longText: "0931", types: ["postal_code"]},
+        {longText: "New Zealand", shortText: "NZ", types: ["country", "political"]},
+      ],
+    };
+    it("asks Google only for fields of the cheapest Place Details tier", () => {
+      const {PLACES_DETAILS_FIELDS} = load();
+      const essentials = new Set(["id", "formattedAddress", "location", "addressComponents", "adrFormatAddress", "plusCode", "postalAddress", "types", "viewport", "shortFormattedAddress"]);
+      for (const field of PLACES_DETAILS_FIELDS.split(",")) assert.ok(essentials.has(field), `${field} is not an Essentials field, so it would bill at a higher rate`);
+      assert.match(PLACES_DETAILS_FIELDS, /location/);
+      assert.match(PLACES_DETAILS_FIELDS, /formattedAddress/);
+    });
+    it("builds the autocomplete request", () => {
+      const {autocompleteBody, PLACES_BIAS_RADIUS_M} = load();
+      assert.deepEqual(autocompleteBody("  12   beach rd ", "tok", "NZ", {latitude: -36.63, longitude: 174.78}), {
+        input: "12 beach rd", languageCode: "en", sessionToken: "tok", includedRegionCodes: ["nz"],
+        locationBias: {circle: {center: {latitude: -36.63, longitude: 174.78}, radius: PLACES_BIAS_RADIUS_M}},
+      });
+      assert.ok(PLACES_BIAS_RADIUS_M <= 50000, "Google rejects a bias circle over 50 km");
+      assert.deepEqual(autocompleteBody("12 beach", "", "", null), {input: "12 beach", languageCode: "en"});
+      assert.deepEqual(autocompleteBody("x", "t", " ", {latitude: "a", longitude: 1}), {input: "x", languageCode: "en", sessionToken: "t"});
+      assert.equal(autocompleteBody(undefined, "t").input, "");
+    });
+    it("builds the details URL with the session token and a safe place id", () => {
+      const {placesDetailsUrl} = load();
+      assert.equal(placesDetailsUrl("ChIJabc", "tok-1"), "https://places.googleapis.com/v1/places/ChIJabc?sessionToken=tok-1");
+      assert.equal(placesDetailsUrl("ChIJabc"), "https://places.googleapis.com/v1/places/ChIJabc");
+      assert.equal(placesDetailsUrl("a/b?c", "t"), "https://places.googleapis.com/v1/places/a%2Fb%3Fc?sessionToken=t");
+    });
+    it("makes a different session token each time", () => {
+      const {newSessionToken} = load();
+      const a = newSessionToken();
+      assert.match(a, /^[A-Za-z0-9-]{8,36}$/);
+      assert.notEqual(a, newSessionToken());
+    });
+    it("reads suggestions, skipping what is not a place prediction", () => {
+      const {suggestionsFromAutocomplete} = load();
+      const prediction = (id, main, secondary, full) => ({placePrediction: {placeId: id, text: {text: full}, structuredFormat: {mainText: {text: main}, secondaryText: {text: secondary}}}});
+      const data = {suggestions: [
+        prediction("p1", "12 Beach Road", "Orewa, Auckland, New Zealand", "12 Beach Road, Orewa, Auckland, New Zealand"),
+        {queryPrediction: {text: {text: "beach road"}}},
+        {placePrediction: {text: {text: "no id"}}},
+        {placePrediction: {placeId: "p2", text: {text: "Bunnings Silverdale, Silverdale"}}},
+        {placePrediction: {placeId: "p3"}},
+        null,
+      ]};
+      assert.deepEqual(suggestionsFromAutocomplete(data), [
+        {placeId: "p1", text: "12 Beach Road, Orewa, Auckland, New Zealand", main: "12 Beach Road", secondary: "Orewa, Auckland, New Zealand"},
+        {placeId: "p2", text: "Bunnings Silverdale, Silverdale", main: "Bunnings Silverdale, Silverdale", secondary: ""},
+      ]);
+      const many = {suggestions: Array.from({length: 9}, (_, i) => prediction("p" + i, "m" + i, "s", "m" + i + ", s"))};
+      assert.equal(suggestionsFromAutocomplete(many).length, 5);
+      for (const none of [{}, {suggestions: null}, null, undefined, "x"]) assert.deepEqual(suggestionsFromAutocomplete(none), []);
+    });
+    it("turns a place into a location name, a position and address lines", () => {
+      const {placeFromDetails} = load();
+      assert.deepEqual(placeFromDetails(details), {
+        name: "12 Beach Road, Orewa, Auckland 0931",
+        latitude: -36.5871,
+        longitude: 174.6945,
+        address: "12 Beach Road\nOrewa\nAuckland 0931",
+      });
+    });
+    it("writes a flat as 3/12, and leaves out a suburb that repeats the town", () => {
+      const {placeFromDetails} = load();
+      const flat = {...details, addressComponents: [
+        {longText: "3", types: ["subpremise"]},
+        {longText: "12", types: ["street_number"]},
+        {longText: "Beach Road", types: ["route"]},
+        {longText: "orewa", types: ["sublocality_level_1"]},
+        {longText: "Orewa", types: ["locality"]},
+        {longText: "0931", types: ["postal_code"]},
+        {longText: "New Zealand", types: ["country"]},
+      ]};
+      assert.equal(placeFromDetails(flat).address, "3/12 Beach Road\nOrewa 0931");
+    });
+    it("falls back to the formatted address when it has no components, and keeps a name that does not end in the country", () => {
+      const {placeFromDetails} = load();
+      const bare = {formattedAddress: "Orewa Beach, Orewa 0931", location: {latitude: -36.58, longitude: 174.7}};
+      assert.deepEqual(placeFromDetails(bare), {name: "Orewa Beach, Orewa 0931", latitude: -36.58, longitude: 174.7, address: "Orewa Beach\nOrewa 0931"});
+      const long = {...bare, formattedAddress: "x".repeat(260)};
+      assert.equal(placeFromDetails(long).name.length, 200);
+      assert.ok(placeFromDetails(long).address.length <= 300);
+    });
+    it("refuses a place without a position or an address", () => {
+      const {placeFromDetails} = load();
+      assert.equal(placeFromDetails({...details, location: undefined}), null);
+      assert.equal(placeFromDetails({...details, location: {latitude: "1", longitude: 2}}), null);
+      assert.equal(placeFromDetails({...details, formattedAddress: "  "}), null);
+      assert.equal(placeFromDetails({...details, formattedAddress: undefined}), null);
+      for (const none of [null, undefined, "x", 5]) assert.equal(placeFromDetails(none), null);
+      assert.ok(placeFromDetails({...details, addressComponents: "nope"}), "bad components are ignored, not fatal");
+    });
+    it("fills the Address box only while it is empty", () => {
+      const {placeFromDetails, clientFillFromPlace} = load();
+      const place = placeFromDetails(details);
+      const fresh = clientFillFromPlace(place, "  ");
+      assert.equal(fresh.locationText, "12 Beach Road, Orewa, Auckland 0931");
+      assert.deepEqual(fresh.coords, {latitude: -36.5871, longitude: 174.6945, label: "12 Beach Road, Orewa, Auckland 0931"});
+      assert.equal(fresh.addressText, "12 Beach Road\nOrewa\nAuckland 0931");
+      assert.equal(clientFillFromPlace(place, "Smith Ltd\n1 High St").addressText, null);
+      assert.equal(clientFillFromPlace(place, undefined).addressText, place.address);
+      assert.equal(clientFillFromPlace({...place, address: ""}, "").addressText, null);
+    });
+    it("shows Google's own error text, else the status", () => {
+      const {placesErrorText} = load();
+      assert.equal(placesErrorText(403, {error: {message: "Requests from referer  are blocked."}}), "Requests from referer are blocked.");
+      assert.equal(placesErrorText(500, null), "Request failed (500)");
+      assert.equal(placesErrorText(400, {error: {message: "  "}}), "Request failed (400)");
+      assert.equal(placesErrorText(400, {error: {message: "x".repeat(500)}}).length, 200);
+    });
+    it("calls Google from the page with the key, never with the Firebase token", () => {
+      const widget = html.slice(html.indexOf("function makePlacesAutocomplete("), html.indexOf("// Save a Blob as a file download."));
+      assert.ok(widget.length > 100);
+      assert.doesNotMatch(widget, /apiFetch|Authorization/);
+      assert.equal((widget.match(/await fetch\(/g) || []).length, 2, "one autocomplete and one details request");
+      assert.match(widget, /"X-Goog-Api-Key": CONFIG\.placesApiKey/);
+      assert.match(widget, /"X-Goog-FieldMask": PLACES_DETAILS_FIELDS/);
+      assert.match(widget, /token = newSessionToken\(\); \/\/ the details request ends the session/);
+      assert.match(widget, /Powered by Google/, "Google requires its attribution next to suggestions shown without a map");
+    });
+    it("keeps the key and region in CONFIG, off by default", () => {
+      assert.match(html, /placesApiKey: "",/);
+      assert.match(html, /placesRegion: "nz"/);
+      assert.match(html, /if \(CONFIG\.placesApiKey\) \{\s*\/\/ With a Places key/);
+      assert.equal((html.match(/places\.googleapis\.com/g) || []).length, 2, "the two Places endpoints, nowhere else");
+    });
   });
 });

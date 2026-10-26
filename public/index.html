@@ -224,6 +224,7 @@
     .template-option small { display: block; font-weight: normal; color: var(--text-faint); }
     .template-note { font-size: 12px; color: var(--text-faint); margin: 0 0 2px; }
     .place-option { display: block; width: 100%; text-align: left; background: var(--chip-bg); color: var(--text-strong); font-weight: 500; white-space: normal; margin-top: 4px; }
+    .place-option small { display: block; font-weight: normal; color: var(--text-faint); }
     .settings-note { font-size: 12px; color: var(--text-faint); margin: 4px 0 0; }
     .settings-status { font-size: 13px; margin-top: 10px; min-height: 18px; color: var(--text-strong); }
     .btn-secondary { background: var(--btn2-bg); color: var(--text-strong); }
@@ -646,7 +647,7 @@
     <div class="form-group" style="margin:10px 0 0;">
       <label for="clientLocation">Location</label>
       <input type="text" id="clientLocation" maxlength="200" placeholder="e.g. 12 Beach Rd, Orewa">
-      <p class="settings-note">Where the work is, used for navigation. Tap Find on map to give it a position, so nearby jobs can be grouped.</p>
+      <p class="settings-note" id="clientLocationNote">Where the work is, used for navigation. Tap Find on map to give it a position, so nearby jobs can be grouped.</p>
       <div class="action-row" style="margin-top: 6px;">
         <button type="button" id="clientPlaceSearchBtn" class="btn-secondary">Find on map</button>
         <button type="button" id="clientUseAddressBtn" class="btn-secondary">Use address</button>
@@ -1094,7 +1095,12 @@
       functionsBase: "https://australia-southeast1-taskhub-next.cloudfunctions.net",
       firebaseSdk: "https://www.gstatic.com/firebasejs/12.18.0",
       // Web Push certificate (public key) from the Firebase console, Project settings, Cloud Messaging. Optional: empty uses Firebase's default key.
-      vapidKey: ""
+      vapidKey: "",
+      // Google Places (New) API key for address autocomplete, restricted to this site's address and to the Places API (see README).
+      // Empty switches autocomplete off and the Open-Meteo place search is used instead.
+      placesApiKey: "",
+      // The country suggestions are limited to, a two-letter region code ("" for anywhere).
+      placesRegion: "nz"
     };
     const endpoint = name => `${CONFIG.functionsBase}/${name}`;
     const ADD_TASK_URL = endpoint("addOrUpdateTask");
@@ -1470,6 +1476,104 @@
     function addressAsLocation(address) {
       const t = typeof address === "string" ? address : "";
       return t.split(/\r?\n/).map(l => l.trim()).filter(Boolean).join(", ").slice(0, 200);
+    }
+
+    // Google Places (New) address autocomplete, called straight from the browser with the restricted key in CONFIG.placesApiKey. An
+    // autocomplete request suggests addresses as the owner types; a Place Details request for the chosen one returns its address and
+    // position. Both carry one session token (`newSessionToken`, renewed after each pick), which Google bills as a single search. Only
+    // fields of the Place Details Essentials tier are asked for, the cheapest (10,000 a month free); anything else would cost more.
+    const PLACES_AUTOCOMPLETE_URL = "https://places.googleapis.com/v1/places:autocomplete";
+    const PLACES_DETAILS_FIELDS = "id,formattedAddress,location,addressComponents";
+    const PLACES_MIN_CHARS = 3;
+    const PLACES_DEBOUNCE_MS = 300;
+    const PLACES_BIAS_RADIUS_M = 50000;
+    const PLACES_MAX_SUGGESTIONS = 5;
+
+    function newSessionToken() {
+      if (typeof crypto !== "undefined" && crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+      return "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+    }
+
+    function placesDetailsUrl(placeId, sessionToken) {
+      const url = `https://places.googleapis.com/v1/places/${encodeURIComponent(String(placeId))}`;
+      return sessionToken ? `${url}?sessionToken=${encodeURIComponent(sessionToken)}` : url;
+    }
+
+    // The autocomplete request body: the typed text, English, limited to one country when `region` is given and ranked toward `bias`
+    // ({latitude, longitude}, such as the owner's own location) when that is usable.
+    function autocompleteBody(text, sessionToken, region, bias) {
+      const body = { input: String(text === undefined || text === null ? "" : text).replace(/\s+/g, " ").trim(), languageCode: "en" };
+      if (sessionToken) body.sessionToken = sessionToken;
+      if (typeof region === "string" && region.trim()) body.includedRegionCodes = [region.trim().toLowerCase()];
+      if (bias && Number.isFinite(bias.latitude) && Number.isFinite(bias.longitude)) {
+        body.locationBias = { circle: { center: { latitude: bias.latitude, longitude: bias.longitude }, radius: PLACES_BIAS_RADIUS_M } };
+      }
+      return body;
+    }
+
+    function placesText(value) {
+      return value && typeof value.text === "string" ? value.text.trim() : "";
+    }
+
+    // The autocomplete response as at most five {placeId, text, main, secondary} (main the street line, secondary the rest); entries
+    // that are not place predictions are skipped.
+    function suggestionsFromAutocomplete(data) {
+      const list = data && Array.isArray(data.suggestions) ? data.suggestions : [];
+      const out = [];
+      for (const item of list) {
+        const prediction = item && item.placePrediction;
+        if (!prediction || typeof prediction.placeId !== "string" || !prediction.placeId) continue;
+        const main = placesText(prediction.structuredFormat && prediction.structuredFormat.mainText);
+        const secondary = placesText(prediction.structuredFormat && prediction.structuredFormat.secondaryText);
+        const text = placesText(prediction.text) || [main, secondary].filter(Boolean).join(", ");
+        if (!text) continue;
+        out.push({ placeId: prediction.placeId, text, main: main || text, secondary: main ? secondary : "" });
+      }
+      return out.slice(0, PLACES_MAX_SUGGESTIONS);
+    }
+
+    // A Place Details response as {name, latitude, longitude, address}, or null when it lacks a position or an address. `name` is the
+    // formatted address without its country (at most 200 characters, the Location limit) and `address` the lines to print on a job
+    // sheet: street (a flat as "3/12 Beach Road"), suburb when it differs from the town, then town and postcode.
+    function placeFromDetails(data) {
+      if (!data || typeof data !== "object") return null;
+      const where = data.location;
+      if (!where || !Number.isFinite(where.latitude) || !Number.isFinite(where.longitude)) return null;
+      const formatted = typeof data.formattedAddress === "string" ? data.formattedAddress.replace(/\s+/g, " ").trim() : "";
+      if (!formatted) return null;
+      const components = Array.isArray(data.addressComponents) ? data.addressComponents.filter(c => c && typeof c === "object" && Array.isArray(c.types)) : [];
+      const part = type => {
+        const found = components.find(c => c.types.includes(type) && typeof c.longText === "string" && c.longText.trim());
+        return found ? found.longText.trim() : "";
+      };
+      const country = part("country");
+      const name = (country && formatted.endsWith(", " + country) ? formatted.slice(0, -(country.length + 2)) : formatted).slice(0, 200);
+      const number = part("street_number");
+      const flat = part("subpremise");
+      const numbers = flat && number ? `${flat}/${number}` : number || flat;
+      const street = [numbers, part("route")].filter(Boolean).join(" ");
+      const suburb = part("sublocality_level_1") || part("sublocality") || part("neighborhood");
+      const town = part("locality") || part("postal_town") || part("administrative_area_level_2") || part("administrative_area_level_1");
+      const lines = [street, suburb && suburb.toLowerCase() !== town.toLowerCase() ? suburb : "", [town, part("postal_code")].filter(Boolean).join(" ")].filter(Boolean);
+      const address = (lines.length ? lines : name.split(",").map(x => x.trim()).filter(Boolean)).join("\n").slice(0, 300);
+      return { name, latitude: where.latitude, longitude: where.longitude, address };
+    }
+
+    // What choosing a place does to the Clients form: the Location text and map position always, the Address lines only while the
+    // Address box is still empty (a typed address is never overwritten).
+    function clientFillFromPlace(place, currentAddress) {
+      const hasAddress = typeof currentAddress === "string" && currentAddress.trim() !== "";
+      return {
+        locationText: place.name,
+        coords: { latitude: place.latitude, longitude: place.longitude, label: place.name },
+        addressText: hasAddress || !place.address ? null : place.address
+      };
+    }
+
+    // The text for a failed Google request: Google's own message (it says what is wrong with the key or the restrictions), else the status.
+    function placesErrorText(status, data) {
+      const message = data && data.error && typeof data.error.message === "string" ? data.error.message.replace(/\s+/g, " ").trim() : "";
+      return (message || `Request failed (${status})`).slice(0, 200);
     }
 
     // The updateSettings body for the settings form. Every schedule field is sent whatever the frequency, so the
@@ -5225,8 +5329,9 @@
     }
 
     // The map position the form holds for the location text ({latitude, longitude}, plus `label`, the place it was found as, until the
-    // form is reloaded), set by Find on map, null for none
+    // form is reloaded), set by picking a place, null for none
     let clientCoords = null;
+    let clientPlaces = null; // the Clients form's address autocomplete when a Places key is set, else null
     function renderClientCoords() {
       const note = document.getElementById("clientCoordsNote");
       note.textContent = !clientCoords
@@ -5244,6 +5349,7 @@
       document.getElementById("clientLocation").value = where ? where.name : "";
       clientCoords = where && Number.isFinite(where.latitude) && Number.isFinite(where.longitude) ? { latitude: where.latitude, longitude: where.longitude } : null;
       document.getElementById("clientPlaceResults").textContent = "";
+      if (clientPlaces) clientPlaces.close();
       renderClientCoords();
       document.getElementById("clientName").value = client ? client.name : "";
       document.getElementById("clientAddress").value = client ? client.address || "" : "";
@@ -5435,7 +5541,7 @@
     // A place search: the Search button, or Enter in the query box, looks the text up with Open-Meteo's geocoder and lists the matches
     // under it; tapping one calls `onPick(place)` ({name, latitude, longitude, timeZone}) and empties the list (and the box, unless
     // `clearQuery` is false). `queries(text)` gives the searches to try in order until one finds places (the text itself by default);
-    // when a later one found them the list says so. The Settings location and the Clients form both use it. `showZone` adds each
+    // when a later one found them the list says so. The Settings location uses it, and the Clients form when no Places key is set. `showZone` adds each
     // match's time zone to its line.
     function makePlaceSearch({ queryId, buttonId, resultsId, showZone, queries = text => [text], clearQuery = true, onPick }) {
       const queryBox = document.getElementById(queryId);
@@ -5474,6 +5580,83 @@
         if (clearQuery) queryBox.value = "";
         onPick(place);
       });
+    }
+
+    // Address autocomplete (Google Places): suggestions appear under the box as the owner types (after `PLACES_MIN_CHARS` characters and a
+    // `PLACES_DEBOUNCE_MS` pause), and tapping one fetches its address and position and calls `onPick(place)` (see `placeFromDetails`),
+    // which fills the form; the box keeps what was typed until `onPick` changes it. `getBias()` gives the position suggestions are ranked
+    // toward. Plain `fetch`, never `apiFetch`: no Firebase token goes to Google. Returns {suggestNow, close}.
+    function makePlacesAutocomplete({ queryId, resultsId, getBias, onPick }) {
+      const queryBox = document.getElementById(queryId);
+      const results = document.getElementById(resultsId);
+      let suggestions = [];
+      let token = newSessionToken();
+      let timer = null;
+      let latest = 0; // a reply for an older request than this is ignored
+      const googleHeaders = extra => ({ "X-Goog-Api-Key": CONFIG.placesApiKey, ...extra });
+      function close() {
+        clearTimeout(timer);
+        latest++;
+        suggestions = [];
+        results.textContent = "";
+      }
+      function render(extra = "") {
+        results.innerHTML = (suggestions.length
+          ? suggestions.map((p, i) => `<button type="button" class="place-option" data-index="${i}">${esc(p.main)}${p.secondary ? `<small>${esc(p.secondary)}</small>` : ""}</button>`).join("") + `<div class="settings-note">Powered by Google</div>`
+          : "No matching addresses.") + extra;
+      }
+      async function suggest() {
+        clearTimeout(timer);
+        const text = queryBox.value.trim();
+        const mine = ++latest;
+        if (text.length < PLACES_MIN_CHARS) { suggestions = []; results.textContent = ""; return; }
+        try {
+          const res = await fetch(PLACES_AUTOCOMPLETE_URL, {
+            method: "POST",
+            headers: googleHeaders({ "Content-Type": "application/json" }),
+            body: JSON.stringify(autocompleteBody(text, token, CONFIG.placesRegion, getBias ? getBias() : null))
+          });
+          const data = await res.json().catch(() => null);
+          if (mine !== latest) return;
+          if (!res.ok) throw new Error(placesErrorText(res.status, data));
+          suggestions = suggestionsFromAutocomplete(data);
+          render();
+        } catch (err) {
+          if (mine !== latest) return;
+          suggestions = [];
+          results.textContent = "Address search failed: " + err.message;
+        }
+      }
+      queryBox.addEventListener("input", () => {
+        clearTimeout(timer);
+        timer = setTimeout(suggest, PLACES_DEBOUNCE_MS);
+      });
+      queryBox.addEventListener("keydown", e => {
+        if (e.key === "Escape") close();
+      });
+      results.addEventListener("click", async e => {
+        const option = e.target.closest(".place-option");
+        const chosen = option && suggestions[Number(option.dataset.index)];
+        if (!chosen) return;
+        const mine = ++latest;
+        results.textContent = "Getting the address...";
+        try {
+          const res = await fetch(placesDetailsUrl(chosen.placeId, token), { headers: googleHeaders({ "X-Goog-FieldMask": PLACES_DETAILS_FIELDS }) });
+          const data = await res.json().catch(() => null);
+          if (mine !== latest) return;
+          if (!res.ok) throw new Error(placesErrorText(res.status, data));
+          const place = placeFromDetails(data);
+          if (!place) throw new Error("Google returned no position for that address.");
+          token = newSessionToken(); // the details request ends the session
+          suggestions = [];
+          results.textContent = "";
+          onPick(place);
+        } catch (err) {
+          if (mine !== latest) return;
+          render(`<div class="settings-note">Could not get that address: ${esc(err.message)}</div>`);
+        }
+      });
+      return { suggestNow: suggest, close };
     }
 
     // Save a Blob as a file download.
@@ -5857,16 +6040,31 @@
       pendingLocation = place;
       renderLocation();
     } });
-    // The Location text is the search text; picking a place gives the client a map position and leaves the text as typed
-    makePlaceSearch({ queryId: "clientLocation", buttonId: "clientPlaceSearchBtn", resultsId: "clientPlaceResults", showZone: false, queries: placeQueries, clearQuery: false, onPick: place => {
-      clientCoords = { latitude: place.latitude, longitude: place.longitude, label: place.name };
-      renderClientCoords();
-    } });
+    if (CONFIG.placesApiKey) {
+      // With a Places key the Location field suggests street addresses as the owner types; picking one sets the text and the map
+      // position, and fills the Address box when it is empty
+      document.getElementById("clientPlaceSearchBtn").hidden = true;
+      document.getElementById("clientLocationNote").textContent = "Where the work is, used for navigation. Start typing the street address and pick a suggestion: it gives the job a map position, so nearby jobs can be grouped, and fills in the Address above if that is empty.";
+      clientPlaces = makePlacesAutocomplete({ queryId: "clientLocation", resultsId: "clientPlaceResults", getBias: () => currentSettings && currentSettings.location ? currentSettings.location : null, onPick: place => {
+        const fill = clientFillFromPlace(place, document.getElementById("clientAddress").value);
+        document.getElementById("clientLocation").value = fill.locationText;
+        if (fill.addressText) document.getElementById("clientAddress").value = fill.addressText;
+        clientCoords = fill.coords;
+        renderClientCoords();
+      } });
+    } else {
+      // The Location text is the search text; picking a place gives the client a map position and leaves the text as typed
+      makePlaceSearch({ queryId: "clientLocation", buttonId: "clientPlaceSearchBtn", resultsId: "clientPlaceResults", showZone: false, queries: placeQueries, clearQuery: false, onPick: place => {
+        clientCoords = { latitude: place.latitude, longitude: place.longitude, label: place.name };
+        renderClientCoords();
+      } });
+    }
     document.getElementById("clientUseAddressBtn").addEventListener("click", () => {
       const text = addressAsLocation(document.getElementById("clientAddress").value);
       if (!text) return;
       document.getElementById("clientLocation").value = text;
       document.getElementById("clientPlaceResults").textContent = "";
+      if (clientPlaces) clientPlaces.suggestNow();
     });
     document.getElementById("clientClearCoordsBtn").addEventListener("click", () => {
       clientCoords = null;

@@ -33,6 +33,17 @@ firebase functions:secrets:set GOOGLE_CALENDAR_CREDENTIALS --data-file service-a
 
 Push uses Firebase Cloud Messaging, which is on by default in a Firebase project; the functions send as their own service account, so there is no secret. In the Firebase console, Project settings, Cloud Messaging, check that "Firebase Cloud Messaging API (V1)" is enabled. Optionally generate a Web Push certificate there and paste its public key into `CONFIG.vapidKey` in `public/index.html`; empty uses Firebase's default key. Then deploy functions and hosting, open the installed app, and use Settings, Notifications: Turn on notifications, allow the prompt, then Send a test. Each device is switched on separately. If the test returns an error, run `npm run logs`: a permission error means the Cloud Messaging API is disabled for `taskhub-next` or the functions' service account may not send.
 
+**Address autocomplete** (optional; Google Places, billed on the Blaze plan's billing account but well inside its free monthly allowance for one person)
+
+The Clients form's Location field suggests street addresses as you type and fills in the map position and, when it is empty, the Address. Without a key it falls back to the town-level Open-Meteo search.
+
+1. In the Google Cloud console, open project `taskhub-next` (APIs & Services, Library) and enable **Places API (New)**. Billing must be linked to the project, which the Blaze plan already does.
+2. APIs & Services, Credentials, Create credentials, API key. Under Application restrictions choose Websites and add `https://taskhub-next.web.app/*` and `https://taskhub-next.firebaseapp.com/*`; under API restrictions choose Restrict key and tick only Places API (New).
+3. Limit what a stray request could cost: APIs & Services, Places API (New), Quotas & System Limits, and lower the per-day limits for autocomplete and place details requests to a few hundred. Then Billing, Budgets & alerts, and create a budget of a dollar or two with email alerts.
+4. Paste the key into `CONFIG.placesApiKey` in `public/index.html` and deploy hosting. A browser key is visible in the page source, which is normal: the website restriction and the quotas are what protect it.
+
+The page asks only for Place Details Essentials fields (address, components and position), which have a free allowance of 10,000 requests a month, and sends one session token per search so Google bills it once. If suggestions show "Address search failed" under the field, the message is Google's own: a blocked-referrer message means step 2's website list does not match the address you opened the page from, and a not-enabled message means step 1.
+
 **Weekly backup** (needs the Blaze plan; a Firestore export is billed like any other storage and reads)
 
 `weeklyBackup` starts a Firestore export of the whole database, photos included, every Sunday at 03:00 Auckland time into `gs://BUCKET/backups/<UTC time>/` and deletes all but the newest 4. Do this once, in Cloud Shell or any terminal signed in with `gcloud`:
