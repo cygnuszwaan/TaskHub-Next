@@ -45,6 +45,7 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   const rest = {...fields};
   delete rest.projectId;
   delete rest.projectOrder;
+  delete rest.newProject; // a project to create is handled by the endpoint, which passes its id as `projectId`
   delete rest.materials;
   delete rest.snoozedUntil;
   delete rest.comments;

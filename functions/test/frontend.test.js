@@ -16,7 +16,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
+    return {confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -1279,6 +1279,45 @@ describe("public/index.html helpers", () => {
       assert.equal(h.phoneHref(""), "");
       assert.equal(h.smsHref(null), "");
     });
+    it("writes a phone number the way a WhatsApp link wants it", () => {
+      const h = load();
+      assert.equal(h.whatsappNumber("021 555 1234"), "64215551234");
+      assert.equal(h.whatsappNumber("09 555 0000"), "6495550000");
+      assert.equal(h.whatsappNumber("+61 412 345 678"), "61412345678");
+      assert.equal(h.whatsappNumber("0061 412 345 678"), "61412345678");
+      assert.equal(h.whatsappNumber(" +64 (21) 555-1234 "), "64215551234");
+      assert.equal(h.whatsappNumber("64 21 555 1234"), "64215551234");
+      for (const none of ["", "  ", "call me", null, undefined, "00"]) assert.equal(h.whatsappNumber(none), "", String(none));
+      assert.equal(h.whatsappHref("021 555 1234"), "https://wa.me/64215551234");
+      assert.equal(h.whatsappHref("call me"), "");
+    });
+    it("reads whether the client uses WhatsApp, whichever side the number came from", () => {
+      const h = load();
+      const wa = [{id: "c1", name: "Smith Ltd", phone: "09 555 0000", useWhatsApp: true}, {id: "c2", name: "Bare", useWhatsApp: false}];
+      assert.equal(h.effectiveContact({}, "p1", projects, wa).whatsApp, true);
+      assert.equal(h.effectiveContact({phone: "021 1"}, "p1", projects, wa).whatsApp, true);
+      assert.equal(h.effectiveContact({}, "p2", projects, wa).whatsApp, false);
+      assert.equal(h.effectiveContact({}, "p3", projects, wa).whatsApp, false);
+      assert.equal(h.effectiveContact({}, "", projects, wa).whatsApp, false);
+    });
+    it("swaps Call and Text for one WhatsApp button for a WhatsApp client", () => {
+      const h = load();
+      const task = {title: "Fit tap", jobNumber: 7};
+      const wa = [{id: "c1", name: "Smith Ltd", phone: "021 555 1234", email: "office@smith.example", useWhatsApp: true}];
+      const eff = h.effectiveContact({}, "p1", projects, wa);
+      const links = h.contactLinks(eff, task);
+      assert.deepEqual(links.map((l) => l.label), ["💬 WhatsApp", "✉️ Email"]);
+      assert.equal(links[0].href, "https://wa.me/64215551234");
+      assert.equal(links[0].external, true);
+      assert.equal(links[1].external, undefined);
+      // a task's own number is used, through WhatsApp, for the client's task
+      assert.equal(h.contactLinks(h.effectiveContact({phone: "+61 412 345 678"}, "p1", projects, wa), task)[0].href, "https://wa.me/61412345678");
+      // no number: no WhatsApp button, and no Call or Text either
+      const noPhone = [{id: "c1", name: "Smith Ltd", email: "office@smith.example", useWhatsApp: true}];
+      assert.deepEqual(h.contactLinks(h.effectiveContact({}, "p1", projects, noPhone), task).map((l) => l.label), ["✉️ Email"]);
+      // not a WhatsApp client: unchanged
+      assert.deepEqual(h.contactLinks(h.effectiveContact({}, "p1", projects, [{...wa[0], useWhatsApp: false}]), task).map((l) => l.label), ["📞 Call", "💬 Text", "✉️ Email"]);
+    });
     it("builds a mailto link whose subject is the title and job number", () => {
       const h = load();
       assert.equal(h.emailHref("mo@example.com", {title: "Fit tap & seal", jobNumber: 123}), "mailto:mo@example.com?subject=Fit%20tap%20%26%20seal%20(Job%20123)");
@@ -1288,13 +1327,13 @@ describe("public/index.html helpers", () => {
     });
     it("uses the task's own details, else its client's, each on its own", () => {
       const h = load();
-      assert.deepEqual(h.effectiveContact({phone: "", email: ""}, "p1", projects, clients), {phone: "09 555 0000", phoneFrom: "client", email: "office@smith.example", emailFrom: "client"});
-      assert.deepEqual(h.effectiveContact({phone: " 021 111 2222 ", email: ""}, "p1", projects, clients), {phone: "021 111 2222", phoneFrom: "task", email: "office@smith.example", emailFrom: "client"});
-      assert.deepEqual(h.effectiveContact({phone: "1", email: "a@b.co"}, "p1", projects, clients), {phone: "1", phoneFrom: "task", email: "a@b.co", emailFrom: "task"});
+      assert.deepEqual(h.effectiveContact({phone: "", email: ""}, "p1", projects, clients), {phone: "09 555 0000", phoneFrom: "client", email: "office@smith.example", emailFrom: "client", whatsApp: false});
+      assert.deepEqual(h.effectiveContact({phone: " 021 111 2222 ", email: ""}, "p1", projects, clients), {phone: "021 111 2222", phoneFrom: "task", email: "office@smith.example", emailFrom: "client", whatsApp: false});
+      assert.deepEqual(h.effectiveContact({phone: "1", email: "a@b.co"}, "p1", projects, clients), {phone: "1", phoneFrom: "task", email: "a@b.co", emailFrom: "task", whatsApp: false});
     });
     it("has nothing to inherit without a project, a client or a client's detail", () => {
       const h = load();
-      const none = {phone: "", phoneFrom: "", email: "", emailFrom: ""};
+      const none = {phone: "", phoneFrom: "", email: "", emailFrom: "", whatsApp: false};
       assert.deepEqual(h.effectiveContact({}, "", projects, clients), none);
       assert.deepEqual(h.effectiveContact({}, "p3", projects, clients), none);
       assert.deepEqual(h.effectiveContact({}, "p2", projects, clients), none);
@@ -2365,11 +2404,18 @@ describe("public/index.html helpers", () => {
       assert.equal(clientSummary({name: "Jo", hourlyRate: 0}), "$0.00/h");
       for (const hourlyRate of [undefined, null, -1, "95", NaN]) assert.equal(clientSummary({name: "Jo", hourlyRate}), "");
     });
+    it("marks a WhatsApp client in the summary", () => {
+      const {clientSummary} = load();
+      assert.equal(clientSummary({name: "Jo", phone: "021", useWhatsApp: true, email: "jo@x.nz"}), "021 · WhatsApp · jo@x.nz");
+      assert.equal(clientSummary({name: "Jo", phone: "021", useWhatsApp: false}), "021");
+    });
     it("builds the form body, trimming the name only", () => {
       const {clientFormBody} = load();
-      assert.deepEqual(clientFormBody({name: "  Jo ", address: "1 Rd\n", phone: " 1", email: "a@b.nz", hourlyRate: " 95.50 "}), {name: "Jo", address: "1 Rd\n", phone: " 1", email: "a@b.nz", hourlyRate: "95.50"});
-      assert.deepEqual(clientFormBody({name: "Jo", hourlyRate: null}), {name: "Jo", address: "", phone: "", email: "", hourlyRate: ""});
-      assert.deepEqual(clientFormBody(undefined), {name: "", address: "", phone: "", email: "", hourlyRate: ""});
+      assert.deepEqual(clientFormBody({name: "  Jo ", address: "1 Rd\n", phone: " 1", email: "a@b.nz", hourlyRate: " 95.50 "}), {name: "Jo", address: "1 Rd\n", phone: " 1", email: "a@b.nz", hourlyRate: "95.50", useWhatsApp: false});
+      assert.deepEqual(clientFormBody({name: "Jo", hourlyRate: null}), {name: "Jo", address: "", phone: "", email: "", hourlyRate: "", useWhatsApp: false});
+      assert.deepEqual(clientFormBody(undefined), {name: "", address: "", phone: "", email: "", hourlyRate: "", useWhatsApp: false});
+      assert.equal(clientFormBody({name: "Jo", useWhatsApp: true}).useWhatsApp, true);
+      assert.equal(clientFormBody({name: "Jo", useWhatsApp: "yes"}).useWhatsApp, false);
     });
     it("asks before deleting, saying what happens to its projects", () => {
       const {deleteClientPrompt} = load();
@@ -2839,11 +2885,11 @@ describe("public/index.html helpers", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(code, /(?<![\w.])alert\(/, "a native alert() is left");
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
-      assert.equal(calls.length, 34, "the thirty-four messages the page shows");
+      assert.equal(calls.length, 35, "the thirty-five messages the page shows");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 16, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
-      assert.equal(warnings.length, 18, "every validation message is a warning alert");
+      assert.equal(warnings.length, 19, "every validation message is a warning alert");
     });
     it("hides Cancel for an alert, shows it again for a question and focuses the button", () => {
       const fn = html.slice(html.indexOf("function openConfirm"), html.indexOf("function askConfirm"));
@@ -2862,6 +2908,16 @@ describe("public/index.html helpers", () => {
       const at = html.indexOf("async function submitTask");
       const fn = html.slice(at, at + 1500);
       assert.match(fn, /await askAlert\("Enter a name for the new project, or choose another project\.", \{ tone: "warning" \}\);\s*document\.getElementById\("manualNewProject"\)\.focus\(\);/);
+      const edit = html.slice(html.indexOf("async function saveTaskEdits"), html.indexOf("async function snoozeFromModal"));
+      assert.match(edit, /await askAlert\("Enter a name for the new project\.", \{ tone: "warning" \}\);\s*document\.getElementById\("editNewProject"\)\.focus\(\);\s*return false;/);
+    });
+    it("lets the edit modal create a project: a last choice, a name field, and the name sent as newProject", () => {
+      assert.match(html, /<input type="text" id="editNewProject"[^>]*hidden>/);
+      assert.match(html, /projectSelect\.add\(new Option\("＋ New project…", NEW_PROJECT\)\)/);
+      const edit = html.slice(html.indexOf("async function saveTaskEdits"), html.indexOf("async function snoozeFromModal"));
+      assert.match(edit, /updatedFields\.newProject = newProject;/);
+      assert.match(edit, /if \(data\.project && data\.projects\) allProjects = data\.projects;/);
+      assert.doesNotMatch(edit, /projectId: NEW_PROJECT|projectId = NEW_PROJECT/, "the placeholder id is never sent");
     });
   });
   describe("the Miscellaneous list", () => {

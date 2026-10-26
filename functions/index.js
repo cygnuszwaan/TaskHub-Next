@@ -930,6 +930,8 @@ exports.deleteCompletedPhoto = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(asyn
 
 // 7. Endpoint: Direct Update / Delete
 // An UPDATE's `snoozedUntil` (a YYYY-MM-DD date; null or "" removes it) keeps the task off the schedule before that day.
+// An UPDATE's `newProject` (a name) creates that project in the same transaction and puts the task in it (overriding `projectId`,
+// keeping `projectOrder`): 400 for an unusable or taken name with nothing saved; the response then also holds `project` and `projects`.
 exports.updateTaskDirect = onRequest({
   secrets: [{name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"}],
   cors: ALLOWED_ORIGINS,
@@ -950,18 +952,30 @@ exports.updateTaskDirect = onRequest({
         return {tasks: remaining, current: remaining, removedTask};
       }
       if (action === "UPDATE" && tasks.some((t) => t.id === taskId)) {
-        let next = tasks.map((t) => (t.id === taskId ? applyDirectUpdate(t, updatedFields, projects.map((p) => p.id)) : t));
+        // A new project named in the edit is created in the same commit, so a failed save leaves none behind
+        let fields = updatedFields;
+        let known = projects;
+        let created = null;
+        if (updatedFields && updatedFields.newProject !== undefined) {
+          created = addProject(known, updatedFields.newProject, randomUUID);
+          if (created.error) return {error: created.error, current: tasks};
+          known = created.projects;
+          fields = {...updatedFields, projectId: created.project.id};
+        }
+        if (created) tx.set(db.collection(PROJECTS_COLLECTION).doc(created.project.id), created.project);
+        let next = tasks.map((t) => (t.id === taskId ? applyDirectUpdate(t, fields, known.map((p) => p.id)) : t));
         // `queueNumber` moves the task to that place in the queue, the others closing up around it
         const moved = updatedFields && Number.isInteger(updatedFields.queueNumber) ? moveToQueueNumber(next, taskId, updatedFields.queueNumber) : null;
         if (moved) next = moved;
-        return {tasks: next, current: next};
+        return {tasks: next, current: next, project: created ? created.project : null, projects: created ? created.projects : null};
       }
       return {current: tasks};
     }, {withProjects: true});
+    if (result.error) return res.status(400).send({error: result.error});
     // Calendar cleanup follows the commit; a locked task's personal-calendar event is never touched
     await removeTaskCalendarEvent(result.removedTask);
 
-    res.status(200).send({success: true, tasks: result.current});
+    res.status(200).send({success: true, tasks: result.current, ...(result.project ? {project: result.project, projects: result.projects} : {})});
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});

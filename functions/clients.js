@@ -26,7 +26,9 @@ function oneLine(value, label, max) {
 // all); the phone is one line of at most 40 characters; the email, when given, must look like an address (at most 100
 // characters). A missing or null optional field is empty. `hourlyRate` (dollars, 0.01..10000, a number or plain decimal text) overrides
 // the global hourly rate on this client's job sheets; 0 is a real rate ($0.00, for unpaid work); null, empty text or a missing value means
-// none (the global rate applies), and then the key is absent from the client. Returns {client: {name, address, phone, email, hourlyRate?}} or {error}.
+// none (the global rate applies), and then the key is absent from the client. `useWhatsApp` (a boolean) says the client's Call and Text
+// buttons open WhatsApp instead of the phone; false, null or a missing value means no and the key is absent. Returns
+// {client: {name, address, phone, email, hourlyRate?, useWhatsApp?}} or {error}.
 function normalizeClientFields(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {error: "client must be an object"};
   const name = oneLine(value.name, "name", MAX_NAME_LENGTH);
@@ -48,6 +50,10 @@ function normalizeClientFields(value) {
     const rate = normalizeMoney(value.hourlyRate, MAX_HOURLY_RATE);
     if (rate === undefined) return {error: `hourlyRate must be an amount from 0 to ${MAX_HOURLY_RATE}, or empty`};
     if (rate !== null) client.hourlyRate = rate;
+  }
+  if (value.useWhatsApp !== undefined && value.useWhatsApp !== null) {
+    if (typeof value.useWhatsApp !== "boolean") return {error: "useWhatsApp must be true or false"};
+    if (value.useWhatsApp) client.useWhatsApp = true;
   }
   return {client};
 }

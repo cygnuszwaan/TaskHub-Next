@@ -24,6 +24,11 @@ describe("clients.js", () => {
     it("rejects an unusable hourly rate", () => {
       for (const hourlyRate of [-1, "abc", "1e3", 10000.01, NaN, true, {}, []]) assert.match(normalizeClientFields({name: "Jo", hourlyRate}).error, /hourlyRate must be an amount from 0 to/, String(hourlyRate));
     });
+    it("keeps useWhatsApp only when true and leaves the key out otherwise", () => {
+      assert.equal(normalizeClientFields({name: "Jo", useWhatsApp: true}).client.useWhatsApp, true);
+      for (const useWhatsApp of [undefined, null, false]) assert.equal("useWhatsApp" in normalizeClientFields({name: "Jo", useWhatsApp}).client, false, String(useWhatsApp));
+      for (const useWhatsApp of ["yes", 1, 0, "", {}, []]) assert.match(normalizeClientFields({name: "Jo", useWhatsApp}).error, /useWhatsApp must be true or false/, String(useWhatsApp));
+    });
     it("needs an object with a name", () => {
       for (const v of [undefined, null, "x", [], 5]) assert.match(normalizeClientFields(v).error, /must be an object/);
       for (const name of [undefined, null, "", "   "]) assert.match(normalizeClientFields({name}).error, /name must be a non-empty string/);
@@ -73,6 +78,12 @@ describe("clients.js", () => {
       assert.equal("hourlyRate" in updateClient(withRate.clients, "c1", {name: "Smith Family"}).client, false);
       assert.match(updateClient(list, "c1", {name: "Smith Family", hourlyRate: -3}).error, /hourlyRate/);
       assert.equal(updateClient(withRate.clients, "c1", {name: "Smith Family", hourlyRate: 0}).client.hourlyRate, 0);
+    });
+    it("sets and clears useWhatsApp (an update replaces the fields)", () => {
+      const on = updateClient(list, "c1", {name: "Smith Family", useWhatsApp: true});
+      assert.equal(on.client.useWhatsApp, true);
+      assert.equal("useWhatsApp" in updateClient(on.clients, "c1", {name: "Smith Family", useWhatsApp: false}).client, false);
+      assert.equal("useWhatsApp" in updateClient(on.clients, "c1", {name: "Smith Family"}).client, false);
     });
     it("lets a client keep its own name, in other letters", () => {
       assert.equal(updateClient(list, "c1", {name: "SMITH FAMILY"}).client.name, "SMITH FAMILY");

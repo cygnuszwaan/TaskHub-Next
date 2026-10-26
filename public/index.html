@@ -647,6 +647,10 @@
       <input type="tel" id="clientPhone" maxlength="40">
     </div>
     <div class="form-group" style="margin:10px 0 0;">
+      <label style="font-weight: normal;"><input type="checkbox" id="clientUseWhatsApp"> Use WhatsApp for calls and texts</label>
+      <p class="settings-note" style="margin:4px 0 0;">The Call and Text buttons become one WhatsApp button. Numbers starting with 0 are read as New Zealand numbers; start others with + and the country code.</p>
+    </div>
+    <div class="form-group" style="margin:10px 0 0;">
       <label for="clientEmail">Email</label>
       <input type="email" id="clientEmail" maxlength="100">
     </div>
@@ -798,6 +802,7 @@
           </select>
           <input type="number" id="editProjectOrder" min="1" max="999" step="1" placeholder="Order" title="Order number: lower numbers are scheduled first, empty means unordered" style="width: 90px;" disabled>
         </div>
+        <input type="text" id="editNewProject" maxlength="100" placeholder="Name of the new project (created when you save)" style="margin-top: 6px;" hidden>
       </div>
 
       <div class="contact-actions" id="editContactActions" hidden></div>
@@ -1511,6 +1516,22 @@
       const n = phoneDigits(phone);
       return n ? `sms:${n}` : "";
     }
+    // The number as a WhatsApp link wants it: international, digits only. A number written with + or 00 is taken as it stands; a local one
+    // with a leading 0 gets the default country code (WHATSAPP_COUNTRY_CODE, New Zealand's 64). "" when there are no digits.
+    const WHATSAPP_COUNTRY_CODE = "64";
+    function whatsappNumber(phone) {
+      const t = String(phone === undefined || phone === null ? "" : phone).trim();
+      const digits = t.replace(/\D/g, "");
+      if (!digits) return "";
+      if (t.startsWith("+")) return digits;
+      if (digits.startsWith("00")) return digits.slice(2);
+      if (digits.startsWith("0")) return WHATSAPP_COUNTRY_CODE + digits.slice(1);
+      return digits;
+    }
+    function whatsappHref(phone) {
+      const n = whatsappNumber(phone);
+      return n ? `https://wa.me/${n}` : "";
+    }
     // A mailto link whose subject is the task's title, with its job number when it has one; "" without an address.
     function emailHref(email, task) {
       const address = String(email === undefined || email === null ? "" : email).trim();
@@ -1533,18 +1554,24 @@
       };
       const phone = pick(own && own.phone, "phone");
       const email = pick(own && own.email, "email");
-      return { phone: phone.value, phoneFrom: phone.from, email: email.value, emailFrom: email.from };
+      // `whatsApp`: the client says its calls and texts go through WhatsApp (whichever of the task and the client the number came from)
+      return { phone: phone.value, phoneFrom: phone.from, email: email.value, emailFrom: email.from, whatsApp: !!(client && client.useWhatsApp === true) };
     }
     // The placeholder of a Phone ("phone") or Email ("email") box: the client's value while the box would inherit it.
     function contactPlaceholder(effective, kind) {
       if (effective[`${kind}From`] === "client") return `From client: ${effective[kind]}`;
       return kind === "phone" ? "e.g. 021 123 4567" : "e.g. name@example.com";
     }
-    // The Call, Text and Email buttons for an effective contact as {label, href} (only those it has the detail for).
+    // The Call, Text and Email buttons for an effective contact as {label, href} (only those it has the detail for). For a client that
+    // uses WhatsApp, one WhatsApp button (`external`: it opens in a new window) takes the place of Call and Text, since a WhatsApp link opens
+    // the chat, from which the call is made.
     function contactLinks(effective, task) {
+      const whatsApp = effective.whatsApp === true ? whatsappHref(effective.phone) : "";
       const links = [
-        { label: "📞 Call", href: phoneHref(effective.phone) },
-        { label: "💬 Text", href: smsHref(effective.phone) },
+        ...(whatsApp ? [{ label: "💬 WhatsApp", href: whatsApp, external: true }] : [
+          { label: "📞 Call", href: phoneHref(effective.phone) },
+          { label: "💬 Text", href: smsHref(effective.phone) }
+        ]),
         { label: "✉️ Email", href: emailHref(effective.email, task) }
       ];
       return links.filter(l => l.href);
@@ -1713,12 +1740,13 @@
         return words.every(w => text.includes(w));
       });
     }
-    // One line under a client's name in the Clients list: address (lines joined), phone, email and own hourly rate that exist.
+    // One line under a client's name in the Clients list: address (lines joined), phone, "WhatsApp" when it uses it, email and own hourly rate that exist.
     function clientSummary(client) {
       const text = (v) => (typeof v === "string" ? v.trim() : "");
       const address = text(client && client.address).split(/\n+/).map(l => l.trim()).filter(Boolean).join(", ");
       const rate = client && typeof client.hourlyRate === "number" && Number.isFinite(client.hourlyRate) && client.hourlyRate >= 0 ? "$" + client.hourlyRate.toFixed(2) + "/h" : "";
-      return [address, text(client && client.phone), text(client && client.email), rate].filter(Boolean).join(" · ");
+      const whatsApp = client && client.useWhatsApp === true ? "WhatsApp" : "";
+      return [address, text(client && client.phone), whatsApp, text(client && client.email), rate].filter(Boolean).join(" · ");
     }
     // The updateClient `client` object for the Clients form's fields; `hourlyRate` is the box as typed (trimmed), "" for none, which
     // the server reads as the global rate.
@@ -1726,7 +1754,7 @@
       const v = values || {};
       const text = (x) => (typeof x === "string" ? x : "");
       const rate = v.hourlyRate === undefined || v.hourlyRate === null ? "" : String(v.hourlyRate).trim();
-      return { name: text(v.name).trim(), address: text(v.address), phone: text(v.phone), email: text(v.email), hourlyRate: rate };
+      return { name: text(v.name).trim(), address: text(v.address), phone: text(v.phone), email: text(v.email), hourlyRate: rate, useWhatsApp: v.useWhatsApp === true };
     }
     // The confirmation before deleting a client; `projects` is how many of the owner's projects belong to it.
     function deleteClientPrompt(name, projects) {
@@ -3892,6 +3920,7 @@
       projectSelect.replaceChildren(new Option("No project", ""), ...allProjects.map(p => new Option(p.name, p.id)));
       // A project this page does not know: keep it selectable so saving the task unchanged leaves it alone
       if (task.projectId && !allProjects.some(p => p.id === task.projectId)) projectSelect.add(new Option("Unknown project", task.projectId));
+      if (projectsLoaded) projectSelect.add(new Option("＋ New project…", NEW_PROJECT)); // without the list, a name could not be checked
       projectSelect.value = task.projectId || "";
       document.getElementById("editProjectOrder").value = Number.isInteger(task.projectOrder) ? task.projectOrder : "";
       updateProjectOrderField();
@@ -3940,7 +3969,7 @@
       const inProject = document.getElementById(`${prefix}Project`).value !== "";
       input.disabled = !inProject;
       if (!inProject) input.value = "";
-      const nameBox = document.getElementById(`${prefix}NewProject`); // only the add form has one
+      const nameBox = document.getElementById(`${prefix}NewProject`); // the add form and the edit modal have one
       if (nameBox) {
         nameBox.hidden = document.getElementById(`${prefix}Project`).value !== NEW_PROJECT;
         if (nameBox.hidden) nameBox.value = "";
@@ -3961,7 +3990,7 @@
       const actions = document.getElementById(`${prefix}ContactActions`);
       if (!actions) return;
       const task = prefix === "edit" ? allTasks.find(t => t.id === document.getElementById("editTaskId").value) : prefix === "ce" ? completedRows.get(document.getElementById("ceId").value) : null;
-      actions.innerHTML = contactLinks(effective, task).map(l => `<a class="contact-btn btn-secondary" href="${esc(l.href)}">${l.label}</a>`).join("");
+      actions.innerHTML = contactLinks(effective, task).map(l => `<a class="contact-btn btn-secondary" href="${esc(l.href)}"${l.external ? ' target="_blank" rel="noopener noreferrer"' : ""}>${l.label}</a>`).join("");
       actions.hidden = actions.innerHTML === "";
     }
 
@@ -4107,7 +4136,20 @@
       if (queueNumber !== null) updatedFields.queueNumber = queueNumber;
       // Without the project list the form cannot show the task's project, so it must not send one
       if (projectsLoaded) {
-        Object.assign(updatedFields, projectFields(document.getElementById("editProject").value, document.getElementById("editProjectOrder").value));
+        const chosen = document.getElementById("editProject").value;
+        if (chosen === NEW_PROJECT) {
+          // The server creates the project in the same commit as the save, so a failed save leaves no project behind
+          const newProject = document.getElementById("editNewProject").value.trim();
+          if (!newProject) {
+            await askAlert("Enter a name for the new project.", { tone: "warning" });
+            document.getElementById("editNewProject").focus();
+            return false;
+          }
+          updatedFields.newProject = newProject;
+          updatedFields.projectOrder = projectFields(NEW_PROJECT, document.getElementById("editProjectOrder").value).projectOrder;
+        } else {
+          Object.assign(updatedFields, projectFields(chosen, document.getElementById("editProjectOrder").value));
+        }
       }
 
       closeEditModal();
@@ -4118,7 +4160,9 @@
           body: JSON.stringify({ taskId, action: "UPDATE", updatedFields })
         });
         const data = await res.json();
+        if (data.project && data.projects) allProjects = data.projects; // a project made with the save
         setTasks(data.tasks || []);
+        if (data.project && projectsLoaded) renderProjects();
         renderFilterBar();
         renderTasks();
         return true;
@@ -5149,6 +5193,7 @@
       document.getElementById("clientName").value = client ? client.name : "";
       document.getElementById("clientAddress").value = client ? client.address || "" : "";
       document.getElementById("clientPhone").value = client ? client.phone || "" : "";
+      document.getElementById("clientUseWhatsApp").checked = !!client && client.useWhatsApp === true;
       document.getElementById("clientEmail").value = client ? client.email || "" : "";
       document.getElementById("clientHourlyRate").value = client ? costBoxText(client.hourlyRate) : "";
       document.getElementById("saveClientBtn").textContent = client ? "Save client" : "Add client";
@@ -5203,7 +5248,8 @@
         address: document.getElementById("clientAddress").value,
         phone: document.getElementById("clientPhone").value,
         email: document.getElementById("clientEmail").value,
-        hourlyRate: document.getElementById("clientHourlyRate").value
+        hourlyRate: document.getElementById("clientHourlyRate").value,
+        useWhatsApp: document.getElementById("clientUseWhatsApp").checked
       });
       if (!client.name) { setClientsStatus("Enter a name."); return; }
       const editing = editingClientId;
