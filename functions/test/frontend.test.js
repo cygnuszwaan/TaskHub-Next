@@ -15,7 +15,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {confirmView, CONFIRM_TONES, TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText};`)();
+    return {confirmView, failureText, CONFIRM_TONES, TABS, normalizeTab, removalMessage, sortedTags, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -1500,7 +1500,7 @@ describe("public/index.html helpers", () => {
         assert.match(fn, /setTasks\(data\.tasks \|\| allTasks\)/);
         assert.match(fn, /templates = null;/);
         assert.match(fn, /await fetchCompleted\(\);/);
-        assert.match(fn, /alert\("Failed to reopen: " \+ err\.message\)/);
+        assert.match(fn, /askAlert\(failureText\("Failed to reopen", err\), \{ tone: "error" \}\)/);
       });
       it("completedFormValues: falls back for a row missing fields", () => {
         const {completedFormValues} = load();
@@ -2475,7 +2475,7 @@ describe("public/index.html helpers", () => {
       assert.match(html, /function selectedTasks\(\) \{\s*return sortTasks\(allTasks\.filter\(t => selectedIds\.has\(t\.id\)\), "number", false\);/);
       const remove = html.slice(html.indexOf("function removeTask("), html.indexOf("async function completeTask("));
       assert.match(remove, /if \(!opts\.noUndo\) \{\s*undoNoteTaskId = taskId;\s*showUndoNote/);
-      assert.match(remove, /if \(opts\.onError\) opts\.onError\(err, taskId\);\s*else alert/);
+      assert.match(remove, /if \(opts\.onError\) opts\.onError\(err, taskId\);\s*else askAlert/);
     });
     it("sends the other actions to batchUpdateTasks, leaves Multi-Select on success and keeps the selection on a failure", () => {
       assert.match(html, /const BATCH_UPDATE_URL = endpoint\("batchUpdateTasks"\);/);
@@ -2483,7 +2483,7 @@ describe("public/index.html helpers", () => {
       assert.match(fn, /apiFetch\(BATCH_UPDATE_URL/);
       assert.match(fn, /if \(data\.projects\) allProjects = data\.projects;/);
       assert.match(fn, /setSelectMode\(false\)/);
-      assert.match(fn, /catch \(err\) \{[^}]*alert\(/);
+      assert.match(fn, /catch \(err\) \{[^}]*askAlert\(/);
       assert.ok(fn.indexOf("catch") > fn.indexOf("setSelectMode(false)"));
       assert.equal(fn.slice(fn.indexOf("catch")).includes("setSelectMode"), false);
       for (const action of ["MOVE_TO_TOP", "SNOOZE", "SET_DUE", "SET_PROJECT"]) assert.ok(html.includes(`batchBody("${action}"`), action);
@@ -2534,7 +2534,7 @@ describe("public/index.html helpers", () => {
     });
     it("draws an icon for every tone from the tone's colour, never a fixed one", () => {
       const {CONFIRM_TONES} = load();
-      assert.deepEqual(Object.keys(CONFIRM_TONES).sort(), ["danger", "edit", "info", "save", "success", "warning"]);
+      assert.deepEqual(Object.keys(CONFIRM_TONES).sort(), ["danger", "edit", "error", "info", "save", "success", "warning"]);
       for (const tone of Object.values(CONFIRM_TONES)) {
         assert.match(tone.icon, /^<svg [^>]*stroke="currentColor"/);
         assert.doesNotMatch(tone.icon, /#[0-9a-fA-F]{3,8}\b/);
@@ -2629,6 +2629,65 @@ describe("public/index.html helpers", () => {
       const fn = html.slice(html.indexOf("function openConfirm"), html.indexOf("function askConfirm"));
       assert.match(fn, /field\.value = view\.input\.value;/);
       assert.equal((fn.match(/innerHTML/g) || []).length, 1);
+    });
+  });
+  describe("the alert dialog", () => {
+    it("shows an alert with the one button: no Cancel, no text field, the button focused whatever the tone", () => {
+      const {confirmView} = load();
+      const v = confirmView("Pick a due date.", {alert: true, tone: "warning", input: true, value: "x"});
+      assert.equal(v.alert, true);
+      assert.equal(v.input, null);
+      assert.equal(v.focusCancel, false);
+      assert.equal(v.tone, "warning");
+      assert.equal(confirmView("Delete it?", {tone: "danger"}).alert, false);
+      assert.equal(confirmView("Delete it?", {tone: "danger"}).focusCancel, true);
+      assert.equal(confirmView("Pick a due date.", {alert: true, tone: "danger"}).focusCancel, false);
+    });
+    it("has an error tone drawn in the danger colours", () => {
+      const {confirmView} = load();
+      assert.equal(confirmView("Failed", {tone: "error"}).tone, "error");
+      const css = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+      assert.match(css, /\.confirm-icon\.danger, \.confirm-icon\.error \{ background: var\(--overdue-bg\); color: var\(--overdue-fg\); \}/);
+      assert.match(css, /\.confirm-ok\.danger, \.confirm-actions \.confirm-ok\.error \{ background: var\(--danger\); \}/);
+    });
+    it("failureText: the failed action as the title and the reason as the detail", () => {
+      const {failureText, confirmView} = load();
+      assert.equal(failureText("Failed to save changes", new Error("Request failed (500)")), "Failed to save changes\n\nRequest failed (500)");
+      assert.equal(failureText("Photo failed", "Too big"), "Photo failed\n\nToo big");
+      assert.equal(failureText("Failed to snooze", new Error("  ")), "Failed to snooze");
+      assert.equal(failureText("Failed to snooze", null), "Failed to snooze");
+      assert.equal(failureText("Failed to snooze", {}), "Failed to snooze");
+      const v = confirmView(failureText("Error undoing", new Error("Nothing to undo")), {tone: "error", alert: true});
+      assert.equal(v.title, "Error undoing");
+      assert.deepEqual(v.detail, [{text: "Nothing to undo", list: false}]);
+    });
+    it("replaces every native alert() in the page: warnings for a value to fix, errors for a failed call", () => {
+      const code = html.replace(/\/\/.*$/gm, "");
+      assert.doesNotMatch(code, /(?<![\w.])alert\(/, "a native alert() is left");
+      const calls = code.match(/(?<!function )askAlert\(/g) || [];
+      assert.equal(calls.length, 29, "the twenty-nine messages the page shows");
+      const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
+      assert.equal(errors.length, 15, "every failed call is an error alert with the reason as detail");
+      const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
+      assert.equal(warnings.length, 14, "every validation message is a warning alert");
+    });
+    it("hides Cancel for an alert, shows it again for a question and focuses the button", () => {
+      const fn = html.slice(html.indexOf("function openConfirm"), html.indexOf("function askConfirm"));
+      assert.match(fn, /cancel\.hidden = view\.alert;/);
+      assert.match(fn, /\(view\.focusCancel \? cancel : ok\)\.focus/);
+      assert.equal((fn.match(/innerHTML/g) || []).length, 1);
+    });
+    it("waits for a question that is open and shows alerts one after another, never cancelling anything", () => {
+      const dom = html.slice(html.indexOf("let confirmPending"), html.indexOf("// Share to TaskHub"));
+      assert.match(dom, /function pumpAlerts\(\) \{\s*if \(confirmPending \|\| !alertQueue\.length\) return;/);
+      assert.match(dom, /openConfirm\(next\.text, \{ \.\.\.next\.options, alert: true \}\)\.then\(\(\) => \{\s*next\.resolve\(\);\s*pumpAlerts\(\);/);
+      assert.match(dom, /function askAlert\(text, options\) \{\s*return new Promise\(resolve => \{\s*alertQueue\.push\(\{ text, options, resolve \}\);\s*pumpAlerts\(\);/);
+      assert.match(dom, /pending\.resolve\(result\);\s*queueMicrotask\(pumpAlerts\);/);
+    });
+    it("waits for the answer before moving focus to the field the message is about", () => {
+      const at = html.indexOf("async function submitTask");
+      const fn = html.slice(at, at + 1500);
+      assert.match(fn, /await askAlert\("Enter a name for the new project, or choose another project\.", \{ tone: "warning" \}\);\s*document\.getElementById\("manualNewProject"\)\.focus\(\);/);
     });
   });
 });

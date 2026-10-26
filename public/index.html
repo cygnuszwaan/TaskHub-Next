@@ -219,7 +219,7 @@
     @media (prefers-reduced-motion: reduce) { .confirm-card { animation: none; } }
     .confirm-icon { display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 50%; }
     .confirm-icon svg { width: 26px; height: 26px; }
-    .confirm-icon.danger { background: var(--overdue-bg); color: var(--overdue-fg); }
+    .confirm-icon.danger, .confirm-icon.error { background: var(--overdue-bg); color: var(--overdue-fg); }
     .confirm-icon.warning { background: var(--lock-bg); color: var(--lock-fg); }
     .confirm-icon.success { background: var(--sched-bg); color: var(--sched-fg); }
     .confirm-icon.info { background: var(--time-bg); color: var(--time-fg); }
@@ -232,7 +232,7 @@
     .confirm-actions { display: flex; gap: 10px; margin-top: 18px; }
     .confirm-actions button { flex: 1; min-height: 46px; font-size: 15px; white-space: normal; }
     .confirm-actions button:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
-    .confirm-actions .confirm-ok.danger { background: var(--danger); }
+    .confirm-actions .confirm-ok.danger, .confirm-actions .confirm-ok.error { background: var(--danger); }
     .confirm-actions .confirm-ok.warning { background: var(--swipe-abort); }
     .confirm-actions .confirm-ok.success { background: var(--success); }
 
@@ -2393,14 +2393,16 @@
       success: { focusCancel: false, icon: `<svg ${CONFIRM_ICON_ATTRS}><polyline points="20 6 9 17 4 12"/></svg>` },
       info: { focusCancel: false, icon: `<svg ${CONFIRM_ICON_ATTRS}><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>` },
       edit: { focusCancel: false, icon: `<svg ${CONFIRM_ICON_ATTRS}><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>` },
-      save: { focusCancel: false, icon: `<svg ${CONFIRM_ICON_ATTRS}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>` }
+      save: { focusCancel: false, icon: `<svg ${CONFIRM_ICON_ATTRS}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>` },
+      error: { focusCancel: false, icon: `<svg ${CONFIRM_ICON_ATTRS}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>` }
     };
     // What the confirmation dialog shows for a prompt text. The first paragraph (up to a blank line) is the question and
     // becomes the title; later paragraphs are the detail, and one whose first line starts with a bullet is shown as a list.
-    // `options`: `tone` (danger, warning, success, info, edit or save; info when missing or unknown) and `confirmLabel` (the
-    // confirm button's words, "OK" when missing). With `input` set the dialog also has a text field, which starts as
+    // `options`: `tone` (danger, warning, success, info, edit, save or error; info when missing or unknown) and `confirmLabel`
+    // (the confirm button's words, "OK" when missing). With `input` set the dialog also has a text field, which starts as
     // `value`, shows `placeholder` and takes at most `maxLength` characters (100 when missing or not a whole number above 0).
-    // The answer is always Cancel or the confirm button, never a guess from the text.
+    // With `alert` set it is a message with the one button only (no Cancel, no text field, the button focused whatever the
+    // tone). The answer is always Cancel or the confirm button, never a guess from the text.
     function confirmView(text, options) {
       const o = options || {};
       const paragraphs = String(text === undefined || text === null ? "" : text).split(/\n[ \t]*\n/).map(p => p.trim()).filter(Boolean);
@@ -2412,22 +2414,33 @@
         title: paragraphs[0] || "Are you sure?",
         detail: paragraphs.slice(1).map(p => ({ text: p, list: p.startsWith("\u2022 ") })),
         confirmLabel: label || "OK",
-        focusCancel: CONFIRM_TONES[tone].focusCancel,
-        input: o.input ? {
+        focusCancel: CONFIRM_TONES[tone].focusCancel && !o.alert,
+        alert: !!o.alert,
+        input: o.input && !o.alert ? {
           value: o.value === undefined || o.value === null ? "" : String(o.value),
           placeholder: typeof o.placeholder === "string" ? o.placeholder : "",
           maxLength: Number.isInteger(o.maxLength) && o.maxLength > 0 ? o.maxLength : 100
         } : null
       };
     }
+    // The text of an alert about a failed call: what failed as the title and the reason (the server's error text) as the
+    // detail, so the dialog shows them apart. Just the title when there is no reason.
+    function failureText(what, err) {
+      const reason = err && typeof err.message === "string" ? err.message : typeof err === "string" ? err : "";
+      return reason.trim() ? `${what}\n\n${reason.trim()}` : String(what);
+    }
     // </pure-helpers>
 
-    // The page's own dialogs, in place of the browser's confirm() and prompt(). `askConfirm(text, { tone, confirmLabel })`
-    // resolves true on the confirm button and false on Cancel, a tap outside the card or Escape. `askInput(text, { tone,
-    // confirmLabel, value, placeholder, maxLength })` adds a text field and resolves with its trimmed text, or null on any
-    // way of cancelling; the confirm button stays off while the field is blank (see confirmView for the text and tones).
-    // Either opens over any other modal and leaves that modal as it was. Asking again while one is open cancels the first.
+    // The page's own dialogs, in place of the browser's confirm(), prompt() and alert(). `askConfirm(text, { tone,
+    // confirmLabel })` resolves true on the confirm button and false on Cancel, a tap outside the card or Escape. `askInput(
+    // text, { tone, confirmLabel, value, placeholder, maxLength })` adds a text field and resolves with its trimmed text, or
+    // null on any way of cancelling; the confirm button stays off while the field is blank. `askAlert(text, { tone,
+    // confirmLabel })` shows a message with one button and resolves, with nothing, once it is dismissed (see confirmView for
+    // the text and tones). Each opens over any other modal and leaves that modal as it was. Asking a question while another
+    // is open cancels the first, but an alert never cancels anything: it waits until the dialog in front of it is closed,
+    // and alerts show one after another.
     let confirmPending = null; // { resolve, opener, bodyWasLocked, input } while the dialog is open
+    const alertQueue = []; // { text, options, resolve } of the alerts waiting their turn
     function settleConfirm(answer) {
       const pending = confirmPending;
       if (!pending) return;
@@ -2438,6 +2451,15 @@
       if (!pending.bodyWasLocked) document.body.classList.remove("modal-open");
       if (pending.opener && pending.opener.isConnected && typeof pending.opener.focus === "function") pending.opener.focus({ preventScroll: true });
       pending.resolve(result);
+      queueMicrotask(pumpAlerts); // after whatever the answer goes on to ask
+    }
+    function pumpAlerts() {
+      if (confirmPending || !alertQueue.length) return;
+      const next = alertQueue.shift();
+      openConfirm(next.text, { ...next.options, alert: true }).then(() => {
+        next.resolve();
+        pumpAlerts();
+      });
     }
     function openConfirm(text, options) {
       settleConfirm(false);
@@ -2462,6 +2484,8 @@
         field.maxLength = view.input.maxLength;
         field.setAttribute("aria-label", view.title);
       }
+      const cancel = document.getElementById("confirmCancelBtn");
+      cancel.hidden = view.alert;
       const ok = document.getElementById("confirmOkBtn");
       ok.textContent = view.confirmLabel;
       ok.className = `confirm-ok ${view.tone}`;
@@ -2475,7 +2499,7 @@
           field.focus({ preventScroll: true });
           field.select();
         } else {
-          (view.focusCancel ? document.getElementById("confirmCancelBtn") : ok).focus({ preventScroll: true });
+          (view.focusCancel ? cancel : ok).focus({ preventScroll: true });
         }
       });
     }
@@ -2484,6 +2508,12 @@
     }
     function askInput(text, options) {
       return openConfirm(text, { ...options, input: true });
+    }
+    function askAlert(text, options) {
+      return new Promise(resolve => {
+        alertQueue.push({ text, options, resolve });
+        pumpAlerts();
+      });
     }
     function closeConfirmOnOverlay(e) {
       if (e.target.id === "confirmModal") settleConfirm(false);
@@ -2822,14 +2852,14 @@
       const manual = document.getElementById("manualToggle").checked;
       const newProjectName = manual && document.getElementById("manualProject").value === NEW_PROJECT ? document.getElementById("manualNewProject").value.trim() : "";
       if (manual && document.getElementById("manualProject").value === NEW_PROJECT && !newProjectName) {
-        alert("Enter a name for the new project, or choose another project.");
+        await askAlert("Enter a name for the new project, or choose another project.", { tone: "warning" });
         document.getElementById("manualNewProject").focus();
         return;
       }
 
       const badCost = manual ? invalidMaterialCost(manualMaterials) : null;
-      if (badCost) { alert(`The cost of "${badCost}" is not an amount. Use a number such as 12.50, or leave it empty.`); return; }
-      if (manual && parseTravelText(document.getElementById("manualTravel").value) === undefined) { alert(INVALID_TRAVEL); return; }
+      if (badCost) { askAlert(`The cost of "${badCost}" is not an amount. Use a number such as 12.50, or leave it empty.`, { tone: "warning" }); return; }
+      if (manual && parseTravelText(document.getElementById("manualTravel").value) === undefined) { askAlert(INVALID_TRAVEL, { tone: "warning" }); return; }
       setLoading(true);
       try {
         const body = manual ? manualTaskBody({
@@ -2864,7 +2894,7 @@
         }
         finishAdd(data, manual);
       } catch (err) {
-        alert("Error updating tasks: " + err.message);
+        askAlert(failureText("Error updating tasks", err), { tone: "error" });
       } finally {
         setLoading(false);
       }
@@ -2939,7 +2969,7 @@
         finishAdd(data, false);
       } catch (err) {
         setProposalBusy(false); // the dialog stays open so the owner can try again or close it
-        alert("Error updating tasks: " + err.message);
+        askAlert(failureText("Error updating tasks", err), { tone: "error" });
       }
     }
 
@@ -3054,7 +3084,7 @@
         renderFilterBar();
         renderTasks();
       } catch (err) {
-        alert("Error undoing: " + err.message);
+        askAlert(failureText("Error undoing", err), { tone: "error" });
       }
     }
 
@@ -3091,7 +3121,7 @@
           renderFilterBar();
           renderTasks();
           if (opts.onError) opts.onError(err, taskId);
-          else alert((kind === "COMPLETE" ? "Error completing task: " : "Error deleting task: ") + err.message);
+          else askAlert(failureText(kind === "COMPLETE" ? "Error completing task" : "Error deleting task", err), { tone: "error" });
         }
       };
       removalChain = removalChain.then(run);
@@ -3342,9 +3372,9 @@
       const costInput = document.getElementById(costId);
       const text = input.value.trim();
       if (!text) return false;
-      if (list.length >= MAX_MATERIALS) { alert(`A task can have at most ${MAX_MATERIALS} materials.`); return false; }
+      if (list.length >= MAX_MATERIALS) { askAlert(`A task can have at most ${MAX_MATERIALS} materials.`, { tone: "warning" }); return false; }
       const cost = parseCostText(costInput.value);
-      if (cost === undefined) { alert("Enter the cost as an amount such as 12.50, or leave it empty."); return false; }
+      if (cost === undefined) { askAlert("Enter the cost as an amount such as 12.50, or leave it empty.", { tone: "warning" }); return false; }
       const item = { id: "", text, checked: false };
       if (cost !== null) item.cost = cost;
       list.push(item);
@@ -3533,7 +3563,7 @@
         renderTasks();
         if (document.getElementById("editModal").style.display === "flex") showEditTimer();
       } catch (err) {
-        alert("Failed to change the timer: " + err.message);
+        askAlert(failureText("Failed to change the timer", err), { tone: "error" });
       } finally {
         timerBusy = false;
       }
@@ -3596,7 +3626,7 @@
         renderFilterBar();
         renderTasks();
       } catch (err) {
-        alert("Failed to snooze: " + err.message);
+        askAlert(failureText("Failed to snooze", err), { tone: "error" });
         return;
       }
       const task = allTasks.find(t => t.id === taskId);
@@ -3612,9 +3642,9 @@
       const dueDate = document.getElementById("editDueDate").value;
 
       const badCost = invalidMaterialCost(editMaterials);
-      if (badCost) { alert(`The cost of "${badCost}" is not an amount. Use a number such as 12.50, or leave it empty.`); return false; }
+      if (badCost) { askAlert(`The cost of "${badCost}" is not an amount. Use a number such as 12.50, or leave it empty.`, { tone: "warning" }); return false; }
       const travelKm = parseTravelText(document.getElementById("editTravel").value);
-      if (travelKm === undefined) { alert(INVALID_TRAVEL); return false; }
+      if (travelKm === undefined) { askAlert(INVALID_TRAVEL, { tone: "warning" }); return false; }
       const tags = tagsRaw.split(",").map(s => s.trim()).filter(Boolean);
       const recurrence = recurrenceFields(document.getElementById("editRecurFreq").value, document.getElementById("editRecurInterval").value);
       const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence, materials: materialsFields(editMaterials), travelKm, comments: document.getElementById("editComments").value };
@@ -3639,7 +3669,7 @@
         renderTasks();
         return true;
       } catch (err) {
-        alert("Failed to save changes: " + err.message);
+        askAlert(failureText("Failed to save changes", err), { tone: "error" });
         return false;
       }
     }
@@ -3669,7 +3699,7 @@
         statusDiv.innerText = `Rescheduled "${task ? task.title : "task"}".`;
       } catch (err) {
         statusDiv.innerText = "Error rescheduling: " + err.message;
-        alert("Error rescheduling: " + err.message); // the status line lives on the Settings page, out of sight from the list
+        askAlert(failureText("Error rescheduling", err), { tone: "error" }); // the status line lives on the Settings page, out of sight from the list
       }
     }
 
@@ -3780,7 +3810,7 @@
         batchBusy = false;
         setBatchStatus("");
         updateBatchBar();
-        alert("Could not change the selected tasks: " + err.message);
+        askAlert(failureText("Could not change the selected tasks", err), { tone: "error" });
       }
     }
 
@@ -3826,10 +3856,10 @@
     }
     function batchSetProject() {
       const choice = document.getElementById("batchProject").value;
-      if (!choice) return alert("Choose a project, or ＋ New project….");
+      if (!choice) return askAlert("Choose a project, or ＋ New project….", { tone: "warning" });
       if (choice === NEW_PROJECT) {
         const name = document.getElementById("batchNewProject").value.trim();
-        if (!name) { document.getElementById("batchNewProject").focus(); return alert("Enter a name for the new project."); }
+        if (!name) { document.getElementById("batchNewProject").focus(); return askAlert("Enter a name for the new project.", { tone: "warning" }); }
         return batchSend(batchBody("SET_PROJECT", selectedIds, { newProject: name }), count => `Added ${taskCountText(count)} to “${name}”.`);
       }
       const project = allProjects.find(p => p.id === choice);
@@ -3957,7 +3987,7 @@
       const row = completedRows.get(id);
       if (!row) return closeCompletedEditor();
       const result = readCompletedForm(row);
-      if (result.error) { alert(result.error); return; }
+      if (result.error) { askAlert(result.error, { tone: "warning" }); return; }
       if (Object.keys(result.fields).length === 0) return closeCompletedEditor();
       try {
         await apiFetch(UPDATE_COMPLETED_URL, {
@@ -3968,7 +3998,7 @@
         closeCompletedEditor();
         await fetchCompleted();
       } catch (err) {
-        alert("Failed to save: " + err.message);
+        askAlert(failureText("Failed to save", err), { tone: "error" });
       }
     }
     // Reopen: the entry leaves the completed list and its task returns to the queue with its accrued time. Edits made in the
@@ -3978,7 +4008,7 @@
       const row = completedRows.get(id);
       if (!row) return closeCompletedEditor();
       const result = readCompletedForm(row);
-      if (result.error) { alert(result.error); return; }
+      if (result.error) { askAlert(result.error, { tone: "warning" }); return; }
       if (!await askConfirm(reopenPrompt({ ...row, ...result.fields }), { tone: "info", confirmLabel: "Reopen" })) return;
       try {
         if (Object.keys(result.fields).length > 0) {
@@ -4001,7 +4031,7 @@
         renderTasks();
         await fetchCompleted();
       } catch (err) {
-        alert("Failed to reopen: " + err.message);
+        askAlert(failureText("Failed to reopen", err), { tone: "error" });
       }
     }
     async function deleteCompletedEntry() {
@@ -4018,7 +4048,7 @@
         closeCompletedEditor();
         await fetchCompleted();
       } catch (err) {
-        alert("Failed to delete: " + err.message);
+        askAlert(failureText("Failed to delete", err), { tone: "error" });
       }
     }
 
@@ -4126,7 +4156,7 @@
         panel.busy = "";
         await loadPhotos(key, panel);
       } catch (err) {
-        alert("Photo failed: " + err.message);
+        askAlert(failureText("Photo failed", err), { tone: "error" });
       } finally {
         panel.busy = "";
         if (photoPanels.get(key) === panel) renderPhotoPanel(key);
@@ -4158,7 +4188,7 @@
       try {
         await apiFetch(DELETE_PHOTO_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
       } catch (err) {
-        alert("Failed to delete: " + err.message);
+        askAlert(failureText("Failed to delete", err), { tone: "error" });
         return;
       }
       const panel = photoPanels.get(key);
@@ -4708,7 +4738,7 @@
         const res = await apiFetch(JOB_SHEET_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
         saveBlob(await res.blob(), name);
       } catch (err) {
-        alert("Job sheet failed: " + err.message);
+        askAlert(failureText("Job sheet failed", err), { tone: "error" });
       } finally {
         jobSheetBusy = false;
         btn.disabled = false;
@@ -5089,7 +5119,7 @@
     });
     document.getElementById("snoozeSetBtn").addEventListener("click", () => {
       const date = snoozeDateFromInput(document.getElementById("snoozeDate").value, todayKey());
-      if (!date) return alert("Pick a day after today.");
+      if (!date) return askAlert("Pick a day after today.", { tone: "warning" });
       snoozeTask(document.getElementById("snoozeTaskId").value, date);
     });
     document.getElementById("unsnoozeBtn").addEventListener("click", () => snoozeTask(document.getElementById("snoozeTaskId").value, null));
@@ -5108,13 +5138,13 @@
     });
     document.getElementById("batchSnoozeSetBtn").addEventListener("click", () => {
       const date = snoozeDateFromInput(document.getElementById("batchSnoozeDate").value, todayKey());
-      if (!date) return alert("Pick a day after today.");
+      if (!date) return askAlert("Pick a day after today.", { tone: "warning" });
       batchSnooze(date);
     });
     document.getElementById("batchUnsnoozeBtn").addEventListener("click", () => batchSnooze(null));
     document.getElementById("batchDueSetBtn").addEventListener("click", () => {
       const date = document.getElementById("batchDueDate").value;
-      if (!DATE_ONLY.test(date)) return alert("Pick a due date.");
+      if (!DATE_ONLY.test(date)) return askAlert("Pick a due date.", { tone: "warning" });
       batchSetDue(date);
     });
     document.getElementById("batchDueClearBtn").addEventListener("click", () => batchSetDue(null));
