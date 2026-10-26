@@ -111,6 +111,15 @@
     .project-actions { margin-top: 8px; }
     .project-actions .project-row { border-bottom: 0; padding: 4px 0; }
     .project-add { margin-top: 8px; }
+    .project-list { margin-top: 8px; border: 1px solid var(--border-chip); border-radius: 6px; overflow: hidden; }
+    .project-item { display: flex; align-items: baseline; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--divider); font-size: 14px; color: var(--text); cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
+    .project-item:last-child { border-bottom: 0; }
+    .project-item:hover { background: var(--hover); }
+    .project-item .project-item-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    .project-item .project-item-client { font-size: 12px; color: var(--text-faint); overflow-wrap: anywhere; text-align: right; }
+    .project-item.active, .project-item.active:hover { background: var(--primary); color: white; }
+    .project-item.active .project-item-client { color: white; opacity: 0.85; }
+    .project-list-empty { padding: 10px 12px; font-size: 13px; color: var(--text-faint); }
     .settings-card > summary { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; -webkit-tap-highlight-color: transparent; }
     .settings-card > summary::-webkit-details-marker { display: none; }
     .settings-card > summary::after { content: "▸"; color: var(--text-muted); font-size: 16px; transition: transform 0.15s ease; }
@@ -425,12 +434,12 @@
       </details>
       <details class="filter-section" id="projectsDetails">
         <summary>Projects <small id="projectsActive"></small></summary>
-        <div class="tag-filter-bar" id="projectFilterBar"></div>
-        <div class="project-actions" id="projectActions"></div>
         <div class="input-row project-add">
-          <input type="text" id="newProjectName" maxlength="100" placeholder="New project name, e.g. Kitchen reno">
+          <input type="text" id="newProjectName" maxlength="100" placeholder="Search projects or clients, or type a new project name" aria-label="Search projects, or name a new project">
           <button type="button" id="addProjectBtn">Add</button>
         </div>
+        <div class="project-list" id="projectFilterBar"></div>
+        <div class="project-actions" id="projectActions"></div>
         <div class="template-block" id="templateBlock">
           <div class="template-title">Start from template</div>
           <div id="templateEmpty" class="settings-note" style="margin:0;">No templates yet. Choose a project above and tap Save as template.</div>
@@ -1594,6 +1603,15 @@
       const project = (Array.isArray(projects) ? projects : []).find(p => p.id === projectId);
       if (!project) return "";
       return [project.name, projectClientName(project, clients)].filter(Boolean).join(" ");
+    }
+    // The projects whose name or client's name contains every word of `query` (case ignored); a blank query keeps all of them.
+    // The Projects list on the Queue uses it for its live search. Pure: the input is not modified.
+    function filterProjects(projects, clients, query) {
+      const words = String(query || "").toLowerCase().split(/\s+/).filter(Boolean);
+      return (Array.isArray(projects) ? projects : []).filter(p => {
+        const text = projectSearchText(p.id, projects, clients).toLowerCase();
+        return words.every(w => text.includes(w));
+      });
     }
     // One line under a client's name in the Clients list: address (lines joined), phone, email and own hourly rate that exist.
     function clientSummary(client) {
@@ -2813,7 +2831,7 @@
       });
 
       document.getElementById("projectFilterBar").addEventListener("click", e => {
-        const chip = e.target.closest(".filter-chip");
+        const chip = e.target.closest(".project-item");
         if (!chip) return;
         setProjectFilter(chip.hasAttribute("data-all") ? null : chip.dataset.project);
       });
@@ -4735,7 +4753,7 @@
       document.getElementById("projectsStatus").textContent = text;
     }
 
-    // The project chips (they filter the Queue like the tag chips do) and, for the chosen project, its Rename and Delete.
+    // The project list (its rows filter the Queue like the tag chips do, narrowed by the text in the project field) and, for the chosen project, its Rename and Delete.
     function renderProjects() {
       if (!projectsLoaded) return;
       renderManualProjects();
@@ -4746,13 +4764,18 @@
       const chosen = allProjects.find(p => p.id === selectedProjectFilter) || null;
       document.getElementById("projectsActive").textContent = chosen ? `· ${chosen.name}` : "";
       if (allProjects.length === 0) {
-        bar.innerHTML = "<span style='color:var(--text-faint); font-size:13px;'>No projects yet.</span>";
+        bar.innerHTML = "<div class=\"project-list-empty\">No projects yet.</div>";
         actions.innerHTML = "";
         return;
       }
       const counts = projectTaskCounts(allTasks);
-      bar.innerHTML = `<div class="filter-chip ${chosen ? "" : "active"}" data-all="1">All (${allTasks.length})</div>` +
-        allProjects.map(p => `<div class="filter-chip ${chosen && chosen.id === p.id ? "active" : ""}" data-project="${esc(p.id)}">📁 ${esc(p.name)} (${esc(counts[p.id] || 0)})</div>`).join("");
+      const shown = filterProjects(allProjects, allClients, document.getElementById("newProjectName").value);
+      bar.innerHTML = `<div class="project-item ${chosen ? "" : "active"}" data-all="1"><span class="project-item-name">All (${allTasks.length})</span></div>` +
+        shown.map(p => {
+          const client = projectClientName(p, allClients);
+          return `<div class="project-item ${chosen && chosen.id === p.id ? "active" : ""}" data-project="${esc(p.id)}"><span class="project-item-name">📁 ${esc(p.name)} (${esc(counts[p.id] || 0)})</span>${client ? `<span class="project-item-client">${esc(client)}</span>` : ""}</div>`;
+        }).join("") +
+        (shown.length === 0 ? "<div class=\"project-list-empty\">No projects match the search.</div>" : "");
       actions.innerHTML = chosen ? `
         <div class="project-row" data-id="${esc(chosen.id)}">
           <span class="project-name">${esc(chosen.name)}</span>
@@ -4818,7 +4841,10 @@
       const input = document.getElementById("newProjectName");
       const name = input.value.trim();
       if (!name) return;
-      if (await saveProject({ action: "CREATE", name }, `Added "${name}".`)) input.value = "";
+      if (await saveProject({ action: "CREATE", name }, `Added "${name}".`)) {
+        input.value = "";
+        renderProjects(); // the search text is gone, so the whole list shows again
+      }
     }
 
     async function renameProject(projectId) {
@@ -4837,6 +4863,7 @@
     }
 
     document.getElementById("addProjectBtn").addEventListener("click", addProject);
+    document.getElementById("newProjectName").addEventListener("input", renderProjects);
     document.getElementById("newProjectName").addEventListener("keydown", e => {
       if (e.key === "Enter") { e.preventDefault(); addProject(); }
     });

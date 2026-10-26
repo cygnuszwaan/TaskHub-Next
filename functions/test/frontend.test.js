@@ -16,7 +16,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
+    return {confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -465,6 +465,11 @@ describe("public/index.html helpers", () => {
         assert.ok(at(`id="${id}"`, projects) < closeOf(projects), `${id} sits in the Projects section`);
       }
       assert.equal(html.split(`id="projectsDetails"`).length, 2, "one Projects section only");
+    });
+    it("puts the project search and add field above the Projects list, redrawing the list as you type", () => {
+      const projects = at(`id="projectsDetails"`);
+      assert.ok(at(`id="newProjectName"`, projects) < at(`id="projectFilterBar"`, projects));
+      assert.match(html, /getElementById\("newProjectName"\)\.addEventListener\("input", renderProjects\)/);
     });
     it("gives Tags and Projects a heading each that can be collapsed, with the active filter shown in it", () => {
       for (const [section, active] of [["tagsDetails", "tagsActive"], ["projectsDetails", "projectsActive"]]) {
@@ -1073,6 +1078,36 @@ describe("public/index.html helpers", () => {
       const {mergeSettings, applySettingsUpdate} = require("../settings");
       const r = applySettingsUpdate(mergeSettings(undefined), h.settingsPayload({...form, time: ""}));
       assert.match(r.error, /schedule.time/);
+    });
+  });
+  describe("filterProjects", () => {
+    const projects = [{id: "p1", name: "Kitchen reno", clientId: "c1"}, {id: "p2", name: "Garden path"}, {id: "p3", name: "Bathroom", clientId: "c2"}];
+    const clients = [{id: "c1", name: "Smith Ltd"}, {id: "c2", name: "Jones"}];
+    const ids = (list) => list.map((p) => p.id);
+    it("keeps every project for a blank query", () => {
+      const h = load();
+      assert.deepEqual(ids(h.filterProjects(projects, clients, "")), ["p1", "p2", "p3"]);
+      assert.deepEqual(ids(h.filterProjects(projects, clients, "   ")), ["p1", "p2", "p3"]);
+      assert.deepEqual(ids(h.filterProjects(projects, clients, undefined)), ["p1", "p2", "p3"]);
+    });
+    it("matches the project name, ignoring case", () => {
+      assert.deepEqual(ids(load().filterProjects(projects, clients, "KIT")), ["p1"]);
+    });
+    it("matches the client's name too", () => {
+      const h = load();
+      assert.deepEqual(ids(h.filterProjects(projects, clients, "smith")), ["p1"]);
+      assert.deepEqual(ids(h.filterProjects(projects, clients, "jones")), ["p3"]);
+    });
+    it("needs every word to match, in the name or the client name", () => {
+      const h = load();
+      assert.deepEqual(ids(h.filterProjects(projects, clients, "reno smith")), ["p1"]);
+      assert.deepEqual(ids(h.filterProjects(projects, clients, "reno jones")), []);
+    });
+    it("copes with a missing client list and does not modify its input", () => {
+      const copy = JSON.stringify(projects);
+      assert.deepEqual(ids(load().filterProjects(projects, undefined, "garden")), ["p2"]);
+      assert.deepEqual(ids(load().filterProjects(projects, [], "smith")), []);
+      assert.equal(JSON.stringify(projects), copy);
     });
   });
   describe("filterTasks", () => {
