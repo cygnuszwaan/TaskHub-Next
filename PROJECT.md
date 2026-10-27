@@ -72,7 +72,7 @@ Goal: the changes made on site (Start, Pause, Abort, Complete, Reopen, descripti
 - Stays online-only: photos, Settings, Clients, project and template management, Update now, job sheets, exports, History's Stats and Project hours.
 
 The rest of the Queue's changes, each the same machinery with its own replay and tests; a change that needs an id or an order only the server makes (a new project, Order number, a move to a task number) waits until the server has them:
-1. The Miscellaneous list: a saved copy of the list for the Materials page, and held adds and ticks (an add keeps its temporary id until the send, as today).
+1. The Miscellaneous list: held adds and ticks on the saved copy (an add keeps its temporary id until the send, as today).
 2. Multi-Select actions that need no new project (Move to top, Set due date, Snooze, Set project to an existing one).
 
 The stretch goals below are unplanned.

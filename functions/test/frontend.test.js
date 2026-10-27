@@ -16,7 +16,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
+    return {MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -140,6 +140,58 @@ describe("public/index.html helpers", () => {
       const fetchBody = html.slice(html.indexOf("async function fetchTasks()"), html.indexOf("async function submitTask()"));
       assert.match(fetchBody, /isNetworkError\(err, navigator\.onLine\)/);
       assert.match(fetchBody, /readTaskCache\(\)/);
+    });
+  });
+  describe("saved Miscellaneous list", () => {
+    it("round-trips for the account that saved it and for no other", () => {
+      const {serializeShoppingCache, parseShoppingCache} = load();
+      const text = serializeShoppingCache("u1", [{id: "a", text: "Nails"}, {id: "b", text: "Glue"}], 1000);
+      assert.deepEqual(parseShoppingCache(text, "u1"), {items: [{id: "a", text: "Nails"}, {id: "b", text: "Glue"}], savedAt: 1000});
+      assert.equal(parseShoppingCache(text, "u2"), null);
+      assert.equal(parseShoppingCache(text, ""), null);
+    });
+    it("keeps an empty list as a valid copy", () => {
+      const {serializeShoppingCache, parseShoppingCache} = load();
+      assert.deepEqual(parseShoppingCache(serializeShoppingCache("u1", [], 7), "u1"), {items: [], savedAt: 7});
+      assert.deepEqual(parseShoppingCache(serializeShoppingCache("u1", undefined, 7), "u1"), {items: [], savedAt: 7});
+    });
+    it("ignores a copy that is missing, damaged or of another shape", () => {
+      const {parseShoppingCache} = load();
+      for (const bad of [null, undefined, "", "not json", "[]", "{}", JSON.stringify({v: 2, uid: "u1", savedAt: 1, items: []}), JSON.stringify({v: 1, uid: "u1", savedAt: "x", items: []}), JSON.stringify({v: 1, uid: "u1", savedAt: 1, items: "no"})]) {
+        assert.equal(parseShoppingCache(bad, "u1"), null, String(bad));
+      }
+    });
+    it("keeps only the id and text of usable items, and at most MAX_SHOPPING_ITEMS", () => {
+      const {serializeShoppingCache, parseShoppingCache, MAX_SHOPPING_ITEMS} = load();
+      const mixed = [{id: "a", text: "Nails", extra: 1}, null, 3, {id: "", text: "No id"}, {id: "b"}, {id: "c", text: ""}, {id: 5, text: "Number id"}];
+      assert.deepEqual(parseShoppingCache(serializeShoppingCache("u1", mixed, 1), "u1").items, [{id: "a", text: "Nails"}]);
+      const hand = JSON.stringify({v: 1, uid: "u1", savedAt: 1, items: [{id: "a", text: "Nails"}, "x", {id: "b", text: 2}]});
+      assert.deepEqual(parseShoppingCache(hand, "u1").items, [{id: "a", text: "Nails"}]);
+      const many = Array.from({length: MAX_SHOPPING_ITEMS + 5}, (_, i) => ({id: `i${i}`, text: `Item ${i}`}));
+      assert.equal(parseShoppingCache(serializeShoppingCache("u1", many, 1), "u1").items.length, MAX_SHOPPING_ITEMS);
+      const hugeHand = JSON.stringify({v: 1, uid: "u1", savedAt: 1, items: many});
+      assert.equal(parseShoppingCache(hugeHand, "u1").items.length, MAX_SHOPPING_ITEMS);
+    });
+    it("words the note with the copy's age", () => {
+      const {shoppingOfflineNoteText} = load();
+      assert.match(shoppingOfflineNoteText(0, 5 * 60000), /offline.*Miscellaneous list.*5 minutes ago.*connection/);
+    });
+    it("is written only with the server's list, cleared on sign-out and shown only for a connection failure", () => {
+      const keyLine = html.match(/const SHOPPING_CACHE_KEY = "([^"]+)"/);
+      assert.ok(keyLine && keyLine[1] === "taskhub-shopping-cache");
+      assert.match(html, /clearShoppingCache\(\); \/\/ nor of the Miscellaneous list/);
+      const setFrom = html.slice(html.indexOf("function setShoppingFromServer(items)"), html.indexOf("// Reads the list from the server."));
+      assert.match(setFrom, /saveShoppingCache\(items\)/);
+      assert.match(setFrom, /showSavedShoppingNote\(null\)/);
+      assert.equal((html.match(/saveShoppingCache\(/g) || []).length, 2, "one definition and one call: the server's list is the only thing saved");
+      assert.doesNotMatch(html, /saveShoppingCache\(shoppingItems\)/, "the saved copy never holds the page's list with changes not yet saved");
+      const queueBody = html.slice(html.indexOf("function queueShopping("), html.indexOf("function addShoppingText("));
+      assert.match(queueBody, /shoppingPending === 0 && Array\.isArray\(data\.items\)\) setShoppingFromServer\(data\.items\)/);
+      const loadBody = html.slice(html.indexOf("async function loadShoppingList()"), html.indexOf("// Sends one change to the Miscellaneous list"));
+      assert.match(loadBody, /isNetworkError\(err, navigator\.onLine\)/);
+      assert.match(loadBody, /readShoppingCache\(\)/);
+      assert.match(loadBody, /Could not load the list: /);
+      assert.match(html, /savedShoppingAt !== null\) loadShoppingList\(\)/);
     });
   });
   describe("saved completed list", () => {
@@ -3338,7 +3390,7 @@ describe("public/index.html helpers", () => {
       const fn = html.slice(html.indexOf("function queueShopping"), html.indexOf("function addShoppingText"));
       assert.match(fn, /shoppingChain = shoppingChain\.then\(/);
       assert.match(fn, /apiFetch\(UPDATE_SHOPPING_URL/);
-      assert.match(fn, /if \(shoppingPending === 0 && Array\.isArray\(data\.items\)\) shoppingItems = data\.items;/);
+      assert.match(fn, /if \(shoppingPending === 0 && Array\.isArray\(data\.items\)\) setShoppingFromServer\(data\.items\);/);
       assert.match(fn, /catch \(err\) \{\s*shoppingPending--;\s*undo\(\);/);
       assert.match(fn, /"Not saved: " \+ err\.message/);
       assert.match(fn, /finally \{\s*renderShoppingList\(\);/);

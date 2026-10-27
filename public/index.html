@@ -550,6 +550,7 @@
     <div id="materialsList"></div>
     <div class="material-group" id="shoppingSection">
       <div class="material-group-title plain-title">Miscellaneous</div>
+      <div class="offline-note" id="shoppingOfflineNote" aria-live="polite" hidden><span id="shoppingOfflineNoteText"></span> <button type="button" id="shoppingRetryBtn">Retry</button></div>
       <div class="material-row shopping-add">
         <input type="text" id="shoppingInput" maxlength="100" placeholder="Add an item to get" aria-label="Add an item to get" autocomplete="off" enterkeyhint="done">
         <button type="button" id="shoppingAddBtn">Add</button>
@@ -1310,6 +1311,7 @@
           } else {
             clearTaskCache(); // signed out: no copy of the owner's tasks stays on this device
             clearCompletedCache(); // nor of the completed entries
+            clearShoppingCache(); // nor of the Miscellaneous list
             showGate("");
           }
         });
@@ -1462,7 +1464,9 @@
     let materialsPending = 0;
     let materialsChain = Promise.resolve();
     let shoppingItems = []; // the Miscellaneous list, [{id, text}], as the page shows it: the server's list plus changes not yet saved
-    let shoppingLoaded = false; // true once the server has answered, so a list that failed to load is not shown as empty
+    let shoppingLoaded = false; // true once the server has answered (or the saved copy is shown), so a list that failed to load is not shown as empty
+    let shoppingSyncAt = 0; // when the page last had the server's list
+    let savedShoppingAt = null; // when the saved copy on screen was saved, null while the list is the server's
     // Adds and check-offs on the Miscellaneous list show at once and are saved in order in the background.
     let shoppingPending = 0; // how many have not been answered yet
     let shoppingChain = Promise.resolve();
@@ -3348,6 +3352,28 @@
         return { rows, savedAt: data.savedAt, limited: data.limited === true || data.rows.length > COMPLETED_CACHE_ROWS };
       } catch (e) { return null; }
     }
+    // The saved copy of the Miscellaneous list, kept in localStorage under SHOPPING_CACHE_KEY for the same signed-in account as the task
+    // copy: the server's items as they came, [{id, text}] (at most MAX_SHOPPING_ITEMS), never the page's list with changes not yet saved.
+    const SHOPPING_CACHE_KEY = "taskhub-shopping-cache";
+    function serializeShoppingCache(uid, items, savedAt) {
+      const list = (Array.isArray(items) ? items : []).filter(i => i && typeof i.id === "string" && i.id && typeof i.text === "string" && i.text).map(i => ({ id: i.id, text: i.text }));
+      return JSON.stringify({ v: 1, uid: String(uid || ""), savedAt, items: list.slice(0, MAX_SHOPPING_ITEMS) });
+    }
+    // {items, savedAt} for a stored copy that is well formed and belongs to `uid`, else null. An empty list is a valid copy.
+    function parseShoppingCache(text, uid) {
+      if (typeof text !== "string" || !text || !uid) return null;
+      try {
+        const data = JSON.parse(text);
+        if (!data || data.v !== 1 || data.uid !== uid || !Array.isArray(data.items) || !Number.isFinite(data.savedAt)) return null;
+        const items = data.items.filter(i => i && typeof i.id === "string" && i.id && typeof i.text === "string" && i.text).map(i => ({ id: i.id, text: i.text }));
+        return { items: items.slice(0, MAX_SHOPPING_ITEMS), savedAt: data.savedAt };
+      } catch (e) { return null; }
+    }
+    // The note shown above the Miscellaneous list while it is the saved copy that is on screen.
+    function shoppingOfflineNoteText(savedAt, now) {
+      return `You're offline. Showing the Miscellaneous list as it was ${cacheAgeText(savedAt, now)}. Changes need a connection.`;
+    }
+
     // The note shown above History while it is the saved copy that is on screen.
     function completedOfflineNoteText(savedAt, now) {
       return `You're offline. Showing the newest completed tasks as they were ${cacheAgeText(savedAt, now)}. Stats, Project hours and photos need a connection.`;
@@ -4711,8 +4737,10 @@
       });
       window.addEventListener("online", () => { if (savedListAt !== null) fetchTasks().then(drainAllQueues); else drainAllQueues(); });
       window.addEventListener("online", () => { if (savedCompletedAt !== null) fetchCompleted(); }); // History's saved copy is replaced too
+      window.addEventListener("online", () => { if (savedShoppingAt !== null) loadShoppingList(); }); // so is the Miscellaneous list's
       document.getElementById("offlineRetryBtn").addEventListener("click", fetchTasks);
       document.getElementById("completedRetryBtn").addEventListener("click", fetchCompleted);
+      document.getElementById("shoppingRetryBtn").addEventListener("click", loadShoppingList);
       initAuth();
       // The service worker caches only the app shell (see sw.js); the page works without it.
       if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -5429,16 +5457,59 @@
           </label>`).join("");
     }
 
+    // The saved copy of the Miscellaneous list (SHOPPING_CACHE_KEY): written with every list the server sends, never with the page's own.
+    function saveShoppingCache(items) {
+      const user = firebaseAuth && firebaseAuth.currentUser;
+      if (!user) return;
+      try { localStorage.setItem(SHOPPING_CACHE_KEY, serializeShoppingCache(user.uid, items, shoppingSyncAt)); } catch (e) { clearShoppingCache(); }
+    }
+    function readShoppingCache() {
+      const user = firebaseAuth && firebaseAuth.currentUser;
+      try { return user ? parseShoppingCache(localStorage.getItem(SHOPPING_CACHE_KEY), user.uid) : null; } catch (e) { return null; }
+    }
+    function clearShoppingCache() {
+      try { localStorage.removeItem(SHOPPING_CACHE_KEY); } catch (e) { /* storage unavailable */ }
+    }
+    // Shows the note above the Miscellaneous list for a list saved at `savedAt` (ms), or hides it for null.
+    function showSavedShoppingNote(savedAt) {
+      savedShoppingAt = savedAt;
+      const note = document.getElementById("shoppingOfflineNote");
+      if (!note) return;
+      note.hidden = savedAt === null;
+      if (savedAt !== null) document.getElementById("shoppingOfflineNoteText").textContent = shoppingOfflineNoteText(savedAt, Date.now());
+    }
+    // The page takes the server's list as it is: it is shown, saved for offline use and any saved-copy note goes.
+    function setShoppingFromServer(items) {
+      shoppingItems = items;
+      shoppingLoaded = true;
+      shoppingSyncAt = Date.now();
+      saveShoppingCache(items);
+      showSavedShoppingNote(null);
+    }
+
+    // Reads the list from the server. When the connection is down the saved copy is shown instead (or the list already on screen is kept)
+    // under a note with a Retry button; any other failure shows its error and leaves the list as it is.
     async function loadShoppingList() {
       const status = document.getElementById("shoppingStatus");
       try {
         const res = await apiFetch(SHOPPING_URL);
-        shoppingItems = (await res.json()).items || [];
-        shoppingLoaded = true;
+        setShoppingFromServer((await res.json()).items || []);
         status.textContent = "";
         renderShoppingList();
       } catch (err) {
-        status.textContent = "Could not load the list: " + err.message;
+        const saved = isNetworkError(err, navigator.onLine) ? readShoppingCache() : null;
+        if (shoppingLoaded && isNetworkError(err, navigator.onLine)) {
+          status.textContent = "";
+          showSavedShoppingNote(savedShoppingAt !== null ? savedShoppingAt : shoppingSyncAt);
+        } else if (saved) {
+          shoppingItems = saved.items;
+          shoppingLoaded = true;
+          status.textContent = "";
+          showSavedShoppingNote(saved.savedAt);
+          renderShoppingList();
+        } else {
+          status.textContent = "Could not load the list: " + err.message;
+        }
       }
     }
 
@@ -5464,7 +5535,7 @@
           const data = await res.json();
           if (onSaved) onSaved(data);
           shoppingPending--;
-          if (shoppingPending === 0 && Array.isArray(data.items)) shoppingItems = data.items;
+          if (shoppingPending === 0 && Array.isArray(data.items)) setShoppingFromServer(data.items);
         } catch (err) {
           shoppingPending--;
           undo();
