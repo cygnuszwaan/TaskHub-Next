@@ -4264,8 +4264,23 @@ describe("offline add queue display (page)", () => {
       const fn = body("renderAddQueue");
       assert.match(fn, /box\.hidden = addQueue\.length === 0 && actionQueue\.length === 0/);
       assert.match(fn, /actionCardView\(action, action\.requestId === sendingActionId\)/);
-      assert.ok(fn.indexOf("queueCardView(") < fn.indexOf("actionCardView("));
       assert.match(fn, /"data-action-retry", "data-action-discard"/);
+    });
+    it("holds the action cards in one card that starts closed, after the add cards", () => {
+      const fn = body("renderAddQueue");
+      assert.match(html, /let actionQueueOpen = false;/);
+      assert.match(fn, /actionQueueSummary\(actionQueue, sendingActionId\)/);
+      assert.match(fn, /data-action-queue-toggle aria-expanded="\$\{actionQueueOpen\}" aria-controls="actionQueueCards"/);
+      assert.match(fn, /\(actionQueueOpen \? `<div id="actionQueueCards">\$\{actionQueue\.map\(/);
+      assert.match(fn, /if \(actionQueue\.length === 0\) actionQueueOpen = false/);
+      assert.match(fn, /esc\(summary\.label\)/);
+      assert.match(fn, /esc\(summary\.text\)/);
+      assert.ok(fn.indexOf("queueCardView(") < fn.indexOf("+ group"), "the add cards come first, then the card of changes");
+      const toggle = body("toggleActionQueue");
+      assert.match(toggle, /actionQueueOpen = !actionQueueOpen/);
+      assert.ok(toggle.indexOf("renderAddQueue()") < toggle.indexOf(".focus()"));
+      const wire = html.indexOf("document.getElementById(\"addQueueBox\").addEventListener(\"click\"");
+      assert.ok(wire > 0 && html.indexOf("[data-action-queue-toggle]", wire) > wire);
     });
     it("asks before discarding an action, takes its dependents with it and refuses one on its way", () => {
       const fn = body("discardQueuedAction");

@@ -22,7 +22,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeComments, applyEditFields, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionDiscardPrompt};
+    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeComments, applyEditFields, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt};
   `)();
 }
 
@@ -595,6 +595,22 @@ describe("action queue (public/index.html)", () => {
       assert.equal(page.actionCardView(failed, true).failed, false, "an action on its way is never failed");
       assert.equal(page.actionCardView({...failed, error: ""}).text, "Not sent");
       assert.equal(page.actionCardView(undefined).text, "Waiting to send");
+    });
+    it("summarises the waiting changes for the closed card, and shows a refusal", () => {
+      const page = load();
+      assert.equal(page.actionQueueSummary([]), null);
+      assert.equal(page.actionQueueSummary(undefined), null);
+      const a = action(page, {taskId: "a"});
+      const b = action(page, {taskId: "b"});
+      const c = action(page, {taskId: "c"});
+      assert.deepEqual(page.actionQueueSummary([a]), {label: "1 change", text: "1 waiting to send", failed: false});
+      assert.deepEqual(page.actionQueueSummary([a, b, c]), {label: "3 changes", text: "3 waiting to send", failed: false});
+      const refused = {...b, status: "FAILED", error: "Task not found"};
+      assert.deepEqual(page.actionQueueSummary([a, refused, c]), {label: "3 changes", text: "2 waiting to send, 1 not accepted", failed: true});
+      assert.deepEqual(page.actionQueueSummary([refused]), {label: "1 change", text: "1 not accepted", failed: true});
+      assert.deepEqual(page.actionQueueSummary([a, refused], a.requestId), {label: "2 changes", text: "1 waiting to send, 1 not accepted", failed: true});
+      assert.equal(page.actionQueueSummary([refused], refused.requestId).failed, false, "an action on its way is never counted as refused");
+      assert.deepEqual(page.actionQueueSummary([a, null, "x"]), {label: "1 change", text: "1 waiting to send", failed: false});
     });
     it("asks before discarding, and says what goes with it", () => {
       const page = load();
