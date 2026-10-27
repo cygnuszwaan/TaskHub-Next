@@ -17,7 +17,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey};`)();
+    return {MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -288,14 +288,14 @@ describe("public/index.html helpers", () => {
     });
     it("leaves only the fields that can be saved offline enabled in the entry's form", () => {
       const {COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled} = load();
-      assert.deepEqual(OFFLINE_COMPLETED_FIELDS, ["priority", "trackedMinutes", "tags", "travelKm", "location", "phone", "email", "description", "comments", "commentDelete"]);
+      assert.deepEqual(OFFLINE_COMPLETED_FIELDS, ["priority", "trackedMinutes", "tags", "travelKm", "location", "phone", "email", "url", "description", "comments", "commentDelete"]);
       for (const field of new Set(Object.values(COMPLETED_FORM_CONTROLS))) {
         assert.equal(completedFieldDisabled(field, false), false, `${field} online`);
         assert.equal(completedFieldDisabled(field, undefined), false, `${field} unknown`);
         assert.equal(completedFieldDisabled(field, true), !OFFLINE_COMPLETED_FIELDS.includes(field), `${field} offline`);
       }
       const enabled = Object.entries(COMPLETED_FORM_CONTROLS).filter(([, field]) => !completedFieldDisabled(field, true)).map(([id]) => id);
-      assert.deepEqual(enabled, ["cePriority", "ceTracked", "ceTags", "ceTravel", "ceLocation", "ceLocationClearBtn", "cePhone", "ceEmail", "ceDescription", "ceCommentText", "ceCommentAdd"]);
+      assert.deepEqual(enabled, ["cePriority", "ceTracked", "ceTags", "ceTravel", "ceLocation", "ceLocationClearBtn", "cePhone", "ceEmail", "ceUrl", "ceDescription", "ceCommentText", "ceCommentAdd"]);
       for (const id of ["ceProject", "ceMaterials", "ceDate", "ceTime", "cePlaceSearchBtn", "ceSheetBtn", "ceDeleteBtn"]) assert.ok(!enabled.includes(id), `${id} needs a connection`);
     });
     it("covers every control of the entry's form: each id exists on the page and each form field has a control", () => {
@@ -1131,6 +1131,88 @@ describe("public/index.html helpers", () => {
       const form = {title: "Fit tap", priority: "LOW", estimatedMinutes: "30"};
       assert.equal(manualTaskBody({...form, travelKm: "12.5"}).manual.travelKm, 12.5);
       for (const v of ["", "0", "abc", undefined]) assert.equal("travelKm" in manualTaskBody({...form, travelKm: v}).manual, false, String(v));
+    });
+    it("manualTaskBody sends a link in the form it is saved in, and none for an empty box", () => {
+      const {manualTaskBody} = load();
+      const form = {title: "Fit tap", priority: "LOW", estimatedMinutes: "30"};
+      assert.equal(manualTaskBody({...form, url: " example.com/job "}).manual.url, "https://example.com/job");
+      assert.equal(manualTaskBody({...form, url: "http://example.com/a"}).manual.url, "http://example.com/a");
+      for (const v of ["", "  ", null, undefined, "javascript:alert(1)"]) assert.equal("url" in manualTaskBody({...form, url: v}).manual, false, String(v));
+    });
+    it("templateFormValues fills the link from a completed task", () => {
+      const {templateFormValues} = load();
+      assert.equal(templateFormValues({title: "Fit tap", url: "https://example.com/job"}).url, "https://example.com/job");
+      for (const url of [undefined, null, 5]) assert.equal(templateFormValues({title: "Fit tap", url}).url, "", String(url));
+    });
+    it("completedChanges sends the link only when it differs, null to clear and an error for a bad one", () => {
+      const {completedChanges, completedFormValues, INVALID_URL} = load();
+      const zone = "Pacific/Auckland";
+      const row = {title: "Fit tap", priority: "LOW", estimatedMinutes: 30, trackedSeconds: 0, url: "https://example.com/job", completedAt: "2026-10-17T20:30:00.000Z"};
+      const form = () => ({...completedFormValues(row, zone)});
+      assert.equal(form().url, "https://example.com/job");
+      assert.deepEqual(completedChanges(row, form(), zone), {fields: {}});
+      assert.deepEqual(completedChanges(row, {...form(), url: " https://example.com/job "}, zone), {fields: {}}, "other spacing is no change");
+      assert.deepEqual(completedChanges(row, {...form(), url: "other.example/x"}, zone), {fields: {url: "https://other.example/x"}});
+      for (const v of ["", "  ", null]) assert.deepEqual(completedChanges(row, {...form(), url: v}, zone), {fields: {url: null}}, String(v));
+      assert.equal(completedChanges(row, {...form(), url: "mailto:a@b.co"}, zone).error, INVALID_URL);
+      const bare = {...row};
+      delete bare.url;
+      assert.equal(completedFormValues(bare, zone).url, "");
+      assert.deepEqual(completedChanges(bare, {...completedFormValues(bare, zone), url: ""}, zone), {fields: {}}, "none left as none");
+      assert.deepEqual(completedChanges(bare, {...completedFormValues(bare, zone), url: "a.example"}, zone), {fields: {url: "https://a.example"}});
+    });
+    it("lets a link be edited from the saved copy of History", () => {
+      const {completedFieldDisabled, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS} = load();
+      assert.equal(COMPLETED_FORM_CONTROLS.ceUrl, "url");
+      assert.ok(OFFLINE_COMPLETED_FIELDS.includes("url"));
+      assert.equal(completedFieldDisabled("url", true), false);
+    });
+    it("takes a task's link from the task, else its project, else the project's client", () => {
+      const {effectiveUrl} = load();
+      const projects = [{id: "p1", name: "Reno", clientId: "c1", url: "https://project.example/plan"}, {id: "p2", name: "Fence", clientId: "c1"}, {id: "p3", name: "Solo"}, {id: "p4", name: "Bad", clientId: "c1", url: "javascript:alert(1)"}];
+      const clients = [{id: "c1", name: "Smith", url: "https://client.example/job"}, {id: "c2", name: "Jones"}];
+      assert.deepEqual(effectiveUrl(" example.com/own ", "p1", projects, clients), {url: "https://example.com/own", from: "task"});
+      assert.deepEqual(effectiveUrl("", "p1", projects, clients), {url: "https://project.example/plan", from: "project"});
+      assert.deepEqual(effectiveUrl("  ", "p2", projects, clients), {url: "https://client.example/job", from: "client"}, "a project with no link uses its client's");
+      assert.deepEqual(effectiveUrl("", "p4", projects, clients), {url: "https://client.example/job", from: "client"}, "an unusable stored link is passed over");
+      assert.deepEqual(effectiveUrl("", "p3", projects, clients), {url: "", from: ""});
+      assert.deepEqual(effectiveUrl("", "", projects, clients), {url: "", from: ""});
+      assert.deepEqual(effectiveUrl("", "gone", projects, clients), {url: "", from: ""});
+      assert.deepEqual(effectiveUrl(undefined, "p1", undefined, undefined), {url: "", from: ""});
+      assert.deepEqual(effectiveUrl("two words", "p1", projects, clients), {url: "", from: "task"}, "a typed link that is wrong gives nothing to open, and does not fall back");
+    });
+    it("shows the inherited link as the Link box's placeholder", () => {
+      const {urlPlaceholder} = load();
+      assert.equal(urlPlaceholder({url: "https://project.example/plan", from: "project"}), "From project: https://project.example/plan");
+      assert.equal(urlPlaceholder({url: "https://client.example/job", from: "client"}), "From client: https://client.example/job");
+      assert.equal(urlPlaceholder({url: "https://example.com/own", from: "task"}), "e.g. example.com/menu");
+      assert.equal(urlPlaceholder({url: "", from: ""}), "e.g. example.com/menu");
+    });
+    it("has a Link box in the add card and both edit forms, and a Link button beside Navigate in both modals", () => {
+      assert.match(html, /<input type="url" id="manualUrl" maxlength="500"/);
+      for (const prefix of ["edit", "ce"]) {
+        assert.match(html, new RegExp(`<input type="url" id="${prefix}Url" maxlength="500"[^>]*oninput="refreshContact\\('${prefix}'\\)"`));
+        assert.match(html, new RegExp(`<a id="${prefix}Link" class="contact-btn btn-secondary" href="#" target="_blank" rel="noopener noreferrer" hidden>🔗 Link</a>`));
+        assert.ok(html.indexOf(`id="${prefix}Navigate"`) < html.indexOf(`id="${prefix}Link"`) && html.indexOf(`id="${prefix}Link"`) < html.indexOf(`id="${prefix}ContactActions"`), "Link follows Navigate, before the contact buttons");
+      }
+      assert.ok(html.indexOf("id=\"editEmail\"") < html.indexOf("id=\"editUrl\"") && html.indexOf("id=\"ceEmail\"") < html.indexOf("id=\"ceUrl\"") && html.indexOf("id=\"manualEmail\"") < html.indexOf("id=\"manualUrl\""), "after Email");
+    });
+    it("hides the Navigate row only when neither Navigate nor Link has anything to open, and follows the typed box and the project", () => {
+      const fn = html.slice(html.indexOf("function refreshNavigateRow"), html.indexOf("// Brings a form's Phone, Email and Link placeholders"));
+      assert.match(fn, /navigate\.hidden = where === "";/);
+      assert.match(fn, /open\.hidden = url === "";/);
+      assert.match(fn, /`\$\{prefix\}NavigateActions`\)\.hidden = where === "" && url === "";/);
+      assert.match(fn, /effectiveUrl\(urlBox\.value, projectId, allProjects, allClients\)\.url/);
+      assert.match(html, /refreshNavigateRow\(prefix\);\n\s*\}/, "the location's refresh brings the row along");
+      assert.match(html, /urlBox\.placeholder = urlPlaceholder\(effectiveUrl\(urlBox\.value, projectId, allProjects, allClients\)\);/);
+    });
+    it("warns about a bad link when adding or saving, and sends it with the save", () => {
+      assert.match(html, /if \(manual && parseUrlText\(document\.getElementById\("manualUrl"\)\.value\) === undefined\) \{ askAlert\(INVALID_URL, \{ tone: "warning" \}\); return; \}/);
+      assert.match(html, /if \(url === undefined\) \{ askAlert\(INVALID_URL, \{ tone: "warning" \}\); return false; \}/);
+      assert.match(html, /phone: document\.getElementById\("editPhone"\)\.value\.trim\(\), email, url, description:/);
+      assert.match(html, /url: document\.getElementById\("manualUrl"\)\.value,/);
+      assert.match(html, /url: document\.getElementById\("ceUrl"\)\.value,/);
+      assert.match(html, /document\.getElementById\("manualUrl"\)\.value = "";/, "cleared after each manual add");
     });
     it("templateFormValues fills Travel from a completed task", () => {
       const {templateFormValues} = load();
@@ -2029,7 +2111,7 @@ describe("public/index.html helpers", () => {
 
       it("completedFormValues: starts the form from the row, with the time in minutes and the completion on the zone's clock", () => {
         const {completedFormValues} = load();
-        assert.deepEqual(completedFormValues(row, NZ), {priority: "LOW", trackedMinutes: 2, tags: "Garden, Outdoor", materials: "", description: "Front only", travelKm: "", location: null, phone: "", email: "", projectId: "p1", date: "2026-10-18", time: "09:30"});
+        assert.deepEqual(completedFormValues(row, NZ), {priority: "LOW", trackedMinutes: 2, tags: "Garden, Outdoor", materials: "", description: "Front only", travelKm: "", location: null, phone: "", email: "", url: "", projectId: "p1", date: "2026-10-18", time: "09:30"});
       });
       it("reopenPrompt: names the task, says it returns with its tracked time and leaves History", () => {
         const {reopenPrompt} = load();
@@ -2536,7 +2618,7 @@ describe("public/index.html helpers", () => {
     it("fills the form with the old details but no due date, and every material unchecked", () => {
       const {templateFormValues} = load();
       const v = templateFormValues(templates[0], ["p1"]);
-      assert.deepEqual(v, {title: "Mow lawn", priority: "LOW", estimatedMinutes: 45, tags: "Outdoor, Garden", dueDate: "", recurFreq: "WEEKLY", recurInterval: 2, projectId: "p1", projectOrder: 2, materials: [{id: "", text: "Petrol", checked: false}, {id: "", text: "Oil", checked: false}], description: "Check the blade", phone: "", email: "", travelKm: "18", location: null, history: null});
+      assert.deepEqual(v, {title: "Mow lawn", priority: "LOW", estimatedMinutes: 45, tags: "Outdoor, Garden", dueDate: "", recurFreq: "WEEKLY", recurInterval: 2, projectId: "p1", projectOrder: 2, materials: [{id: "", text: "Petrol", checked: false}, {id: "", text: "Oil", checked: false}], description: "Check the blade", phone: "", email: "", url: "", travelKm: "18", location: null, history: null});
     });
     it("carries a template's location into the form values, dropping an unusable one", () => {
       const {templateFormValues} = load();
@@ -2576,7 +2658,7 @@ describe("public/index.html helpers", () => {
     });
     it("falls back to the form's defaults for a bare template", () => {
       const {templateFormValues} = load();
-      assert.deepEqual(templateFormValues({title: "x"}), {title: "x", priority: "MEDIUM", estimatedMinutes: 15, tags: "", dueDate: "", recurFreq: "NONE", recurInterval: 1, projectId: "", projectOrder: "", materials: [], description: "", phone: "", email: "", travelKm: "", location: null, history: null});
+      assert.deepEqual(templateFormValues({title: "x"}), {title: "x", priority: "MEDIUM", estimatedMinutes: 15, tags: "", dueDate: "", recurFreq: "NONE", recurInterval: 1, projectId: "", projectOrder: "", materials: [], description: "", phone: "", email: "", url: "", travelKm: "", location: null, history: null});
     });
     it("posts startNow only when ticked", () => {
       const {addTaskExtras} = load();
@@ -3287,11 +3369,11 @@ describe("public/index.html helpers", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(code, /(?<![\w.])alert\(/, "a native alert() is left");
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
-      assert.equal(calls.length, 64, "the sixty-four messages the page shows (thirteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and two why a Multi-Select change was not)");
+      assert.equal(calls.length, 66, "the sixty-six messages the page shows (thirteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and two why a Multi-Select change was not)");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 19, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
-      assert.equal(warnings.length, 43, "every validation message is a warning alert");
+      assert.equal(warnings.length, 45, "every validation message is a warning alert");
     });
     it("hides Cancel for an alert, shows it again for a question and focuses the button", () => {
       const fn = html.slice(html.indexOf("function openConfirm"), html.indexOf("function askConfirm"));
@@ -3865,7 +3947,7 @@ describe("Reorder mode", () => {
       assert.doesNotMatch(html, /id="manualNavigate"/);
       assert.match(html, /<label for="ceLocation">Location<\/label>/);
       assert.match(html, /location: locationFromBox\(document\.getElementById\("ceLocation"\)\.value, pickedLocation\.ce\),/);
-      assert.match(html, /link\.href = href \|\| "#";/);
+      assert.match(html, /navigate\.href = where \|\| "#";/);
     });
     it("puts a Location field in the add form and the edit modal, and the 📍 chip on task rows", () => {
       for (const prefix of ["manual", "edit"]) {

@@ -11,7 +11,7 @@ const {recordCompletion} = require("../history");
 const {normalizeDescription} = require("../description");
 const {normalizeSnooze} = require("../snooze");
 const {normalizeTravelKm} = require("../travel");
-const {normalizePhone, normalizeEmail} = require("../contact");
+const {normalizePhone, normalizeEmail, normalizeUrl} = require("../contact");
 const {normalizeLocation} = require("../location");
 const {applyCompletedEdit} = require("../completedEdit");
 const {normalizeMaterials: serverNormalizeMaterials} = require("../materials");
@@ -30,7 +30,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, ENTRY_EDIT_FIELDS, normalizeSnooze, normalizeTravelKm, normalizePhone, normalizeEmail, normalizeLocation, normalizeRecurrence, checkEditFields, taskEditChanges, serverOnlyEditChanges, taskEditBody, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, addCommentToList, removeCommentFromList, commentBody, commentDeleteBody, waitingCommentIds, MAX_COMMENTS, normalizeCommentText, commentsOf, cleanEntryTags, MAX_TRACKED_SECONDS, MAX_ENTRY_TAGS, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt, deletionRecord, deleteBody, removalBody, normalizeMaterials, normalizeMaterialCost, heldMaterials, withMaterialIds, coalesceMaterialsEdit, openMaterialGroups, openMaterialCount, withMaterialChecked, MAX_MATERIALS, BATCH_ACTIONS, MAX_BATCH, batchInList, batchActionBody, unheldBatchId, isShoppingKind, shoppingTempId, withPendingShopping, waitingShoppingIds, hasPendingShopping, shoppingBody, shoppingRemovalId, shoppingWithAdded, shoppingWithout, MAX_SHOPPING_ITEMS, MAX_SHOPPING_TEXT};
+    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, ENTRY_EDIT_FIELDS, normalizeSnooze, normalizeTravelKm, normalizePhone, normalizeEmail, normalizeUrl, normalizeLocation, normalizeRecurrence, checkEditFields, taskEditChanges, serverOnlyEditChanges, taskEditBody, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, addCommentToList, removeCommentFromList, commentBody, commentDeleteBody, waitingCommentIds, MAX_COMMENTS, normalizeCommentText, commentsOf, cleanEntryTags, MAX_TRACKED_SECONDS, MAX_ENTRY_TAGS, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt, deletionRecord, deleteBody, removalBody, normalizeMaterials, normalizeMaterialCost, heldMaterials, withMaterialIds, coalesceMaterialsEdit, openMaterialGroups, openMaterialCount, withMaterialChecked, MAX_MATERIALS, BATCH_ACTIONS, MAX_BATCH, batchInList, batchActionBody, unheldBatchId, isShoppingKind, shoppingTempId, withPendingShopping, waitingShoppingIds, hasPendingShopping, shoppingBody, shoppingRemovalId, shoppingWithAdded, shoppingWithout, MAX_SHOPPING_ITEMS, MAX_SHOPPING_TEXT};
   `)();
 }
 
@@ -267,8 +267,8 @@ describe("action queue (public/index.html)", () => {
     it("holds only the kinds stage 1 can replay and the fields it can apply", () => {
       const page = load();
       assert.deepEqual(page.ACTION_KINDS, ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO", "COMMENT", "COMMENT_DELETE", "DELETE", "SHOPPING_ADD", "SHOPPING_REMOVE", "BATCH"]);
-      assert.deepEqual(page.EDIT_FIELDS, ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "location", "snoozedUntil", "description", "materials"]);
-      assert.deepEqual(page.ENTRY_EDIT_FIELDS, ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "location", "description"]);
+      assert.deepEqual(page.EDIT_FIELDS, ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "url", "location", "snoozedUntil", "description", "materials"]);
+      assert.deepEqual(page.ENTRY_EDIT_FIELDS, ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "url", "location", "description"]);
     });
   });
 
@@ -900,24 +900,25 @@ describe("action queue (public/index.html)", () => {
       travelKm: [null, "", " 12.34 ", "0", 0, 0.04, 12.46, -1, "abc", "1e3", 10000, 10000.1, true, undefined, "1234567"],
       phone: [null, "", "  021  555\n1234 ", "x".repeat(40), "x".repeat(41), 5, undefined],
       email: [null, "", " a@b.co ", "not an email", "a@b", "x".repeat(95) + "@b.co", 5, undefined],
+      url: [null, "", "  ", " example.com/menu ", "https://example.com/a?b=1", "http://example.com", "localhost:3000", "javascript:alert(1)", "mailto:a@b.co", "ex ample.com", "https://", "x".repeat(501), 5, undefined],
       location: [null, "", "  ", "Orewa", {name: " 12  Beach Rd "}, {name: "x", latitude: -36.5, longitude: 174.7}, {name: "x", latitude: -36.5}, {name: "x", latitude: 91, longitude: 0}, {latitude: 1, longitude: 2}, {name: ""}, {}, {name: 5}, [], undefined, {name: "x".repeat(201)}],
       recurrence: [null, undefined, {frequency: "weekly", interval: 2}, {frequency: "NONE"}, {frequency: "DAILY"}, {frequency: "DAILY", interval: 0}, {frequency: "DAILY", interval: 9999}, {frequency: "HOURLY", interval: 1}, "WEEKLY", [], {interval: 2}],
     };
     it("reads each value as the server does", () => {
       const page = load();
-      const server = {snoozedUntil: normalizeSnooze, travelKm: normalizeTravelKm, phone: normalizePhone, email: normalizeEmail, location: normalizeLocation, recurrence: normalizeRecurrence};
-      const copy = {snoozedUntil: page.normalizeSnooze, travelKm: page.normalizeTravelKm, phone: page.normalizePhone, email: page.normalizeEmail, location: page.normalizeLocation, recurrence: page.normalizeRecurrence};
+      const server = {snoozedUntil: normalizeSnooze, travelKm: normalizeTravelKm, phone: normalizePhone, email: normalizeEmail, url: normalizeUrl, location: normalizeLocation, recurrence: normalizeRecurrence};
+      const copy = {snoozedUntil: page.normalizeSnooze, travelKm: page.normalizeTravelKm, phone: page.normalizePhone, email: page.normalizeEmail, url: page.normalizeUrl, location: page.normalizeLocation, recurrence: page.normalizeRecurrence};
       for (const [key, values] of Object.entries(samples)) {
         for (const value of values) assert.deepEqual(copy[key](value), server[key](value), `${key}: ${JSON.stringify(value)}`);
       }
     });
     it("leaves a task as the server's direct update does, field by field", () => {
       const page = load();
-      const olds = [task("a"), task("a", {title: "Old", priority: "LOW", estimatedMinutes: 10, tags: ["x"], dueDate: "2026-11-01", recurrence: {frequency: "DAILY", interval: 1}, travelKm: 3, phone: "021", email: "o@o.nz", location: {name: "Old"}, snoozedUntil: "2026-11-02", description: "old"})];
+      const olds = [task("a"), task("a", {title: "Old", priority: "LOW", estimatedMinutes: 10, tags: ["x"], dueDate: "2026-11-01", recurrence: {frequency: "DAILY", interval: 1}, travelKm: 3, phone: "021", email: "o@o.nz", url: "https://old.example/x", location: {name: "Old"}, snoozedUntil: "2026-11-02", description: "old"})];
       const fields = [
         {title: "  New title "}, {priority: "HIGH"}, {estimatedMinutes: 45}, {tags: [" a ", "", "b"]}, {tags: []}, {dueDate: "2026-12-25"}, {dueDate: ""},
         ...samples.snoozedUntil.map((v) => ({snoozedUntil: v})), ...samples.travelKm.map((v) => ({travelKm: v})), ...samples.phone.map((v) => ({phone: v})),
-        ...samples.email.map((v) => ({email: v})), ...samples.location.map((v) => ({location: v})), ...samples.recurrence.map((v) => ({recurrence: v})),
+        ...samples.email.map((v) => ({email: v})), ...samples.url.map((v) => ({url: v})), ...samples.location.map((v) => ({location: v})), ...samples.recurrence.map((v) => ({recurrence: v})),
         {description: "  hi "}, {description: null}, {title: "T", priority: "LOW", dueDate: "2026-12-25", travelKm: 7.5, phone: "123", location: {name: "Z"}},
       ];
       for (const t of olds) {
@@ -970,6 +971,21 @@ describe("action queue (public/index.html)", () => {
       assert.deepEqual(page.taskEditChanges(t, {...same, phone: "x".repeat(50), email: "nope", travelKm: "abc"}), {phone: "x".repeat(50), email: "nope", travelKm: "abc"}, "unusable values are kept as typed so they are named");
       assert.deepEqual(page.taskEditChanges(t, {...same, location: {name: "Orewa"}}), {location: {name: "Orewa"}}, "a location the form changed is taken as it is");
       assert.deepEqual(page.taskEditChanges(null, null), {});
+    });
+    it("holds a link as the server stores it, and names an unusable one", () => {
+      const page = load();
+      assert.deepEqual(page.checkEditFields({url: " example.com/job "}, page.EDIT_FIELDS), {fields: {url: "https://example.com/job"}, bad: []});
+      assert.deepEqual(page.checkEditFields({url: ""}, page.EDIT_FIELDS), {fields: {url: null}, bad: []}, "an emptied box removes it");
+      assert.deepEqual(page.checkEditFields({url: "javascript:alert(1)"}, page.EDIT_FIELDS).bad, ["url"]);
+      assert.deepEqual(page.checkEditFields({url: "https://a.example"}, page.ENTRY_EDIT_FIELDS), {fields: {url: "https://a.example"}, bad: []});
+      const t = task("a", {url: "https://a.example/x"});
+      assert.deepEqual(page.taskEditChanges(t, {url: "https://a.example/x"}), {}, "the same link is no change");
+      assert.deepEqual(page.taskEditChanges(t, {url: " https://a.example/x "}), {}, "other spacing is no change");
+      assert.deepEqual(page.taskEditChanges(t, {url: null}), {url: null});
+      assert.deepEqual(page.taskEditChanges(task("a"), {url: null}), {}, "none left as none");
+      assert.deepEqual(page.taskEditChanges(t, {url: "b.example"}), {url: "b.example"});
+      assert.deepEqual(page.taskEditChanges(t, {url: "no way"}), {url: "no way"}, "an unusable link is kept as typed so it is named");
+      assert.equal(page.fieldNamesText(["url", "email"]), "link and email");
     });
     it("names the changes that need the server: project, order number, task number", () => {
       const page = load();
@@ -1133,13 +1149,13 @@ describe("action queue (public/index.html)", () => {
     });
     it("leaves an entry as the server's correction does, field by field", () => {
       const page = load();
-      const olds = [entry(), entry({priority: "HIGH", tags: ["x", "y"], trackedSeconds: 0, travelKm: 3, phone: "021", email: "o@o.nz", location: {name: "Old", latitude: -36.6, longitude: 174.7}})];
+      const olds = [entry(), entry({priority: "HIGH", tags: ["x", "y"], trackedSeconds: 0, travelKm: 3, phone: "021", email: "o@o.nz", url: "https://old.example/x", location: {name: "Old", latitude: -36.6, longitude: 174.7}})];
       const fields = [
         {priority: "MEDIUM"}, {trackedSeconds: 600}, {trackedSeconds: 0}, {trackedSeconds: 125.6}, {tags: [" a ", "A", "", "b"]}, {tags: []},
         {tags: Array.from({length: 25}, (_, i) => `t${i}`)}, {travelKm: 2.26}, {travelKm: null}, {travelKm: 0}, {phone: " 1  2 "}, {phone: null},
-        {email: "a@b.co"}, {email: null}, {location: {name: " Rd "}}, {location: null}, {location: {name: "P", latitude: -36.6, longitude: 174.7}},
+        {email: "a@b.co"}, {email: null}, {url: " example.com/job "}, {url: null}, {url: ""}, {location: {name: " Rd "}}, {location: null}, {location: {name: "P", latitude: -36.6, longitude: 174.7}},
         {description: "  hi "}, {description: null}, {description: ""},
-        {priority: "LOW", trackedSeconds: 30, tags: ["q"], travelKm: 7.5, phone: "123", email: "z@z.nz", location: {name: "Z"}, description: "all"},
+        {priority: "LOW", trackedSeconds: 30, tags: ["q"], travelKm: 7.5, phone: "123", email: "z@z.nz", url: "https://z.example", location: {name: "Z"}, description: "all"},
       ];
       for (const row of olds) {
         for (const f of fields) {
@@ -1185,8 +1201,8 @@ describe("action queue (public/index.html)", () => {
       const edit = editEntry(page, {trackedSeconds: 600, tags: ["a"], description: null});
       assert.deepEqual(page.entryEditBody(edit), {id: "archive-0001", updatedFields: {trackedSeconds: 600, tags: ["a"], description: null}});
       assert.equal(page.actionLabel(edit), "Update time spent, tags and description on “Task e”");
-      const held = page.splitHeldFields({priority: "HIGH", trackedSeconds: 60, tags: [], travelKm: 1, phone: "1", email: "a@b.co", location: null, description: "d", materials: ["m"], projectId: "p", completedDate: "2026-10-27", completedTime: "09:00"});
-      assert.deepEqual(Object.keys(held.held), ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "location", "description"]);
+      const held = page.splitHeldFields({priority: "HIGH", trackedSeconds: 60, tags: [], travelKm: 1, phone: "1", email: "a@b.co", url: "https://a.example", location: null, description: "d", materials: ["m"], projectId: "p", completedDate: "2026-10-27", completedTime: "09:00"});
+      assert.deepEqual(Object.keys(held.held), ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "url", "location", "description"]);
       assert.deepEqual(held.other, ["materials", "projectId", "completedDate", "completedTime"]);
       assert.equal(page.fieldNamesText(held.other), "materials, project and completion time");
     });

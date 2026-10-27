@@ -445,6 +445,10 @@
         <label for="manualEmail">Email <small style="font-weight:normal; color:var(--text-faint);">(empty uses the client's)</small></label>
         <input type="email" id="manualEmail" maxlength="100" autocapitalize="off">
       </div>
+      <div class="form-group">
+        <label for="manualUrl">Link <small style="font-weight:normal; color:var(--text-faint);">(empty uses the project's or client's)</small></label>
+        <input type="url" id="manualUrl" maxlength="500" inputmode="url" autocapitalize="none" autocomplete="off" placeholder="e.g. example.com/menu">
+      </div>
 
       <div class="form-group">
         <label for="manualDescription">Description</label>
@@ -897,6 +901,7 @@
 
       <div class="contact-actions" id="editNavigateActions" hidden>
         <a id="editNavigate" class="contact-btn btn-secondary" href="#" target="_blank" rel="noopener noreferrer">🧭 Navigate</a>
+        <a id="editLink" class="contact-btn btn-secondary" href="#" target="_blank" rel="noopener noreferrer" hidden>🔗 Link</a>
       </div>
       <div class="contact-actions" id="editContactActions" hidden></div>
 
@@ -936,6 +941,11 @@
         <div class="form-group">
           <label for="editEmail">Email <small style="font-weight:normal; color:var(--text-faint);">(empty uses the client's)</small></label>
           <input type="email" id="editEmail" maxlength="100" autocapitalize="off" oninput="refreshContact('edit')">
+        </div>
+
+        <div class="form-group">
+          <label for="editUrl">Link <small style="font-weight:normal; color:var(--text-faint);">(empty uses the project's or client's)</small></label>
+          <input type="url" id="editUrl" maxlength="500" inputmode="url" autocapitalize="none" autocomplete="off" placeholder="e.g. example.com/menu" oninput="refreshContact('edit')">
         </div>
 
         <div class="form-group">
@@ -1028,6 +1038,7 @@
 
       <div class="contact-actions" id="ceNavigateActions" hidden>
         <a id="ceNavigate" class="contact-btn btn-secondary" href="#" target="_blank" rel="noopener noreferrer">🧭 Navigate</a>
+        <a id="ceLink" class="contact-btn btn-secondary" href="#" target="_blank" rel="noopener noreferrer" hidden>🔗 Link</a>
       </div>
       <div class="contact-actions" id="ceContactActions" hidden></div>
 
@@ -1062,6 +1073,11 @@
         <div class="form-group">
           <label for="ceEmail">Email <small style="font-weight:normal; color:var(--text-faint);">(empty uses the client's)</small></label>
           <input type="email" id="ceEmail" maxlength="100" autocapitalize="off" oninput="refreshContact('ce')">
+        </div>
+
+        <div class="form-group">
+          <label for="ceUrl">Link <small style="font-weight:normal; color:var(--text-faint);">(empty uses the project's or client's)</small></label>
+          <input type="url" id="ceUrl" maxlength="500" inputmode="url" autocapitalize="none" autocomplete="off" placeholder="e.g. example.com/menu" oninput="refreshContact('ce')">
         </div>
 
         <div class="form-group">
@@ -2007,6 +2023,27 @@
       ];
       return links.filter(l => l.href);
     }
+    // The link a task answers to: its own when typed, else its project's, else the project's client's. `typed` is the Link box as typed;
+    // the result is {url, from} with `url` as it would be saved ("" for none) and `from` "task", "project", "client" or "" for none. A typed
+    // text that is not a usable link counts as the task's own and gives no link, so nothing opens while it is wrong.
+    function effectiveUrl(typed, projectId, projects, clients) {
+      const mine = parseUrlText(typed);
+      if (mine === undefined) return { url: "", from: "task" };
+      if (mine) return { url: mine, from: "task" };
+      const project = projectId ? (Array.isArray(projects) ? projects : []).find(p => p.id === projectId) : null;
+      const client = project && project.clientId ? (Array.isArray(clients) ? clients : []).find(c => c.id === project.clientId) : null;
+      for (const [from, owner] of [["project", project], ["client", client]]) {
+        const url = owner && typeof owner === "object" ? normalizeUrl(owner.url) : null;
+        if (typeof url === "string") return { url, from };
+      }
+      return { url: "", from: "" };
+    }
+    // The placeholder of a Link box: the project's or client's link while the box would inherit it.
+    function urlPlaceholder(effective) {
+      if (effective.from === "project") return `From project: ${effective.url}`;
+      if (effective.from === "client") return `From client: ${effective.url}`;
+      return "e.g. example.com/menu";
+    }
 
     // A typed money amount: null when empty, the number for a plain amount with at most two decimals, undefined when unusable.
     function parseCostText(text) {
@@ -2058,6 +2095,8 @@
       if (phone) manual.phone = phone;
       const email = parseEmailText(form.email);
       if (email) manual.email = email;
+      const url = parseUrlText(form.url);
+      if (url) manual.url = url;
       if (form.location) manual.location = form.location;
       if (form.history) manual.history = form.history;
       return { manual };
@@ -2645,6 +2684,7 @@
         location: effectiveLocation(row, null, null) ? effectiveLocation(row, null, null).location : null,
         phone: typeof row.phone === "string" ? row.phone : "",
         email: typeof row.email === "string" ? row.email : "",
+        url: typeof row.url === "string" ? row.url : "",
         projectId: row.projectId || "",
         date: when.date,
         time: when.time
@@ -2677,6 +2717,9 @@
       const email = parseEmailText(form.email);
       if (email === undefined) return { error: INVALID_EMAIL };
       if ((email || "") !== before.email.trim()) fields.email = email;
+      const url = parseUrlText(form.url);
+      if (url === undefined) return { error: INVALID_URL };
+      if ((url || "") !== before.url.trim()) fields.url = url;
       if ((form.projectId || "") !== before.projectId) fields.projectId = form.projectId || null;
       if (form.date !== before.date || form.time !== before.time) {
         if (!DATE_ONLY.test(form.date || "") || !/^\d{2}:\d{2}$/.test(form.time || "")) return { error: "Enter the date and time of completion." };
@@ -2920,6 +2963,7 @@
         travelKm: travelBoxText(t.travelKm),
         phone: typeof t.phone === "string" ? t.phone : "",
         email: typeof t.email === "string" ? t.email : "",
+        url: typeof t.url === "string" ? t.url : "",
         location: effectiveLocation(t, null, null) ? effectiveLocation(t, null, null).location : null,
         history: historyOf(t)
       };
@@ -3420,10 +3464,10 @@
     // the fields in OFFLINE_COMPLETED_FIELDS (the ones a change made offline can be kept for, ENTRY_EDIT_FIELDS as the form names them) stay enabled.
     const COMPLETED_FORM_CONTROLS = {
       cePriority: "priority", ceTracked: "trackedMinutes", ceTags: "tags", ceProject: "projectId", ceMaterials: "materials", ceTravel: "travelKm",
-      ceLocation: "location", cePlaceSearchBtn: "placeSearch", ceLocationClearBtn: "location", cePhone: "phone", ceEmail: "email", ceDescription: "description", ceDate: "date", ceTime: "time",
+      ceLocation: "location", cePlaceSearchBtn: "placeSearch", ceLocationClearBtn: "location", cePhone: "phone", ceEmail: "email", ceUrl: "url", ceDescription: "description", ceDate: "date", ceTime: "time",
       ceCommentText: "comments", ceCommentAdd: "comments", ceSheetBtn: "sheet", ceDeleteBtn: "delete"
     };
-    const OFFLINE_COMPLETED_FIELDS = ["priority", "trackedMinutes", "tags", "travelKm", "location", "phone", "email", "description", "comments", "commentDelete"];
+    const OFFLINE_COMPLETED_FIELDS = ["priority", "trackedMinutes", "tags", "travelKm", "location", "phone", "email", "url", "description", "comments", "commentDelete"];
     function completedFieldDisabled(field, offline) {
       return offline === true && !OFFLINE_COMPLETED_FIELDS.includes(field);
     }
@@ -3547,8 +3591,8 @@
     const TIMER_ACTIONS = ["START", "PAUSE", "ABORT"];
     const BATCH_ACTIONS = ["MOVE_TO_TOP", "SET_PROJECT", "SET_DUE", "SNOOZE"]; // what a held Multi-Select change can do (the server's batchUpdateTasks, less a new project)
     const MAX_BATCH = 500; // the most tasks one batch names (the server's limit)
-    const EDIT_FIELDS = ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "location", "snoozedUntil", "description", "materials"]; // what a queued task's EDIT holds
-    const ENTRY_EDIT_FIELDS = ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "location", "description"]; // what a History entry's EDIT holds (the plain fields of the archive row; materials, the project and the completion time need the server)
+    const EDIT_FIELDS = ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "url", "location", "snoozedUntil", "description", "materials"]; // what a queued task's EDIT holds
+    const ENTRY_EDIT_FIELDS = ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "url", "location", "description"]; // what a History entry's EDIT holds (the plain fields of the archive row; materials, the project and the completion time need the server)
     const MAX_TRACKED_SECONDS = 3600000; // the most time an entry may be corrected to (1000 hours)
     const MAX_ENTRY_TAGS = 20;
     const MAX_DESCRIPTION_LENGTH = 2000;
@@ -3892,6 +3936,7 @@
         else if (key === "travelKm") clean = normalizeTravelKm(value);
         else if (key === "phone") clean = normalizePhone(value);
         else if (key === "email") clean = normalizeEmail(value);
+        else if (key === "url") clean = normalizeUrl(value);
         else if (key === "location") clean = normalizeLocation(value);
         else if (key === "snoozedUntil") clean = normalizeSnooze(value);
         else if (key === "description") clean = normalizeDescription(value);
@@ -3912,7 +3957,7 @@
       return next;
     }
     // The fields of a task form that differ from the task, for an EDIT: `form` is {title, priority, estimatedMinutes, tags (a list),
-    // dueDate, recurrence, travelKm, phone, email, description, location?} as the form would send them (`location` only when the
+    // dueDate, recurrence, travelKm, phone, email, url, description, location?} as the form would send them (`location` only when the
     // form changed it). A field equal to what the task holds is left out; one that cannot be stored is kept as typed, so checkEditFields
     // names it. Pure.
     function taskEditChanges(task, form) {
@@ -3933,6 +3978,7 @@
       diff("travelKm", normalizeTravelKm);
       diff("phone", normalizePhone);
       diff("email", normalizeEmail);
+      diff("url", normalizeUrl);
       diff("description", normalizeDescription);
       if ("location" in f) changes.location = f.location;
       if ("materials" in f && materialsKey(f.materials) !== materialsKey(t.materials)) changes.materials = f.materials;
@@ -4401,7 +4447,7 @@
       return { held, other };
     }
     // The names of changed fields as the owner knows them, for "needs a connection" texts (each once, in order).
-    const FIELD_NAMES = { trackedSeconds: "time spent", completedDate: "completion time", completedTime: "completion time", travelKm: "travel", projectId: "project", estimatedMinutes: "estimate", dueDate: "due date", snoozedUntil: "snooze", recurrence: "repeats", materials: "materials", newProject: "project", projectOrder: "order number", queueNumber: "task number" };
+    const FIELD_NAMES = { trackedSeconds: "time spent", completedDate: "completion time", completedTime: "completion time", travelKm: "travel", url: "link", projectId: "project", estimatedMinutes: "estimate", dueDate: "due date", snoozedUntil: "snooze", recurrence: "repeats", materials: "materials", newProject: "project", projectOrder: "order number", queueNumber: "task number" };
     function fieldNamesText(keys) {
       const names = [];
       for (const key of Array.isArray(keys) ? keys : []) {
@@ -5024,6 +5070,7 @@
       if (badCost) { askAlert(`The cost of "${badCost}" is not an amount. Use a number such as 12.50, or leave it empty.`, { tone: "warning" }); return; }
       if (manual && parseTravelText(document.getElementById("manualTravel").value) === undefined) { askAlert(INVALID_TRAVEL, { tone: "warning" }); return; }
       if (manual && parseEmailText(document.getElementById("manualEmail").value) === undefined) { askAlert(INVALID_EMAIL, { tone: "warning" }); return; }
+      if (manual && parseUrlText(document.getElementById("manualUrl").value) === undefined) { askAlert(INVALID_URL, { tone: "warning" }); return; }
       setLoading(true);
       let body = null;
       const requestId = newRequestId(); // the same id goes with the add if it has to wait: a second attempt then adds nothing
@@ -5045,6 +5092,7 @@
           travelKm: document.getElementById("manualTravel").value,
           phone: document.getElementById("manualPhone").value,
           email: document.getElementById("manualEmail").value,
+          url: document.getElementById("manualUrl").value,
           location: locationFromBox(document.getElementById("manualLocation").value, pickedLocation.manual),
           history: historyForTitle(copiedHistory, input)
         }) : freeTextBody(input);
@@ -5212,12 +5260,13 @@
       document.getElementById("manualTravel").value = v.travelKm;
       document.getElementById("manualPhone").value = v.phone;
       document.getElementById("manualEmail").value = v.email;
+      document.getElementById("manualUrl").value = v.url;
       setLocationBox("manual", v.location);
       refreshContact("manual");
       document.getElementById("templateResults").hidden = true; // the form replaces the list
     }
 
-    // Repeats, project, materials, travel, location, phone, email and description belong to one task, so they are cleared after each manual add
+    // Repeats, project, materials, travel, location, phone, email, link and description belong to one task, so they are cleared after each manual add
     function resetManualExtras() {
       copiedHistory = null;
       document.getElementById("manualRecurFreq").value = "NONE";
@@ -5231,6 +5280,7 @@
       document.getElementById("manualTravel").value = "";
       document.getElementById("manualPhone").value = "";
       document.getElementById("manualEmail").value = "";
+      document.getElementById("manualUrl").value = "";
       setLocationBox("manual", null);
       refreshContact("manual");
       document.getElementById("manualNewMaterialText").value = "";
@@ -6055,6 +6105,7 @@
       document.getElementById("editTravel").value = travelBoxText(task.travelKm);
       document.getElementById("editPhone").value = typeof task.phone === "string" ? task.phone : "";
       document.getElementById("editEmail").value = typeof task.email === "string" ? task.email : "";
+      document.getElementById("editUrl").value = typeof task.url === "string" ? task.url : "";
       const ownLocation = effectiveLocation(task, null, null);
       setLocationBox("edit", ownLocation ? ownLocation.location : null);
       refreshContact("edit");
@@ -6124,15 +6175,28 @@
       box.placeholder = view.address ? view.address : "Search for an address";
       document.getElementById(`${prefix}LocationNote`).textContent = view.note;
       document.getElementById(`${prefix}LocationClearBtn`).hidden = box.value.trim() === "";
-      const link = document.getElementById(`${prefix}Navigate`); // the edit modals have a Navigate button
-      if (link) {
-        const href = navigationHref(formLocation(locationFromBox(box.value, pickedLocation[prefix]), projectId, allProjects, allClients));
-        document.getElementById(`${prefix}NavigateActions`).hidden = href === "";
-        link.href = href || "#";
-      }
+      refreshNavigateRow(prefix);
     }
 
-    // Brings a form's Phone and Email placeholders and its Call, Text and Email buttons (the edit and completed forms have them)
+    // The Navigate and Link buttons of an edit modal (`prefix` "edit" or "ce"), each shown only while it has something to open (the location
+    // in force, the link in force), the row hidden when neither has. A form with no such row is left alone.
+    function refreshNavigateRow(prefix) {
+      const navigate = document.getElementById(`${prefix}Navigate`);
+      if (!navigate) return;
+      const projectId = document.getElementById(`${prefix}Project`).value;
+      const box = document.getElementById(`${prefix}Location`);
+      const urlBox = document.getElementById(`${prefix}Url`);
+      const where = box ? navigationHref(formLocation(locationFromBox(box.value, pickedLocation[prefix]), projectId, allProjects, allClients)) : "";
+      const url = urlBox ? effectiveUrl(urlBox.value, projectId, allProjects, allClients).url : "";
+      const open = document.getElementById(`${prefix}Link`);
+      navigate.href = where || "#";
+      navigate.hidden = where === "";
+      open.href = url || "#";
+      open.hidden = url === "";
+      document.getElementById(`${prefix}NavigateActions`).hidden = where === "" && url === "";
+    }
+
+    // Brings a form's Phone, Email and Link placeholders and its Call, Text and Email buttons (the edit and completed forms have them)
     // in line with what is typed and the chosen project's client. `prefix` is "edit", "manual" or "ce".
     function refreshContact(prefix) {
       refreshLocation(prefix); // the project, and so the inherited location, follows too
@@ -6143,6 +6207,8 @@
       const effective = effectiveContact({ phone: phoneBox.value, email: emailBox.value }, projectId, allProjects, allClients);
       phoneBox.placeholder = contactPlaceholder(effective, "phone");
       emailBox.placeholder = contactPlaceholder(effective, "email");
+      const urlBox = document.getElementById(`${prefix}Url`);
+      if (urlBox) urlBox.placeholder = urlPlaceholder(effectiveUrl(urlBox.value, projectId, allProjects, allClients));
       const actions = document.getElementById(`${prefix}ContactActions`);
       if (!actions) return;
       const task = prefix === "edit" ? allTasks.find(t => t.id === document.getElementById("editTaskId").value) : prefix === "ce" ? completedRows.get(document.getElementById("ceId").value) : null;
@@ -6309,9 +6375,11 @@
       if (travelKm === undefined) { askAlert(INVALID_TRAVEL, { tone: "warning" }); return false; }
       const email = parseEmailText(document.getElementById("editEmail").value);
       if (email === undefined) { askAlert(INVALID_EMAIL, { tone: "warning" }); return false; }
+      const url = parseUrlText(document.getElementById("editUrl").value);
+      if (url === undefined) { askAlert(INVALID_URL, { tone: "warning" }); return false; }
       const tags = tagsRaw.split(",").map(s => s.trim()).filter(Boolean);
       const recurrence = recurrenceFields(document.getElementById("editRecurFreq").value, document.getElementById("editRecurInterval").value);
-      const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence, materials: materialsFields(editMaterials), travelKm, phone: document.getElementById("editPhone").value.trim(), email, description: document.getElementById("editDescription").value };
+      const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence, materials: materialsFields(editMaterials), travelKm, phone: document.getElementById("editPhone").value.trim(), email, url, description: document.getElementById("editDescription").value };
       // A changed location is sent (null clears it); an untouched one is left out
       const location = locationFromBox(document.getElementById("editLocation").value, pickedLocation.edit);
       const editedTask = allTasks.find(t => t.id === taskId);
@@ -6869,7 +6937,7 @@
       const values = completedFormValues(row, appTimeZone);
       const offline = savedCompletedAt !== null || !!row.waitingRequestId; // the saved copy is on screen, or the completion has not been sent
       document.getElementById("ceExtraFields").open = false; // Extra fields start collapsed
-      if (offline) document.getElementById("ceExtraFields").open = true; // but Description, Tags, Travel, Location, Phone and Email, fields left to edit offline, are in them
+      if (offline) document.getElementById("ceExtraFields").open = true; // but Description, Tags, Travel, Location, Phone, Email and Link, fields left to edit offline, are in them
       document.getElementById("ceId").value = id;
       resetCommentPanel("ce");
       document.getElementById("ceTitle").textContent = row.title || "";
@@ -6883,6 +6951,7 @@
       setLocationBox("ce", values.location);
       document.getElementById("cePhone").value = values.phone;
       document.getElementById("ceEmail").value = values.email;
+      document.getElementById("ceUrl").value = values.url;
       const projectSelect = document.getElementById("ceProject");
       projectSelect.replaceChildren(new Option("No project", ""), ...allProjects.map(p => new Option(p.name, p.id)));
       // A project that no longer exists stays selectable, so saving leaves the entry's project as it was
@@ -6926,6 +6995,7 @@
         location: locationFromBox(document.getElementById("ceLocation").value, pickedLocation.ce),
         phone: document.getElementById("cePhone").value,
         email: document.getElementById("ceEmail").value,
+        url: document.getElementById("ceUrl").value,
         projectId: document.getElementById("ceProject").value,
         date: document.getElementById("ceDate").value,
         time: document.getElementById("ceTime").value
