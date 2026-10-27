@@ -3169,11 +3169,11 @@ describe("public/index.html helpers", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(code, /(?<![\w.])alert\(/, "a native alert() is left");
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
-      assert.equal(calls.length, 47, "the forty-seven messages the page shows (six are refusals to keep an add or a change for later)");
+      assert.equal(calls.length, 50, "the fifty messages the page shows (eight are refusals to keep an add or a change for later, and one tells why a held edit was not kept)");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 19, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
-      assert.equal(warnings.length, 26, "every validation message is a warning alert");
+      assert.equal(warnings.length, 29, "every validation message is a warning alert");
     });
     it("hides Cancel for an alert, shows it again for a question and focuses the button", () => {
       const fn = html.slice(html.indexOf("function openConfirm"), html.indexOf("function askConfirm"));
@@ -3228,6 +3228,24 @@ describe("public/index.html helpers", () => {
       assert.match(edit, /updatedFields\.newProject = newProject;/);
       assert.match(edit, /if \(data\.project && data\.projects\) allProjects = data\.projects;/);
       assert.doesNotMatch(edit, /projectId: NEW_PROJECT|projectId = NEW_PROJECT/, "the placeholder id is never sent");
+    });
+    it("holds a queued task's save and Snooze for later, behind waiting changes or after a connection failure", () => {
+      const edit = html.slice(html.indexOf("async function saveTaskEdits"), html.indexOf("async function snoozeFromModal"));
+      assert.match(edit, /if \(editedTask && \(hasPendingActions\(actionQueue\) \|\| actionDraining\)\) return holdTaskEdit\(editedTask, updatedFields, true, false\);/);
+      assert.ok(edit.indexOf("hasPendingActions(actionQueue)") < edit.indexOf("closeEditModal();"), "behind waiting changes the form stays open until the edit is kept");
+      assert.match(edit, /if \(editedTask && isNetworkError\(err, navigator\.onLine\)\) return holdTaskEdit\(editedTask, updatedFields, false, true\);/);
+      const hold = html.slice(html.indexOf("function holdTaskEdit"), html.indexOf("// Saves the edits first, then opens the snooze dialog"));
+      assert.match(hold, /serverOnlyEditChanges\(task, form\)/);
+      assert.match(hold, /need a connection, so nothing was saved/);
+      assert.match(hold, /if \(formClosed\) reopenEditForm\(\);/, "a refusal after the form closed brings it back");
+      assert.match(hold, /makeQueuedAction\(\{ kind: "EDIT", taskId: task\.id, title: task\.title, fields: checked\.fields/);
+      const snooze = html.slice(html.indexOf("async function snoozeTask"), html.indexOf("async function saveTaskEdits"));
+      assert.match(snooze, /return holdSnooze\(snoozed, date, true\);/);
+      assert.match(snooze, /if \(snoozed && isNetworkError\(err, navigator\.onLine\)\) return holdSnooze\(snoozed, date, false\);/);
+      assert.match(snooze, /fields: \{ snoozedUntil: date \}/);
+      const send = html.slice(html.indexOf("async function sendQueuedAction"), html.indexOf("function settleQueuedAction"));
+      assert.match(send, /item\.kind === "EDIT" && item\.taskId\) \{\s*url = DIRECT_UPDATE_URL;\s*body = taskEditBody\(item\);/);
+      assert.match(send, /"snoozedUntil" in item\.fields[\s\S]*snoozeNeedsReschedule\(snoozed\)\) await rescheduleTask\(item\.taskId\);/, "a sent snooze moves the calendar event as the online Snooze does");
     });
   });
   describe("the Miscellaneous list", () => {

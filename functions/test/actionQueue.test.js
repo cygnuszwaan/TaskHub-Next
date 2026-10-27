@@ -5,10 +5,14 @@ const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
 const {setTimerInList, settleTimer} = require("../timer");
-const {completeInList, applyDirectUpdate, removalRecord, undoInList: serverUndoInList} = require("../tasks");
+const {completeInList, applyDirectUpdate, normalizeRecurrence, removalRecord, undoInList: serverUndoInList} = require("../tasks");
 const {reopenTask} = require("../reopen");
 const {recordCompletion} = require("../history");
 const {normalizeDescription} = require("../description");
+const {normalizeSnooze} = require("../snooze");
+const {normalizeTravelKm} = require("../travel");
+const {normalizePhone, normalizeEmail} = require("../contact");
+const {normalizeLocation} = require("../location");
 const {applyCompletedEdit} = require("../completedEdit");
 const {normalizeArchiveId, resolveActionTime} = require("../clientTime");
 const {normalizeRequestId} = require("../addRequests");
@@ -22,7 +26,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt};
+    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, ENTRY_EDIT_FIELDS, normalizeSnooze, normalizeTravelKm, normalizePhone, normalizeEmail, normalizeLocation, normalizeRecurrence, checkEditFields, taskEditChanges, serverOnlyEditChanges, taskEditBody, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt};
   `)();
 }
 
@@ -196,7 +200,9 @@ describe("action queue (public/index.html)", () => {
       assert.equal(page.makeQueuedAction({...base, kind: "REOPEN", archiveId: "archive-0001"}), null, "no task");
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", fields: {description: "x"}}), null, "no target");
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", archiveId: "archive-0001", fields: {description: "x"}}), null, "two targets");
-      assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {priority: "HIGH"}}), null, "a field that cannot be held");
+      assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {materials: []}}), null, "a field that cannot be held");
+      assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {queueNumber: 2}}), null, "a field that needs the server");
+      assert.equal(page.makeQueuedAction({...base, kind: "EDIT", archiveId: "archive-0001", fields: {priority: "HIGH"}}), null, "an entry holds only its description");
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {description: 5}}), null);
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {}}), null);
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a"}), null);
@@ -252,7 +258,8 @@ describe("action queue (public/index.html)", () => {
     it("holds only the kinds stage 1 can replay and the fields it can apply", () => {
       const page = load();
       assert.deepEqual(page.ACTION_KINDS, ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO"]);
-      assert.deepEqual(page.EDIT_FIELDS, ["description"]);
+      assert.deepEqual(page.EDIT_FIELDS, ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "location", "snoozedUntil", "description"]);
+      assert.deepEqual(page.ENTRY_EDIT_FIELDS, ["description"]);
     });
   });
 
@@ -581,6 +588,8 @@ describe("action queue (public/index.html)", () => {
       assert.equal(page.actionLabel(page.makeQueuedAction({kind: "COMPLETE", taskId: "a", archiveId: "archive-0001", title: "Fix gate", now: T0})), "Complete “Fix gate”");
       assert.equal(page.actionLabel(page.makeQueuedAction({kind: "REOPEN", taskId: "a", archiveId: "archive-0001", title: "Fix gate", now: T0})), "Reopen “Fix gate”");
       assert.equal(page.actionLabel(page.makeQueuedAction({kind: "EDIT", taskId: "a", title: "Fix gate", fields: {description: "x"}, now: T0})), "Update description on “Fix gate”");
+      assert.equal(page.actionLabel(page.makeQueuedAction({kind: "EDIT", taskId: "a", title: "Fix gate", fields: {priority: "HIGH", dueDate: "2026-11-02", estimatedMinutes: 20}, now: T0})), "Update priority, due date and estimate on “Fix gate”");
+      assert.equal(page.actionLabel(page.makeQueuedAction({kind: "EDIT", taskId: "a", title: "Fix gate", fields: {snoozedUntil: null}, now: T0})), "Update snooze on “Fix gate”");
       assert.equal(page.actionLabel(undoAction(page, completedFixture().record, {title: "Fix gate"})), "Undo completing “Fix gate”");
       assert.equal(page.actionLabel(action(page, {title: ""})), "Start timer for task");
       assert.equal(page.actionLabel(null), "Change task");
@@ -874,6 +883,100 @@ describe("action queue (public/index.html)", () => {
       assert.equal(page.takeBackCompletion([{...complete, status: "FAILED", error: "Task not found"}], timerTasks(), [], "req-c0001"), null);
       assert.equal(page.takeBackCompletion([complete], timerTasks(), [], "req-other"), null);
       assert.equal(page.takeBackCompletion(undefined, undefined, undefined, "req-c0001"), null);
+    });
+  });
+  describe("holding the edit of a queued task", () => {
+    const samples = {
+      snoozedUntil: [null, "", "2026-11-03", "2026-02-30", "2026-13-01", "tomorrow", 5, undefined],
+      travelKm: [null, "", " 12.34 ", "0", 0, 0.04, 12.46, -1, "abc", "1e3", 10000, 10000.1, true, undefined, "1234567"],
+      phone: [null, "", "  021  555\n1234 ", "x".repeat(40), "x".repeat(41), 5, undefined],
+      email: [null, "", " a@b.co ", "not an email", "a@b", "x".repeat(95) + "@b.co", 5, undefined],
+      location: [null, "", "  ", "Orewa", {name: " 12  Beach Rd "}, {name: "x", latitude: -36.5, longitude: 174.7}, {name: "x", latitude: -36.5}, {name: "x", latitude: 91, longitude: 0}, {latitude: 1, longitude: 2}, {name: ""}, {}, {name: 5}, [], undefined, {name: "x".repeat(201)}],
+      recurrence: [null, undefined, {frequency: "weekly", interval: 2}, {frequency: "NONE"}, {frequency: "DAILY"}, {frequency: "DAILY", interval: 0}, {frequency: "DAILY", interval: 9999}, {frequency: "HOURLY", interval: 1}, "WEEKLY", [], {interval: 2}],
+    };
+    it("reads each value as the server does", () => {
+      const page = load();
+      const server = {snoozedUntil: normalizeSnooze, travelKm: normalizeTravelKm, phone: normalizePhone, email: normalizeEmail, location: normalizeLocation, recurrence: normalizeRecurrence};
+      const copy = {snoozedUntil: page.normalizeSnooze, travelKm: page.normalizeTravelKm, phone: page.normalizePhone, email: page.normalizeEmail, location: page.normalizeLocation, recurrence: page.normalizeRecurrence};
+      for (const [key, values] of Object.entries(samples)) {
+        for (const value of values) assert.deepEqual(copy[key](value), server[key](value), `${key}: ${JSON.stringify(value)}`);
+      }
+    });
+    it("leaves a task as the server's direct update does, field by field", () => {
+      const page = load();
+      const olds = [task("a"), task("a", {title: "Old", priority: "LOW", estimatedMinutes: 10, tags: ["x"], dueDate: "2026-11-01", recurrence: {frequency: "DAILY", interval: 1}, travelKm: 3, phone: "021", email: "o@o.nz", location: {name: "Old"}, snoozedUntil: "2026-11-02", description: "old"})];
+      const fields = [
+        {title: "  New title "}, {priority: "HIGH"}, {estimatedMinutes: 45}, {tags: [" a ", "", "b"]}, {tags: []}, {dueDate: "2026-12-25"}, {dueDate: ""},
+        ...samples.snoozedUntil.map((v) => ({snoozedUntil: v})), ...samples.travelKm.map((v) => ({travelKm: v})), ...samples.phone.map((v) => ({phone: v})),
+        ...samples.email.map((v) => ({email: v})), ...samples.location.map((v) => ({location: v})), ...samples.recurrence.map((v) => ({recurrence: v})),
+        {description: "  hi "}, {description: null}, {title: "T", priority: "LOW", dueDate: "2026-12-25", travelKm: 7.5, phone: "123", location: {name: "Z"}},
+      ];
+      for (const t of olds) {
+        for (const f of fields) {
+          const checked = page.checkEditFields(f, page.EDIT_FIELDS);
+          if (checked.bad.length > 0) continue; // an unusable value is never held
+          assert.deepEqual(page.applyEditFields(t, checked.fields), applyDirectUpdate(t, checked.fields), JSON.stringify(f));
+        }
+      }
+    });
+    it("checks the fields of an EDIT and names the bad ones", () => {
+      const page = load();
+      assert.deepEqual(page.checkEditFields({title: " Fix ", priority: "HIGH", estimatedMinutes: 20, tags: [" a ", ""], dueDate: "", recurrence: {frequency: "weekly"}, travelKm: "2.26", phone: " 1  2 ", email: null, location: {name: " Rd "}, snoozedUntil: "2026-11-03", description: " d "}, page.EDIT_FIELDS),
+          {fields: {title: "Fix", priority: "HIGH", estimatedMinutes: 20, tags: ["a"], dueDate: "", recurrence: {frequency: "WEEKLY", interval: 1}, travelKm: 2.3, phone: "1 2", email: null, location: {name: "Rd"}, snoozedUntil: "2026-11-03", description: "d"}, bad: []});
+      assert.deepEqual(page.checkEditFields({title: " ", priority: "URGENT", estimatedMinutes: 0, tags: "a", dueDate: "2026-02-30", email: "x", materials: []}, page.EDIT_FIELDS).bad, ["title", "priority", "estimatedMinutes", "tags", "dueDate", "email", "materials"]);
+      assert.deepEqual(page.checkEditFields({estimatedMinutes: 1.5}, page.EDIT_FIELDS).bad, ["estimatedMinutes"]);
+      for (const none of [{}, null, [], "x", undefined]) assert.deepEqual(page.checkEditFields(none, page.EDIT_FIELDS).bad, ["fields"]);
+      assert.deepEqual(page.checkEditFields({title: "x"}, page.ENTRY_EDIT_FIELDS).bad, ["title"], "an entry holds only its description");
+    });
+    it("holds a task's EDIT with every changed field and sends exactly those to updateTaskDirect", () => {
+      const page = load();
+      const edit = page.makeQueuedAction({kind: "EDIT", taskId: "a", title: "Task a", fields: {priority: "HIGH", snoozedUntil: null, location: {name: " Rd "}}, now: T0, requestId: "req-00001"});
+      assert.deepEqual(edit.fields, {priority: "HIGH", snoozedUntil: null, location: {name: "Rd"}});
+      assert.deepEqual(page.taskEditBody(edit), {taskId: "a", action: "UPDATE", updatedFields: {priority: "HIGH", snoozedUntil: null, location: {name: "Rd"}}});
+      assert.deepEqual(page.parseActionQueue(page.serializeActionQueue([edit])), [edit], "it survives the stored queue");
+    });
+    it("shows the waiting edits on the task, in order, with the later one winning", () => {
+      const page = load();
+      const t = task("a", {title: "Old", priority: "LOW", snoozedUntil: "2026-11-02", location: {name: "Here"}, tags: ["x"]});
+      const e1 = page.makeQueuedAction({kind: "EDIT", taskId: "a", title: "Old", fields: {title: "One", priority: "HIGH", snoozedUntil: null, location: null, tags: ["y", "z"]}, now: T0, requestId: "req-00001"});
+      const e2 = page.makeQueuedAction({kind: "EDIT", taskId: "a", title: "One", fields: {title: "Two", dueDate: "2026-12-01"}, now: T0 + 1, requestId: "req-00002"});
+      const shown = page.withPendingActions([t, task("b")], [], [e1, e2]).tasks;
+      assert.deepEqual(shown[0], applyDirectUpdate(applyDirectUpdate(t, e1.fields), e2.fields));
+      assert.equal(shown[0].title, "Two");
+      assert.equal(shown[0].snoozedUntil, undefined);
+      assert.deepEqual(shown[1], task("b"));
+      const failed = {...e1, status: "FAILED", error: "no"};
+      assert.deepEqual(page.withPendingActions([t], [], [failed]).tasks, [t], "a refused edit changes nothing");
+    });
+    it("finds the fields a form changed and leaves out those it did not", () => {
+      const page = load();
+      const t = task("a", {title: "Fix gate", priority: "HIGH", estimatedMinutes: 30, tags: ["house"], dueDate: "2026-11-01", recurrence: {frequency: "WEEKLY", interval: 2}, travelKm: 4.5, phone: "021 555", email: "a@b.co", description: "d"});
+      const same = {title: "Fix gate", priority: "HIGH", estimatedMinutes: 30, tags: ["house"], dueDate: "2026-11-01", recurrence: {frequency: "WEEKLY", interval: 2}, travelKm: 4.5, phone: "021 555", email: "a@b.co", description: "d"};
+      assert.deepEqual(page.taskEditChanges(t, same), {});
+      assert.deepEqual(page.taskEditChanges(t, {...same, description: "  d  ", phone: " 021   555 "}), {}, "typing the same thing in other spacing is no change");
+      assert.deepEqual(page.taskEditChanges(task("a"), {title: "Task a", priority: "MEDIUM", estimatedMinutes: 30, tags: [], dueDate: "", recurrence: null, travelKm: null, phone: "", email: null, description: ""}), {}, "a task with no optional fields");
+      assert.deepEqual(page.taskEditChanges(t, {...same, title: "Fix the gate", tags: ["house", "gate"], recurrence: null, travelKm: null, dueDate: "", description: ""}),
+          {title: "Fix the gate", tags: ["house", "gate"], recurrence: null, travelKm: null, dueDate: "", description: ""});
+      assert.deepEqual(page.taskEditChanges(t, {...same, recurrence: {frequency: "WEEKLY", interval: 3}}), {recurrence: {frequency: "WEEKLY", interval: 3}});
+      assert.deepEqual(page.taskEditChanges(t, {...same, phone: "x".repeat(50), email: "nope", travelKm: "abc"}), {phone: "x".repeat(50), email: "nope", travelKm: "abc"}, "unusable values are kept as typed so they are named");
+      assert.deepEqual(page.taskEditChanges(t, {...same, location: {name: "Orewa"}}), {location: {name: "Orewa"}}, "a location the form changed is taken as it is");
+      assert.deepEqual(page.taskEditChanges(null, null), {});
+    });
+    it("names the changes that need the server: materials, project, order number, task number", () => {
+      const page = load();
+      const t = task("a", {projectId: "p1", projectOrder: 2, materials: [{id: "m1", text: "Screws", checked: false, cost: 3}]});
+      const form = {materials: [{id: "m1", text: "Screws", checked: false, cost: 3}], projectId: "p1", projectOrder: 2, title: "x"};
+      assert.deepEqual(page.serverOnlyEditChanges(t, form), []);
+      assert.deepEqual(page.serverOnlyEditChanges(t, {...form, materials: [{id: "m1", text: "Screws", checked: true, cost: 3}]}), ["materials"]);
+      assert.deepEqual(page.serverOnlyEditChanges(t, {...form, materials: null}), ["materials"]);
+      assert.deepEqual(page.serverOnlyEditChanges(t, {...form, projectId: "p2"}), ["projectId"]);
+      assert.deepEqual(page.serverOnlyEditChanges(t, {...form, projectId: null, projectOrder: null}), ["projectId", "projectOrder"]);
+      assert.deepEqual(page.serverOnlyEditChanges(t, {...form, projectOrder: 3}), ["projectOrder"]);
+      assert.deepEqual(page.serverOnlyEditChanges(t, {...form, newProject: "Kitchen", projectOrder: 1}), ["newProject", "projectOrder"]);
+      assert.deepEqual(page.serverOnlyEditChanges(t, {...form, queueNumber: 1}), ["queueNumber"]);
+      assert.deepEqual(page.serverOnlyEditChanges(task("b"), {materials: null, projectId: null, projectOrder: null}), [], "a task with none, left with none");
+      assert.deepEqual(page.serverOnlyEditChanges(task("b"), {}), []);
+      assert.equal(page.fieldNamesText(["newProject", "projectId", "projectOrder", "queueNumber", "materials"]), "project, order number, task number and materials");
     });
   });
 });

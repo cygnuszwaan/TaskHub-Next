@@ -3374,7 +3374,7 @@
     //   TIMER:    taskId, fields {action: "START"|"PAUSE"|"ABORT", capSeconds?} (capSeconds only with PAUSE)
     //   COMPLETE: taskId and archiveId, the id the page gave the History entry (the server uses it as the row's id)
     //   REOPEN:   archiveId (the entry) and taskId (the entry's own `id`, the task that comes back)
-    //   EDIT:     taskId (a queued task) or archiveId (an entry), fields {description} (EDIT_FIELDS: the fields that can be held)
+    //   EDIT:     taskId (a queued task: fields from EDIT_FIELDS) or archiveId (an entry: ENTRY_EDIT_FIELDS), fields the changed ones, each\n    //             as the server will store it (checkEditFields)
     //   UNDO:     taskId and archiveId of a completion the server has (or may have), fields {task, spawnedId?}: the task as archived
     //             (completionRecord) and the id of the next occurrence the completion made, so the page can show it undone
     // `at` is when the change was made, in epoch milliseconds on the server's clock (the device's corrected by `clockOffsetFrom`),
@@ -3384,7 +3384,8 @@
     const ACTION_QUEUE_MAX = 50;
     const ACTION_KINDS = ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO"];
     const TIMER_ACTIONS = ["START", "PAUSE", "ABORT"];
-    const EDIT_FIELDS = ["description"];
+    const EDIT_FIELDS = ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "location", "snoozedUntil", "description"]; // what a queued task's EDIT holds
+    const ENTRY_EDIT_FIELDS = ["description"]; // what a History entry's EDIT holds
     const MAX_DESCRIPTION_LENGTH = 2000;
     const UNDO_TASK_MAX_CHARS = 20000; // the most an UNDO may carry of the task it puts back
 
@@ -3592,16 +3593,158 @@
       const text = value.trim().slice(0, MAX_DESCRIPTION_LENGTH).trim();
       return text === "" ? null : text;
     }
-    // A task or History entry with the held `fields` of an EDIT applied, as the server will apply them: a text sets `description`,
-    // null takes the key away.
+    // Page copies of the server's rules for the values of a direct edit (functions/snooze.js, travel.js, contact.js, location.js and
+    // tasks.js; actionQueue.test.js holds each equal): undefined for an unusable value, null for none, else the value as stored.
+    function isRealDate(value) {
+      if (typeof value !== "string" || !DATE_ONLY.test(value)) return false;
+      const ms = Date.parse(`${value}T00:00:00Z`);
+      return !Number.isNaN(ms) && new Date(ms).toISOString().slice(0, 10) === value;
+    }
+    function normalizeSnooze(value) {
+      if (value === null || value === "") return null;
+      if (typeof value !== "string" || !isRealDate(value)) return undefined;
+      return value;
+    }
+    function normalizeTravelKm(value) {
+      if (value === null) return null;
+      let n;
+      if (typeof value === "number") {
+        n = value;
+      } else if (typeof value === "string") {
+        const text = value.trim();
+        if (text === "") return null;
+        if (!/^\d{1,6}(\.\d{1,6})?$/.test(text)) return undefined;
+        n = Number(text);
+      } else {
+        return undefined;
+      }
+      if (!Number.isFinite(n) || n < 0) return undefined;
+      const km = Math.round(n * 10) / 10;
+      if (km > 10000) return undefined;
+      return km === 0 ? null : km;
+    }
+    function oneLineOrNull(value, max) {
+      if (value === null) return null;
+      if (typeof value !== "string") return undefined;
+      const text = value.replace(/\s+/g, " ").trim();
+      if (text === "") return null;
+      return text.length > max ? undefined : text;
+    }
+    function normalizePhone(value) {
+      return oneLineOrNull(value, 40);
+    }
+    function normalizeEmail(value) {
+      const text = oneLineOrNull(value, 100);
+      return typeof text === "string" && !EMAIL_PATTERN.test(text) ? undefined : text;
+    }
+    function normalizeLocation(value) {
+      if (value === null) return null;
+      if (typeof value === "string") return value.trim() === "" ? null : undefined;
+      if (value === undefined || typeof value !== "object" || Array.isArray(value)) return undefined;
+      const rawName = value.name;
+      if (rawName !== undefined && rawName !== null && typeof rawName !== "string") return undefined;
+      const name = typeof rawName === "string" ? rawName.replace(/\s+/g, " ").trim() : "";
+      if (name.length > 200) return undefined;
+      const hasLatitude = value.latitude !== undefined && value.latitude !== null;
+      const hasLongitude = value.longitude !== undefined && value.longitude !== null;
+      if (hasLatitude !== hasLongitude) return undefined;
+      if (!hasLatitude) return name === "" ? null : { name };
+      const inRange = (v, limit) => typeof v === "number" && Number.isFinite(v) && v >= -limit && v <= limit;
+      if (!inRange(value.latitude, 90) || !inRange(value.longitude, 180) || name === "") return undefined;
+      return { name, latitude: value.latitude, longitude: value.longitude };
+    }
+    function normalizeRecurrence(value) {
+      if (value === null) return null;
+      if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+      const frequency = typeof value.frequency === "string" ? value.frequency.trim().toUpperCase() : "";
+      if (frequency === "NONE") return null;
+      if (!RECUR_FREQUENCIES.includes(frequency)) return undefined;
+      const interval = Number.isFinite(value.interval) ? Math.min(Math.max(Math.round(value.interval), 1), 365) : 1;
+      return { frequency, interval };
+    }
+
+    // The `fields` of an EDIT checked against the names in `allowed` (EDIT_FIELDS for a task, ENTRY_EDIT_FIELDS for an entry): {fields, bad}.
+    // `fields` holds each usable value as the server will store it (a title trimmed, a travel distance rounded, null for none), `bad` the
+    // names of the ones that are unusable or not allowed (["fields"] when there are none at all).
+    function checkEditFields(fields, allowed) {
+      if (!fields || typeof fields !== "object" || Array.isArray(fields) || Object.keys(fields).length === 0) return { fields: {}, bad: ["fields"] };
+      const out = {};
+      const bad = [];
+      for (const key of Object.keys(fields)) {
+        const value = fields[key];
+        let clean;
+        if (!Array.isArray(allowed) || !allowed.includes(key)) clean = undefined;
+        else if (key === "title") clean = typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
+        else if (key === "priority") clean = PRIORITY_RANK.includes(value) ? value : undefined;
+        else if (key === "estimatedMinutes") clean = Number.isInteger(value) && value >= 1 ? value : undefined;
+        else if (key === "tags") clean = Array.isArray(value) && value.every(t => typeof t === "string") ? value.map(t => t.trim()).filter(Boolean) : undefined;
+        else if (key === "dueDate") clean = value === "" || isRealDate(value) ? value : undefined;
+        else if (key === "recurrence") clean = normalizeRecurrence(value);
+        else if (key === "travelKm") clean = normalizeTravelKm(value);
+        else if (key === "phone") clean = normalizePhone(value);
+        else if (key === "email") clean = normalizeEmail(value);
+        else if (key === "location") clean = normalizeLocation(value);
+        else if (key === "snoozedUntil") clean = normalizeSnooze(value);
+        else if (key === "description") clean = normalizeDescription(value);
+        if (clean === undefined) bad.push(key);
+        else out[key] = clean;
+      }
+      return { fields: out, bad };
+    }
+    // A task or History entry with the held `fields` of an EDIT applied, as the server's applyDirectUpdate (or applyCompletedEdit)
+    // applies them: a value sets the field, null takes the key away; a field the server would ignore is left alone.
     function applyEditFields(target, fields) {
       const next = { ...target };
-      if (fields && "description" in fields) {
-        const description = normalizeDescription(fields.description);
-        if (typeof description === "string") next.description = description;
-        else if (description === null) delete next.description;
+      for (const [key, value] of Object.entries(checkEditFields(fields, EDIT_FIELDS).fields)) {
+        if (value === null) delete next[key];
+        else next[key] = value;
       }
       return next;
+    }
+    // The fields of a task form that differ from the task, for an EDIT: `form` is {title, priority, estimatedMinutes, tags (a list),
+    // dueDate, recurrence, travelKm, phone, email, description, location?} as the form would send them (`location` only when the
+    // form changed it). A field equal to what the task holds is left out; one that cannot be stored is kept as typed, so checkEditFields
+    // names it. Pure.
+    function taskEditChanges(task, form) {
+      const t = task && typeof task === "object" ? task : {};
+      const f = form && typeof form === "object" ? form : {};
+      const same = (a, b) => JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
+      const changes = {};
+      for (const key of ["title", "priority", "estimatedMinutes"]) if (key in f && f[key] !== t[key]) changes[key] = f[key];
+      if ("tags" in f && !same(f.tags, Array.isArray(t.tags) ? t.tags : [])) changes.tags = f.tags;
+      if ("dueDate" in f && (f.dueDate || "") !== (t.dueDate || "")) changes.dueDate = f.dueDate;
+      const diff = (key, normalize) => {
+        if (!(key in f)) return;
+        const value = normalize(f[key]);
+        if (value === undefined) changes[key] = f[key];
+        else if (!same(value, t[key])) changes[key] = f[key];
+      };
+      diff("recurrence", normalizeRecurrence);
+      diff("travelKm", normalizeTravelKm);
+      diff("phone", normalizePhone);
+      diff("email", normalizeEmail);
+      diff("description", normalizeDescription);
+      if ("location" in f) changes.location = f.location;
+      return changes;
+    }
+    // The names of the fields of a task form that changed and cannot be held offline, because they need an id or an order only the
+    // server makes: materials (until the Materials step), the project, its order number and the task number. `form` is the whole
+    // updateTaskDirect body of the form. Pure.
+    function serverOnlyEditChanges(task, form) {
+      const t = task && typeof task === "object" ? task : {};
+      const f = form && typeof form === "object" ? form : {};
+      const names = [];
+      const strip = (list) => JSON.stringify((Array.isArray(list) ? list : []).map(m => [m.text, m.checked === true, typeof m.cost === "number" ? m.cost : null]));
+      if ("materials" in f && strip(f.materials) !== strip(t.materials)) names.push("materials");
+      if (f.newProject !== undefined) names.push("newProject");
+      else if ("projectId" in f && (f.projectId || null) !== (t.projectId || null)) names.push("projectId");
+      if ("projectOrder" in f && (f.projectOrder === undefined ? null : f.projectOrder) !== (t.projectOrder === undefined ? null : t.projectOrder)) names.push("projectOrder");
+      if (f.queueNumber !== undefined && f.queueNumber !== null) names.push("queueNumber");
+      return names;
+    }
+    // The body a held EDIT of a queued task is sent with: updateTaskDirect's UPDATE of the changed fields only.
+    function taskEditBody(action) {
+      return { taskId: action.taskId, action: "UPDATE", updatedFields: action.fields };
     }
 
     // Comments (functions/comments.js): {id, at, text} entries on a queued task or a History entry, `at` the epoch milliseconds when written.
@@ -3658,7 +3801,7 @@
     }
 
     // One action's `fields` cleaned for its kind: an object, or null when unusable (see the model above).
-    function cleanActionFields(kind, fields) {
+    function cleanActionFields(kind, fields, forEntry) {
       if (kind === "TIMER") {
         const action = fields && typeof fields.action === "string" ? fields.action.trim().toUpperCase() : "";
         if (!TIMER_ACTIONS.includes(action)) return null;
@@ -3667,16 +3810,8 @@
         return action === "PAUSE" && Number.isInteger(cap) && cap >= 0 ? { action, capSeconds: cap } : null;
       }
       if (kind === "EDIT") {
-        if (!fields || typeof fields !== "object" || Array.isArray(fields)) return null;
-        const keys = Object.keys(fields);
-        if (keys.length === 0 || keys.some(k => !EDIT_FIELDS.includes(k))) return null;
-        const out = {};
-        if ("description" in fields) {
-          const description = normalizeDescription(fields.description);
-          if (description === undefined) return null;
-          out.description = description;
-        }
-        return out;
+        const checked = checkEditFields(fields, forEntry ? ENTRY_EDIT_FIELDS : EDIT_FIELDS);
+        return checked.bad.length > 0 ? null : checked.fields;
       }
       if (kind === "UNDO") {
         if (!fields || typeof fields !== "object" || Array.isArray(fields)) return null;
@@ -3705,7 +3840,7 @@
       if (!Number.isSafeInteger(item.at) || item.at <= 0) return null;
       const hasTask = typeof item.taskId === "string" && item.taskId !== "";
       const hasEntry = usableArchiveId(item.archiveId);
-      const fields = cleanActionFields(item.kind, item.fields);
+      const fields = cleanActionFields(item.kind, item.fields, hasEntry && !hasTask);
       if (fields === null) return null;
       const clean = { requestId: item.requestId, kind: item.kind };
       if (item.kind === "TIMER") {
@@ -3855,18 +3990,18 @@
     function entryEditBody(action) {
       return { id: action.archiveId, updatedFields: action.fields };
     }
-    // The fields an entry's form changed, split into the ones a change made offline can hold (EDIT_FIELDS) and the names of the others.
+    // The fields an entry's form changed, split into the ones a change made offline can hold (ENTRY_EDIT_FIELDS) and the names of the others.
     function splitHeldFields(fields) {
       const held = {};
       const other = [];
       for (const [key, value] of Object.entries(fields && typeof fields === "object" && !Array.isArray(fields) ? fields : {})) {
-        if (EDIT_FIELDS.includes(key)) held[key] = value;
+        if (ENTRY_EDIT_FIELDS.includes(key)) held[key] = value;
         else other.push(key);
       }
       return { held, other };
     }
     // The names of changed fields as the owner knows them, for "needs a connection" texts (each once, in order).
-    const FIELD_NAMES = { trackedSeconds: "time spent", completedDate: "completion time", completedTime: "completion time", travelKm: "travel", projectId: "project", estimatedMinutes: "estimate", dueDate: "due date" };
+    const FIELD_NAMES = { trackedSeconds: "time spent", completedDate: "completion time", completedTime: "completion time", travelKm: "travel", projectId: "project", estimatedMinutes: "estimate", dueDate: "due date", snoozedUntil: "snooze", recurrence: "repeats", materials: "materials", newProject: "project", projectOrder: "order number", queueNumber: "task number" };
     function fieldNamesText(keys) {
       const names = [];
       for (const key of Array.isArray(keys) ? keys : []) {
@@ -3919,7 +4054,7 @@
       if (action.kind === "COMPLETE") return "Complete" + task;
       if (action.kind === "REOPEN") return "Reopen" + task;
       if (action.kind === "UNDO") return "Undo completing" + task;
-      if (action.kind === "EDIT") return `Update ${Object.keys(action.fields || {}).join(", ") || "details"} on` + task;
+      if (action.kind === "EDIT") return `Update ${fieldNamesText(Object.keys(action.fields || {})) || "details"} on` + task;
       return "Change" + task;
     }
     // What an action card shows: {label, failed, sending, text}, as queueCardView does for an add ("Waiting to send", "Sending…"
@@ -5482,6 +5617,10 @@
     // so the event moves now rather than at the next run
     async function snoozeTask(taskId, date) {
       closeSnoozeModal();
+      const snoozed = allTasks.find(t => t.id === taskId);
+      // Changes already waiting go first: the snooze is kept behind them, with a connection or not, so the order holds.
+      loadActionQueue();
+      if (snoozed && (hasPendingActions(actionQueue) || actionDraining)) return holdSnooze(snoozed, date, true);
       try {
         const res = await apiFetch(DIRECT_UPDATE_URL, {
           method: "POST",
@@ -5493,11 +5632,25 @@
         renderFilterBar();
         renderTasks();
       } catch (err) {
+        if (snoozed && isNetworkError(err, navigator.onLine)) return holdSnooze(snoozed, date, false);
         askAlert(failureText("Failed to snooze", err), { tone: "error" });
         return;
       }
       const task = allTasks.find(t => t.id === taskId);
       if (task && snoozeNeedsReschedule(task)) await rescheduleTask(taskId);
+    }
+    // Holds a snooze (`date` null to unsnooze) for later as an EDIT of snoozedUntil: the card shows it at once, and the send moves
+    // the task's calendar event when it has one (sendQueuedAction). `behind` as for holdTaskEdit.
+    function holdSnooze(task, date, behind) {
+      loadActionQueue();
+      const refusal = actionQueueRefusal(actionQueue.length, actionQueueUsable);
+      if (refusal) { askAlert(refusal, { tone: "warning" }); return; }
+      const item = makeQueuedAction({ kind: "EDIT", taskId: task.id, title: task.title, fields: { snoozedUntil: date }, now: Date.now(), offset: clockOffsetMs });
+      if (!item || !saveActionQueue([...actionQueue, item])) { askAlert(actionQueueRefusal(0, false), { tone: "warning" }); return; }
+      renderFilterBar();
+      renderAddQueue();
+      refreshShownTasks();
+      if (behind && navigator.onLine) setTimeout(drainAllQueues, 0);
     }
 
     async function saveTaskEdits() {
@@ -5544,6 +5697,9 @@
       }
 
       if (!(await postComment("edit"))) return false; // a comment typed and not yet added goes with the save
+      // Changes already waiting go first: this one is kept behind them, with a connection or not, so the order holds.
+      loadActionQueue();
+      if (editedTask && (hasPendingActions(actionQueue) || actionDraining)) return holdTaskEdit(editedTask, updatedFields, true, false);
       closeEditModal();
       try {
         const res = await apiFetch(DIRECT_UPDATE_URL, {
@@ -5559,9 +5715,50 @@
         renderTasks();
         return true;
       } catch (err) {
+        if (editedTask && isNetworkError(err, navigator.onLine)) return holdTaskEdit(editedTask, updatedFields, false, true);
         askAlert(failureText("Failed to save changes", err), { tone: "error" });
         return false;
       }
+    }
+
+    // Brings the edit form back after it was closed for a save that could not be kept (its fields were left as typed).
+    function reopenEditForm() {
+      document.getElementById("editModal").style.display = "flex";
+      document.body.classList.add("modal-open");
+      renderCommentPanel("edit");
+      showEditTimer();
+    }
+    // Holds the save of a queued task's form for later: an EDIT of the fields that changed, shown at once (withPendingActions). `form` is
+    // the body the save would have sent. Fields that need an id or an order only the server makes (materials, the project, its order
+    // number, the task number) cannot be held: the alert names them and nothing is kept. `behind` is true when it was queued only
+    // because other changes were waiting, so the queue is sent now; after a connection failure it waits for a trigger. `formClosed` says
+    // whether the form was already closed, in which case a refusal brings it back. Returns true when kept (or when nothing changed).
+    function holdTaskEdit(task, form, behind, formClosed) {
+      const refuse = (text) => {
+        askAlert(text, { tone: "warning" });
+        if (formClosed) reopenEditForm();
+        return false;
+      };
+      const serverOnly = serverOnlyEditChanges(task, form);
+      if (serverOnly.length > 0) return refuse(`Changes to ${fieldNamesText(serverOnly)} need a connection, so nothing was saved. Undo them to save the other changes now, or save again when you are back online.`);
+      const changes = taskEditChanges(task, form);
+      if (Object.keys(changes).length === 0) {
+        if (!formClosed) closeEditModal();
+        return true;
+      }
+      const checked = checkEditFields(changes, EDIT_FIELDS);
+      if (checked.bad.length > 0) return refuse(`These cannot be saved: ${fieldNamesText(checked.bad)}. Check them and try again.`);
+      loadActionQueue();
+      const refusal = actionQueueRefusal(actionQueue.length, actionQueueUsable);
+      if (refusal) return refuse(refusal);
+      const item = makeQueuedAction({ kind: "EDIT", taskId: task.id, title: task.title, fields: checked.fields, now: Date.now(), offset: clockOffsetMs });
+      if (!item || !saveActionQueue([...actionQueue, item])) return refuse(actionQueueRefusal(0, false));
+      if (!formClosed) closeEditModal();
+      renderFilterBar();
+      renderAddQueue();
+      refreshShownTasks();
+      if (behind && navigator.onLine) setTimeout(drainAllQueues, 0);
+      return true;
     }
 
     // Saves the edits first, then opens the snooze dialog for this task
@@ -7933,6 +8130,9 @@
         } else if (item.kind === "EDIT" && item.archiveId) {
           url = UPDATE_COMPLETED_URL;
           body = entryEditBody(item);
+        } else if (item.kind === "EDIT" && item.taskId) {
+          url = DIRECT_UPDATE_URL;
+          body = taskEditBody(item);
         } else {
           throw new Error("This kind of change cannot be sent yet");
         }
@@ -7955,6 +8155,11 @@
         if (item.kind !== "TIMER") {
           renderFilterBar();
           refreshHistoryIfOpen();
+        }
+        // A held snooze moves the task's calendar event once it is saved, as the online Snooze does
+        if (item.kind === "EDIT" && item.taskId && item.fields && "snoozedUntil" in item.fields) {
+          const snoozed = allTasks.find(t => t.id === item.taskId);
+          if (snoozed && snoozeNeedsReschedule(snoozed)) await rescheduleTask(item.taskId);
         }
         return data;
       } catch (err) {
