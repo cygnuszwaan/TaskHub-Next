@@ -29,7 +29,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, ENTRY_EDIT_FIELDS, normalizeSnooze, normalizeTravelKm, normalizePhone, normalizeEmail, normalizeLocation, normalizeRecurrence, checkEditFields, taskEditChanges, serverOnlyEditChanges, taskEditBody, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, addCommentToList, removeCommentFromList, commentBody, commentDeleteBody, waitingCommentIds, MAX_COMMENTS, normalizeCommentText, commentsOf, cleanEntryTags, MAX_TRACKED_SECONDS, MAX_ENTRY_TAGS, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt, deletionRecord, deleteBody, removalBody, normalizeMaterials, normalizeMaterialCost, heldMaterials, withMaterialIds, coalesceMaterialsEdit, openMaterialGroups, openMaterialCount, withMaterialChecked, MAX_MATERIALS};
+    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, ENTRY_EDIT_FIELDS, normalizeSnooze, normalizeTravelKm, normalizePhone, normalizeEmail, normalizeLocation, normalizeRecurrence, checkEditFields, taskEditChanges, serverOnlyEditChanges, taskEditBody, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, addCommentToList, removeCommentFromList, commentBody, commentDeleteBody, waitingCommentIds, MAX_COMMENTS, normalizeCommentText, commentsOf, cleanEntryTags, MAX_TRACKED_SECONDS, MAX_ENTRY_TAGS, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt, deletionRecord, deleteBody, removalBody, normalizeMaterials, normalizeMaterialCost, heldMaterials, withMaterialIds, coalesceMaterialsEdit, openMaterialGroups, openMaterialCount, withMaterialChecked, MAX_MATERIALS, isShoppingKind, shoppingTempId, withPendingShopping, waitingShoppingIds, hasPendingShopping, shoppingBody, shoppingRemovalId, shoppingWithAdded, shoppingWithout, MAX_SHOPPING_ITEMS, MAX_SHOPPING_TEXT};
   `)();
 }
 
@@ -265,7 +265,7 @@ describe("action queue (public/index.html)", () => {
     });
     it("holds only the kinds stage 1 can replay and the fields it can apply", () => {
       const page = load();
-      assert.deepEqual(page.ACTION_KINDS, ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO", "COMMENT", "COMMENT_DELETE", "DELETE"]);
+      assert.deepEqual(page.ACTION_KINDS, ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO", "COMMENT", "COMMENT_DELETE", "DELETE", "SHOPPING_ADD", "SHOPPING_REMOVE"]);
       assert.deepEqual(page.EDIT_FIELDS, ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "location", "snoozedUntil", "description", "materials"]);
       assert.deepEqual(page.ENTRY_EDIT_FIELDS, ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "location", "description"]);
     });
@@ -1425,6 +1425,144 @@ describe("action queue (public/index.html)", () => {
       assert.match(page.actionDiscardPrompt(del(page), 1), /Discard this change \(Delete “Task b”\)\?.*The change made after it on the same task will be discarded too\./);
       const complete = completedFixture();
       assert.equal(page.actionLabel(undoAction(page, complete.record)), "Undo completing “Task a”");
+    });
+  });
+});
+
+describe("Miscellaneous list actions", () => {
+  const page = load();
+  const add = (text, over = {}) => page.makeQueuedAction({kind: "SHOPPING_ADD", title: text, fields: {text}, now: T0, offset: 0, ...over});
+  const remove = (id, text, over = {}) => page.makeQueuedAction({kind: "SHOPPING_REMOVE", title: text, fields: {id, text}, now: T0, offset: 0, ...over});
+  const list = (...pairs) => pairs.map(([id, text]) => ({id, text}));
+
+  describe("the stored action", () => {
+    it("an add holds the cleaned text and names no task or entry", () => {
+      const a = add("  Duct   tape ");
+      assert.equal(a.kind, "SHOPPING_ADD");
+      assert.deepEqual(a.fields, {text: "Duct tape"});
+      assert.equal(a.title, "Duct tape");
+      assert.equal(a.taskId, undefined);
+      assert.equal(a.archiveId, undefined);
+      assert.equal(a.status, "PENDING");
+    });
+    it("a removal holds the item's id and text", () => {
+      const a = remove("i1", "Nails");
+      assert.deepEqual(a.fields, {id: "i1", text: "Nails"});
+      assert.equal(a.title, "Nails");
+    });
+    it("refuses a blank or too long text, a missing id and a task or entry", () => {
+      assert.equal(add("   "), null);
+      assert.equal(add("x".repeat(page.MAX_SHOPPING_TEXT + 1)), null);
+      assert.equal(add("x".repeat(page.MAX_SHOPPING_TEXT)).fields.text.length, page.MAX_SHOPPING_TEXT);
+      assert.equal(remove("", "Nails"), null);
+      assert.equal(page.makeQueuedAction({kind: "SHOPPING_REMOVE", fields: {text: "Nails"}, now: T0}), null);
+      assert.equal(add("Nails", {taskId: "a"}), null);
+      assert.equal(add("Nails", {archiveId: "entry-0001"}), null);
+      assert.equal(page.makeQueuedAction({kind: "SHOPPING_ADD", now: T0}), null);
+    });
+    it("survives the stored text, and a FAILED one keeps its error", () => {
+      const a = add("Nails");
+      const b = {...remove("i1", "Glue"), status: "FAILED", error: "Nope"};
+      const back = page.parseActionQueue(page.serializeActionQueue([a, b]));
+      assert.deepEqual(back, [a, b]);
+    });
+    it("is told apart from the task kinds", () => {
+      assert.equal(page.isShoppingKind("SHOPPING_ADD"), true);
+      assert.equal(page.isShoppingKind("SHOPPING_REMOVE"), true);
+      assert.equal(page.isShoppingKind("EDIT"), false);
+      assert.equal(page.waitingTaskIds([add("Nails"), remove("i1", "Glue")]).size, 0);
+    });
+  });
+
+  describe("withPendingShopping", () => {
+    it("shows a held add at the end under its temporary id", () => {
+      const a = add("Nails");
+      assert.deepEqual(page.withPendingShopping(list(["i1", "Glue"]), [a]), list(["i1", "Glue"], [page.shoppingTempId(a.requestId), "Nails"]));
+    });
+    it("adds nothing for a text already on the list (ignoring case) or a full list", () => {
+      assert.deepEqual(page.withPendingShopping(list(["i1", "Nails"]), [add("NAILS")]), list(["i1", "Nails"]));
+      const full = Array.from({length: page.MAX_SHOPPING_ITEMS}, (_, i) => ({id: `i${i}`, text: `Item ${i}`}));
+      assert.equal(page.withPendingShopping(full, [add("One more")]).length, page.MAX_SHOPPING_ITEMS);
+    });
+    it("takes a ticked item off the list, and an id that is not there changes nothing", () => {
+      assert.deepEqual(page.withPendingShopping(list(["i1", "Nails"], ["i2", "Glue"]), [remove("i1", "Nails")]), list(["i2", "Glue"]));
+      assert.deepEqual(page.withPendingShopping(list(["i2", "Glue"]), [remove("gone", "Nails")]), list(["i2", "Glue"]));
+    });
+    it("takes a held add off again when its removal follows, under the temporary id", () => {
+      const a = add("Nails");
+      const r = remove(page.shoppingTempId(a.requestId), "Nails");
+      assert.deepEqual(page.withPendingShopping(list(["i1", "Glue"]), [a, r]), list(["i1", "Glue"]));
+    });
+    it("finds a held add the server has saved since by its text, when the removal names the temporary id", () => {
+      const r = remove("pending-abcdef123456", "Nails");
+      assert.deepEqual(page.withPendingShopping(list(["real1", "nails"], ["i2", "Glue"]), [r]), list(["i2", "Glue"]));
+    });
+    it("replays in order, skips FAILED actions and other kinds, and does not change its inputs", () => {
+      const server = list(["i1", "Nails"]);
+      const copy = JSON.parse(JSON.stringify(server));
+      const failed = {...add("Paint"), status: "FAILED", error: "x"};
+      const timer = page.makeQueuedAction({kind: "TIMER", taskId: "a", title: "A", fields: {action: "START"}, now: T0, offset: 0});
+      const out = page.withPendingShopping(server, [remove("i1", "Nails"), failed, timer, add("Glue")]);
+      assert.deepEqual(out.map((i) => i.text), ["Glue"]);
+      assert.deepEqual(server, copy);
+      assert.deepEqual(page.withPendingShopping(undefined, undefined), []);
+    });
+    it("agrees with the server's rules for an add", () => {
+      const {addShoppingItem} = require("../shopping");
+      const items = list(["i1", "Nails"]);
+      for (const text of ["Glue", "nails", "  Wood   screws "]) {
+        const mine = page.withPendingShopping(items, [add(text)]);
+        const theirs = addShoppingItem(items, text, () => "x").items;
+        assert.deepEqual(mine.map((i) => i.text), theirs.map((i) => i.text), text);
+      }
+    });
+  });
+
+  describe("order, waiting marks and what is sent", () => {
+    it("a removal of a held add depends on it, so discarding the add takes both", () => {
+      const a = add("Nails");
+      const r = remove(page.shoppingTempId(a.requestId), "Nails");
+      const other = remove("i9", "Glue");
+      const out = page.cancelActions([a, r, other], a.requestId);
+      assert.deepEqual(out.actions, [other]);
+      assert.equal(out.cancelled.length, 2);
+      assert.deepEqual(page.cancelActions([a, r, other], other.requestId).actions, [a, r]);
+    });
+    it("blocks a removal behind a refused add of the same item", () => {
+      const a = {...add("Nails"), status: "FAILED", error: "full"};
+      const r = remove(page.shoppingTempId(a.requestId), "Nails");
+      assert.equal(page.blockedBy([a, r], r), a);
+      assert.equal(page.blockedBy([a, remove("i1", "Glue")], remove("i1", "Glue", {requestId: "other-request-1"})), null);
+    });
+    it("marks the held adds as waiting", () => {
+      const a = add("Nails");
+      const failed = {...add("Paint"), status: "FAILED", error: "x"};
+      assert.deepEqual([...page.waitingShoppingIds([a, failed, remove("i1", "Glue")])], [page.shoppingTempId(a.requestId)]);
+    });
+    it("a pending shopping action makes the next change wait behind it", () => {
+      assert.equal(page.hasPendingShopping([add("Nails")]), true);
+      assert.equal(page.hasPendingShopping([{...add("Nails"), status: "FAILED", error: "x"}]), false);
+      assert.equal(page.hasPendingShopping([page.makeQueuedAction({kind: "TIMER", taskId: "a", title: "A", fields: {action: "START"}, now: T0})]), false);
+      assert.equal(page.hasPendingShopping(undefined), false);
+    });
+    it("sends an add's text and a removal's server id to updateShoppingList", () => {
+      assert.deepEqual(page.shoppingBody(add("Nails")), {action: "ADD", text: "Nails"});
+      assert.deepEqual(page.shoppingBody(remove("i1", "Nails"), "i1"), {action: "REMOVE", itemId: "i1"});
+    });
+    it("finds the server's id for a removal: its own, the one learned when the add was sent, or the same text on the server's list", () => {
+      const own = remove("i1", "Nails");
+      assert.equal(page.shoppingRemovalId(own, new Map(), []), "i1");
+      const temp = remove("pending-abc123456", "Nails");
+      assert.equal(page.shoppingRemovalId(temp, new Map([["pending-abc123456", "srv1"]]), []), "srv1");
+      assert.equal(page.shoppingRemovalId(temp, new Map(), list(["srv2", "NAILS"])), "srv2");
+      assert.equal(page.shoppingRemovalId(temp, new Map(), list(["srv3", "Glue"])), null, "not on the server: already gone, nothing to send");
+      assert.equal(page.shoppingRemovalId(temp, null, null), null);
+    });
+    it("words the cards", () => {
+      assert.equal(page.actionLabel(add("Nails")), "Add “Nails” to Miscellaneous");
+      assert.equal(page.actionLabel(remove("i1", "Nails")), "Take “Nails” off Miscellaneous");
+      assert.match(page.actionDiscardPrompt(add("Nails"), 1), /same item/);
+      assert.match(page.actionDiscardPrompt(page.makeQueuedAction({kind: "TIMER", taskId: "a", title: "A", fields: {action: "START"}, now: T0}), 1), /same task/);
     });
   });
 });

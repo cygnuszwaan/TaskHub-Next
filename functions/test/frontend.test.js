@@ -194,6 +194,52 @@ describe("public/index.html helpers", () => {
       assert.match(html, /savedShoppingAt !== null\) loadShoppingList\(\)/);
     });
   });
+  describe("held Miscellaneous changes (page)", () => {
+    const fnBody = (name, next) => html.slice(html.indexOf(name), html.indexOf(next, html.indexOf(name) + 1));
+    it("holds a change behind a waiting shopping action, and after a connection failure, and keeps it shown", () => {
+      const fn = fnBody("function queueShopping(", "// Keeps a change to the Miscellaneous list in the action queue");
+      assert.match(fn, /if \(hasPendingShopping\(actionQueue\)\) \{[^}]*holdShoppingChange\(change, true\)/);
+      assert.ok(fn.indexOf("hasPendingShopping(actionQueue)") < fn.indexOf("apiFetch(UPDATE_SHOPPING_URL"), "the order check comes before any send");
+      assert.match(fn, /isNetworkError\(err, navigator\.onLine\) \? holdShoppingChange\(change, false\) : null/);
+    });
+    it("keeps a held change with the clock's correction, refuses when the queue cannot take it and sends the queue when it was only behind", () => {
+      const fn = fnBody("function holdShoppingChange(", "// A held change to the Miscellaneous list posted");
+      assert.match(fn, /actionQueueRefusal\(actionQueue\.length, actionQueueUsable\)/);
+      assert.match(fn, /makeQueuedAction\(\{ kind: change\.kind, title: change\.fields\.text, fields: change\.fields, now: Date\.now\(\), offset: clockOffsetMs, requestId: change\.requestId \}\)/);
+      assert.match(fn, /if \(behind && navigator\.onLine\) setTimeout\(drainAllQueues, 0\)/);
+    });
+    it("shows an add under an id made from its request id, so it survives a reload", () => {
+      const fn = fnBody("function addShoppingText(", "function addShoppingItemFromInput");
+      assert.match(fn, /const requestId = newRequestId\(\);\s*const tempId = shoppingTempId\(requestId\);/);
+    });
+    it("takes a tick on a held add out of the queue instead of queueing a removal, unless the add is on its way", () => {
+      const fn = fnBody("function checkShoppingItem(", "// Ticking one offers Undo");
+      assert.match(fn, /a\.kind === "SHOPPING_ADD" && a\.status === "PENDING" && shoppingTempId\(a\.requestId\) === itemId && a\.requestId !== sendingActionId/);
+      assert.match(fn, /saveActionQueue\(cancelActions\(actionQueue, waitingAdd\.requestId\)\.actions\)/);
+      assert.ok(fn.indexOf("cancelActions(") < fn.indexOf("queueShopping("));
+    });
+    it("sends held changes through sendQueuedAction, after the blockedBy check, and takes the action out of the queue before the list is shown", () => {
+      const send = fnBody("async function sendQueuedAction(", "// One action settled by drainQueue");
+      assert.ok(send.indexOf("blockedBy(actionQueue, item)") < send.indexOf("sendShoppingAction(item)"));
+      const fn = fnBody("async function sendShoppingAction(", "// Adds an item to the Miscellaneous list at once");
+      assert.match(fn, /apiFetch\(UPDATE_SHOPPING_URL/);
+      assert.match(fn, /shoppingRemovalId\(item, shoppingRealIds, null\)/);
+      assert.match(fn, /apiFetch\(SHOPPING_URL\)/);
+      assert.ok(fn.lastIndexOf("saveActionQueue(queueWithout(actionQueue, item.requestId))") < fn.lastIndexOf("setShoppingFromServer(data.items)"));
+      assert.match(fn, /shoppingRealIds\.set\(tempId, data\.item\.id\)/);
+    });
+    it("shows the list again when a held change is refused, discarded or retried, and marks held adds as waiting", () => {
+      for (const name of ["function settleQueuedAction(", "async function discardQueuedAction(", "function retryQueuedAction("]) {
+        assert.match(fnBody(name, "\n    }\n"), /refreshShownShopping\(\)/, name);
+      }
+      assert.match(fnBody("function renderShoppingList(", "// The saved copy of the Miscellaneous list (SHOPPING_CACHE_KEY)"), /waitingShoppingIds\(actionQueue\)[\s\S]*Waiting to send/);
+    });
+    it("puts what is waiting on top of every list the server or the saved copy gives", () => {
+      assert.match(fnBody("function shownShopping(", "// Draws the list again"), /withPendingShopping\(items, actionQueue\)/);
+      assert.match(fnBody("function setShoppingFromServer(", "// Reads the list from the server"), /shoppingItems = shownShopping\(items\)/);
+      assert.match(fnBody("async function loadShoppingList(", "// The saved copy of the Miscellaneous list (SHOPPING_CACHE_KEY)"), /shoppingItems = shownShopping\(saved\.items\)/);
+    });
+  });
   describe("saved completed list", () => {
     const rowsOf = (n) => Array.from({length: n}, (_, i) => ({archiveId: `a${i}`, title: `Job ${i}`, completedAt: 1000 - i}));
     it("round-trips for the account that saved it and for no other", () => {
@@ -3378,12 +3424,12 @@ describe("public/index.html helpers", () => {
       const add = html.slice(html.indexOf("function addShoppingText"), html.indexOf("function checkShoppingItem"));
       assert.match(add, /shoppingItemText\(input\.value\)/);
       assert.match(add, /shoppingWithAdded\(shoppingItems, text, tempId\)/);
-      assert.match(add, /shoppingItems = result\.items;\s*renderShoppingList\(\);\s*queueShopping\(\{ action: "ADD", text: result\.item\.text \}/);
+      assert.match(add, /shoppingItems = result\.items;\s*renderShoppingList\(\);\s*queueShopping\(\{ kind: "SHOPPING_ADD", requestId, fields: \{ text: result\.item\.text \} \}/);
       assert.match(add, /if \(!addShoppingText\(text, true\)\) return;\s*input\.value = "";/);
       assert.match(html, /getElementById\("shoppingInput"\)\.addEventListener\("keydown", e => \{\s*if \(e\.key === "Enter" && !e\.isComposing\)/);
       assert.match(html, /getElementById\("shoppingAddBtn"\)\.addEventListener\("click", addShoppingItemFromInput\)/);
       const check = html.slice(html.indexOf("function checkShoppingItem"), html.indexOf("// Ticking one offers Undo"));
-      assert.match(check, /shoppingItems = removed\.items;\s*renderShoppingList\(\);[\s\S]*queueShopping\(\{ action: "REMOVE", itemId \}/);
+      assert.match(check, /shoppingItems = removed\.items;\s*renderShoppingList\(\);[\s\S]*queueShopping\(\{ kind: "SHOPPING_REMOVE", requestId: newRequestId\(\), fields: \{ id: itemId, text: removed\.item\.text \} \}/);
       assert.match(html, /getElementById\("shoppingList"\)\.addEventListener\("change"/);
     });
     it("saves in order in the background, takes a failed change back and shows the server's list once nothing is waiting", () => {
@@ -3391,10 +3437,10 @@ describe("public/index.html helpers", () => {
       assert.match(fn, /shoppingChain = shoppingChain\.then\(/);
       assert.match(fn, /apiFetch\(UPDATE_SHOPPING_URL/);
       assert.match(fn, /if \(shoppingPending === 0 && Array\.isArray\(data\.items\)\) setShoppingFromServer\(data\.items\);/);
-      assert.match(fn, /catch \(err\) \{\s*shoppingPending--;\s*undo\(\);/);
-      assert.match(fn, /"Not saved: " \+ err\.message/);
+      assert.match(fn, /catch \(err\) \{\s*shoppingPending--;\s*const refusal = isNetworkError\(err, navigator\.onLine\) \? holdShoppingChange\(change, false\) : null;\s*if \(refusal === ""\) return;[^\n]*\s*undo\(\);/, "a connection failure keeps the change for later and shown; any other failure takes it back");
+      assert.match(fn, /"Not saved: " \+ \(refusal \|\| err\.message\)/);
       assert.match(fn, /finally \{\s*renderShoppingList\(\);/);
-      assert.match(fn, /known \|\| body\.itemId/, "an item ticked before its add came back is removed under the id the server gave it");
+      assert.match(fn, /known \|\| change\.fields\.id/, "an item ticked before its add came back is removed under the id the server gave it");
       assert.doesNotMatch(html, /shoppingBusy/);
     });
     it("gives the typed text back when an add fails", () => {
@@ -4455,7 +4501,7 @@ describe("offline add queue display (page)", () => {
     it("marks a refused action FAILED with its text and stops showing it", () => {
       const settle = body("settleQueuedAction");
       assert.match(settle, /actionQueue\.map\(a => a\.requestId === requestId \? item : a\)/);
-      assert.match(settle, /if \(item\) refreshShownTasks\(\)/);
+      assert.match(settle, /if \(item\) \{ refreshShownTasks\(\); refreshShownShopping\(\); \}/);
     });
     it("draws action cards after the add cards, with Retry on a FAILED one and no Discard while one is on its way", () => {
       const fn = body("renderAddQueue");

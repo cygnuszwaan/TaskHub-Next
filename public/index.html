@@ -1465,12 +1465,12 @@
     let materialsChain = Promise.resolve();
     let shoppingItems = []; // the Miscellaneous list, [{id, text}], as the page shows it: the server's list plus changes not yet saved
     let shoppingLoaded = false; // true once the server has answered (or the saved copy is shown), so a list that failed to load is not shown as empty
+    let serverShopping = []; // the server's last list (or the saved copy's), without the changes waiting in the action queue
     let shoppingSyncAt = 0; // when the page last had the server's list
     let savedShoppingAt = null; // when the saved copy on screen was saved, null while the list is the server's
     // Adds and check-offs on the Miscellaneous list show at once and are saved in order in the background.
     let shoppingPending = 0; // how many have not been answered yet
     let shoppingChain = Promise.resolve();
-    let shoppingTempCount = 0; // numbers the ids of items added but not yet saved
     const shoppingRealIds = new Map(); // id of an item added here ("pending-1") -> the id the server gave it
     let allProjects = [];
     let projectsLoaded = false; // set once getProjects has answered; until then the edit form leaves project fields alone
@@ -2788,6 +2788,7 @@
     // server applies the same rules). Returns {items, item, added: true}; {items, item: the one already there, added: false}
     // when the text is on the list ignoring case; or {error} for a blank text or a full list. `tempId` is the new item's id until saved.
     const MAX_SHOPPING_ITEMS = 100;
+    const MAX_SHOPPING_TEXT = 100; // the longest item text the server takes
     function shoppingWithAdded(items, text, tempId) {
       const clean = shoppingItemText(text);
       if (!clean) return { error: "Type an item to add." };
@@ -3371,7 +3372,7 @@
     }
     // The note shown above the Miscellaneous list while it is the saved copy that is on screen.
     function shoppingOfflineNoteText(savedAt, now) {
-      return `You're offline. Showing the Miscellaneous list as it was ${cacheAgeText(savedAt, now)}. Changes need a connection.`;
+      return `You're offline. Showing the Miscellaneous list as it was ${cacheAgeText(savedAt, now)}. Changes are kept and sent when the connection returns.`;
     }
 
     // The note shown above History while it is the saved copy that is on screen.
@@ -3483,6 +3484,10 @@
     //             repeat after a lost reply add nothing, and its text as normalizeCommentText keeps it); `at` is when it was written
     //   COMMENT_DELETE: taskId or archiveId as for COMMENT, fields {id}: the comment to remove (one already on the server; deleting a comment still
     //             waiting just takes its COMMENT out of the queue)
+    //   SHOPPING_ADD:    no task or entry, fields {text}: an item added to the Miscellaneous list; the page shows it under the temporary id
+    //             shoppingTempId(requestId) until the server's own comes back (a text already on the list is not added twice, so a repeat after a lost reply adds nothing)
+    //   SHOPPING_REMOVE: no task or entry, fields {id, text}: an item ticked off, `id` the server's (or, for an add that was on its way, the temporary one,
+    //             which the send looks up by text when the page no longer knows the server's id); ticking an item whose add is still waiting takes the add out of the queue
     //   UNDO:     taskId and, for a completion, archiveId (none for a delete), of a removal the server has (or may have), fields
     //             {task, spawnedId?}: the task as archived (completionRecord) or as deleted (deletionRecord) and the id of the next
     //             occurrence a completion made, so the page can show it undone
@@ -3491,7 +3496,15 @@
     // what makes a second attempt a no-op on the server. Only PENDING actions change what the page shows (withPendingActions).
     const ACTION_QUEUE_KEY = "taskhub-action-queue";
     const ACTION_QUEUE_MAX = 50;
-    const ACTION_KINDS = ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO", "COMMENT", "COMMENT_DELETE", "DELETE"];
+    const ACTION_KINDS = ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO", "COMMENT", "COMMENT_DELETE", "DELETE", "SHOPPING_ADD", "SHOPPING_REMOVE"];
+    const SHOPPING_KINDS = ["SHOPPING_ADD", "SHOPPING_REMOVE"]; // the actions on the Miscellaneous list: they name no task or entry
+    function isShoppingKind(kind) {
+      return SHOPPING_KINDS.includes(kind);
+    }
+    // The id the page shows a held add under until the server gives the item its own.
+    function shoppingTempId(requestId) {
+      return "pending-" + requestId;
+    }
     const TIMER_ACTIONS = ["START", "PAUSE", "ABORT"];
     const EDIT_FIELDS = ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "location", "snoozedUntil", "description", "materials"]; // what a queued task's EDIT holds
     const ENTRY_EDIT_FIELDS = ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "location", "description"]; // what a History entry's EDIT holds (the plain fields of the archive row; materials, the project and the completion time need the server)
@@ -4009,6 +4022,13 @@
         if (!fields || typeof fields !== "object" || Array.isArray(fields)) return null;
         return typeof fields.id === "string" && fields.id !== "" && fields.id.length <= 200 ? { id: fields.id } : null;
       }
+      if (kind === "SHOPPING_ADD" || kind === "SHOPPING_REMOVE") {
+        if (!fields || typeof fields !== "object" || Array.isArray(fields)) return null;
+        const text = shoppingItemText(fields.text);
+        if (!text || text.length > MAX_SHOPPING_TEXT) return null;
+        if (kind === "SHOPPING_ADD") return { text };
+        return typeof fields.id === "string" && fields.id !== "" && fields.id.length <= 200 ? { id: fields.id, text } : null;
+      }
       if (kind === "UNDO") {
         if (!fields || typeof fields !== "object" || Array.isArray(fields)) return null;
         const task = fields.task;
@@ -4039,6 +4059,15 @@
       const fields = cleanActionFields(item.kind, item.fields, hasEntry && !hasTask);
       if (fields === null) return null;
       const clean = { requestId: item.requestId, kind: item.kind };
+      if (isShoppingKind(item.kind)) { // no target: the item's text is the card's title
+        if (hasTask || hasEntry) return null;
+        clean.title = fields.text.length > QUEUE_LABEL_MAX ? fields.text.slice(0, QUEUE_LABEL_MAX - 1).trimEnd() + "…" : fields.text;
+        clean.fields = fields;
+        clean.at = item.at;
+        clean.status = item.status;
+        if (item.status === "FAILED") clean.error = typeof item.error === "string" && item.error.trim() ? item.error.trim().slice(0, QUEUE_ERROR_MAX) : "Not sent";
+        return clean;
+      }
       if (item.kind === "TIMER" || item.kind === "DELETE") {
         if (!hasTask) return null;
         clean.taskId = item.taskId;
@@ -4161,6 +4190,7 @@
     // entry follows it), a DELETE is followed by the UNDO that puts the task back, a REOPEN or an UNDO gives the task back (any
     // later action on that task follows it).
     function actionDependsOn(later, earlier) {
+      if (earlier.kind === "SHOPPING_ADD") return later.kind === "SHOPPING_REMOVE" && !!later.fields && later.fields.id === shoppingTempId(earlier.requestId);
       if (earlier.kind === "COMPLETE") return later.archiveId !== undefined && later.archiveId === earlier.archiveId;
       if (earlier.kind === "DELETE") return later.kind === "UNDO" && later.taskId !== undefined && later.taskId === earlier.taskId;
       if (earlier.kind === "REOPEN" || earlier.kind === "UNDO") return later.taskId !== undefined && later.taskId === earlier.taskId;
@@ -4271,6 +4301,8 @@
     function actionLabel(action) {
       const task = quotedTitle(action && action.title) || " task";
       if (!action) return "Change" + task;
+      if (action.kind === "SHOPPING_ADD") return "Add" + (quotedTitle(action.title) || " item") + " to Miscellaneous";
+      if (action.kind === "SHOPPING_REMOVE") return "Take" + (quotedTitle(action.title) || " item") + " off Miscellaneous";
       if (action.kind === "TIMER") {
         const verb = action.fields && action.fields.action;
         return (verb === "START" ? "Start timer for" : verb === "PAUSE" ? "Pause timer for" : verb === "ABORT" ? "Abort timer for" : "Change timer for") + task;
@@ -4307,8 +4339,58 @@
     // The confirmation text for discarding an action; `dependents` is how many later actions go with it (cancelActions).
     function actionDiscardPrompt(action, dependents) {
       const failed = !!action && action.status === "FAILED";
-      const extra = Number.isInteger(dependents) && dependents > 0 ? ` The ${dependents === 1 ? "change" : dependents + " changes"} made after it on the same task will be discarded too.` : "";
+      const extra = Number.isInteger(dependents) && dependents > 0 ? ` The ${dependents === 1 ? "change" : dependents + " changes"} made after it on the same ${action && isShoppingKind(action.kind) ? "item" : "task"} will be discarded too.` : "";
       return `Discard this change (${actionLabel(action)})? ${failed ? "The server did not accept it, so nothing more will be sent." : "It has not been sent, so the change will not be made."}${extra}`;
+    }
+
+    // The Miscellaneous list with the PENDING shopping actions shown on top of the server's list, in queue order: an add as shoppingWithAdded
+    // does it (under shoppingTempId, nothing when the text is already there or the list is full), a removal as shoppingWithout does (an id that is
+    // not there changes nothing). FAILED actions and the other kinds change nothing. Pure: the inputs are not modified.
+    function withPendingShopping(items, actions) {
+      let list = Array.isArray(items) ? items.slice() : [];
+      for (const action of Array.isArray(actions) ? actions : []) {
+        if (!action || action.status !== "PENDING" || !action.fields) continue;
+        if (action.kind === "SHOPPING_ADD") {
+          const result = shoppingWithAdded(list, action.fields.text, shoppingTempId(action.requestId));
+          if (!result.error) list = result.items;
+        } else if (action.kind === "SHOPPING_REMOVE") {
+          let result = shoppingWithout(list, action.fields.id);
+          if (!result.item && action.fields.id.startsWith("pending-")) { // a held add the server has since saved under its own id: found by its text
+            const same = list.find(i => i.text.toLowerCase() === action.fields.text.toLowerCase());
+            if (same) result = shoppingWithout(list, same.id);
+          }
+          list = result.items;
+        }
+      }
+      return list;
+    }
+    // The temporary ids of the items that are held adds (a PENDING SHOPPING_ADD): they show a "Waiting to send" chip.
+    function waitingShoppingIds(actions) {
+      const ids = new Set();
+      for (const action of Array.isArray(actions) ? actions : []) {
+        if (action && action.status === "PENDING" && action.kind === "SHOPPING_ADD") ids.add(shoppingTempId(action.requestId));
+      }
+      return ids;
+    }
+    // Whether a shopping action is PENDING: a new change to the list then goes behind it, even with a connection, so the order holds.
+    function hasPendingShopping(actions) {
+      return (Array.isArray(actions) ? actions : []).some(a => !!a && a.status === "PENDING" && isShoppingKind(a.kind));
+    }
+    // The body a held shopping action is sent to updateShoppingList with. A removal's `itemId` is `realId`, the id the server gave
+    // (the page's own for an add it sent, else the item's own id).
+    function shoppingBody(action, realId) {
+      return action.kind === "SHOPPING_ADD" ? { action: "ADD", text: action.fields.text } : { action: "REMOVE", itemId: realId };
+    }
+    // The server's id for the item a SHOPPING_REMOVE names: its own id when it is not a temporary one, else the id the page learned
+    // when the add was sent (`known`, a Map), else the id of the item with the same text (ignoring case) on `serverItems`, the server's list as
+    // it is now; null when there is none, meaning the item is not on the server (already removed) and nothing is to be sent.
+    function shoppingRemovalId(action, known, serverItems) {
+      const id = action && action.fields ? action.fields.id : "";
+      if (!id.startsWith("pending-")) return id;
+      if (known && known.get(id)) return known.get(id);
+      const text = String(action.fields.text || "").toLowerCase();
+      const found = (Array.isArray(serverItems) ? serverItems : []).find(i => i && String(i.text).toLowerCase() === text);
+      return found ? found.id : null;
     }
     // </pure-helpers>
 
@@ -5449,11 +5531,12 @@
     // The Miscellaneous card: loose items to get that belong to no task, a simple list kept on the server. Checking one
     // takes it off the list.
     function renderShoppingList() {
+      const waitingShopping = waitingShoppingIds(actionQueue);
       document.getElementById("shoppingList").innerHTML = !shoppingLoaded ? "" : shoppingItems.length === 0 ?
         "<p style='color:var(--text-faint); margin:0;'>Nothing on the list.</p>" :
         shoppingItems.map(i => `
           <label class="material-row" data-shopping-id="${esc(i.id)}">
-            <input type="checkbox"> <span>${esc(i.text)}</span>
+            <input type="checkbox"> <span>${esc(i.text)}</span>${waitingShopping.has(i.id) ? ' <span class="chip held-chip" title="This item is waiting to be sent">⏳ Waiting to send</span>' : ""}
           </label>`).join("");
     }
 
@@ -5478,9 +5561,20 @@
       note.hidden = savedAt === null;
       if (savedAt !== null) document.getElementById("shoppingOfflineNoteText").textContent = shoppingOfflineNoteText(savedAt, Date.now());
     }
-    // The page takes the server's list as it is: it is shown, saved for offline use and any saved-copy note goes.
+    // The list shown: the server's with the changes waiting in the action queue on top of it (withPendingShopping).
+    function shownShopping(items) {
+      return withPendingShopping(items, actionQueue);
+    }
+    // Draws the list again from the server's last one after the queue changed without an addition (a discard, a refusal).
+    function refreshShownShopping() {
+      if (!shoppingLoaded) return;
+      shoppingItems = shownShopping(serverShopping);
+      renderShoppingList();
+    }
+    // The page takes the server's list as it is: it is shown (with what is waiting on top), saved for offline use and any saved-copy note goes.
     function setShoppingFromServer(items) {
-      shoppingItems = items;
+      serverShopping = items;
+      shoppingItems = shownShopping(items);
       shoppingLoaded = true;
       shoppingSyncAt = Date.now();
       saveShoppingCache(items);
@@ -5502,7 +5596,8 @@
           status.textContent = "";
           showSavedShoppingNote(savedShoppingAt !== null ? savedShoppingAt : shoppingSyncAt);
         } else if (saved) {
-          shoppingItems = saved.items;
+          serverShopping = saved.items;
+          shoppingItems = shownShopping(saved.items);
           shoppingLoaded = true;
           status.textContent = "";
           showSavedShoppingNote(saved.savedAt);
@@ -5513,37 +5608,102 @@
       }
     }
 
-    // Sends one change to the Miscellaneous list in the background, after the ones before it. The page already shows the
-    // change; `undo` takes it back if the save fails, and `onSaved(data)` learns the server's answer. Once nothing is
-    // left to save the server's list replaces the page's, so the two agree again.
-    function queueShopping(body, undo, onSaved) {
+    // Sends one change to the Miscellaneous list in the background, after the ones before it. `change` is {kind, requestId, fields} as the
+    // action queue holds it (SHOPPING_ADD or SHOPPING_REMOVE). The page already shows the change; `undo` takes it back if the save fails, and
+    // `onSaved(data)` learns the server's answer. A change goes into the action queue instead (holdShoppingChange) when the save fails on the
+    // connection, or when a shopping action is already waiting there, which it must follow; it then stays shown. Once nothing is left to
+    // save the server's list replaces the page's (with what is waiting on top), so the two agree again.
+    function queueShopping(change, undo, onSaved) {
       const status = document.getElementById("shoppingStatus");
       shoppingPending++;
       status.textContent = "";
       shoppingChain = shoppingChain.then(async () => {
         try {
-          if (body.action === "REMOVE") {
-            const known = shoppingRealIds.get(body.itemId);
-            if (!known && body.itemId.startsWith("pending-")) { shoppingPending--; return; } // its add failed and the item is already gone
-            body = { ...body, itemId: known || body.itemId };
+          loadActionQueue();
+          if (hasPendingShopping(actionQueue)) { // behind a held change: keep the order
+            const refusal = holdShoppingChange(change, true);
+            shoppingPending--;
+            if (refusal) { undo(); status.textContent = "Not saved: " + refusal; }
+            return;
+          }
+          let realId = change.fields.id;
+          if (change.kind === "SHOPPING_REMOVE") {
+            const known = shoppingRealIds.get(change.fields.id);
+            if (!known && change.fields.id.startsWith("pending-")) { shoppingPending--; return; } // its add failed and the item is already gone
+            realId = known || change.fields.id;
           }
           const res = await apiFetch(UPDATE_SHOPPING_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body)
+            body: JSON.stringify(shoppingBody(change, realId))
           });
           const data = await res.json();
           if (onSaved) onSaved(data);
           shoppingPending--;
+          if (Array.isArray(data.items)) serverShopping = data.items;
           if (shoppingPending === 0 && Array.isArray(data.items)) setShoppingFromServer(data.items);
         } catch (err) {
           shoppingPending--;
+          const refusal = isNetworkError(err, navigator.onLine) ? holdShoppingChange(change, false) : null;
+          if (refusal === "") return; // kept for later and shown: it is sent when the connection returns
           undo();
-          status.textContent = "Not saved: " + err.message;
+          status.textContent = "Not saved: " + (refusal || err.message);
         } finally {
           renderShoppingList();
         }
       });
+    }
+
+    // Keeps a change to the Miscellaneous list in the action queue (the page already shows it), after a connection failure or (`behind`)
+    // because another is waiting and this one must follow it. Returns "" when kept, else why not (the text for under the section).
+    function holdShoppingChange(change, behind) {
+      loadActionQueue();
+      const refusal = actionQueueRefusal(actionQueue.length, actionQueueUsable);
+      if (refusal) return refusal;
+      const item = makeQueuedAction({ kind: change.kind, title: change.fields.text, fields: change.fields, now: Date.now(), offset: clockOffsetMs, requestId: change.requestId });
+      if (!item) return "This change could not be kept for later. Check your connection and try again.";
+      if (!saveActionQueue([...actionQueue, item])) return actionQueueRefusal(0, false);
+      renderAddQueue();
+      if (behind && navigator.onLine) setTimeout(drainAllQueues, 0);
+      return "";
+    }
+
+    // A held change to the Miscellaneous list posted to the server (sendQueuedAction). A removal whose item was added while offline is sent
+    // under the id the server gave it when the page knows it, else under the id of the item with the same text on the server's list
+    // (read first); an item that is not there is already gone, and nothing is sent. The action leaves the stored queue, and the server's
+    // list is shown with what still waits on top.
+    async function sendShoppingAction(item) {
+      let realId = null;
+      if (item.kind === "SHOPPING_REMOVE") {
+        realId = shoppingRemovalId(item, shoppingRealIds, null);
+        if (realId === null) {
+          const listRes = await apiFetch(SHOPPING_URL);
+          const listData = await listRes.json();
+          realId = shoppingRemovalId(item, shoppingRealIds, listData.items || []);
+          if (realId === null) {
+            loadActionQueue();
+            saveActionQueue(queueWithout(actionQueue, item.requestId));
+            if (Array.isArray(listData.items) && shoppingPending === 0) setShoppingFromServer(listData.items);
+            renderShoppingList();
+            return listData;
+          }
+        }
+      }
+      const res = await apiFetch(UPDATE_SHOPPING_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(shoppingBody(item, realId))
+      });
+      const data = await res.json();
+      const tempId = shoppingTempId(item.requestId);
+      if (item.kind === "SHOPPING_ADD" && data.item && data.item.id) shoppingRealIds.set(tempId, data.item.id);
+      loadActionQueue();
+      saveActionQueue(queueWithout(actionQueue, item.requestId));
+      if (Array.isArray(data.items)) serverShopping = data.items;
+      if (shoppingPending === 0 && Array.isArray(data.items)) setShoppingFromServer(data.items);
+      else if (item.kind === "SHOPPING_ADD" && data.item && data.item.id) shoppingItems = shoppingItems.map(i => (i.id === tempId ? { ...i, id: data.item.id } : i));
+      renderShoppingList();
+      return data;
     }
 
     // Adds an item to the Miscellaneous list at once and saves it in the background; returns false when nothing was added
@@ -5552,13 +5712,14 @@
       const input = document.getElementById("shoppingInput");
       const status = document.getElementById("shoppingStatus");
       if (!shoppingLoaded) { status.textContent = "The list has not loaded yet, trying again."; loadShoppingList(); return false; }
-      const tempId = `pending-${++shoppingTempCount}`;
+      const requestId = newRequestId();
+      const tempId = shoppingTempId(requestId);
       const result = shoppingWithAdded(shoppingItems, text, tempId);
       if (result.error) { status.textContent = result.error; return false; }
       if (!result.added) return true; // already on the list
       shoppingItems = result.items;
       renderShoppingList();
-      queueShopping({ action: "ADD", text: result.item.text }, () => {
+      queueShopping({ kind: "SHOPPING_ADD", requestId, fields: { text: result.item.text } }, () => {
         shoppingItems = shoppingWithout(shoppingItems, tempId).items;
         if (restoreInput && !input.value) input.value = text; // give the text back so it need not be typed again
       }, data => {
@@ -5591,7 +5752,14 @@
         hideUndoNote();
         addShoppingText(removed.item.text, false);
       });
-      queueShopping({ action: "REMOVE", itemId }, () => {
+      loadActionQueue();
+      const waitingAdd = actionQueue.find(a => a.kind === "SHOPPING_ADD" && a.status === "PENDING" && shoppingTempId(a.requestId) === itemId && a.requestId !== sendingActionId);
+      if (waitingAdd) { // its add never left the device: taking it out of the queue is the whole change
+        saveActionQueue(cancelActions(actionQueue, waitingAdd.requestId).actions);
+        renderAddQueue();
+        return;
+      }
+      queueShopping({ kind: "SHOPPING_REMOVE", requestId: newRequestId(), fields: { id: itemId, text: removed.item.text } }, () => {
         shoppingItems = shoppingWithRestored(shoppingItems, removed.item, removed.index);
         if (undoNoteKey === key) hideUndoNote();
       });
@@ -8534,7 +8702,8 @@
       renderAddQueue();
       try {
         loadActionQueue();
-        if (blockedBy(actionQueue, item)) throw new Error("Not sent: the change before it on the same task was not accepted");
+        if (blockedBy(actionQueue, item)) throw new Error("Not sent: the change before it on the same " + (isShoppingKind(item.kind) ? "item" : "task") + " was not accepted");
+        if (isShoppingKind(item.kind)) return await sendShoppingAction(item);
         let url = TIMER_URL;
         let body;
         if (item.kind === "TIMER") {
@@ -8611,7 +8780,7 @@
       saveActionQueue(item ? actionQueue.map(a => a.requestId === requestId ? item : a) : queueWithout(actionQueue, requestId));
       renderAddQueue();
       if (item && undoRemovalInfo && undoRemovalInfo.requestId === requestId) hideUndoNote(); // refused: the task is back, nothing to undo
-      if (item) refreshShownTasks();
+      if (item) { refreshShownTasks(); refreshShownShopping(); }
     }
     // Sends the waiting actions, oldest first, one run at a time; does nothing without a signed-in user or a waiting action.
     // A change queued while a run is going is sent by the next round.
@@ -8650,6 +8819,7 @@
       saveActionQueue(cancelActions(actionQueue, requestId).actions);
       renderAddQueue();
       refreshShownTasks();
+      refreshShownShopping();
     }
     // Retry on a FAILED action's card: it becomes PENDING again and the queues are sent.
     function retryQueuedAction(requestId) {
@@ -8657,6 +8827,7 @@
       saveActionQueue(queueRetry(actionQueue, requestId));
       renderAddQueue();
       refreshShownTasks();
+      refreshShownShopping();
       drainAllQueues();
     }
 
