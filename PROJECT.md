@@ -58,23 +58,7 @@ A change usually touches several rows: a new endpoint touches an `endpoints-*.md
 
 Each step fits in one turn. Do them in order unless told otherwise. Each step adds tests for any new pure logic.
 
-### Offline changes
-
-Goal: the changes made on site (Start, Pause, Abort, Complete, Reopen, descriptions, comments) are held on the device with no connection, shown at once and sent in order when it returns; later stages extend the same machinery to every other change that needs nothing created by the server. Design:
-- One persistent action queue beside the add queue (`ACTION_QUEUE_KEY`, `taskhub-action-queue`, `ACTION_QUEUE_MAX` 50; items `{requestId, kind, taskId?, archiveId?, title, fields?, at, status, error?}`, `kind` one of TIMER, COMPLETE, DELETE, UNDO, REOPEN, EDIT, COMMENT, COMMENT_DELETE), sent with the existing `drainQueue` on the add queue's triggers, one run at a time after the add drain. A change is queued only after a connection failure (`isNetworkError`) or behind changes already waiting, which keeps the order; a server answer, a 404 included, marks the item FAILED with its text and a Discard button.
-- The page shows the server's last lists (tasks, and the newest completed entries) with the waiting actions replayed on top (`withPendingActions`, applied when a list arrives and to the saved copies on load), so a list arriving mid-drain never undoes a change still waiting. The saved copies therefore hold the server's lists, never the replayed ones. A task with a waiting change shows a "Waiting to send" chip; every waiting action is listed with Discard, so an accidental one can always be cancelled.
-- Every action carries `at`, the device's clock corrected by its offset to the server's (`clockOffset`, from the `serverTime` the endpoints return), because the server must book when the change was made, not when it arrived. A timer stretch is never negative.
-- A completed task goes to History, not a Pending state in the Queue: it leaves the Queue as it does online and appears at the top of History as a local entry marked "Waiting to send" (`waitingRequestId`, the action's request id), built from the task. The page makes the entry's `archiveId` itself and the server uses it as the row's id, so Reopen and description edits on it work offline against a known id, and edits made to a waiting entry fold into the queue behind its COMPLETE.
-- Undo: while a removal's action is still waiting, Undo cancels it (and any waiting action that depends on it) and the task or entry is back untouched, photos included, since the server never saw it; once it has been sent, Undo is a queued UNDO action, valid because the queue is in order and the footnote only ever offers the latest removal. The server's 10-minute window runs from the removal's commit, not from `at`.
-- Edits are sent as the fields that changed, field by field, last write by arrival; edits made to the same task on another device meanwhile are overwritten only in those fields.
-- A comment is never an edit: COMMENT carries the page's own comment id and `at`, so it appends without conflict and a repeat after a lost reply adds nothing. Deleting one is COMMENT_DELETE with the comment's id, and a comment still waiting is simply taken out of the queue.
-- A completion's next occurrence (a repeating task) and its job number cannot be shown until the server has made them.
-- Stays online-only: photos, Settings, Clients, project and template management, Update now, job sheets, exports, History's Stats and Project hours.
-
-The rest of the Queue's changes, each the same machinery with its own replay and tests; a change that needs an id or an order only the server makes (a new project, Order number, a move to a task number) waits until the server has them:
-1. Multi-Select actions that need no new project (Move to top, Set due date, Snooze, Set project to an existing one).
-
-The stretch goals below are unplanned.
+Nothing is planned. Unplanned ideas are in `stretch-goals.md`.
 
 ## Open questions
 

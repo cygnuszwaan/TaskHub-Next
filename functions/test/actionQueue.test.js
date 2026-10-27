@@ -19,6 +19,7 @@ const {normalizeMaterialCost: serverNormalizeMaterialCost} = require("../money")
 const {addComment: serverAddComment, removeComment: serverRemoveComment} = require("../comments");
 const {normalizeArchiveId, resolveActionTime} = require("../clientTime");
 const {normalizeRequestId} = require("../addRequests");
+const {applyBatch} = require("../batch");
 
 // The page's pure helpers sit between two marker comments in public/index.html; load them as the page does.
 const html = fs.readFileSync(path.join(__dirname, "..", "..", "public", "index.html"), "utf8");
@@ -29,7 +30,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, ENTRY_EDIT_FIELDS, normalizeSnooze, normalizeTravelKm, normalizePhone, normalizeEmail, normalizeLocation, normalizeRecurrence, checkEditFields, taskEditChanges, serverOnlyEditChanges, taskEditBody, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, addCommentToList, removeCommentFromList, commentBody, commentDeleteBody, waitingCommentIds, MAX_COMMENTS, normalizeCommentText, commentsOf, cleanEntryTags, MAX_TRACKED_SECONDS, MAX_ENTRY_TAGS, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt, deletionRecord, deleteBody, removalBody, normalizeMaterials, normalizeMaterialCost, heldMaterials, withMaterialIds, coalesceMaterialsEdit, openMaterialGroups, openMaterialCount, withMaterialChecked, MAX_MATERIALS, isShoppingKind, shoppingTempId, withPendingShopping, waitingShoppingIds, hasPendingShopping, shoppingBody, shoppingRemovalId, shoppingWithAdded, shoppingWithout, MAX_SHOPPING_ITEMS, MAX_SHOPPING_TEXT};
+    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, ENTRY_EDIT_FIELDS, normalizeSnooze, normalizeTravelKm, normalizePhone, normalizeEmail, normalizeLocation, normalizeRecurrence, checkEditFields, taskEditChanges, serverOnlyEditChanges, taskEditBody, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, addCommentToList, removeCommentFromList, commentBody, commentDeleteBody, waitingCommentIds, MAX_COMMENTS, normalizeCommentText, commentsOf, cleanEntryTags, MAX_TRACKED_SECONDS, MAX_ENTRY_TAGS, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt, deletionRecord, deleteBody, removalBody, normalizeMaterials, normalizeMaterialCost, heldMaterials, withMaterialIds, coalesceMaterialsEdit, openMaterialGroups, openMaterialCount, withMaterialChecked, MAX_MATERIALS, BATCH_ACTIONS, MAX_BATCH, batchInList, batchActionBody, unheldBatchId, isShoppingKind, shoppingTempId, withPendingShopping, waitingShoppingIds, hasPendingShopping, shoppingBody, shoppingRemovalId, shoppingWithAdded, shoppingWithout, MAX_SHOPPING_ITEMS, MAX_SHOPPING_TEXT};
   `)();
 }
 
@@ -265,7 +266,7 @@ describe("action queue (public/index.html)", () => {
     });
     it("holds only the kinds stage 1 can replay and the fields it can apply", () => {
       const page = load();
-      assert.deepEqual(page.ACTION_KINDS, ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO", "COMMENT", "COMMENT_DELETE", "DELETE", "SHOPPING_ADD", "SHOPPING_REMOVE"]);
+      assert.deepEqual(page.ACTION_KINDS, ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO", "COMMENT", "COMMENT_DELETE", "DELETE", "SHOPPING_ADD", "SHOPPING_REMOVE", "BATCH"]);
       assert.deepEqual(page.EDIT_FIELDS, ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "location", "snoozedUntil", "description", "materials"]);
       assert.deepEqual(page.ENTRY_EDIT_FIELDS, ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "location", "description"]);
     });
@@ -1563,6 +1564,186 @@ describe("Miscellaneous list actions", () => {
       assert.equal(page.actionLabel(remove("i1", "Nails")), "Take “Nails” off Miscellaneous");
       assert.match(page.actionDiscardPrompt(add("Nails"), 1), /same item/);
       assert.match(page.actionDiscardPrompt(page.makeQueuedAction({kind: "TIMER", taskId: "a", title: "A", fields: {action: "START"}, now: T0}), 1), /same task/);
+    });
+  });
+});
+
+describe("Multi-Select (BATCH) actions", () => {
+  const page = load();
+  const list = () => [
+    task("a", {order: 1, projectId: "p1", projectOrder: 2, dueDate: "2026-11-01"}),
+    task("b", {order: 2, snoozedUntil: "2026-11-05"}),
+    task("c", {order: 3, projectId: "p2", projectOrder: 1}),
+    task("d", {order: 4}),
+  ];
+  const batch = (fields, over = {}) => page.makeQueuedAction({kind: "BATCH", title: "", fields: {taskIds: ["b", "d"], ...fields}, now: T0, offset: 0, ...over});
+  const top = (ids = ["b", "d"], over = {}) => batch({action: "MOVE_TO_TOP", taskIds: ids}, over);
+
+  describe("the action", () => {
+    it("is a kind of its own, naming its tasks in its fields and no single target", () => {
+      const a = top();
+      assert.equal(a.kind, "BATCH");
+      assert.equal(a.taskId, undefined);
+      assert.equal(a.archiveId, undefined);
+      assert.deepEqual(a.fields, {action: "MOVE_TO_TOP", taskIds: ["b", "d"]});
+      assert.equal(a.status, "PENDING");
+      assert.deepEqual(page.BATCH_ACTIONS, ["MOVE_TO_TOP", "SET_PROJECT", "SET_DUE", "SNOOZE"]);
+    });
+    it("holds each action's value as batchUpdateTasks takes it", () => {
+      assert.deepEqual(batch({action: "SET_PROJECT", projectId: "p1"}, {title: "Kitchen"}).fields, {action: "SET_PROJECT", taskIds: ["b", "d"], projectId: "p1"});
+      assert.equal(batch({action: "SET_PROJECT", projectId: "p1"}, {title: "Kitchen"}).title, "Kitchen");
+      assert.deepEqual(batch({action: "SET_DUE", dueDate: "2026-11-09"}).fields.dueDate, "2026-11-09");
+      assert.equal(batch({action: "SET_DUE", dueDate: ""}).fields.dueDate, null, "an empty date clears it");
+      assert.equal(batch({action: "SET_DUE", dueDate: null}).fields.dueDate, null);
+      assert.equal(batch({action: "SNOOZE", snoozedUntil: "2026-11-09"}).fields.snoozedUntil, "2026-11-09");
+      assert.equal(batch({action: "SNOOZE", snoozedUntil: null}).fields.snoozedUntil, null);
+    });
+    it("refuses what the server would refuse", () => {
+      assert.equal(batch({action: "NOPE"}), null);
+      assert.equal(batch({action: "MOVE_TO_TOP", taskIds: []}), null);
+      assert.equal(batch({action: "MOVE_TO_TOP", taskIds: "b"}), null);
+      assert.equal(batch({action: "MOVE_TO_TOP", taskIds: ["b", 7]}), null);
+      assert.equal(batch({action: "MOVE_TO_TOP", taskIds: [""]}), null);
+      assert.equal(batch({action: "MOVE_TO_TOP", taskIds: Array.from({length: page.MAX_BATCH + 1}, (_, i) => "t" + i)}), null);
+      assert.notEqual(batch({action: "MOVE_TO_TOP", taskIds: Array.from({length: page.MAX_BATCH}, (_, i) => "t" + i)}), null);
+      assert.equal(batch({action: "SET_PROJECT"}), null, "a project needs its id");
+      assert.equal(batch({action: "SET_PROJECT", projectId: ""}), null);
+      assert.equal(batch({action: "SET_PROJECT", newProject: "Kitchen"}), null, "a new project needs the server");
+      assert.equal(batch({action: "SET_DUE"}), null, "a due date change names its value");
+      assert.equal(batch({action: "SET_DUE", dueDate: "2026-02-31"}), null);
+      assert.equal(batch({action: "SNOOZE"}), null);
+      assert.equal(batch({action: "SNOOZE", snoozedUntil: "tomorrow"}), null);
+      assert.equal(page.makeQueuedAction({kind: "BATCH", title: "", fields: null, now: T0}), null);
+    });
+    it("names a target of neither kind", () => {
+      const a = top();
+      assert.equal(page.normalizeQueuedAction({...a, taskId: "b"}), null);
+      assert.equal(page.normalizeQueuedAction({...a, archiveId: "arch-12345"}), null);
+    });
+    it("drops a repeated task id and survives storage", () => {
+      const a = batch({action: "MOVE_TO_TOP", taskIds: ["b", "d", "b"]});
+      assert.deepEqual(a.fields.taskIds, ["b", "d"]);
+      const failed = {...batch({action: "SNOOZE", snoozedUntil: "2026-11-09"}), status: "FAILED", error: "No matching tasks"};
+      const back = page.parseActionQueue(page.serializeActionQueue([a, failed]));
+      assert.deepEqual(back, [a, failed]);
+    });
+    it("marks every task it names as waiting, until it is refused", () => {
+      const failed = {...top(["a"]), status: "FAILED", error: "x"};
+      assert.deepEqual([...page.waitingTaskIds([top(), failed])].sort(), ["b", "d"]);
+      assert.deepEqual([...page.waitingTaskIds([failed])], []);
+    });
+    it("depends on nothing and nothing depends on it", () => {
+      const a = top();
+      const edit = page.makeQueuedAction({kind: "EDIT", taskId: "b", title: "Task b", fields: {priority: "HIGH"}, now: T0});
+      assert.deepEqual(page.cancelActions([a, edit], a.requestId).actions, [edit]);
+      assert.deepEqual(page.cancelActions([edit, a], edit.requestId).actions, [a]);
+      assert.equal(page.blockedBy([{...edit, status: "FAILED", error: "x"}, a], a), null);
+    });
+    it("is sent as the body batchUpdateTasks takes", () => {
+      assert.deepEqual(page.batchActionBody(top()), {action: "MOVE_TO_TOP", taskIds: ["b", "d"]});
+      assert.deepEqual(page.batchActionBody(batch({action: "SET_PROJECT", projectId: "p1"})), {action: "SET_PROJECT", taskIds: ["b", "d"], projectId: "p1"});
+      assert.deepEqual(page.batchActionBody(batch({action: "SET_DUE", dueDate: ""})), {action: "SET_DUE", taskIds: ["b", "d"], dueDate: null});
+      assert.deepEqual(page.batchActionBody(batch({action: "SNOOZE", snoozedUntil: "2026-11-09"})), {action: "SNOOZE", taskIds: ["b", "d"], snoozedUntil: "2026-11-09"});
+    });
+    it("cannot be held for a task a waiting Reopen brought back", () => {
+      assert.equal(page.unheldBatchId(["a", "pending-abc12345"]), "pending-abc12345");
+      assert.equal(page.unheldBatchId(["a", "b"]), "");
+      assert.equal(page.unheldBatchId(undefined), "");
+    });
+  });
+
+  describe("the replay equals the server's applyBatch", () => {
+    const projectIds = ["p1", "p2"];
+    const cases = [
+      ["MOVE_TO_TOP", {action: "MOVE_TO_TOP", taskIds: ["c", "b"]}],
+      ["MOVE_TO_TOP of tasks already first", {action: "MOVE_TO_TOP", taskIds: ["a"]}],
+      ["SET_PROJECT to a new one (loses its order number)", {action: "SET_PROJECT", taskIds: ["a", "d"], projectId: "p2"}],
+      ["SET_PROJECT to the same one (keeps its order number)", {action: "SET_PROJECT", taskIds: ["a", "c"], projectId: "p1"}],
+      ["SET_DUE", {action: "SET_DUE", taskIds: ["b", "c"], dueDate: "2026-12-24"}],
+      ["SET_DUE cleared", {action: "SET_DUE", taskIds: ["a", "b"], dueDate: null}],
+      ["SNOOZE", {action: "SNOOZE", taskIds: ["a", "d"], snoozedUntil: "2026-11-30"}],
+      ["SNOOZE removed", {action: "SNOOZE", taskIds: ["b", "d"], snoozedUntil: null}],
+      ["ids that match no task are ignored", {action: "SNOOZE", taskIds: ["d", "zzz"], snoozedUntil: "2026-11-30"}],
+    ];
+    for (const [name, fields] of cases) {
+      it(name, () => {
+        const request = {...fields};
+        if ("dueDate" in request && request.dueDate === null) request.dueDate = "";
+        if ("snoozedUntil" in request && request.snoozedUntil === null) request.snoozedUntil = "";
+        const server = applyBatch(list(), request, projectIds);
+        assert.equal(server.error, undefined);
+        assert.deepEqual(page.batchInList(list(), fields, projectIds), server.tasks);
+        assert.deepEqual(page.batchInList(list(), fields, null), server.tasks, "with the projects unknown");
+      });
+    }
+    it("returns null where the server finds no task or an unusable value", () => {
+      assert.equal(page.batchInList(list(), {action: "SNOOZE", taskIds: ["zzz"], snoozedUntil: "2026-11-30"}, null), null);
+      assert.equal(page.batchInList(list(), {action: "SET_PROJECT", taskIds: ["a"], projectId: "gone"}, projectIds), null, "a project that no longer exists");
+      assert.equal(page.batchInList(list(), {action: "SET_DUE", taskIds: ["a"], dueDate: "soon"}, null), null);
+      assert.equal(page.batchInList(list(), null, null), null);
+      assert.equal(page.batchInList(list(), {action: "NOPE", taskIds: ["a"]}, null), null);
+    });
+    it("does not modify its input", () => {
+      const tasks = list();
+      const copy = JSON.parse(JSON.stringify(tasks));
+      page.batchInList(tasks, {action: "MOVE_TO_TOP", taskIds: ["d"]}, null);
+      page.batchInList(tasks, {action: "SET_PROJECT", taskIds: ["a"], projectId: "p2"}, null);
+      page.batchInList(tasks, {action: "SNOOZE", taskIds: ["b"], snoozedUntil: null}, null);
+      assert.deepEqual(tasks, copy);
+    });
+  });
+
+  describe("withPendingActions", () => {
+    it("shows a waiting batch on top of the server's list", () => {
+      const shown = page.withPendingActions(list(), [], [top(["d"])]);
+      assert.deepEqual(shown.tasks.map((t) => t.id), ["d", "a", "b", "c"]);
+      assert.deepEqual(shown.tasks.map((t) => t.order), [1, 2, 3, 4]);
+    });
+    it("replays batches and other changes in the order they were made", () => {
+      const edit = page.makeQueuedAction({kind: "EDIT", taskId: "b", title: "Task b", fields: {dueDate: "2026-11-02"}, now: T0});
+      const clear = batch({action: "SET_DUE", dueDate: null, taskIds: ["a", "b"]});
+      const snooze = batch({action: "SNOOZE", snoozedUntil: "2026-12-01", taskIds: ["b"]});
+      const shown = page.withPendingActions(list(), [], [edit, clear, snooze, top(["c"])]).tasks;
+      assert.deepEqual(shown.map((t) => t.id), ["c", "a", "b", "d"]);
+      assert.equal(shown.find((t) => t.id === "b").dueDate, "", "the clear came after the edit");
+      assert.equal(shown.find((t) => t.id === "b").snoozedUntil, "2026-12-01");
+      assert.equal(shown.find((t) => t.id === "a").dueDate, "");
+    });
+    it("ignores a refused batch and one whose tasks are gone", () => {
+      const failed = {...top(["d"]), status: "FAILED", error: "x"};
+      assert.deepEqual(page.withPendingActions(list(), [], [failed]).tasks, list());
+      assert.deepEqual(page.withPendingActions(list(), [], [top(["gone"])]).tasks, list());
+    });
+    it("leaves a task a waiting completion took off the list alone and moves the rest", () => {
+      const complete = page.makeQueuedAction({kind: "COMPLETE", taskId: "d", archiveId: "arch-d-123456", title: "Task d", now: T0});
+      const shown = page.withPendingActions(list(), [], [complete, top(["b", "d"])]).tasks;
+      assert.deepEqual(shown.map((t) => t.id), ["b", "a", "c"]);
+    });
+    it("takes a project only if the page knows it", () => {
+      const move = batch({action: "SET_PROJECT", projectId: "p9", taskIds: ["a"]});
+      assert.equal(page.withPendingActions(list(), [], [move], {projectIds: ["p1"]}).tasks.find((t) => t.id === "a").projectId, "p1");
+      assert.equal(page.withPendingActions(list(), [], [move], {projectIds: ["p1", "p9"]}).tasks.find((t) => t.id === "a").projectId, "p9");
+    });
+  });
+
+  describe("the cards", () => {
+    it("word what each change does", () => {
+      assert.equal(page.actionLabel(top()), "Move 2 tasks to the top");
+      assert.equal(page.actionLabel(top(["b"])), "Move 1 task to the top");
+      assert.equal(page.actionLabel(batch({action: "SET_PROJECT", projectId: "p1"}, {title: "Kitchen reno"})), "Add 2 tasks to “Kitchen reno”");
+      assert.equal(page.actionLabel(batch({action: "SET_PROJECT", projectId: "p1"})), "Add 2 tasks to a project");
+      assert.equal(page.actionLabel(batch({action: "SET_DUE", dueDate: "2026-11-09"})), "Set the due date of 2 tasks to 2026-11-09");
+      assert.equal(page.actionLabel(batch({action: "SET_DUE", dueDate: ""})), "Clear the due date of 2 tasks");
+      assert.equal(page.actionLabel(batch({action: "SNOOZE", snoozedUntil: "2026-11-09"})), "Snooze 2 tasks until 2026-11-09");
+      assert.equal(page.actionLabel(batch({action: "SNOOZE", snoozedUntil: null})), "Unsnooze 2 tasks");
+    });
+    it("show waiting, sending and the server's refusal", () => {
+      const a = top();
+      assert.equal(page.actionCardView(a, false).text, "Waiting to send");
+      assert.equal(page.actionCardView(a, true).text, "Sending…");
+      const failed = {...a, status: "FAILED", error: "No matching tasks"};
+      assert.deepEqual([page.actionCardView(failed, false).failed, page.actionCardView(failed, false).text], [true, "No matching tasks"]);
+      assert.match(page.actionDiscardPrompt(a, 0), /Move 2 tasks to the top/);
     });
   });
 });

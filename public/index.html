@@ -3488,6 +3488,9 @@
     //             shoppingTempId(requestId) until the server's own comes back (a text already on the list is not added twice, so a repeat after a lost reply adds nothing)
     //   SHOPPING_REMOVE: no task or entry, fields {id, text}: an item ticked off, `id` the server's (or, for an add that was on its way, the temporary one,
     //             which the send looks up by text when the page no longer knows the server's id); ticking an item whose add is still waiting takes the add out of the queue
+    //   BATCH:    no task or entry, fields {action: "MOVE_TO_TOP"|"SET_PROJECT"|"SET_DUE"|"SNOOZE", taskIds, projectId? | dueDate? | snoozedUntil?}: a
+    //             Multi-Select change to the named tasks (the value as batchUpdateTasks takes it: a stored project's id, a real YYYY-MM-DD date or null to clear);
+    //             `title` is the project's name for SET_PROJECT, else empty. A task id the server no longer has is ignored, as online
     //   UNDO:     taskId and, for a completion, archiveId (none for a delete), of a removal the server has (or may have), fields
     //             {task, spawnedId?}: the task as archived (completionRecord) or as deleted (deletionRecord) and the id of the next
     //             occurrence a completion made, so the page can show it undone
@@ -3496,7 +3499,7 @@
     // what makes a second attempt a no-op on the server. Only PENDING actions change what the page shows (withPendingActions).
     const ACTION_QUEUE_KEY = "taskhub-action-queue";
     const ACTION_QUEUE_MAX = 50;
-    const ACTION_KINDS = ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO", "COMMENT", "COMMENT_DELETE", "DELETE", "SHOPPING_ADD", "SHOPPING_REMOVE"];
+    const ACTION_KINDS = ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO", "COMMENT", "COMMENT_DELETE", "DELETE", "SHOPPING_ADD", "SHOPPING_REMOVE", "BATCH"];
     const SHOPPING_KINDS = ["SHOPPING_ADD", "SHOPPING_REMOVE"]; // the actions on the Miscellaneous list: they name no task or entry
     function isShoppingKind(kind) {
       return SHOPPING_KINDS.includes(kind);
@@ -3506,6 +3509,8 @@
       return "pending-" + requestId;
     }
     const TIMER_ACTIONS = ["START", "PAUSE", "ABORT"];
+    const BATCH_ACTIONS = ["MOVE_TO_TOP", "SET_PROJECT", "SET_DUE", "SNOOZE"]; // what a held Multi-Select change can do (the server's batchUpdateTasks, less a new project)
+    const MAX_BATCH = 500; // the most tasks one batch names (the server's limit)
     const EDIT_FIELDS = ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "location", "snoozedUntil", "description", "materials"]; // what a queued task's EDIT holds
     const ENTRY_EDIT_FIELDS = ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "location", "description"]; // what a History entry's EDIT holds (the plain fields of the archive row; materials, the project and the completion time need the server)
     const MAX_TRACKED_SECONDS = 3600000; // the most time an entry may be corrected to (1000 hours)
@@ -3549,6 +3554,7 @@
       const ids = new Set();
       for (const action of Array.isArray(actions) ? actions : []) {
         if (action && action.status === "PENDING" && typeof action.taskId === "string" && action.taskId) ids.add(action.taskId);
+        if (action && action.status === "PENDING" && action.kind === "BATCH" && action.fields && Array.isArray(action.fields.taskIds)) action.fields.taskIds.forEach(id => ids.add(id));
       }
       return ids;
     }
@@ -4022,6 +4028,25 @@
         if (!fields || typeof fields !== "object" || Array.isArray(fields)) return null;
         return typeof fields.id === "string" && fields.id !== "" && fields.id.length <= 200 ? { id: fields.id } : null;
       }
+      if (kind === "BATCH") {
+        if (!fields || typeof fields !== "object" || Array.isArray(fields) || !BATCH_ACTIONS.includes(fields.action)) return null;
+        const ids = Array.isArray(fields.taskIds) ? [...new Set(fields.taskIds)] : [];
+        if (ids.length === 0 || ids.length > MAX_BATCH || ids.some(id => typeof id !== "string" || id === "" || id.length > 200)) return null;
+        const out = { action: fields.action, taskIds: ids };
+        if (fields.action === "SET_PROJECT") {
+          if (typeof fields.projectId !== "string" || fields.projectId === "" || fields.projectId.length > 200) return null;
+          out.projectId = fields.projectId;
+        } else if (fields.action === "SET_DUE") {
+          const date = "dueDate" in fields ? normalizeSnooze(fields.dueDate) : undefined;
+          if (date === undefined) return null;
+          out.dueDate = date;
+        } else if (fields.action === "SNOOZE") {
+          const date = "snoozedUntil" in fields ? normalizeSnooze(fields.snoozedUntil) : undefined;
+          if (date === undefined) return null;
+          out.snoozedUntil = date;
+        }
+        return out;
+      }
       if (kind === "SHOPPING_ADD" || kind === "SHOPPING_REMOVE") {
         if (!fields || typeof fields !== "object" || Array.isArray(fields)) return null;
         const text = shoppingItemText(fields.text);
@@ -4059,6 +4084,16 @@
       const fields = cleanActionFields(item.kind, item.fields, hasEntry && !hasTask);
       if (fields === null) return null;
       const clean = { requestId: item.requestId, kind: item.kind };
+      if (item.kind === "BATCH") { // no single target: it names its tasks in `fields`; the title is the project's name, if any
+        if (hasTask || hasEntry) return null;
+        const name = typeof item.title === "string" ? item.title.replace(/\s+/g, " ").trim() : "";
+        clean.title = name.length > QUEUE_LABEL_MAX ? name.slice(0, QUEUE_LABEL_MAX - 1).trimEnd() + "…" : name;
+        clean.fields = fields;
+        clean.at = item.at;
+        clean.status = item.status;
+        if (item.status === "FAILED") clean.error = typeof item.error === "string" && item.error.trim() ? item.error.trim().slice(0, QUEUE_ERROR_MAX) : "Not sent";
+        return clean;
+      }
       if (isShoppingKind(item.kind)) { // no target: the item's text is the card's title
         if (hasTask || hasEntry) return null;
         clean.title = fields.text.length > QUEUE_LABEL_MAX ? fields.text.slice(0, QUEUE_LABEL_MAX - 1).trimEnd() + "…" : fields.text;
@@ -4128,6 +4163,57 @@
       return JSON.stringify(cleanActionQueue(queue));
     }
 
+    // A Multi-Select change as the server makes it (applyBatch in functions/batch.js, which a test holds this equal to): the list with
+    // `fields` ({action, taskIds, projectId? | dueDate? | snoozedUntil?}) applied to the tasks it names. MOVE_TO_TOP puts them first,
+    // keeping their order among themselves, and renumbers every `order` 1..n; SET_PROJECT puts them in the project (`projectIds`, the
+    // stored projects, or null when the page does not know them: any id counts), a task already in it keeping its order number and any
+    // other losing it; SET_DUE sets the due date ("" for null); SNOOZE sets the snooze date (null removes it). null when no task is
+    // named, the action is unknown or the value is unusable. Pure: the input is not modified.
+    function batchInList(tasks, fields, projectIds) {
+      if (!fields || !BATCH_ACTIONS.includes(fields.action) || !Array.isArray(fields.taskIds)) return null;
+      const wanted = new Set(fields.taskIds);
+      const list = (tasks || []).map((t, i) => [t, i]).sort((a, b) => (a[0].order || 0) - (b[0].order || 0) || a[1] - b[1]).map(pair => pair[0]);
+      const picked = list.filter(t => wanted.has(t.id));
+      if (picked.length === 0) return null;
+      const change = fn => (tasks || []).map(t => (wanted.has(t.id) ? fn(t) : t));
+      if (fields.action === "MOVE_TO_TOP") return [...picked, ...list.filter(t => !wanted.has(t.id))].map((t, i) => ({ ...t, order: i + 1 }));
+      if (fields.action === "SET_PROJECT") {
+        const id = fields.projectId;
+        if (typeof id !== "string" || (Array.isArray(projectIds) && !projectIds.includes(id))) return null;
+        return change(t => {
+          const next = { ...t };
+          if (next.projectId !== id) delete next.projectOrder;
+          next.projectId = id;
+          return next;
+        });
+      }
+      if (fields.action === "SET_DUE") {
+        const date = normalizeSnooze(fields.dueDate);
+        return date === undefined ? null : change(t => ({ ...t, dueDate: date === null ? "" : date }));
+      }
+      const date = normalizeSnooze(fields.snoozedUntil);
+      if (date === undefined) return null;
+      return change(t => {
+        const next = { ...t };
+        if (date === null) delete next.snoozedUntil;
+        else next.snoozedUntil = date;
+        return next;
+      });
+    }
+    // What a held Multi-Select change is sent to batchUpdateTasks as.
+    function batchActionBody(action) {
+      const f = action.fields;
+      const body = { action: f.action, taskIds: [...f.taskIds] };
+      if (f.action === "SET_PROJECT") body.projectId = f.projectId;
+      else if (f.action === "SET_DUE") body.dueDate = f.dueDate;
+      else if (f.action === "SNOOZE") body.snoozedUntil = f.snoozedUntil;
+      return body;
+    }
+    // The first selected task id that cannot be held: a task a waiting Reopen brings back is shown under a temporary id the server does not know. "" when all can.
+    function unheldBatchId(taskIds) {
+      return (Array.isArray(taskIds) ? taskIds : []).find(id => typeof id === "string" && id.startsWith("pending-")) || "";
+    }
+
     // The server's lists with the waiting actions shown on top of them: {tasks, completed} for the Queue and for History
     // (`completed` newest first). Only PENDING actions count (a FAILED one was refused and changes nothing), in queue order, and an
     // action whose target is not in the lists is skipped. A TIMER action is the server's setTimerInList at the action's `at`; a
@@ -4178,6 +4264,9 @@
           const without = (item) => { const result = removeCommentFromList(item.comments, action.fields.id); return result.removed ? withCommentsList(item, result.comments) : item; };
           if (action.taskId) list = list.map(t => (t.id === action.taskId ? without(t) : t));
           else done = done.map(r => (r.archiveId === action.archiveId ? without(r) : r));
+        } else if (action.kind === "BATCH") {
+          const result = batchInList(list, action.fields, known);
+          if (result) list = result;
         } else if (action.kind === "EDIT") {
           if (action.taskId) list = list.map(t => (t.id === action.taskId ? applyEditFields(t, action.fields) : t));
           else done = done.map(r => (r.archiveId === action.archiveId ? applyEditFields(r, action.fields, ENTRY_EDIT_FIELDS) : r));
@@ -4314,6 +4403,14 @@
       if (action.kind === "COMMENT") return "Add comment to" + task;
       if (action.kind === "COMMENT_DELETE") return "Delete comment on" + task;
       if (action.kind === "EDIT") return `Update ${fieldNamesText(Object.keys(action.fields || {})) || "details"} on` + task;
+      if (action.kind === "BATCH" && action.fields && Array.isArray(action.fields.taskIds)) {
+        const f = action.fields;
+        const count = taskCountText(f.taskIds.length);
+        if (f.action === "MOVE_TO_TOP") return `Move ${count} to the top`;
+        if (f.action === "SET_PROJECT") return `Add ${count} to` + (quotedTitle(action.title) || " a project");
+        if (f.action === "SET_DUE") return f.dueDate ? `Set the due date of ${count} to ${f.dueDate}` : `Clear the due date of ${count}`;
+        if (f.action === "SNOOZE") return f.snoozedUntil ? `Snooze ${count} until ${f.snoozedUntil}` : `Unsnooze ${count}`;
+      }
       return "Change" + task;
     }
     // What an action card shows: {label, failed, sending, text}, as queueCardView does for an add ("Waiting to send", "Sending…"
@@ -6532,9 +6629,41 @@
       setBatchStatus(batchRemoveResultText(kind, tasks.length, failedIds.length, message));
     }
 
+    // Keeps a Multi-Select change (the body batchSend built) for later as a BATCH action and shows it at once, leaving Multi-Select.
+    // `behind` is true when it was kept only because other changes are waiting (the connection may be fine), so the queue is sent now.
+    // Refused with an alert, the selection kept, when it needs a new project, names a task a waiting Reopen brought back, or the queue is full.
+    function holdBatch(body, doneText, behind) {
+      if (body.newProject !== undefined) {
+        askAlert(behind ? "Changes are waiting to be sent, and a new project can only be made once they are. Choose an existing project, or try again in a moment." : "A new project needs a connection. Choose an existing project, or try again when you are back online.", { tone: "warning" });
+        return;
+      }
+      const ids = [...body.taskIds].filter(id => allTasks.some(t => t.id === id));
+      if (ids.length === 0) return;
+      if (unheldBatchId(ids)) {
+        askAlert("A task you selected is waiting to be reopened, so it cannot be changed until that has been sent. Deselect it, or try again in a moment.", { tone: "warning" });
+        return;
+      }
+      loadActionQueue();
+      const refusal = actionQueueRefusal(actionQueue.length, actionQueueUsable);
+      if (refusal) { askAlert(refusal, { tone: "warning" }); return; }
+      const project = body.projectId ? allProjects.find(p => p.id === body.projectId) : null;
+      const item = makeQueuedAction({ kind: "BATCH", title: project ? project.name : "", fields: { ...body, taskIds: ids }, now: Date.now(), offset: clockOffsetMs });
+      if (!item || !saveActionQueue([...actionQueue, item])) { askAlert(actionQueueRefusal(0, false), { tone: "warning" }); return; }
+      setSelectMode(false);
+      renderFilterBar();
+      renderAddQueue();
+      refreshShownTasks();
+      setBatchStatus(`${doneText(ids.length, {})} Waiting to send.`);
+      if (behind && navigator.onLine) setTimeout(drainAllQueues, 0);
+    }
+
     // One call to batchUpdateTasks for the selected tasks; `doneText(count, data)` words the result. A failure alerts and keeps the selection.
+    // Changes already waiting go first: the batch is kept behind them, with a connection or not, so the order holds; a connection
+    // failure keeps it too (holdBatch), unless it needs a new project, which only the server can make.
     async function batchSend(body, doneText) {
       closeBatchModal();
+      loadActionQueue();
+      if (hasPendingActions(actionQueue) || actionDraining) return holdBatch(body, doneText, true);
       batchBusy = true;
       updateBatchBar();
       setBatchStatus("Working…");
@@ -6552,6 +6681,7 @@
         batchBusy = false;
         setBatchStatus("");
         updateBatchBar();
+        if (isNetworkError(err, navigator.onLine)) return holdBatch(body, doneText, false);
         askAlert(failureText("Could not change the selected tasks", err), { tone: "error" });
       }
     }
@@ -8715,6 +8845,9 @@
         } else if (item.kind === "DELETE") {
           url = DIRECT_UPDATE_URL;
           body = deleteBody(item);
+        } else if (item.kind === "BATCH") {
+          url = BATCH_UPDATE_URL;
+          body = batchActionBody(item);
         } else if (item.kind === "UNDO") {
           url = UNDO_URL;
           body = undoBody(item);

@@ -3093,6 +3093,22 @@ describe("public/index.html helpers", () => {
       assert.equal(fn.slice(fn.indexOf("catch")).includes("setSelectMode"), false);
       for (const action of ["MOVE_TO_TOP", "SNOOZE", "SET_DUE", "SET_PROJECT"]) assert.ok(html.includes(`batchBody("${action}"`), action);
     });
+    it("keeps a batch for later behind waiting changes or after a connection failure, and never one that needs a new project", () => {
+      const send = html.slice(html.indexOf("async function batchSend"), html.indexOf("// The dialog for the batch actions"));
+      assert.match(send, /loadActionQueue\(\);\s*if \(hasPendingActions\(actionQueue\) \|\| actionDraining\) return holdBatch\(body, doneText, true\);/);
+      assert.match(send, /if \(isNetworkError\(err, navigator\.onLine\)\) return holdBatch\(body, doneText, false\);/);
+      const hold = html.slice(html.indexOf("function holdBatch("), html.indexOf("// One call to batchUpdateTasks"));
+      assert.match(hold, /if \(body\.newProject !== undefined\) \{/);
+      assert.match(hold, /unheldBatchId\(ids\)/);
+      assert.match(hold, /makeQueuedAction\(\{ kind: "BATCH"/);
+      assert.match(hold, /setSelectMode\(false\);[\s\S]*refreshShownTasks\(\);/);
+      assert.ok(hold.indexOf("makeQueuedAction") < hold.indexOf("setSelectMode(false)"), "Multi-Select ends only once the change is kept");
+      assert.match(hold, /if \(behind && navigator\.onLine\) setTimeout\(drainAllQueues, 0\);/);
+    });
+    it("sends a held batch to batchUpdateTasks with the body the action holds", () => {
+      const fn = html.slice(html.indexOf("async function sendQueuedAction"), html.indexOf("function settleQueuedAction"));
+      assert.match(fn, /item\.kind === "BATCH"\) \{\s*url = BATCH_UPDATE_URL;\s*body = batchActionBody\(item\);/);
+    });
   });
   describe("the confirmation dialog", () => {
     it("takes the first paragraph as the title and the rest as the detail", () => {
@@ -3270,11 +3286,11 @@ describe("public/index.html helpers", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(code, /(?<![\w.])alert\(/, "a native alert() is left");
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
-      assert.equal(calls.length, 58, "the fifty-eight messages the page shows (eleven are refusals to keep an add, a change or a comment for later, and six tell why a held edit was not kept)");
+      assert.equal(calls.length, 62, "the sixty-two messages the page shows (thirteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and two why a Multi-Select change was not)");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 19, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
-      assert.equal(warnings.length, 37, "every validation message is a warning alert");
+      assert.equal(warnings.length, 41, "every validation message is a warning alert");
     });
     it("hides Cancel for an alert, shows it again for a question and focuses the button", () => {
       const fn = html.slice(html.indexOf("function openConfirm"), html.indexOf("function askConfirm"));
