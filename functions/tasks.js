@@ -8,7 +8,7 @@ const {normalizeSnooze} = require("./snooze");
 const {normalizeDescription} = require("./description");
 const {commentsOf, withComments} = require("./comments");
 const {normalizeTravelKm} = require("./travel");
-const {normalizePhone, normalizeEmail} = require("./contact");
+const {normalizePhone, normalizeEmail, normalizeUrl} = require("./contact");
 const {normalizeLocation} = require("./location");
 const {averageMinutes, normalizeHistory, recordCompletion} = require("./history");
 const {settleTimer} = require("./timer");
@@ -40,7 +40,7 @@ function normalizeRecurrence(value) {
 // items get ids from `makeId`); and `snoozedUntil`, validated by normalizeSnooze (null or an empty string removes it, an
 // unusable value leaves it as it was); and `description`, validated by normalizeDescription (null or empty text removes it, a
 // non-string leaves it as it was); and `travelKm`, validated by normalizeTravelKm (null, empty text or 0 removes it, an unusable value
-// leaves it as it was); and `phone` and `email`, validated by normalizePhone and normalizeEmail (null or empty text removes it, an unusable value
+// leaves it as it was); and `phone`, `email` and `url`, validated by normalizePhone, normalizeEmail and normalizeUrl (null or empty text removes it, an unusable value
 // leaves it as it was); and `location`, validated by normalizeLocation (null, blank text or an empty object removes it, an unusable value leaves it as it was). `addedAt`, `trackedSeconds`, `firstStartedAt`, `timerStartedAt`, `active`, `order` and `jobNumber` are never changed by an edit.
 // Pure apart from `makeId`: the input is not modified.
 function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
@@ -55,6 +55,7 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   delete rest.travelKm;
   delete rest.phone;
   delete rest.email;
+  delete rest.url;
   delete rest.location;
   delete rest.completedCount;
   delete rest.recentSeconds;
@@ -103,6 +104,11 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
     if (typeof email === "string") next.email = email;
     else if (email === null) delete next.email;
   }
+  if (fields && "url" in fields) {
+    const url = normalizeUrl(fields.url);
+    if (typeof url === "string") next.url = url;
+    else if (url === null) delete next.url;
+  }
   if (fields && "location" in fields) {
     const location = normalizeLocation(fields.location);
     if (location) next.location = location;
@@ -150,18 +156,18 @@ function changeProjectFields(change, projectIds) {
 }
 
 // The new-task change for a task entered by hand, in the shape mergeTaskChanges takes. Pure: no I/O.
-//   manual: {title, priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?, description?, travelKm?, phone?, email?, location?}
+//   manual: {title, priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?, description?, travelKm?, phone?, email?, url?, location?}
 //           from the entry form
 // Returns null without a usable title. The fields are validated by the same rules as the model's (see cleanFields,
 // changeProjectFields), so an unusable priority, date, estimate, tag list, recurrence or project falls back to the
-// new-task default; a field the form did not send is left out of the change. `materials`, `description`, `travelKm`, `phone`, `email` and `location` are passed on as
+// new-task default; a field the form did not send is left out of the change. `materials`, `description`, `travelKm`, `phone`, `email`, `url` and `location` are passed on as
 // sent and are only applied when mergeTaskChanges is told to (the model's changes never set them). There is no id (a manual
 // entry is always a new task) and no rank (it goes last).
 function manualTaskChange(manual) {
   if (!manual || typeof manual !== "object" || Array.isArray(manual)) return null;
   if (typeof manual.title !== "string" || !manual.title.trim()) return null;
   const change = {title: manual.title, priority: manual.priority, dueDate: manual.dueDate, estimatedMinutes: manual.estimatedMinutes, tags: manual.tags};
-  for (const key of ["recurrence", "projectId", "projectOrder", "materials", "travelKm", "phone", "email", "location", "history"]) {
+  for (const key of ["recurrence", "projectId", "projectOrder", "materials", "travelKm", "phone", "email", "url", "location", "history"]) {
     if (manual[key] !== undefined) change[key] = manual[key];
   }
   if (manual.description !== undefined) change.description = manual.description;
@@ -224,7 +230,7 @@ function placeAtRank(list, task, rank) {
 //             through applyProjectFields (see changeProjectFields for what counts).
 //   options:  {jobCounter: n} numbers each new task (`jobNumber`) from n + 1 on, in the order the changes are listed, and returns the
 //             last number issued as `jobCounter`; without it new tasks are not numbered. {history: true} lets a new task take the change's `history` (validated by normalizeHistory), {materials: true} lets a new task take the change's `materials` (validated by normalizeMaterials) and
-//             {description: true} its `description` (validated by normalizeDescription) and {travelKm: true} its `travelKm` (validated by normalizeTravelKm) and {contact: true} its `phone` and `email` (validated by normalizePhone and normalizeEmail) and {location: true} its `location` (validated by normalizeLocation); only a manual entry or a template sets them. Without
+//             {description: true} its `description` (validated by normalizeDescription) and {travelKm: true} its `travelKm` (validated by normalizeTravelKm) and {contact: true} its `phone`, `email` and `url` (validated by normalizePhone, normalizeEmail and normalizeUrl) and {location: true} its `location` (validated by normalizeLocation); only a manual entry or a template sets them. Without
 //             the option, and for an update, the field is never read.
 // Untouched tasks, and every server-owned field of updated tasks, are preserved. A change naming an id that is
 // no longer stored is skipped. An existing task never moves: a rank on a change to one is ignored. A new task takes
@@ -284,6 +290,8 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
         if (phone) task.phone = phone;
         const email = normalizeEmail(change.email);
         if (email) task.email = email;
+        const url = normalizeUrl(change.url);
+        if (url) task.url = url;
       }
       if (options.location === true) {
         const location = normalizeLocation(change.location);
@@ -361,6 +369,7 @@ function completeInList(tasks, taskId, today, makeId, now, jobCounter) {
   if (typeof completedTask.travelKm === "number" && completedTask.travelKm > 0) spawned.travelKm = completedTask.travelKm;
   if (typeof completedTask.phone === "string" && completedTask.phone !== "") spawned.phone = completedTask.phone;
   if (typeof completedTask.email === "string" && completedTask.email !== "") spawned.email = completedTask.email;
+  if (typeof completedTask.url === "string" && completedTask.url !== "") spawned.url = completedTask.url;
   const location = normalizeLocation(completedTask.location);
   if (location) spawned.location = location;
   if (counting) spawned.jobNumber = jobCounter + 1;

@@ -5,7 +5,7 @@ const {localInstant} = require("./time");
 const {randomUUID} = require("crypto");
 const {normalizeDescription} = require("./description");
 const {normalizeTravelKm} = require("./travel");
-const {normalizePhone, normalizeEmail} = require("./contact");
+const {normalizePhone, normalizeEmail, normalizeUrl} = require("./contact");
 const {normalizeLocation, MAX_LOCATION_NAME_LENGTH} = require("./location");
 const {normalizeMaterials} = require("./materials");
 
@@ -31,7 +31,7 @@ function isArchiveId(id) {
 //            priority (HIGH, MEDIUM or LOW), estimatedMinutes (a whole number from 1 to MAX_ESTIMATE_MINUTES),
 //            trackedSeconds (0 to MAX_TRACKED_SECONDS, whole seconds; 0 makes the estimate count), tags (a list, cleaned
 //            as the model's tags are, at most MAX_TAGS), description (text, trimmed and cut to 2000 characters; null or empty
-//            text removes it), travelKm (kilometres, at most one decimal, 0.1 to 10000; null, empty or 0 removes it), location ({name, latitude?, longitude?} as location.js checks it; null, blank text or an empty object removes it), phone and email (as a task's, see contact.js: null or empty text removes them), materials (a list of texts, or of {text, cost?} objects, a plain record of what was used: each trimmed and cut
+//            text removes it), travelKm (kilometres, at most one decimal, 0.1 to 10000; null, empty or 0 removes it), location ({name, latitude?, longitude?} as location.js checks it; null, blank text or an empty object removes it), phone, email and url (as a task's, see contact.js: null or empty text removes them), materials (a list of texts, or of {text, cost?} objects, a plain record of what was used: each trimmed and cut
 //            to 100 characters, blanks dropped, at most 30, a cost kept when usable as in materials.js; null or an empty list removes them; stored as a task's materials are,
 //            every item checked), projectId (a current project, or null or "" for none; the id the row
 //            already has counts as unchanged even when that project is gone), and the completion time as the two
@@ -73,7 +73,7 @@ function applyCompletedEdit(row, fields, options) {
       set.description = description;
     }
   }
-  for (const [key, normalize, label] of [["phone", normalizePhone, "Phone must be text of at most 40 characters"], ["email", normalizeEmail, "Email must be an address of at most 100 characters"]]) {
+  for (const [key, normalize, label] of [["phone", normalizePhone, "Phone must be text of at most 40 characters"], ["email", normalizeEmail, "Email must be an address of at most 100 characters"], ["url", normalizeUrl, "Link must be an http or https address of at most 500 characters"]]) {
     if (!(key in fields)) continue;
     const value = normalize(fields[key]);
     if (value === undefined) return {error: label};

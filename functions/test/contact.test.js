@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {MAX_PHONE_LENGTH, MAX_EMAIL_LENGTH, normalizePhone, normalizeEmail} = require("../contact");
+const {MAX_PHONE_LENGTH, MAX_EMAIL_LENGTH, MAX_URL_LENGTH, normalizePhone, normalizeEmail, normalizeUrl} = require("../contact");
 const {applyDirectUpdate, completeInList, mergeTaskChanges, manualTaskChange} = require("../tasks");
 const {applyCompletedEdit} = require("../completedEdit");
 const {reopenTask} = require("../reopen");
@@ -114,5 +114,91 @@ describe("phone and email on a completed task", () => {
     assert.equal("phone" in buildTemplates([bare])[0], false);
     assert.equal("phone" in stepFromTask(withContact()), false);
     assert.equal("email" in stepFromTask(withContact()), false);
+  });
+});
+
+describe("normalizeUrl", () => {
+  it("keeps an http or https link as typed, trimmed", () => {
+    assert.equal(normalizeUrl("  https://Example.com/a?b=1#c "), "https://Example.com/a?b=1#c");
+    assert.equal(normalizeUrl("http://example.co.nz"), "http://example.co.nz");
+  });
+  it("puts https:// in front of a link with no scheme, a host with a port included", () => {
+    assert.equal(normalizeUrl("example.com/menu"), "https://example.com/menu");
+    assert.equal(normalizeUrl("localhost:3000"), "https://localhost:3000");
+    assert.equal(normalizeUrl("example.com:8080/x"), "https://example.com:8080/x");
+  });
+  it("treats null and blank text as none, and anything unusable as undefined", () => {
+    for (const v of [null, "", "   "]) assert.equal(normalizeUrl(v), null, String(v));
+    for (const v of [undefined, 5, {}, [], true]) assert.equal(normalizeUrl(v), undefined, String(v));
+  });
+  it("rejects any other scheme, a missing host and text with spaces", () => {
+    for (const v of ["javascript:alert(1)", "JavaScript:1", "data:text/html,hi", "mailto:mo@example.com", "tel:5551234", "sms:5551234", "ftp://example.com", "file:///etc/passwd", "https://", "https:// example.com", "example .com", "two words"]) {
+      assert.equal(normalizeUrl(v), undefined, v);
+    }
+  });
+  it("accepts a stored link of at most 500 characters, counting any https:// put in front", () => {
+    const fits = `https://example.com/${"a".repeat(MAX_URL_LENGTH - 20)}`;
+    assert.equal(fits.length, MAX_URL_LENGTH);
+    assert.equal(normalizeUrl(fits), fits);
+    assert.equal(normalizeUrl(`${fits}a`), undefined);
+    assert.equal(normalizeUrl(`example.com/${"a".repeat(MAX_URL_LENGTH - 12)}`), undefined);
+  });
+});
+
+describe("url on a task", () => {
+  const withUrl = () => ({...base(), url: "https://example.com/menu"});
+  it("is set, changed and removed by a direct update", () => {
+    assert.equal(applyDirectUpdate(base(), {url: " example.com/menu "}).url, "https://example.com/menu");
+    assert.equal(applyDirectUpdate(withUrl(), {url: "http://other.com"}).url, "http://other.com");
+    for (const v of [null, "", "  "]) assert.equal("url" in applyDirectUpdate(withUrl(), {url: v}), false, String(v));
+  });
+  it("is left as it was by an unusable value or when not sent", () => {
+    assert.equal(applyDirectUpdate(withUrl(), {url: 5}).url, "https://example.com/menu");
+    assert.equal(applyDirectUpdate(withUrl(), {url: "javascript:alert(1)"}).url, "https://example.com/menu");
+    assert.equal(applyDirectUpdate(withUrl(), {title: "Fit tap again"}).url, "https://example.com/menu");
+  });
+  it("is set on a new task only by a manual entry that is allowed to", () => {
+    const change = manualTaskChange({title: "Fit tap", url: "example.com/menu"});
+    assert.equal(change.url, "example.com/menu");
+    assert.equal(mergeTaskChanges([], [change], makeId, [], {contact: true}).tasks[0].url, "https://example.com/menu");
+    assert.equal("url" in mergeTaskChanges([], [change], makeId).tasks[0], false);
+    assert.equal("url" in mergeTaskChanges([], [{title: "x", url: "javascript:alert(1)"}], makeId, [], {contact: true}).tasks[0], false);
+  });
+  it("is never changed on an existing task by a merge", () => {
+    const merged = mergeTaskChanges([withUrl()], [{id: "t1", title: "Fit tap", url: "https://elsewhere.com"}], makeId, [], {contact: true});
+    assert.equal(merged.tasks[0].url, "https://example.com/menu");
+  });
+  it("goes to the next occurrence of a repeating task", () => {
+    const task = {...withUrl(), dueDate: "2026-10-20", recurrence: {frequency: "WEEKLY", interval: 1}};
+    assert.equal(completeInList([task], "t1", "2026-10-22", makeId).spawned.url, "https://example.com/menu");
+    assert.equal("url" in completeInList([{...task, url: undefined}], "t1", "2026-10-22", makeId).spawned, false);
+  });
+});
+
+describe("url on a completed task", () => {
+  const row = {title: "Fit tap", priority: "LOW", estimatedMinutes: 30, url: "https://example.com/menu", completedAt: new Date("2026-10-20T01:00:00Z")};
+  const opts = {projectIds: [], timeZone: "Pacific/Auckland", now: new Date("2026-10-24T02:00:00Z")};
+  it("is corrected", () => {
+    assert.deepEqual(applyCompletedEdit(row, {url: " new.example.com "}, opts), {set: {url: "https://new.example.com"}, remove: []});
+  });
+  it("is removed by null or empty text when the row has one, else there is nothing to change", () => {
+    for (const v of [null, ""]) assert.deepEqual(applyCompletedEdit(row, {url: v}, opts), {set: {}, remove: ["url"]}, String(v));
+    const bare = {...row};
+    delete bare.url;
+    assert.deepEqual(applyCompletedEdit(bare, {url: null}, opts), {error: "Nothing to change"});
+  });
+  it("rejects an unusable value", () => {
+    assert.match(applyCompletedEdit(row, {url: 5}, opts).error, /Link/);
+    assert.match(applyCompletedEdit(row, {url: "javascript:alert(1)"}, opts).error, /Link/);
+  });
+  it("comes back with a reopened task", () => {
+    assert.equal(reopenTask([], {...row, id: "x"}, {projectIds: [], makeId}).task.url, "https://example.com/menu");
+  });
+  it("is carried by a template made from completed tasks, but not by a project template step", () => {
+    assert.equal(buildTemplates([row])[0].url, "https://example.com/menu");
+    const bare = {...row};
+    delete bare.url;
+    assert.equal("url" in buildTemplates([bare])[0], false);
+    assert.equal("url" in stepFromTask({...base(), url: "https://example.com/menu"}), false);
   });
 });
