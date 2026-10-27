@@ -27,7 +27,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, ENTRY_EDIT_FIELDS, normalizeSnooze, normalizeTravelKm, normalizePhone, normalizeEmail, normalizeLocation, normalizeRecurrence, checkEditFields, taskEditChanges, serverOnlyEditChanges, taskEditBody, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, addCommentToList, removeCommentFromList, commentBody, commentDeleteBody, waitingCommentIds, MAX_COMMENTS, normalizeCommentText, commentsOf, cleanEntryTags, MAX_TRACKED_SECONDS, MAX_ENTRY_TAGS, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt};
+    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, ENTRY_EDIT_FIELDS, normalizeSnooze, normalizeTravelKm, normalizePhone, normalizeEmail, normalizeLocation, normalizeRecurrence, checkEditFields, taskEditChanges, serverOnlyEditChanges, taskEditBody, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, addCommentToList, removeCommentFromList, commentBody, commentDeleteBody, waitingCommentIds, MAX_COMMENTS, normalizeCommentText, commentsOf, cleanEntryTags, MAX_TRACKED_SECONDS, MAX_ENTRY_TAGS, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt, deletionRecord, deleteBody, removalBody};
   `)();
 }
 
@@ -191,7 +191,7 @@ describe("action queue (public/index.html)", () => {
       const bad = [
         {now: undefined}, {now: NaN}, {now: "1"}, {now: 0}, {now: -5}, {requestId: "short"}, {requestId: "has space here"}, {requestId: 5},
         {taskId: ""}, {taskId: undefined}, {taskId: 5}, {fields: undefined}, {fields: {}}, {fields: {action: "STOP"}}, {fields: {action: "START", capSeconds: 5}},
-        {fields: {action: "PAUSE", capSeconds: -1}}, {fields: {action: "PAUSE", capSeconds: 1.5}}, {kind: "DELETE"}, {kind: "UNDO"}, {kind: "timer"}, {kind: undefined},
+        {fields: {action: "PAUSE", capSeconds: -1}}, {fields: {action: "PAUSE", capSeconds: 1.5}}, {kind: "PURGE"}, {kind: "UNDO"}, {kind: "timer"}, {kind: undefined},
       ];
       for (const over of bad) assert.equal(action(page, over), null, JSON.stringify(over));
       const base = {title: "T", now: T0, requestId: "req-00001"};
@@ -237,7 +237,7 @@ describe("action queue (public/index.html)", () => {
     it("drops unusable actions and repeated request ids", () => {
       const page = load();
       const good = action(page, {requestId: "req-00001"});
-      const list = [good, null, 5, "x", [], {...good, requestId: "req-00002", status: "SENT"}, {...good, requestId: "req-00003", kind: "DELETE"}, {...good, requestId: "req-00004", at: 1.5}, {...good, requestId: "req-00005", fields: {action: "NOPE"}}, {...good, title: "again"}, {...good, requestId: "req-00006", taskId: ""}];
+      const list = [good, null, 5, "x", [], {...good, requestId: "req-00002", status: "SENT"}, {...good, requestId: "req-00003", kind: "PURGE"}, {...good, requestId: "req-00004", at: 1.5}, {...good, requestId: "req-00005", fields: {action: "NOPE"}}, {...good, title: "again"}, {...good, requestId: "req-00006", taskId: ""}];
       assert.deepEqual(page.cleanActionQueue(list), [good]);
       assert.deepEqual(page.cleanActionQueue("no"), []);
     });
@@ -262,7 +262,7 @@ describe("action queue (public/index.html)", () => {
     });
     it("holds only the kinds stage 1 can replay and the fields it can apply", () => {
       const page = load();
-      assert.deepEqual(page.ACTION_KINDS, ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO", "COMMENT", "COMMENT_DELETE"]);
+      assert.deepEqual(page.ACTION_KINDS, ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO", "COMMENT", "COMMENT_DELETE", "DELETE"]);
       assert.deepEqual(page.EDIT_FIELDS, ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "location", "snoozedUntil", "description"]);
       assert.deepEqual(page.ENTRY_EDIT_FIELDS, ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "location", "description"]);
     });
@@ -725,8 +725,8 @@ describe("action queue (public/index.html)", () => {
       assert.equal(make({fields: {task: {...record.task, title: 5}}}), null);
       assert.equal(make({fields: {task: {...record.task, id: ""}}, taskId: ""}), null);
       assert.equal(make({taskId: undefined}), null);
-      assert.equal(make({archiveId: undefined}), null);
       assert.equal(make({archiveId: "short"}), null);
+      assert.equal(make({archiveId: "__name__"}), null);
       assert.equal(make({fields: {task: record.task, spawnedId: 5}}), null);
       assert.equal(make({fields: {task: record.task, spawnedId: ""}}), null);
       assert.equal(make({fields: {task: record.task, spawnedId: "spawn-1"}}).fields.spawnedId, "spawn-1");
@@ -1206,6 +1206,105 @@ describe("action queue (public/index.html)", () => {
       assert.deepEqual(page.commentDeleteBody(del(page)), {taskId: "a", id: "comment-0001"});
       assert.deepEqual(page.commentDeleteBody(removal), {archiveId: "archive-0005", id: "comment-0020"});
       assert.equal(page.actionLabel(del(page)), "Delete comment on “Task a”");
+    });
+  });
+  describe("holding a delete", () => {
+    const del = (page, over = {}) => page.makeQueuedAction({kind: "DELETE", taskId: "b", title: "Task b", now: T0, requestId: "req-x0001", ...over});
+    // What the server holds after deleting `id` at `atMs`, and the record it keeps for Undo (updateTaskDirect's DELETE).
+    function deleted(id, atMs, tasks = timerTasks()) {
+      const removed = tasks.find((t) => t.id === id);
+      return {rest: tasks.filter((t) => t.id !== id), record: removalRecord("DELETE", settleTimerForDelete(removed, atMs), null, null, atMs)};
+    }
+    const settleTimerForDelete = (t, atMs) => require("../timer").pauseTimer(t, atMs);
+    const undoOf = (page, record, over = {}) => page.makeQueuedAction({kind: "UNDO", taskId: record.task.id, title: record.task.title, fields: {task: record.task}, now: T0 + MIN, requestId: "req-x0002", ...over});
+
+    it("holds a DELETE of a task with no fields and no entry, and keeps it across a reload", () => {
+      const page = load();
+      assert.deepEqual(del(page), {requestId: "req-x0001", kind: "DELETE", taskId: "b", title: "Task b", at: T0, status: "PENDING"});
+      assert.equal("fields" in del(page, {fields: {action: "START"}}), false, "fields are ignored");
+      assert.equal("archiveId" in del(page, {archiveId: "archive-0001"}), false, "a delete names a task only");
+      for (const over of [{taskId: undefined}, {taskId: ""}, {taskId: 5}, {now: NaN}, {requestId: "short"}]) assert.equal(del(page, over), null, JSON.stringify(over));
+      const queue = [del(page), del(page, {taskId: "c", requestId: "req-x0003"})];
+      assert.deepEqual(page.parseActionQueue(page.serializeActionQueue(queue)), queue);
+    });
+    it("takes the task off the Queue at once, and leaves the lists alone when it is missing or the delete was refused", () => {
+      const page = load();
+      const history = [{archiveId: "archive-0001", title: "Done", completedAt: iso(T0 - MIN)}];
+      const shown = page.withPendingActions(timerTasks(), history, [del(page)]);
+      assert.deepEqual(shown.tasks.map((t) => t.id), ["a", "c", "d"]);
+      assert.deepEqual(shown.completed, history);
+      assert.deepEqual(page.withPendingActions(timerTasks(), history, [del(page, {taskId: "missing"})]).tasks, timerTasks());
+      assert.deepEqual(page.withPendingActions(timerTasks(), history, [{...del(page), status: "FAILED", error: "Task not found"}]).tasks, timerTasks());
+      const input = timerTasks();
+      page.withPendingActions(input, history, [del(page)]);
+      assert.deepEqual(input, timerTasks(), "the input is not modified");
+    });
+    it("replays on top of the changes waiting before it, and a task added again by Undo comes back as the server restores it", () => {
+      const page = load();
+      const pause = page.makeQueuedAction({kind: "TIMER", taskId: "b", title: "Task b", fields: {action: "PAUSE"}, now: T0 - 5 * MIN, requestId: "req-x0004"});
+      const edit = page.makeQueuedAction({kind: "EDIT", taskId: "b", title: "Task b", fields: {description: "gate"}, now: T0 - 4 * MIN, requestId: "req-x0005"});
+      assert.deepEqual(page.withPendingActions(timerTasks(), [], [pause, edit, del(page)]).tasks.map((t) => t.id), ["a", "c", "d"]);
+      for (const running of [true, false]) {
+        const tasks = running ? timerTasks() : timerTasks().map((t) => (t.id === "b" ? {...t, timerStartedAt: undefined, active: undefined} : t));
+        const {rest, record} = deleted("b", T0, tasks);
+        const mine = page.deletionRecord(tasks.find((t) => t.id === "b"), T0);
+        assert.deepEqual(mine, {task: record.task, archiveId: null, spawnedId: null}, "the record the page keeps is the server's");
+        const undo = undoOf(page, mine);
+        assert.equal("archiveId" in undo, false);
+        const server = serverUndoInList(rest, record, undefined);
+        const shown = page.withPendingActions(tasks, [], [del(page), undo]);
+        assert.deepEqual(shown.tasks, server.tasks, "the replay gives the list the server gives");
+        assert.equal(shown.tasks.find((t) => t.id === "b").timerStartedAt, undefined);
+      }
+    });
+    it("stops a running timer at the instant of the delete, never later", () => {
+      const page = load();
+      const b = timerTasks()[1];
+      const later = page.deletionRecord(b, T0 + 10 * MIN).task;
+      const sooner = page.deletionRecord(b, T0).task;
+      assert.equal(later.trackedSeconds - sooner.trackedSeconds, 600);
+      assert.equal(sooner.trackedSeconds, 120 + 10 * 60 + 0, "10 minutes ran before T0 plus the 2 saved");
+      assert.equal(page.deletionRecord(task("z"), T0).task.trackedSeconds, undefined, "a task with no timer is as it was");
+      assert.equal(page.deletionRecord(b, T0 - 60 * MIN).task.trackedSeconds, 120, "a stretch is never negative");
+    });
+    it("builds the body the server accepts, with the time only when it is held", () => {
+      const page = load();
+      const item = del(page);
+      assert.deepEqual(page.deleteBody(item), {taskId: "b", action: "DELETE", at: T0});
+      assert.deepEqual(page.deleteBody(item, false), {taskId: "b", action: "DELETE"});
+      assert.deepEqual(page.removalBody(item, false), {taskId: "b", action: "DELETE"});
+      const complete = page.makeQueuedAction({kind: "COMPLETE", taskId: "a", archiveId: "archive-0001", title: "Task a", now: T0, requestId: "req-x0006"});
+      assert.deepEqual(page.removalBody(complete, false), page.completeBody(complete, false));
+      assert.deepEqual(resolveActionTime(page.deleteBody(item).at, T0 + 1000), {at: T0}, "booked as made");
+    });
+    it("takes the Undo behind it along when discarded, and does not send an Undo behind a refused delete", () => {
+      const page = load();
+      const {record} = deleted("b", T0);
+      const undo = undoOf(page, record);
+      const other = del(page, {taskId: "c", requestId: "req-x0007"});
+      const edit = page.makeQueuedAction({kind: "EDIT", taskId: "b", title: "Task b", fields: {description: "x"}, now: T0 - MIN, requestId: "req-x0008"});
+      const removal = del(page);
+      assert.deepEqual(page.cancelActions([edit, removal, other, undo], "req-x0001").cancelled.map((a) => a.requestId), ["req-x0001", "req-x0002"]);
+      assert.deepEqual(page.cancelActions([edit, removal, other, undo], "req-x0001").actions.map((a) => a.requestId), ["req-x0008", "req-x0007"], "the earlier edit and the other task stay");
+      const failed = {...removal, status: "FAILED", error: "Task not found"};
+      assert.equal(page.blockedBy([failed, undo], undo).requestId, "req-x0001");
+      assert.equal(page.blockedBy([failed, other], other), null);
+      const later = page.makeQueuedAction({kind: "TIMER", taskId: "b", title: "Task b", fields: {action: "START"}, now: T0 + 2 * MIN, requestId: "req-x0009"});
+      assert.equal(page.blockedBy([failed, undo, later], later), null, "only a refused change blocks: the Undo is still waiting");
+      assert.equal(page.blockedBy([undo, {...undo, requestId: "req-x0010", status: "FAILED", error: "Nothing to undo"}, later], later).requestId, "req-x0010", "the task never came back");
+      assert.equal(page.undoPlan([removal], "req-x0001", ""), "CANCEL");
+      assert.equal(page.undoPlan([failed], "req-x0001", ""), "NONE");
+      assert.equal(page.undoPlan([], "req-x0001", ""), "SEND");
+    });
+    it("is labelled as a delete, and its Undo as undoing a delete", () => {
+      const page = load();
+      const {record} = deleted("b", T0);
+      assert.equal(page.actionLabel(del(page)), "Delete “Task b”");
+      assert.equal(page.actionLabel(undoOf(page, record)), "Undo deleting “Task b”");
+      assert.equal(page.actionCardView(del(page), false).text, "Waiting to send");
+      assert.match(page.actionDiscardPrompt(del(page), 1), /Discard this change \(Delete “Task b”\)\?.*The change made after it on the same task will be discarded too\./);
+      const complete = completedFixture();
+      assert.equal(page.actionLabel(undoAction(page, complete.record)), "Undo completing “Task a”");
     });
   });
 });

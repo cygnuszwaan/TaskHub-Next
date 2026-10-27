@@ -130,6 +130,13 @@ describe("clientTime.js", () => {
       assert.match(fn, /err\.code === 6/);
       assert.doesNotMatch(fn, /serverTimestamp/);
     });
+    it("updateTaskDirect stops a deleted task's timer at the time the delete was made, and a repeat of a delete changes nothing", () => {
+      const fn = body("updateTaskDirect");
+      assert.match(fn, /const when = action === "DELETE" \? resolveActionTime\(req\.body\.at, Date\.now\(\)\) : null;\s*if \(when && when\.error\) return res\.status\(400\)/);
+      assert.match(fn, /removalRecord\("DELETE", pauseTimer\(removedTask, when\.at\), null, null, Date\.now\(\)\)/, "the undo window still runs from the commit");
+      assert.match(fn, /if \(!removedTask\) return \{current: tasks\};/, "a task already gone is left alone, and the last removal kept for Undo is not overwritten");
+      assert.match(fn, /serverTime: Date\.now\(\)/);
+    });
     it("completeTask, reopenCompletedTask and undoRemove answer a repeated request as a success", () => {
       for (const name of ["completeTask", "reopenCompletedTask", "undoRemove"]) {
         assert.match(body(name), /duplicate: true/, name);

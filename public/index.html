@@ -3374,20 +3374,22 @@
     // {requestId, kind, taskId?, archiveId?, title, fields?, at, status: "PENDING"|"FAILED", error?}.
     //   TIMER:    taskId, fields {action: "START"|"PAUSE"|"ABORT", capSeconds?} (capSeconds only with PAUSE)
     //   COMPLETE: taskId and archiveId, the id the page gave the History entry (the server uses it as the row's id)
+    //   DELETE:   taskId, no fields (the task leaves the Queue; the server removes its photos and calendar events when it is sent)
     //   REOPEN:   archiveId (the entry) and taskId (the entry's own `id`, the task that comes back)
     //   EDIT:     taskId (a queued task: fields from EDIT_FIELDS) or archiveId (an entry: ENTRY_EDIT_FIELDS), fields the changed ones, each\n    //             as the server will store it (checkEditFields)
     //   COMMENT:  taskId (a queued task) or archiveId (an entry), fields {id, text}: the comment as the page wrote it (its own id, which makes a
     //             repeat after a lost reply add nothing, and its text as normalizeCommentText keeps it); `at` is when it was written
     //   COMMENT_DELETE: taskId or archiveId as for COMMENT, fields {id}: the comment to remove (one already on the server; deleting a comment still
     //             waiting just takes its COMMENT out of the queue)
-    //   UNDO:     taskId and archiveId of a completion the server has (or may have), fields {task, spawnedId?}: the task as archived
-    //             (completionRecord) and the id of the next occurrence the completion made, so the page can show it undone
+    //   UNDO:     taskId and, for a completion, archiveId (none for a delete), of a removal the server has (or may have), fields
+    //             {task, spawnedId?}: the task as archived (completionRecord) or as deleted (deletionRecord) and the id of the next
+    //             occurrence a completion made, so the page can show it undone
     // `at` is when the change was made, in epoch milliseconds on the server's clock (the device's corrected by `clockOffsetFrom`),
     // because the server books that instant and not the time it arrived; `title` is the task's, for the cards. `requestId` is
     // what makes a second attempt a no-op on the server. Only PENDING actions change what the page shows (withPendingActions).
     const ACTION_QUEUE_KEY = "taskhub-action-queue";
     const ACTION_QUEUE_MAX = 50;
-    const ACTION_KINDS = ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO", "COMMENT", "COMMENT_DELETE"];
+    const ACTION_KINDS = ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO", "COMMENT", "COMMENT_DELETE", "DELETE"];
     const TIMER_ACTIONS = ["START", "PAUSE", "ABORT"];
     const EDIT_FIELDS = ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "location", "snoozedUntil", "description"]; // what a queued task's EDIT holds
     const ENTRY_EDIT_FIELDS = ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "location", "description"]; // what a History entry's EDIT holds (the plain fields of the archive row; materials, the project and the completion time need the server)
@@ -3534,6 +3536,11 @@
     // archived (timer settled at `nowMs`), `spawnedId` the id of the next occurrence of a repeating task (null when none or unknown).
     function completionRecord(task, nowMs, archiveId, spawnedId) {
       return { task: settleTimer(task, nowMs), archiveId: archiveId || null, spawnedId: spawnedId || null };
+    }
+    // What the server keeps of a delete for Undo (functions/index.js updateTaskDirect: the task with its timer paused at `nowMs`,
+    // no archive row, no next occurrence), in completionRecord's shape.
+    function deletionRecord(task, nowMs) {
+      return { task: pauseTimer(task, nowMs), archiveId: null, spawnedId: null };
     }
     // The list with the removal on `record` undone (functions/tasks.js undoInList): {tasks, restored}, or null when the task is
     // already on the list (`archiveComments`, the comments the entry holds now, replace the task's own when given). The next occurrence it made leaves, and the task comes back at the end of the list with its own rank,
@@ -3915,8 +3922,11 @@
       const fields = cleanActionFields(item.kind, item.fields, hasEntry && !hasTask);
       if (fields === null) return null;
       const clean = { requestId: item.requestId, kind: item.kind };
-      if (item.kind === "TIMER") {
+      if (item.kind === "TIMER" || item.kind === "DELETE") {
         if (!hasTask) return null;
+        clean.taskId = item.taskId;
+      } else if (item.kind === "UNDO" && (item.archiveId === undefined || item.archiveId === null)) { // an undo of a delete: no entry
+        if (!hasTask || !fields || fields.task.id !== item.taskId) return null;
         clean.taskId = item.taskId;
       } else if (item.kind === "COMPLETE" || item.kind === "REOPEN" || item.kind === "UNDO") {
         if (!hasTask || !hasEntry) return null;
@@ -3976,10 +3986,10 @@
     // (`completed` newest first). Only PENDING actions count (a FAILED one was refused and changes nothing), in queue order, and an
     // action whose target is not in the lists is skipped. A TIMER action is the server's setTimerInList at the action's `at`; a
     // COMPLETE takes the task off the Queue and puts its entry in History in place by time, marked `waitingRequestId` (no next
-    // occurrence of a repeating task: the server makes that); a REOPEN takes the entry out and adds the task at the end of the
+    // occurrence of a repeating task: the server makes that); a DELETE takes the task off the Queue; a REOPEN takes the entry out and adds the task at the end of the
     // Queue as reopenTask builds it (`options.projectIds`: the current projects, else the task keeps its project); an EDIT applies
     // its fields to the task or entry, a COMMENT adds its comment to it (addCommentToList) and a COMMENT_DELETE takes one away; an UNDO is undoInList with the record it carries (`fields.task`, `fields.spawnedId`) and takes the
-    // entry of its `archiveId` out of History, and does nothing when the task is already on the list, as the server does. Pure: the inputs are not modified. The lists passed in are the server's, never the result.
+    // entry of its `archiveId` (a completion's; a delete's has none) out of History, and does nothing when the task is already on the list, as the server does. Pure: the inputs are not modified. The lists passed in are the server's, never the result.
     function withPendingActions(tasks, completed, actions, options = {}) {
       let list = Array.isArray(tasks) ? tasks.slice() : [];
       let done = Array.isArray(completed) ? completed.slice() : [];
@@ -3997,6 +4007,8 @@
           const row = { ...completedRowOf(task, action.at, action.archiveId), waitingRequestId: action.requestId };
           const index = done.findIndex(r => !(Date.parse(r.completedAt) > action.at));
           done.splice(index === -1 ? done.length : index, 0, row);
+        } else if (action.kind === "DELETE") {
+          list = list.filter(t => t.id !== action.taskId);
         } else if (action.kind === "REOPEN") {
           const row = done.find(r => r.archiveId === action.archiveId);
           if (!row) continue;
@@ -4006,11 +4018,11 @@
           list = result.tasks;
           done = done.filter(r => r !== row);
         } else if (action.kind === "UNDO") {
-          const entry = done.find(r => r.archiveId === action.archiveId);
+          const entry = action.archiveId ? done.find(r => r.archiveId === action.archiveId) : undefined;
           const undone = undoInList(list, { task: action.fields.task, spawnedId: action.fields.spawnedId }, entry ? commentsOf(entry) : undefined);
           if (!undone) continue;
           list = undone.tasks;
-          done = done.filter(r => r.archiveId !== action.archiveId);
+          if (action.archiveId) done = done.filter(r => r.archiveId !== action.archiveId);
         } else if (action.kind === "COMMENT") {
           const comment = { id: action.fields.id, text: action.fields.text, at: action.at };
           const added = (item) => { const result = addCommentToList(item.comments, comment); return result.error ? item : withCommentsList(item, result.comments); };
@@ -4029,9 +4041,11 @@
     }
 
     // Whether `later` can only make sense after `earlier`: a COMPLETE gives the entry its archive id (an UNDO, REOPEN or EDIT of that
-    // entry follows it), a REOPEN or an UNDO gives the task back (any later action on that task follows it).
+    // entry follows it), a DELETE is followed by the UNDO that puts the task back, a REOPEN or an UNDO gives the task back (any
+    // later action on that task follows it).
     function actionDependsOn(later, earlier) {
       if (earlier.kind === "COMPLETE") return later.archiveId !== undefined && later.archiveId === earlier.archiveId;
+      if (earlier.kind === "DELETE") return later.kind === "UNDO" && later.taskId !== undefined && later.taskId === earlier.taskId;
       if (earlier.kind === "REOPEN" || earlier.kind === "UNDO") return later.taskId !== undefined && later.taskId === earlier.taskId;
       return false;
     }
@@ -4063,6 +4077,17 @@
     }
     function undoBody(action) {
       return { requestId: action.requestId };
+    }
+    // A held delete is sent to updateTaskDirect with the time it was made (`at`: the server stops a running timer then, not when the
+    // delete arrives), unless `withTime` is false, as for the first attempt, which the server times itself.
+    function deleteBody(action, withTime = true) {
+      const body = { taskId: action.taskId, action: "DELETE" };
+      if (withTime) body.at = action.at;
+      return body;
+    }
+    // The body the removal in `action` (a COMPLETE or a DELETE) is first sent with, and a held one later.
+    function removalBody(action, withTime = true) {
+      return action.kind === "DELETE" ? deleteBody(action, withTime) : completeBody(action, withTime);
     }
     // A held reopen is sent as the entry's id and its request id (a repeat after a lost reply is a no-op on the server); a held
     // edit of an entry is updateCompletedTask's body.
@@ -4135,7 +4160,8 @@
       }
       if (action.kind === "COMPLETE") return "Complete" + task;
       if (action.kind === "REOPEN") return "Reopen" + task;
-      if (action.kind === "UNDO") return "Undo completing" + task;
+      if (action.kind === "DELETE") return "Delete" + task;
+      if (action.kind === "UNDO") return (action.archiveId ? "Undo completing" : "Undo deleting") + task;
       if (action.kind === "COMMENT") return "Add comment to" + task;
       if (action.kind === "COMMENT_DELETE") return "Delete comment on" + task;
       if (action.kind === "EDIT") return `Update ${fieldNamesText(Object.keys(action.fields || {})) || "details"} on` + task;
@@ -4892,14 +4918,14 @@
       document.getElementById("undoNote").hidden = true;
     }
     async function undoRemoval() {
-      const info = undoRemovalInfo; // a completion the page can undo itself (its action is in the queue, or was sent)
+      const info = undoRemovalInfo; // a completion or delete the page can undo itself (its action is in the queue, or was sent)
       hideUndoNote();
       await removalChain; // the server keeps one step, so an unfinished removal must land first
       if (info) {
         loadActionQueue();
         const plan = undoPlan(actionQueue, info.requestId, sendingActionId);
-        if (plan === "NONE") return; // the server refused the completion: the task is back already
-        if (plan === "CANCEL") { // still waiting: the server never saw it, so cancelling it, and what was done to its entry, is the undo
+        if (plan === "NONE") return; // the server refused the removal: the task is back already
+        if (plan === "CANCEL") { // still waiting: the server never saw it, so cancelling it, and what was done to its entry or task, is the undo
           saveActionQueue(cancelActions(actionQueue, info.requestId).actions);
           renderAddQueue();
           refreshShownTasks();
@@ -4919,7 +4945,7 @@
         askAlert(failureText("Error undoing", err), { tone: "error" });
       }
     }
-    // Undoes a completion the server has or may have: a call with its own request id, or, behind changes that are waiting and after
+    // Undoes a completion or delete the server has or may have: a call with its own request id, or, behind changes that are waiting and after
     // a connection failure, an UNDO action that goes in order with them (keepUndo); a refusal is an alert as for any failed call.
     async function sendUndo(info) {
       const fields = { task: info.task };
@@ -4927,7 +4953,7 @@
       let item = null;
       try {
         item = makeQueuedAction({ kind: "UNDO", taskId: info.taskId, archiveId: info.archiveId, title: info.title, fields, now: Date.now(), offset: clockOffsetMs });
-        if (!item) throw new Error("This completion could not be undone");
+        if (!item) throw new Error("This removal could not be undone");
         if (hasPendingActions(actionQueue) || actionDraining) {
           const refusal = keepUndo(item, true);
           if (refusal) throw new Error(refusal);
@@ -4953,18 +4979,18 @@
 
     // Deleting and completing take the task off the page at once and make the server call afterwards, one removal at a
     // time and in order. The server's list then replaces the page's (a repeating task's next occurrence arrives with
-    // it); if the call fails the task goes back where it was and an alert says so. A completion that fails on the connection, or
-    // that comes while other changes are waiting, is instead kept in the action queue (keepCompletion) and sent in order later.
+    // it); if the call fails the task goes back where it was and an alert says so. A completion or a delete that fails on the
+    // connection, or that comes while other changes are waiting, is instead kept in the action queue (keepRemoval) and sent in order later.
     let removalChain = Promise.resolve();
     // `opts.noUndo` leaves the Undo footnote alone (a batch has none) and `opts.onError(err, taskId)` takes over from the alert.
     function removeTask(taskId, kind, url, body, opts = {}) {
       const index = allTasks.findIndex(t => t.id === taskId);
       if (index < 0) return removalChain;
       const task = allTasks[index];
-      // A completion's identity is fixed now: the request id and archive id make a repeat after a lost reply a no-op, and `at` is
-      // when the owner made it, which a held completion is booked at
-      const item = kind === "COMPLETE" ? makeQueuedAction({ kind: "COMPLETE", taskId, archiveId: newArchiveId(), title: task.title, now: Date.now(), offset: clockOffsetMs }) : null;
-      const sendBody = item ? completeBody(item, false) : body;
+      // A removal's identity is fixed now: a completion's request id and archive id make a repeat after a lost reply a no-op, and
+      // `at` is when the owner made it, which a held removal is booked at (a delete's repeat finds the task gone and changes nothing)
+      const item = kind === "COMPLETE" || kind === "DELETE" ? makeQueuedAction({ kind, taskId, archiveId: kind === "COMPLETE" ? newArchiveId() : undefined, title: task.title, now: Date.now(), offset: clockOffsetMs }) : null;
+      const sendBody = item ? removalBody(item, false) : body;
       pendingRemovals.add(taskId);
       allTasks = withoutTasks(allTasks, pendingRemovals);
       renderFilterBar();
@@ -4972,12 +4998,12 @@
       if (!opts.noUndo) {
         undoNoteKey = taskId;
         showUndoNote(kind, task.title);
-        undoRemovalInfo = item ? { requestId: item.requestId, archiveId: item.archiveId, taskId, title: task.title, task: completionRecord(task, item.at, item.archiveId, null).task, spawnedId: null } : null;
+        undoRemovalInfo = item ? { requestId: item.requestId, archiveId: item.archiveId || null, taskId, title: task.title, task: (kind === "COMPLETE" ? completionRecord(task, item.at, item.archiveId, null) : deletionRecord(task, item.at)).task, spawnedId: null } : null;
       }
       const run = async () => {
         try {
-          if (item && (hasPendingActions(actionQueue) || actionDraining)) { // waiting changes go first (a held timer is part of what this completes)
-            const refusal = keepCompletion(item, true);
+          if (item && (hasPendingActions(actionQueue) || actionDraining)) { // waiting changes go first (a held timer is part of what this completes or deletes)
+            const refusal = keepRemoval(item, true);
             if (!refusal) return;
             throw new Error(refusal);
           }
@@ -4993,7 +5019,7 @@
         } catch (caught) {
           let err = caught;
           if (item && isNetworkError(err, navigator.onLine)) {
-            const refusal = keepCompletion(item, false);
+            const refusal = keepRemoval(item, false);
             if (!refusal) return;
             err = new Error(refusal);
           }
@@ -8247,10 +8273,10 @@
       const page = document.querySelector('[data-page="history"]');
       if (page && !page.hidden) fetchCompleted();
     }
-    // Holds a completion for later: after a connection failure, or (`behind`) because other changes are waiting and this one must
-    // go after them. The task is already off the page; it now shows as a waiting entry at the top of History, as the page makes it
-    // (withPendingActions). Returns "" when kept, else why not (the text of the alert).
-    function keepCompletion(item, behind) {
+    // Holds a completion or a delete for later: after a connection failure, or (`behind`) because other changes are waiting and
+    // this one must go after them. The task is already off the page; a completion now shows as a waiting entry at the top of
+    // History, as the page makes it (withPendingActions). Returns "" when kept, else why not (the text of the alert).
+    function keepRemoval(item, behind) {
       loadActionQueue();
       const refusal = actionQueueRefusal(actionQueue.length, actionQueueUsable);
       if (refusal) return refusal;
@@ -8258,11 +8284,11 @@
       pendingRemovals.delete(item.taskId); // the queue now hides it (shownTasks), whatever list arrives
       renderFilterBar();
       renderAddQueue();
-      refreshHistoryIfOpen();
+      if (item.kind === "COMPLETE") refreshHistoryIfOpen();
       if (behind && navigator.onLine) setTimeout(drainAllQueues, 0);
       return "";
     }
-    // Holds an undo for later, as keepCompletion does a completion: the task shows back on the Queue at once. "" when kept, else why not.
+    // Holds an undo for later, as keepRemoval does a removal: the task shows back on the Queue at once. "" when kept, else why not.
     function keepUndo(item, behind) {
       loadActionQueue();
       const refusal = actionQueueRefusal(actionQueue.length, actionQueueUsable);
@@ -8306,6 +8332,9 @@
         } else if (item.kind === "COMPLETE") {
           url = COMPLETE_TASK_URL;
           body = completeBody(item);
+        } else if (item.kind === "DELETE") {
+          url = DIRECT_UPDATE_URL;
+          body = deleteBody(item);
         } else if (item.kind === "UNDO") {
           url = UNDO_URL;
           body = undoBody(item);

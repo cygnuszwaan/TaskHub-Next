@@ -1055,6 +1055,9 @@ exports.deleteComment = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req,
 }));
 
 // 7. Endpoint: Direct Update / Delete
+// A DELETE's `at` (epoch milliseconds, as toggleTimer's) is when the owner deleted the task, for a delete held offline: a running timer
+// is stopped then, so the task Undo puts back has the time it had accrued; a missing or unusable `at` counts as now, and one more than
+// 14 days old is a 400. A repeat of a delete finds the task gone and changes nothing. The response carries `serverTime`.
 // An UPDATE's `snoozedUntil` (a YYYY-MM-DD date; null or "" removes it) keeps the task off the schedule before that day.
 // An UPDATE's `newProject` (a name) creates that project in the same transaction and puts the task in it (overriding `projectId`,
 // keeping `projectOrder`): 400 for an unusable or taken name with nothing saved; the response then also holds `project` and `projects`.
@@ -1064,6 +1067,9 @@ exports.updateTaskDirect = onRequest({
 }, ownerOnly(async (req, res) => {
   try {
     const {taskId, action, updatedFields} = req.body;
+    // A delete made offline says when it was made (`at`, see resolveActionTime): a running timer is stopped then, not when the delete arrives
+    const when = action === "DELETE" ? resolveActionTime(req.body.at, Date.now()) : null;
+    if (when && when.error) return res.status(400).send({error: when.error});
     // A deleted task's photos go with it (read here: the transaction callback is synchronous)
     const photoRefs = action === "DELETE" && taskId ? (await PHOTOS.where("taskId", "==", taskId).get()).docs.map((d) => d.ref) : [];
 
@@ -1073,7 +1079,7 @@ exports.updateTaskDirect = onRequest({
         const removedTask = tasks.find((t) => t.id === taskId);
         if (!removedTask) return {current: tasks};
         const remaining = tasks.filter((t) => t.id !== taskId);
-        tx.set(LAST_REMOVED_REF, removalRecord("DELETE", pauseTimer(removedTask, Date.now()), null, null, Date.now())); // kept for undoRemove
+        tx.set(LAST_REMOVED_REF, removalRecord("DELETE", pauseTimer(removedTask, when.at), null, null, Date.now())); // kept for undoRemove
         for (const ref of photoRefs) tx.delete(ref);
         return {tasks: remaining, current: remaining, removedTask};
       }
@@ -1101,7 +1107,7 @@ exports.updateTaskDirect = onRequest({
     // Calendar cleanup follows the commit; a locked task's personal-calendar event is never touched
     await removeTaskCalendarEvent(result.removedTask);
 
-    res.status(200).send({success: true, tasks: result.current, ...(result.project ? {project: result.project, projects: result.projects} : {})});
+    res.status(200).send({success: true, tasks: result.current, ...(result.project ? {project: result.project, projects: result.projects} : {}), serverTime: Date.now()});
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});

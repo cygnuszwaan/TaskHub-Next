@@ -4420,35 +4420,36 @@ describe("offline add queue display (page)", () => {
       assert.ok(fn.indexOf("saveActionQueue(") < fn.indexOf("drainAllQueues()"));
       assert.equal(html.split("\"[data-action-retry]\"").length - 1, 1);
     });
-    it("fixes a completion's ids and time before its first attempt and sends the first attempt without the time", () => {
+    it("fixes a removal's ids and time before its first attempt and sends the first attempt without the time", () => {
       const fn = body("removeTask");
-      assert.match(fn, /makeQueuedAction\(\{ kind: "COMPLETE", taskId, archiveId: newArchiveId\(\), title: task\.title, now: Date\.now\(\), offset: clockOffsetMs \}\)/);
-      assert.match(fn, /const sendBody = item \? completeBody\(item, false\) : body;/);
+      assert.match(fn, /kind === "COMPLETE" \|\| kind === "DELETE" \? makeQueuedAction\(\{ kind, taskId, archiveId: kind === "COMPLETE" \? newArchiveId\(\) : undefined, title: task\.title, now: Date\.now\(\), offset: clockOffsetMs \}\) : null;/);
+      assert.match(fn, /const sendBody = item \? removalBody\(item, false\) : body;/);
       assert.ok(fn.indexOf("makeQueuedAction(") < fn.indexOf("pendingRemovals.add(taskId)"));
       assert.match(fn, /body: JSON\.stringify\(sendBody\)/);
       assert.match(fn, /noteServerTime\(data\)/);
     });
     it("holds a completion behind waiting changes, or after a connection failure, and otherwise puts the task back with an alert", () => {
       const fn = body("removeTask");
-      assert.match(fn, /if \(item && \(hasPendingActions\(actionQueue\) \|\| actionDraining\)\) \{[^\n]*\n\s*const refusal = keepCompletion\(item, true\);\s*if \(!refusal\) return;\s*throw new Error\(refusal\);/);
-      assert.ok(fn.indexOf("keepCompletion(item, true)") < fn.indexOf("await apiFetch"));
-      assert.match(fn, /if \(item && isNetworkError\(err, navigator\.onLine\)\) \{\s*const refusal = keepCompletion\(item, false\);\s*if \(!refusal\) return;\s*err = new Error\(refusal\);/);
-      assert.ok(fn.indexOf("keepCompletion(item, false)") < fn.indexOf("insertTaskAt(allTasks, task, index)"), "the task goes back only when the completion was not kept");
-      assert.equal((fn.match(/kind === "COMPLETE" \? makeQueuedAction/g) || []).length, 1, "only a completion is held at this stage; a delete still fails with its alert");
+      assert.match(fn, /if \(item && \(hasPendingActions\(actionQueue\) \|\| actionDraining\)\) \{[^\n]*\n\s*const refusal = keepRemoval\(item, true\);\s*if \(!refusal\) return;\s*throw new Error\(refusal\);/);
+      assert.ok(fn.indexOf("keepRemoval(item, true)") < fn.indexOf("await apiFetch"));
+      assert.match(fn, /if \(item && isNetworkError\(err, navigator\.onLine\)\) \{\s*const refusal = keepRemoval\(item, false\);\s*if \(!refusal\) return;\s*err = new Error\(refusal\);/);
+      assert.ok(fn.indexOf("keepRemoval(item, false)") < fn.indexOf("insertTaskAt(allTasks, task, index)"), "the task goes back only when the completion was not kept");
+      assert.equal((fn.match(/makeQueuedAction\(/g) || []).length, 1, "a completion and a delete are made by the one call");
+      assert.match(fn, /failureText\(kind === "COMPLETE" \? "Error completing task" : "Error deleting task", err\)/, "a delete the queue could not keep still fails with its alert");
     });
-    it("remembers what Undo needs for a completion and the next occurrence the server made", () => {
+    it("remembers what Undo needs for a completion or a delete and the next occurrence the server made", () => {
       const fn = body("removeTask");
-      assert.match(fn, /undoRemovalInfo = item \? \{ requestId: item\.requestId, archiveId: item\.archiveId, taskId, title: task\.title, task: completionRecord\(task, item\.at, item\.archiveId, null\)\.task, spawnedId: null \} : null;/);
+      assert.match(fn, /undoRemovalInfo = item \? \{ requestId: item\.requestId, archiveId: item\.archiveId \|\| null, taskId, title: task\.title, task: \(kind === "COMPLETE" \? completionRecord\(task, item\.at, item\.archiveId, null\) : deletionRecord\(task, item\.at\)\)\.task, spawnedId: null \} : null;/);
       assert.match(fn, /undoRemovalInfo\.spawnedId = \(data\.spawned && data\.spawned\.id\) \|\| null/);
       assert.match(body("sendQueuedAction"), /undoRemovalInfo\.spawnedId = \(data\.spawned && data\.spawned\.id\) \|\| null/);
       assert.match(body("hideUndoNote"), /undoRemovalInfo = null;/);
     });
-    it("keeps a completion in the queue before it stops hiding the task, and refuses with the reason when it cannot", () => {
-      const fn = body("keepCompletion");
+    it("keeps a removal in the queue before it stops hiding the task, and refuses with the reason when it cannot", () => {
+      const fn = body("keepRemoval");
       assert.match(fn, /actionQueueRefusal\(actionQueue\.length, actionQueueUsable\)/);
       assert.ok(fn.indexOf("saveActionQueue([...actionQueue, item])") < fn.indexOf("pendingRemovals.delete(item.taskId)"));
       assert.match(fn, /if \(behind && navigator\.onLine\) setTimeout\(drainAllQueues, 0\)/);
-      assert.match(fn, /refreshHistoryIfOpen\(\)/);
+      assert.match(fn, /if \(item\.kind === "COMPLETE"\) refreshHistoryIfOpen\(\);/, "only a completion changes History");
       const undo = body("keepUndo");
       assert.ok(undo.indexOf("saveActionQueue([...actionQueue, item])") < undo.indexOf("refreshShownTasks()"));
       assert.match(undo, /if \(behind && navigator\.onLine\) setTimeout\(drainAllQueues, 0\)/);
@@ -4456,19 +4457,20 @@ describe("offline add queue display (page)", () => {
     it("sends a held completion with its time and a held undo with its request id, and not behind a change the server refused", () => {
       const fn = body("sendQueuedAction");
       assert.match(fn, /url = COMPLETE_TASK_URL;\s*body = completeBody\(item\);/);
+      assert.match(fn, /item\.kind === "DELETE"\) \{\s*url = DIRECT_UPDATE_URL;\s*body = deleteBody\(item\);/, "a held delete goes to updateTaskDirect with the time it was made");
       assert.match(fn, /url = UNDO_URL;\s*body = undoBody\(item\);/);
       assert.ok(fn.indexOf("blockedBy(actionQueue, item)") < fn.indexOf("await apiFetch(url"));
       assert.match(fn, /if \(item\.kind !== "TIMER"\) templates = null;/);
       assert.match(fn, /refreshHistoryIfOpen\(\)/);
     });
-    it("cancels a waiting completion on Undo, sends or holds the undo otherwise, and leaves a delete's Undo as it was", () => {
+    it("cancels a waiting removal on Undo, and sends or holds the undo otherwise, for a delete as for a completion", () => {
       const fn = body("undoRemoval");
       assert.match(fn, /const info = undoRemovalInfo;[^\n]*\n\s*hideUndoNote\(\);\s*await removalChain;/);
       assert.match(fn, /undoPlan\(actionQueue, info\.requestId, sendingActionId\)/);
       assert.match(fn, /if \(plan === "NONE"\) return;/);
       assert.match(fn, /if \(plan === "CANCEL"\) \{[^\n]*\n\s*saveActionQueue\(cancelActions\(actionQueue, info\.requestId\)\.actions\);/);
       assert.match(fn, /await sendUndo\(info\);/);
-      assert.match(fn, /body: "\{\}"/, "an undo of a delete is still a plain call");
+      assert.match(fn, /body: "\{\}"/, "a footnote with nothing to remember is still a plain call");
       const send = body("sendUndo");
       assert.match(send, /kind: "UNDO", taskId: info\.taskId, archiveId: info\.archiveId/);
       assert.match(send, /hasPendingActions\(actionQueue\) \|\| actionDraining/);
