@@ -91,13 +91,13 @@ describe("public/index.html helpers", () => {
       assert.equal(matchesCompletedSearch(row, "seized", ""), true);
       assert.equal(matchesCompletedSearch(row, "gasket", ""), false);
     });
-    it("keeps adding a comment on while the saved copy of History is shown (it is held) and deleting one off", () => {
+    it("keeps adding and deleting a comment on while the saved copy of History is shown (both are held)", () => {
       const {COMPLETED_FORM_CONTROLS, completedFieldDisabled} = load();
       assert.equal(COMPLETED_FORM_CONTROLS.ceCommentText, "comments");
       assert.equal(COMPLETED_FORM_CONTROLS.ceCommentAdd, "comments");
       assert.equal(completedFieldDisabled("comments", true), false);
       assert.equal(completedFieldDisabled("comments", false), false);
-      assert.equal(completedFieldDisabled("commentDelete", true), true, "deleting a comment needs a connection");
+      assert.equal(completedFieldDisabled("commentDelete", true), false, "deleting a comment is held too");
       assert.equal(completedFieldDisabled("commentDelete", false), false);
     });
   });
@@ -189,7 +189,7 @@ describe("public/index.html helpers", () => {
     });
     it("leaves only the fields that can be saved offline enabled in the entry's form", () => {
       const {COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled} = load();
-      assert.deepEqual(OFFLINE_COMPLETED_FIELDS, ["priority", "trackedMinutes", "tags", "travelKm", "location", "phone", "email", "description", "comments"]);
+      assert.deepEqual(OFFLINE_COMPLETED_FIELDS, ["priority", "trackedMinutes", "tags", "travelKm", "location", "phone", "email", "description", "comments", "commentDelete"]);
       for (const field of new Set(Object.values(COMPLETED_FORM_CONTROLS))) {
         assert.equal(completedFieldDisabled(field, false), false, `${field} online`);
         assert.equal(completedFieldDisabled(field, undefined), false, `${field} unknown`);
@@ -3172,11 +3172,11 @@ describe("public/index.html helpers", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(code, /(?<![\w.])alert\(/, "a native alert() is left");
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
-      assert.equal(calls.length, 57, "the fifty-seven messages the page shows (ten are refusals to keep an add, a change or a comment for later, and six tell why a held edit was not kept)");
+      assert.equal(calls.length, 58, "the fifty-eight messages the page shows (eleven are refusals to keep an add, a change or a comment for later, and six tell why a held edit was not kept)");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 19, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
-      assert.equal(warnings.length, 36, "every validation message is a warning alert");
+      assert.equal(warnings.length, 37, "every validation message is a warning alert");
     });
     it("hides Cancel for an alert, shows it again for a question and focuses the button", () => {
       const fn = html.slice(html.indexOf("function openConfirm"), html.indexOf("function askConfirm"));
@@ -4517,7 +4517,6 @@ describe("offline add queue display (page)", () => {
       assert.match(open, /const offline = savedCompletedAt !== null \|\| !!row\.waitingRequestId;/);
       assert.match(open, /Photos can be added once this completion has been sent\./);
       assert.match(body("completedFormLimited"), /savedCompletedAt !== null \|\| !!\(row && row\.waitingRequestId\)/);
-      assert.match(body("renderCommentPanel"), /completedFieldDisabled\("commentDelete", completedFormLimited\(\)\)/);
       assert.match(body("renderCommentPanel"), /waitingCommentIds\(actionQueue\)/);
       assert.match(html, /id="ceSheetBtn"/);
       assert.match(html, /id="ceDeleteBtn"/);
@@ -4527,17 +4526,30 @@ describe("offline add queue display (page)", () => {
       assert.match(post, /\(prefix === "ce" && item && item\.waitingRequestId\) \|\| hasPendingActions\(actionQueue\) \|\| actionDraining\) return holdComment\(prefix, key, id, text, now, true\)/);
       assert.match(post, /isNetworkError\(err, navigator\.onLine\) && pendingComment\[prefix\]\) return holdComment\(prefix, key, pendingComment\[prefix\]\.id, text, Date\.now\(\), false\)/);
       assert.ok(post.indexOf("loadActionQueue()") < post.indexOf("apiFetch(ADD_COMMENT_URL"), "the queue is read before the first attempt");
-      const hold = body("holdComment");
-      assert.match(hold, /makeQueuedAction\(\{ kind: "COMMENT", \[panel\.field\]: key, title: item && item\.title, fields: \{ id, text \}, now, offset: clockOffsetMs \}\)/);
+      assert.match(body("holdComment"), /holdCommentAction\(prefix, key, "COMMENT", \{ id, text \}, now, behind\)/);
+      const hold = body("holdCommentAction");
+      assert.match(hold, /makeQueuedAction\(\{ kind, \[panel\.field\]: key, title: item && item\.title, fields, now, offset: clockOffsetMs \}\)/);
       assert.ok(hold.indexOf("saveActionQueue") < hold.indexOf("value = \"\""), "the box is cleared only once the comment is kept");
       assert.match(hold, /pendingComment\[prefix\] = null;/);
-      assert.match(hold, /refreshShownTasks\(\);/);
-      assert.match(hold, /completedAll = shownCompleted\(\);/);
+      assert.match(hold, /showHeldComments\(prefix, key\);/);
+      assert.match(body("showHeldComments"), /refreshShownTasks\(\);/);
+      assert.match(body("showHeldComments"), /completedAll = shownCompleted\(\);/);
       assert.match(hold, /if \(behind && navigator\.onLine\) setTimeout\(drainAllQueues, 0\);/);
+    });
+    it("holds a comment deletion after a connection failure, behind waiting changes and on a waiting entry, and takes a waiting comment out of the queue", () => {
+      const del = body("deleteComment");
+      assert.match(del, /a\.kind === "COMMENT" && a\.status === "PENDING" && a\.fields\.id === id/);
+      assert.match(del, /saveActionQueue\(queueWithout\(actionQueue, waiting\.requestId\)\)/);
+      assert.match(del, /sendingActionId !== waiting\.requestId/, "a comment on its way is deleted after it arrives");
+      assert.match(del, /holdCommentAction\(prefix, key, "COMMENT_DELETE", \{ id \}, Date\.now\(\), true\)/);
+      assert.match(del, /isNetworkError\(err, navigator\.onLine\)\) holdCommentAction\(prefix, key, "COMMENT_DELETE", \{ id \}, Date\.now\(\), false\)/);
+      assert.ok(del.indexOf("askConfirm(") < del.indexOf("loadActionQueue()"), "the question comes first");
+      assert.doesNotMatch(body("renderCommentPanel"), /disabled/, "the delete control is never off");
     });
     it("sends a held comment to addComment and shows it in an open form without overwriting the saved History copy", () => {
       const send = body("sendQueuedAction");
       assert.match(send, /item\.kind === "COMMENT"\) \{\s*url = ADD_COMMENT_URL;\s*body = commentBody\(item\);/);
+      assert.match(send, /item\.kind === "COMMENT_DELETE"\) \{\s*url = DELETE_COMMENT_URL;\s*body = commentDeleteBody\(item\);/);
       assert.match(send, /completedServer\.some\(r => r\.archiveId === item\.archiveId\)\) applyCommentResult\("ce", item\.archiveId, data\)/);
     });
     it("keeps every access to the action queue's storage in try/catch", () => {
