@@ -71,7 +71,6 @@ Goal: the changes made on site (Start, Pause, Abort, Complete, Reopen, descripti
 - Stays online-only: photos, Settings, Clients, project and template management, Update now, job sheets, exports, History's Stats and Project hours.
 
 Stage 1, the changes needed on site:
-4. Page, the completed form: Save offline queues an EDIT of the entry's description and the plain fields the archive row can take (`updateCompletedTask`, or folded into the COMPLETE of a waiting one, which becomes openable).
 5. Page, comments: adding a comment offline, to a queued task or a History entry, queues COMMENT, shown on the card and in the timeline at once.
 
 Stage 2, the rest of the Queue's changes, each the same machinery with its own replay and tests; a change that needs an id or an order only the server makes (a new project, Order number, a move to a task number) waits until the server has them:

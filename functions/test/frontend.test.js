@@ -187,14 +187,15 @@ describe("public/index.html helpers", () => {
     });
     it("leaves only the fields that can be saved offline enabled in the entry's form", () => {
       const {COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled} = load();
-      assert.deepEqual(OFFLINE_COMPLETED_FIELDS, ["description"]);
+      assert.deepEqual(OFFLINE_COMPLETED_FIELDS, ["priority", "trackedMinutes", "tags", "travelKm", "location", "phone", "email", "description"]);
       for (const field of new Set(Object.values(COMPLETED_FORM_CONTROLS))) {
         assert.equal(completedFieldDisabled(field, false), false, `${field} online`);
         assert.equal(completedFieldDisabled(field, undefined), false, `${field} unknown`);
-        assert.equal(completedFieldDisabled(field, true), field !== "description", `${field} offline`);
+        assert.equal(completedFieldDisabled(field, true), !OFFLINE_COMPLETED_FIELDS.includes(field), `${field} offline`);
       }
       const enabled = Object.entries(COMPLETED_FORM_CONTROLS).filter(([, field]) => !completedFieldDisabled(field, true)).map(([id]) => id);
-      assert.deepEqual(enabled, ["ceDescription"]);
+      assert.deepEqual(enabled, ["cePriority", "ceTracked", "ceTags", "ceTravel", "ceLocation", "ceLocationClearBtn", "cePhone", "ceEmail", "ceDescription"]);
+      for (const id of ["ceProject", "ceMaterials", "ceDate", "ceTime", "ceCommentText", "ceCommentAdd", "cePlaceSearchBtn", "ceSheetBtn", "ceDeleteBtn"]) assert.ok(!enabled.includes(id), `${id} needs a connection`);
     });
     it("covers every control of the entry's form: each id exists on the page and each form field has a control", () => {
       const {COMPLETED_FORM_CONTROLS} = load();
@@ -3169,11 +3170,11 @@ describe("public/index.html helpers", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(code, /(?<![\w.])alert\(/, "a native alert() is left");
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
-      assert.equal(calls.length, 50, "the fifty messages the page shows (eight are refusals to keep an add or a change for later, and one tells why a held edit was not kept)");
+      assert.equal(calls.length, 55, "the fifty-five messages the page shows (eight are refusals to keep an add or a change for later, and six tell why a held edit was not kept)");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 19, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
-      assert.equal(warnings.length, 29, "every validation message is a warning alert");
+      assert.equal(warnings.length, 34, "every validation message is a warning alert");
     });
     it("hides Cancel for an alert, shows it again for a question and focuses the button", () => {
       const fn = html.slice(html.indexOf("function openConfirm"), html.indexOf("function askConfirm"));
@@ -4490,9 +4491,33 @@ describe("offline add queue display (page)", () => {
       const copy = body("showCompletedCopy");
       assert.match(copy, /completedServer = saved\.rows;\s*completedAll = shownCompleted\(\);/);
       const row = body("completedRowHtml");
-      assert.match(row, /const open = t\.archiveId && !t\.waitingRequestId;/);
+      assert.match(row, /const open = !!t\.archiveId;/, "a waiting entry opens too");
       assert.match(row, /data-completed-open="\$\{esc\(t\.archiveId\)\}"/);
       assert.match(row, /t\.waitingRequestId \? '<span class="chip">⏳ Waiting to send<\/span>' : ''/);
+    });
+    it("holds the History form's Save behind waiting changes or a waiting completion, and after a connection failure", () => {
+      const save = body("saveCompletedEdit");
+      assert.match(save, /row\.waitingRequestId \|\| hasPendingActions\(actionQueue\) \|\| actionDraining\) \{ holdEntryEdit\(row, result\.fields, true\); return; \}/);
+      assert.match(save, /isNetworkError\(err, navigator\.onLine\)\) \{ holdEntryEdit\(row, result\.fields, false\); return; \}/);
+      assert.ok(save.indexOf("loadActionQueue()") < save.indexOf("apiFetch(UPDATE_COMPLETED_URL"), "the queue is read before the first attempt");
+      assert.ok(save.indexOf("apiFetch(UPDATE_COMPLETED_URL") < save.indexOf("fetchCompleted()"), "the list is read after the save, outside the try");
+      const hold = body("holdEntryEdit");
+      assert.match(hold, /splitHeldFields\(fields\)/);
+      assert.match(hold, /checkEditFields\(held, ENTRY_EDIT_FIELDS\)/);
+      assert.match(hold, /makeQueuedAction\(\{ kind: "EDIT", archiveId: row\.archiveId/);
+      assert.ok(hold.indexOf("splitHeldFields") < hold.indexOf("saveActionQueue"), "a change that needs a connection keeps nothing");
+      assert.ok(hold.indexOf("saveActionQueue") < hold.indexOf("closeCompletedEditor()"), "the form stays open when nothing was kept");
+      assert.match(hold, /refreshShownTasks\(\);/);
+      assert.match(hold, /if \(behind && navigator\.onLine\) setTimeout\(drainAllQueues, 0\);/);
+    });
+    it("opens a waiting entry with only the fields that can be held, no photos, no Delete and no job sheet", () => {
+      const open = body("openCompletedEditor");
+      assert.match(open, /const offline = savedCompletedAt !== null \|\| !!row\.waitingRequestId;/);
+      assert.match(open, /Photos can be added once this completion has been sent\./);
+      assert.match(body("completedFormLimited"), /savedCompletedAt !== null \|\| !!\(row && row\.waitingRequestId\)/);
+      assert.match(body("renderCommentPanel"), /completedFieldDisabled\("comments", completedFormLimited\(\)\)/);
+      assert.match(html, /id="ceSheetBtn"/);
+      assert.match(html, /id="ceDeleteBtn"/);
     });
     it("keeps every access to the action queue's storage in try/catch", () => {
       for (const name of ["loadActionQueue", "saveActionQueue"]) {

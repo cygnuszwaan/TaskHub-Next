@@ -1079,7 +1079,7 @@
       </div>
 
       <div class="form-group">
-        <button type="button" class="btn-secondary" onclick="downloadTaskSheet(document.getElementById('ceId').value, this)">📄 Download job sheet (PDF)</button>
+        <button type="button" class="btn-secondary" id="ceSheetBtn" onclick="downloadTaskSheet(document.getElementById('ceId').value, this)">📄 Download job sheet (PDF)</button>
         <!-- <p class="settings-note">The sheet shows this entry as last saved.</p> -->
       </div>
 
@@ -1087,7 +1087,7 @@
 
       <div class="modal-actions">
         <div style="display: flex; gap: 6px;">
-          <button class="btn-danger" onclick="deleteCompletedEntry()">Delete</button>
+          <button class="btn-danger" id="ceDeleteBtn" onclick="deleteCompletedEntry()">Delete</button>
           <button class="btn-secondary" onclick="reopenCompletedEntry()">Reopen</button>
         </div>
         <div style="display: flex; gap: 6px;">
@@ -3276,14 +3276,15 @@
     function completedOfflineNoteText(savedAt, now) {
       return `You're offline. Showing the newest completed tasks as they were ${cacheAgeText(savedAt, now)}. Stats, Project hours and photos need a connection.`;
     }
-    // The controls of the Edit Completed Task form and the entry field each one changes. While the saved copy is on screen only
-    // the fields in OFFLINE_COMPLETED_FIELDS (the ones a change made offline can be kept for) stay enabled.
+    // The controls of the Edit Completed Task form and the entry field each one changes. While the saved copy is on screen, or the entry
+    // is a completion still waiting to be sent, only
+    // the fields in OFFLINE_COMPLETED_FIELDS (the ones a change made offline can be kept for, ENTRY_EDIT_FIELDS as the form names them) stay enabled.
     const COMPLETED_FORM_CONTROLS = {
       cePriority: "priority", ceTracked: "trackedMinutes", ceTags: "tags", ceProject: "projectId", ceMaterials: "materials", ceTravel: "travelKm",
-      ceLocation: "location", cePlaceSearchBtn: "location", ceLocationClearBtn: "location", cePhone: "phone", ceEmail: "email", ceDescription: "description", ceDate: "date", ceTime: "time",
-      ceCommentText: "comments", ceCommentAdd: "comments"
+      ceLocation: "location", cePlaceSearchBtn: "placeSearch", ceLocationClearBtn: "location", cePhone: "phone", ceEmail: "email", ceDescription: "description", ceDate: "date", ceTime: "time",
+      ceCommentText: "comments", ceCommentAdd: "comments", ceSheetBtn: "sheet", ceDeleteBtn: "delete"
     };
-    const OFFLINE_COMPLETED_FIELDS = ["description"];
+    const OFFLINE_COMPLETED_FIELDS = ["priority", "trackedMinutes", "tags", "travelKm", "location", "phone", "email", "description"];
     function completedFieldDisabled(field, offline) {
       return offline === true && !OFFLINE_COMPLETED_FIELDS.includes(field);
     }
@@ -3385,7 +3386,9 @@
     const ACTION_KINDS = ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO"];
     const TIMER_ACTIONS = ["START", "PAUSE", "ABORT"];
     const EDIT_FIELDS = ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "location", "snoozedUntil", "description"]; // what a queued task's EDIT holds
-    const ENTRY_EDIT_FIELDS = ["description"]; // what a History entry's EDIT holds
+    const ENTRY_EDIT_FIELDS = ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "location", "description"]; // what a History entry's EDIT holds (the plain fields of the archive row; materials, the project and the completion time need the server)
+    const MAX_TRACKED_SECONDS = 3600000; // the most time an entry may be corrected to (1000 hours)
+    const MAX_ENTRY_TAGS = 20;
     const MAX_DESCRIPTION_LENGTH = 2000;
     const UNDO_TASK_MAX_CHARS = 20000; // the most an UNDO may carry of the task it puts back
 
@@ -3663,6 +3666,21 @@
       return { frequency, interval };
     }
 
+    // An entry's tags as the server stores them (functions/tasks.js cleanTags with the archive's limit): trimmed, none empty or over 40
+    // characters, repeats (any case) dropped, at most MAX_ENTRY_TAGS.
+    function cleanEntryTags(raw) {
+      const seen = new Set();
+      const out = [];
+      for (const tag of Array.isArray(raw) ? raw : []) {
+        if (typeof tag !== "string") continue;
+        const text = tag.trim();
+        if (!text || text.length > 40 || seen.has(text.toLowerCase())) continue;
+        seen.add(text.toLowerCase());
+        out.push(text);
+        if (out.length >= MAX_ENTRY_TAGS) break;
+      }
+      return out;
+    }
     // The `fields` of an EDIT checked against the names in `allowed` (EDIT_FIELDS for a task, ENTRY_EDIT_FIELDS for an entry): {fields, bad}.
     // `fields` holds each usable value as the server will store it (a title trimmed, a travel distance rounded, null for none), `bad` the
     // names of the ones that are unusable or not allowed (["fields"] when there are none at all).
@@ -3677,7 +3695,8 @@
         else if (key === "title") clean = typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
         else if (key === "priority") clean = PRIORITY_RANK.includes(value) ? value : undefined;
         else if (key === "estimatedMinutes") clean = Number.isInteger(value) && value >= 1 ? value : undefined;
-        else if (key === "tags") clean = Array.isArray(value) && value.every(t => typeof t === "string") ? value.map(t => t.trim()).filter(Boolean) : undefined;
+        else if (key === "tags") clean = Array.isArray(value) && value.every(t => typeof t === "string") ? (allowed === ENTRY_EDIT_FIELDS ? cleanEntryTags(value) : value.map(t => t.trim()).filter(Boolean)) : undefined;
+        else if (key === "trackedSeconds") clean = Number.isFinite(value) && value >= 0 && Math.round(value) <= MAX_TRACKED_SECONDS ? Math.round(value) : undefined;
         else if (key === "dueDate") clean = value === "" || isRealDate(value) ? value : undefined;
         else if (key === "recurrence") clean = normalizeRecurrence(value);
         else if (key === "travelKm") clean = normalizeTravelKm(value);
@@ -3693,9 +3712,9 @@
     }
     // A task or History entry with the held `fields` of an EDIT applied, as the server's applyDirectUpdate (or applyCompletedEdit)
     // applies them: a value sets the field, null takes the key away; a field the server would ignore is left alone.
-    function applyEditFields(target, fields) {
+    function applyEditFields(target, fields, allowed = EDIT_FIELDS) {
       const next = { ...target };
-      for (const [key, value] of Object.entries(checkEditFields(fields, EDIT_FIELDS).fields)) {
+      for (const [key, value] of Object.entries(checkEditFields(fields, allowed).fields)) {
         if (value === null) delete next[key];
         else next[key] = value;
       }
@@ -3940,7 +3959,7 @@
           done = done.filter(r => r.archiveId !== action.archiveId);
         } else if (action.kind === "EDIT") {
           if (action.taskId) list = list.map(t => (t.id === action.taskId ? applyEditFields(t, action.fields) : t));
-          else done = done.map(r => (r.archiveId === action.archiveId ? applyEditFields(r, action.fields) : r));
+          else done = done.map(r => (r.archiveId === action.archiveId ? applyEditFields(r, action.fields, ENTRY_EDIT_FIELDS) : r));
         }
       }
       return { tasks: list, completed: done };
@@ -6191,9 +6210,9 @@
       const row = completedRows.get(id);
       if (!row) return;
       const values = completedFormValues(row, appTimeZone);
-      const offline = savedCompletedAt !== null; // the saved copy is on screen
+      const offline = savedCompletedAt !== null || !!row.waitingRequestId; // the saved copy is on screen, or the completion has not been sent
       document.getElementById("ceExtraFields").open = false; // Extra fields start collapsed
-      if (offline) document.getElementById("ceExtraFields").open = true; // but Description, the one field left to edit offline, is in them
+      if (offline) document.getElementById("ceExtraFields").open = true; // but Description, Tags, Travel, Location, Phone and Email, fields left to edit offline, are in them
       document.getElementById("ceId").value = id;
       resetCommentPanel("ce");
       document.getElementById("ceTitle").textContent = row.title || "";
@@ -6219,8 +6238,14 @@
       for (const [controlId, field] of Object.entries(COMPLETED_FORM_CONTROLS)) document.getElementById(controlId).disabled = completedFieldDisabled(field, offline);
       document.getElementById("completedEditModal").style.display = "flex";
       document.body.classList.add("modal-open");
-      if (offline) document.getElementById("cePhotos").innerHTML = '<div class="photo-note">Photos need a connection.</div>';
+      if (offline) document.getElementById("cePhotos").innerHTML = `<div class="photo-note">${row.waitingRequestId ? "Photos can be added once this completion has been sent." : "Photos need a connection."}</div>`;
       else showPhotos(id, "archiveId", "cePhotos");
+    }
+    // Whether the open completed form works on less than the server's entry: the saved copy is on screen, or the entry is a completion
+    // still waiting to be sent (it has no row on the server yet).
+    function completedFormLimited() {
+      const row = completedRows.get(document.getElementById("ceId").value);
+      return savedCompletedAt !== null || !!(row && row.waitingRequestId);
     }
     function closeCompletedEditor() {
       photoPanels.delete(document.getElementById("ceId").value);
@@ -6257,17 +6282,54 @@
       if (result.error) { askAlert(result.error, { tone: "warning" }); return; }
       if (!(await postComment("ce"))) return; // a comment typed and not yet added goes with the save
       if (Object.keys(result.fields).length === 0) return closeCompletedEditor();
+      // A completion that has not been sent has no row to edit yet, and changes already waiting go first: the save is kept behind
+      // them, with a connection or not, so the order holds.
+      loadActionQueue();
+      if (row.waitingRequestId || hasPendingActions(actionQueue) || actionDraining) { holdEntryEdit(row, result.fields, true); return; }
       try {
         await apiFetch(UPDATE_COMPLETED_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id, updatedFields: result.fields })
         });
-        closeCompletedEditor();
-        await fetchCompleted();
       } catch (err) {
+        if (isNetworkError(err, navigator.onLine)) { holdEntryEdit(row, result.fields, false); return; }
         askAlert(failureText("Failed to save", err), { tone: "error" });
+        return;
       }
+      closeCompletedEditor();
+      await fetchCompleted();
+    }
+    // Holds the save of a History entry's form for later: an EDIT of the fields that changed, shown at once (withPendingActions). `fields`
+    // are what completedChanges found. The completion time, materials and project need the server (a zone, ids), so the alert names them
+    // and nothing is kept, the form staying open. `behind` is true when it was queued only because other changes were waiting (or the
+    // entry's completion is), so the queue is sent now; after a connection failure it waits for a trigger. Returns true when kept.
+    function holdEntryEdit(row, fields, behind) {
+      const { held, other } = splitHeldFields(fields);
+      if (other.length > 0) {
+        askAlert(`Changes to ${fieldNamesText(other)} need a connection, so nothing was saved. Undo them to save the other changes now, or save again when you are back online.`, { tone: "warning" });
+        return false;
+      }
+      if (!usableArchiveId(row.archiveId)) {
+        askAlert("This entry cannot be changed without a connection.", { tone: "warning" });
+        return false;
+      }
+      const checked = checkEditFields(held, ENTRY_EDIT_FIELDS);
+      if (checked.bad.length > 0) {
+        askAlert(`These cannot be saved: ${fieldNamesText(checked.bad)}. Check them and try again.`, { tone: "warning" });
+        return false;
+      }
+      loadActionQueue();
+      const refusal = actionQueueRefusal(actionQueue.length, actionQueueUsable);
+      if (refusal) { askAlert(refusal, { tone: "warning" }); return false; }
+      const item = makeQueuedAction({ kind: "EDIT", archiveId: row.archiveId, title: row.title, fields: checked.fields, now: Date.now(), offset: clockOffsetMs });
+      if (!item || !saveActionQueue([...actionQueue, item])) { askAlert(actionQueueRefusal(0, false), { tone: "warning" }); return false; }
+      closeCompletedEditor();
+      renderFilterBar();
+      renderAddQueue();
+      refreshShownTasks();
+      if (behind && navigator.onLine) setTimeout(drainAllQueues, 0);
+      return true;
     }
     // Reopen: the entry leaves the completed list and its task returns to the queue with its accrued time. Edits made in the
     // form and not yet saved are saved first, so they come back with it. Without a connection (or behind changes still waiting,
@@ -6394,7 +6456,7 @@
     function renderCommentPanel(prefix) {
       const panel = COMMENT_PANELS[prefix];
       const timeline = commentTimeline(panel.item(panel.key()));
-      const off = prefix === "ce" && completedFieldDisabled("comments", savedCompletedAt !== null);
+      const off = prefix === "ce" && completedFieldDisabled("comments", completedFormLimited());
       document.getElementById(prefix + "Comments").innerHTML = timeline.length === 0
         ? '<div class="photo-note">No comments yet.</div>'
         : timeline.map(c => `<div class="comment-entry"><div class="comment-head"><span class="comment-when">${esc(c.when)}</span><button type="button" class="comment-delete" title="Delete comment" aria-label="Delete comment" data-comment-delete="${esc(c.id)}"${off ? " disabled" : ""}>\u2715</button></div><div class="comment-text">${esc(c.text)}</div></div>`).join("");
@@ -6454,7 +6516,7 @@
         return false;
       } finally {
         commentBusy = false;
-        document.getElementById(prefix + "CommentAdd").disabled = prefix === "ce" && completedFieldDisabled("comments", savedCompletedAt !== null);
+        document.getElementById(prefix + "CommentAdd").disabled = prefix === "ce" && completedFieldDisabled("comments", completedFormLimited());
       }
     }
     async function addCommentClick(prefix) {
@@ -6644,7 +6706,7 @@
     function completedRowHtml(t) {
       const done = t.completedAt ? new Date(t.completedAt) : null;
       const when = done && !isNaN(done) ? formatInstant(done) : "";
-      const open = t.archiveId && !t.waitingRequestId; // an entry still waiting to be sent has no row on the server to edit yet
+      const open = !!t.archiveId; // an entry still waiting to be sent opens too, with only the fields that can be held (completedFormLimited)
       return `
         <div class="task-item${open ? ' completed-card' : ''}"${open ? ` role="button" tabindex="0" title="Open to edit" data-completed-open="${esc(t.archiveId)}"` : ''}>
           <div style="flex:1;">

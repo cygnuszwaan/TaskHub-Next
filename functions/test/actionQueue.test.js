@@ -26,7 +26,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, ENTRY_EDIT_FIELDS, normalizeSnooze, normalizeTravelKm, normalizePhone, normalizeEmail, normalizeLocation, normalizeRecurrence, checkEditFields, taskEditChanges, serverOnlyEditChanges, taskEditBody, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt};
+    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, ENTRY_EDIT_FIELDS, normalizeSnooze, normalizeTravelKm, normalizePhone, normalizeEmail, normalizeLocation, normalizeRecurrence, checkEditFields, taskEditChanges, serverOnlyEditChanges, taskEditBody, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, cleanEntryTags, MAX_TRACKED_SECONDS, MAX_ENTRY_TAGS, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt};
   `)();
 }
 
@@ -202,7 +202,11 @@ describe("action queue (public/index.html)", () => {
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", archiveId: "archive-0001", fields: {description: "x"}}), null, "two targets");
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {materials: []}}), null, "a field that cannot be held");
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {queueNumber: 2}}), null, "a field that needs the server");
-      assert.equal(page.makeQueuedAction({...base, kind: "EDIT", archiveId: "archive-0001", fields: {priority: "HIGH"}}), null, "an entry holds only its description");
+      assert.equal(page.makeQueuedAction({...base, kind: "EDIT", archiveId: "archive-0001", fields: {title: "x"}}), null, "an entry holds only the plain fields of its archive row");
+      for (const fields of [{materials: []}, {projectId: "p"}, {completedDate: "2026-10-27", completedTime: "09:00"}, {estimatedMinutes: 5}, {trackedSeconds: -1}, {priority: "URGENT"}]) {
+        assert.equal(page.makeQueuedAction({...base, kind: "EDIT", archiveId: "archive-0001", fields}), null, JSON.stringify(fields));
+      }
+      assert.deepEqual(page.makeQueuedAction({...base, kind: "EDIT", archiveId: "archive-0001", fields: {priority: "HIGH"}}).fields, {priority: "HIGH"});
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {description: 5}}), null);
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {}}), null);
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a"}), null);
@@ -259,7 +263,7 @@ describe("action queue (public/index.html)", () => {
       const page = load();
       assert.deepEqual(page.ACTION_KINDS, ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO"]);
       assert.deepEqual(page.EDIT_FIELDS, ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "location", "snoozedUntil", "description"]);
-      assert.deepEqual(page.ENTRY_EDIT_FIELDS, ["description"]);
+      assert.deepEqual(page.ENTRY_EDIT_FIELDS, ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "location", "description"]);
     });
   });
 
@@ -808,7 +812,7 @@ describe("action queue (public/index.html)", () => {
     });
     it("splits a form's changes into the ones that can be held and the names of the rest", () => {
       const page = load();
-      assert.deepEqual(page.splitHeldFields({description: "x", trackedSeconds: 600, completedDate: "2026-10-27", completedTime: "09:00", travelKm: 3}), {held: {description: "x"}, other: ["trackedSeconds", "completedDate", "completedTime", "travelKm"]});
+      assert.deepEqual(page.splitHeldFields({description: "x", trackedSeconds: 600, completedDate: "2026-10-27", completedTime: "09:00", travelKm: 3, materials: ["a"], projectId: "p"}), {held: {description: "x", trackedSeconds: 600, travelKm: 3}, other: ["completedDate", "completedTime", "materials", "projectId"]});
       assert.deepEqual(page.splitHeldFields({description: null}), {held: {description: null}, other: []});
       for (const nothing of [{}, null, undefined, [], "x"]) assert.deepEqual(page.splitHeldFields(nothing), {held: {}, other: []});
     });
@@ -926,7 +930,7 @@ describe("action queue (public/index.html)", () => {
       assert.deepEqual(page.checkEditFields({title: " ", priority: "URGENT", estimatedMinutes: 0, tags: "a", dueDate: "2026-02-30", email: "x", materials: []}, page.EDIT_FIELDS).bad, ["title", "priority", "estimatedMinutes", "tags", "dueDate", "email", "materials"]);
       assert.deepEqual(page.checkEditFields({estimatedMinutes: 1.5}, page.EDIT_FIELDS).bad, ["estimatedMinutes"]);
       for (const none of [{}, null, [], "x", undefined]) assert.deepEqual(page.checkEditFields(none, page.EDIT_FIELDS).bad, ["fields"]);
-      assert.deepEqual(page.checkEditFields({title: "x"}, page.ENTRY_EDIT_FIELDS).bad, ["title"], "an entry holds only its description");
+      assert.deepEqual(page.checkEditFields({title: "x"}, page.ENTRY_EDIT_FIELDS).bad, ["title"], "an entry holds only the plain fields of its archive row");
     });
     it("holds a task's EDIT with every changed field and sends exactly those to updateTaskDirect", () => {
       const page = load();
@@ -977,6 +981,92 @@ describe("action queue (public/index.html)", () => {
       assert.deepEqual(page.serverOnlyEditChanges(task("b"), {materials: null, projectId: null, projectOrder: null}), [], "a task with none, left with none");
       assert.deepEqual(page.serverOnlyEditChanges(task("b"), {}), []);
       assert.equal(page.fieldNamesText(["newProject", "projectId", "projectOrder", "queueNumber", "materials"]), "project, order number, task number and materials");
+    });
+  });
+  describe("holding the edit of a History entry", () => {
+    const entry = (extra = {}) => ({id: "e", title: "Task e", status: "PENDING", priority: "LOW", estimatedMinutes: 10, tags: ["old"], trackedSeconds: 90, description: "was", completedAt: iso(T0 - 5 * MIN), archiveId: "archive-0001", completedCount: 1, recentSeconds: [90], ...extra});
+    const serverEntry = (row, fields) => {
+      const result = applyCompletedEdit(row, fields, {timeZone: "Pacific/Auckland", now: new Date(T0)});
+      if (result.error === "Nothing to change") return row; // a no-op the server refuses leaves the row as it is
+      assert.ok(!result.error, `${JSON.stringify(fields)}: ${result.error}`);
+      const next = {...row, ...result.set};
+      for (const key of result.remove) delete next[key];
+      return next;
+    };
+    const editEntry = (page, fields, over = {}) => page.makeQueuedAction({kind: "EDIT", archiveId: "archive-0001", title: "Task e", fields, now: T0, requestId: "req-n0001", ...over});
+
+    it("checks an entry's fields as the server's correction does", () => {
+      const page = load();
+      assert.equal(page.MAX_TRACKED_SECONDS, 3600000);
+      assert.equal(page.MAX_ENTRY_TAGS, 20);
+      assert.deepEqual(page.checkEditFields({trackedSeconds: 125.4, priority: "HIGH", tags: [" a ", "A", "", "b"]}, page.ENTRY_EDIT_FIELDS), {fields: {trackedSeconds: 125, priority: "HIGH", tags: ["a", "b"]}, bad: []});
+      assert.deepEqual(page.checkEditFields({trackedSeconds: 0}, page.ENTRY_EDIT_FIELDS).fields, {trackedSeconds: 0}, "0 makes the estimate count");
+      assert.deepEqual(page.checkEditFields({trackedSeconds: 3600000}, page.ENTRY_EDIT_FIELDS).bad, []);
+      for (const bad of [-1, 3600001, NaN, Infinity, "60", null, undefined]) assert.deepEqual(page.checkEditFields({trackedSeconds: bad}, page.ENTRY_EDIT_FIELDS).bad, ["trackedSeconds"], String(bad));
+      assert.deepEqual(page.checkEditFields({trackedSeconds: 60}, page.EDIT_FIELDS).bad, ["trackedSeconds"], "a queued task's time is the timer's, never edited");
+      const many = Array.from({length: 30}, (_, i) => `tag${i}`);
+      assert.equal(page.cleanEntryTags([...many, "x".repeat(41)]).length, 20);
+      assert.deepEqual(page.cleanEntryTags(["x".repeat(41), "ok", "OK", 5, " "]), ["ok"]);
+      assert.deepEqual(page.cleanEntryTags("nope"), []);
+    });
+    it("leaves an entry as the server's correction does, field by field", () => {
+      const page = load();
+      const olds = [entry(), entry({priority: "HIGH", tags: ["x", "y"], trackedSeconds: 0, travelKm: 3, phone: "021", email: "o@o.nz", location: {name: "Old", latitude: -36.6, longitude: 174.7}})];
+      const fields = [
+        {priority: "MEDIUM"}, {trackedSeconds: 600}, {trackedSeconds: 0}, {trackedSeconds: 125.6}, {tags: [" a ", "A", "", "b"]}, {tags: []},
+        {tags: Array.from({length: 25}, (_, i) => `t${i}`)}, {travelKm: 2.26}, {travelKm: null}, {travelKm: 0}, {phone: " 1  2 "}, {phone: null},
+        {email: "a@b.co"}, {email: null}, {location: {name: " Rd "}}, {location: null}, {location: {name: "P", latitude: -36.6, longitude: 174.7}},
+        {description: "  hi "}, {description: null}, {description: ""},
+        {priority: "LOW", trackedSeconds: 30, tags: ["q"], travelKm: 7.5, phone: "123", email: "z@z.nz", location: {name: "Z"}, description: "all"},
+      ];
+      for (const row of olds) {
+        for (const f of fields) {
+          const checked = page.checkEditFields(f, page.ENTRY_EDIT_FIELDS);
+          if (checked.bad.length > 0) continue; // an unusable value is never held
+          assert.deepEqual(page.applyEditFields(row, checked.fields, page.ENTRY_EDIT_FIELDS), serverEntry(row, checked.fields), JSON.stringify(f));
+        }
+      }
+    });
+    it("replays an entry's EDIT in History and on the entry a REOPEN brings back", () => {
+      const page = load();
+      const edit = editEntry(page, {trackedSeconds: 600, tags: ["new"], priority: "HIGH"});
+      const shown = page.withPendingActions([], [entry()], [edit]);
+      assert.equal(shown.completed[0].trackedSeconds, 600);
+      assert.deepEqual(shown.completed[0].tags, ["new"]);
+      assert.equal(shown.completed[0].priority, "HIGH");
+      assert.equal(shown.completed[0].estimatedMinutes, 10, "what was not edited stays");
+      const reopen = page.makeQueuedAction({kind: "REOPEN", taskId: "e", archiveId: "archive-0001", title: "Task e", now: T0 + 1, requestId: "req-n0002"});
+      const back = page.withPendingActions([], [entry()], [edit, reopen]);
+      assert.equal(back.completed.length, 0);
+      assert.equal(back.tasks[0].trackedSeconds, 600, "the task comes back with the corrected time");
+      assert.deepEqual(back.tasks[0].tags, ["new"]);
+      const failed = {...edit, status: "FAILED", error: "no"};
+      assert.deepEqual(page.withPendingActions([], [entry()], [failed]).completed, [entry()], "a refused edit changes nothing");
+    });
+    it("replays an EDIT behind the COMPLETE of a waiting entry and drops it with that completion", () => {
+      const page = load();
+      const complete = page.makeQueuedAction({kind: "COMPLETE", taskId: "a", archiveId: "archive-0007", title: "Task a", now: T0, requestId: "req-n0003"});
+      const edit = page.makeQueuedAction({kind: "EDIT", archiveId: "archive-0007", title: "Task a", fields: {trackedSeconds: 1800, phone: "021 555"}, now: T0 + 1, requestId: "req-n0004"});
+      const shown = page.withPendingActions([task("a", {trackedSeconds: 60})], [], [complete, edit]);
+      assert.equal(shown.completed.length, 1);
+      assert.equal(shown.completed[0].waitingRequestId, "req-n0003");
+      assert.equal(shown.completed[0].trackedSeconds, 1800);
+      assert.equal(shown.completed[0].phone, "021 555");
+      const gone = page.cancelActions([complete, edit], "req-n0003");
+      assert.deepEqual(gone.actions, []);
+      assert.deepEqual(gone.cancelled.map((a) => a.requestId), ["req-n0003", "req-n0004"]);
+      const failedComplete = {...complete, status: "FAILED", error: "no"};
+      assert.equal(page.blockedBy([failedComplete, edit], edit).requestId, "req-n0003", "an edit is not sent behind a refused completion");
+    });
+    it("sends every held field to updateCompletedTask and names them on the card", () => {
+      const page = load();
+      const edit = editEntry(page, {trackedSeconds: 600, tags: ["a"], description: null});
+      assert.deepEqual(page.entryEditBody(edit), {id: "archive-0001", updatedFields: {trackedSeconds: 600, tags: ["a"], description: null}});
+      assert.equal(page.actionLabel(edit), "Update time spent, tags and description on “Task e”");
+      const held = page.splitHeldFields({priority: "HIGH", trackedSeconds: 60, tags: [], travelKm: 1, phone: "1", email: "a@b.co", location: null, description: "d", materials: ["m"], projectId: "p", completedDate: "2026-10-27", completedTime: "09:00"});
+      assert.deepEqual(Object.keys(held.held), ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "location", "description"]);
+      assert.deepEqual(held.other, ["materials", "projectId", "completedDate", "completedTime"]);
+      assert.equal(page.fieldNamesText(held.other), "materials, project and completion time");
     });
   });
 });
