@@ -5,12 +5,13 @@ const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
 const {setTimerInList, settleTimer} = require("../timer");
-const {completeInList, applyDirectUpdate} = require("../tasks");
+const {completeInList, applyDirectUpdate, removalRecord, undoInList: serverUndoInList} = require("../tasks");
 const {reopenTask} = require("../reopen");
 const {recordCompletion} = require("../history");
 const {normalizeComments} = require("../comments");
 const {applyCompletedEdit} = require("../completedEdit");
-const {normalizeArchiveId} = require("../clientTime");
+const {normalizeArchiveId, resolveActionTime} = require("../clientTime");
+const {normalizeRequestId} = require("../addRequests");
 
 // The page's pure helpers sit between two marker comments in public/index.html; load them as the page does.
 const html = fs.readFileSync(path.join(__dirname, "..", "..", "public", "index.html"), "utf8");
@@ -21,7 +22,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeComments, applyEditFields, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionDiscardPrompt};
+    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeComments, applyEditFields, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionDiscardPrompt};
   `)();
 }
 
@@ -42,6 +43,23 @@ function timerTasks() {
 }
 function action(page, over = {}) {
   return page.makeQueuedAction({kind: "TIMER", taskId: "a", title: "Task a", fields: {action: "START"}, now: T0, offset: 0, ...over});
+}
+
+
+// A task as the server completes it (at T0) and the record it keeps for Undo, with the list the server then holds.
+function completedFixture(extra = {}, recurrence = undefined) {
+  const base = task("a", {order: 3, estimatedMinutes: 45, timerStartedAt: iso(T0 - 10 * MIN), firstStartedAt: iso(T0 - 20 * MIN), trackedSeconds: 120, active: true, googleCalendarEventId: "evt1", scheduledStart: iso(T0 + 60 * MIN), scheduledEnd: iso(T0 + 90 * MIN), ...extra});
+  if (recurrence) base.recurrence = recurrence;
+  const before = [task("z", {order: 1}), base, task("y", {order: 5})];
+  let n = 0;
+  const done = completeInList(before, "a", "2026-10-27", () => `spawn-${++n}`, iso(T0), undefined);
+  const record = removalRecord("COMPLETE", done.completedTask, "archive-0001", done.spawned, T0);
+  return {before, done, record, base};
+}
+function undoAction(page, record, over = {}) {
+  const fields = {task: record.task};
+  if (record.spawnedId) fields.spawnedId = record.spawnedId;
+  return page.makeQueuedAction({kind: "UNDO", taskId: record.task.id, archiveId: record.archiveId, title: record.task.title, fields, now: T0 + MIN, ...over});
 }
 
 describe("action queue (public/index.html)", () => {
@@ -233,7 +251,7 @@ describe("action queue (public/index.html)", () => {
     });
     it("holds only the kinds stage 1 can replay and the fields it can apply", () => {
       const page = load();
-      assert.deepEqual(page.ACTION_KINDS, ["TIMER", "COMPLETE", "REOPEN", "EDIT"]);
+      assert.deepEqual(page.ACTION_KINDS, ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO"]);
       assert.deepEqual(page.EDIT_FIELDS, ["comments"]);
     });
   });
@@ -563,6 +581,7 @@ describe("action queue (public/index.html)", () => {
       assert.equal(page.actionLabel(page.makeQueuedAction({kind: "COMPLETE", taskId: "a", archiveId: "archive-0001", title: "Fix gate", now: T0})), "Complete “Fix gate”");
       assert.equal(page.actionLabel(page.makeQueuedAction({kind: "REOPEN", taskId: "a", archiveId: "archive-0001", title: "Fix gate", now: T0})), "Reopen “Fix gate”");
       assert.equal(page.actionLabel(page.makeQueuedAction({kind: "EDIT", taskId: "a", title: "Fix gate", fields: {comments: "x"}, now: T0})), "Update comments on “Fix gate”");
+      assert.equal(page.actionLabel(undoAction(page, completedFixture().record, {title: "Fix gate"})), "Undo completing “Fix gate”");
       assert.equal(page.actionLabel(action(page, {title: ""})), "Start timer for task");
       assert.equal(page.actionLabel(null), "Change task");
     });
@@ -585,6 +604,167 @@ describe("action queue (public/index.html)", () => {
       assert.match(page.actionDiscardPrompt(pending, 3), /The 3 changes made after it on the same task will be discarded too\.$/);
       assert.doesNotMatch(page.actionDiscardPrompt(pending, 0), /discarded too/);
       assert.match(page.actionDiscardPrompt({...pending, status: "FAILED", error: "x"}), /The server did not accept it/);
+    });
+  });
+
+  describe("completion and undo", () => {
+    const completeAction = (page, id, archiveId, atMs, requestId) => page.makeQueuedAction({kind: "COMPLETE", taskId: id, archiveId, title: `Task ${id}`, now: atMs, requestId});
+
+    it("undoInList gives the server's answer for every record", () => {
+      const page = load();
+      let compared = 0;
+      for (const recurrence of [undefined, {frequency: "WEEKLY", interval: 1}]) {
+        for (const extra of [{}, {locked: true}, {comments: "gate"}]) {
+          const {done, record} = completedFixture(extra, recurrence);
+          const lists = [done.tasks, [...done.tasks, record.task], [], [task("q")]];
+          for (const list of lists) {
+            for (const rec of [record, {...record, spawnedId: null}, {...record, spawnedId: "nope"}, {task: null}, {}, null, undefined]) {
+              const input = JSON.parse(JSON.stringify(list));
+              assert.deepEqual(page.undoInList(input, rec), serverUndoInList(JSON.parse(JSON.stringify(list)), rec), JSON.stringify([extra, recurrence, rec && rec.spawnedId]));
+              assert.deepEqual(input, list, "the input is not modified");
+              compared++;
+            }
+          }
+        }
+      }
+      assert.ok(compared > 100);
+    });
+    it("completionRecord is what the server keeps of a completion", () => {
+      const page = load();
+      for (const recurrence of [undefined, {frequency: "WEEKLY", interval: 1}]) {
+        for (const extra of [{}, {timerStartedAt: undefined, active: undefined}, {trackedSeconds: undefined}]) {
+          const {before, done, record} = completedFixture(extra, recurrence);
+          const mine = page.completionRecord(before.find((t) => t.id === "a"), T0, "archive-0001", done.spawned && done.spawned.id);
+          assert.deepEqual(mine, {task: record.task, archiveId: record.archiveId, spawnedId: record.spawnedId});
+        }
+      }
+      assert.deepEqual(page.completionRecord(task("a"), T0, undefined, undefined), {task: page.settleTimer(task("a"), T0), archiveId: null, spawnedId: null});
+    });
+    it("shows a sent completion undone as the server leaves the list, the next occurrence gone and the entry out of History", () => {
+      const page = load();
+      for (const recurrence of [undefined, {frequency: "WEEKLY", interval: 1}]) {
+        const {before, done, record} = completedFixture({}, recurrence);
+        const entry = page.completedRowOf(before.find((t) => t.id === "a"), T0, "archive-0001");
+        const completed = [entry, {archiveId: "archive-0000", title: "Older", completedAt: iso(T0 - 5 * MIN)}];
+        const shown = page.withPendingActions(done.tasks, completed, [undoAction(page, record)]);
+        assert.deepEqual(shown.tasks, serverUndoInList(done.tasks, record).tasks);
+        assert.deepEqual(shown.completed.map((r) => r.archiveId), ["archive-0000"]);
+        assert.equal(shown.tasks.some((t) => t.id === "spawn-1"), false, "the next occurrence is taken off");
+        const back = shown.tasks.find((t) => t.id === "a");
+        assert.equal(back.timerStartedAt, undefined);
+        assert.equal(back.active, undefined);
+        assert.equal(back.googleCalendarEventId, undefined);
+        assert.equal(back.order, 3, "the task keeps its own rank");
+      }
+    });
+    it("shows a completion and its undo, both waiting, as nothing happening to the task", () => {
+      const page = load();
+      const {before, record} = completedFixture();
+      const queue = [completeAction(page, "a", "archive-0001", T0, "req-c0001"), undoAction(page, record, {requestId: "req-u0001"})];
+      const shown = page.withPendingActions(before, [], queue);
+      assert.deepEqual(shown.completed, []);
+      const back = shown.tasks.find((t) => t.id === "a");
+      assert.equal(back.trackedSeconds, 120 + 10 * 60, "its timer was settled by the completion, which the undo does not take back");
+      assert.deepEqual(shown.tasks.map((t) => t.id).sort(), ["a", "y", "z"]);
+    });
+    it("does nothing for an undo whose task is already on the list, or that was refused", () => {
+      const page = load();
+      const {before, record} = completedFixture();
+      const history = [{archiveId: "archive-0001", title: "Task a", completedAt: iso(T0)}];
+      const undo = undoAction(page, record);
+      assert.deepEqual(page.withPendingActions(before, history, [undo]), {tasks: before, completed: history}, "the task is there: the server leaves the archive alone too");
+      const {done} = completedFixture();
+      assert.deepEqual(page.withPendingActions(done.tasks, history, [{...undo, status: "FAILED", error: "Nothing to undo"}]), {tasks: done.tasks, completed: history});
+    });
+    it("holds an UNDO only with the task it puts back, its ids and a usable next-occurrence id", () => {
+      const page = load();
+      const {record} = completedFixture();
+      const good = undoAction(page, record, {requestId: "req-u0001"});
+      assert.equal(good.kind, "UNDO");
+      assert.equal(good.taskId, "a");
+      assert.equal(good.archiveId, "archive-0001");
+      assert.deepEqual(good.fields.task, record.task);
+      assert.notEqual(good.fields.task, record.task, "the task is copied");
+      const make = (over) => page.makeQueuedAction({kind: "UNDO", taskId: "a", archiveId: "archive-0001", title: "Task a", fields: {task: record.task}, now: T0, ...over});
+      assert.ok(make({}));
+      assert.equal(make({fields: undefined}), null);
+      assert.equal(make({fields: {}}), null);
+      assert.equal(make({fields: {task: null}}), null);
+      assert.equal(make({fields: {task: [record.task]}}), null);
+      assert.equal(make({fields: {task: {...record.task, id: "b"}}}), null, "the task it carries is the one it names");
+      assert.equal(make({fields: {task: {...record.task, title: 5}}}), null);
+      assert.equal(make({fields: {task: {...record.task, id: ""}}, taskId: ""}), null);
+      assert.equal(make({taskId: undefined}), null);
+      assert.equal(make({archiveId: undefined}), null);
+      assert.equal(make({archiveId: "short"}), null);
+      assert.equal(make({fields: {task: record.task, spawnedId: 5}}), null);
+      assert.equal(make({fields: {task: record.task, spawnedId: ""}}), null);
+      assert.equal(make({fields: {task: record.task, spawnedId: "spawn-1"}}).fields.spawnedId, "spawn-1");
+      assert.equal("spawnedId" in make({fields: {task: record.task, spawnedId: null}}).fields, false);
+      assert.equal(make({fields: {task: {...record.task, comments: "x".repeat(page.UNDO_TASK_MAX_CHARS)}}}), null, "an absurd task is refused");
+    });
+    it("keeps an UNDO through the stored queue", () => {
+      const page = load();
+      const {record} = completedFixture({}, {frequency: "WEEKLY", interval: 1});
+      const queue = [completeAction(page, "a", "archive-0001", T0, "req-c0001"), undoAction(page, record, {requestId: "req-u0001"})];
+      assert.deepEqual(page.parseActionQueue(page.serializeActionQueue(queue)), queue);
+      assert.deepEqual([...page.waitingTaskIds(queue)], ["a"]);
+    });
+    it("takes the undo with a completion that is cancelled, and a task's later actions with an undo", () => {
+      const page = load();
+      const {record} = completedFixture();
+      const complete = completeAction(page, "a", "archive-0001", T0, "req-c0001");
+      const undo = undoAction(page, record, {requestId: "req-u0001"});
+      const timer = page.makeQueuedAction({kind: "TIMER", taskId: "a", title: "Task a", fields: {action: "START"}, now: T0 + 2 * MIN, requestId: "req-t0001"});
+      const other = page.makeQueuedAction({kind: "TIMER", taskId: "b", title: "Task b", fields: {action: "START"}, now: T0 + 3 * MIN, requestId: "req-t0002"});
+      const queue = [complete, undo, timer, other];
+      assert.deepEqual(page.cancelActions(queue, "req-c0001").cancelled.map((a) => a.requestId), ["req-c0001", "req-u0001", "req-t0001"]);
+      assert.deepEqual(page.cancelActions(queue, "req-u0001").actions.map((a) => a.requestId), ["req-c0001", "req-t0002"]);
+    });
+    it("chooses what Undo does for a completion: cancel it while it waits, otherwise send", () => {
+      const page = load();
+      const waiting = completeAction(page, "a", "archive-0001", T0, "req-c0001");
+      assert.equal(page.undoPlan([waiting], "req-c0001", ""), "CANCEL");
+      assert.equal(page.undoPlan([waiting], "req-c0001", "req-other"), "CANCEL");
+      assert.equal(page.undoPlan([waiting], "req-c0001", "req-c0001"), "SEND", "it is on its way: the server may have it");
+      assert.equal(page.undoPlan([], "req-c0001", ""), "SEND", "sent, or never held");
+      assert.equal(page.undoPlan(undefined, "req-c0001", ""), "SEND");
+      assert.equal(page.undoPlan([{...waiting, status: "FAILED", error: "no"}], "req-c0001", ""), "NONE", "refused: the task is back already");
+      assert.equal(page.undoPlan([null, waiting], "req-c0001", ""), "CANCEL");
+    });
+    it("blocks what follows a change the server refused, and nothing else", () => {
+      const page = load();
+      const {record} = completedFixture();
+      const failed = {...completeAction(page, "a", "archive-0001", T0, "req-c0001"), status: "FAILED", error: "Task not found"};
+      const undo = undoAction(page, record, {requestId: "req-u0001"});
+      assert.equal(page.blockedBy([failed, undo], undo).requestId, "req-c0001", "an undo would put back some other removal");
+      assert.equal(page.blockedBy([{...failed, status: "PENDING", error: undefined}, undo], undo), null, "only a refusal blocks");
+      assert.equal(page.blockedBy([undo, failed], undo), null, "only what came before counts");
+      const otherTask = completeAction(page, "b", "archive-0002", T0, "req-c0002");
+      assert.equal(page.blockedBy([failed, otherTask], otherTask), null);
+      const failedUndo = {...undo, status: "FAILED", error: "Nothing to undo"};
+      const timer = page.makeQueuedAction({kind: "TIMER", taskId: "a", title: "Task a", fields: {action: "START"}, now: T0 + 2 * MIN, requestId: "req-t0001"});
+      assert.equal(page.blockedBy([failedUndo, timer], timer).requestId, "req-u0001", "the task never came back");
+      const failedTimer = {...timer, status: "FAILED", error: "Task not found"};
+      const complete2 = completeAction(page, "a", "archive-0003", T0 + 3 * MIN, "req-c0003");
+      assert.equal(page.blockedBy([failedTimer, complete2], complete2), null, "a refused timer does not stop a completion");
+      assert.equal(page.blockedBy(undefined, undo), null);
+      assert.equal(page.blockedBy([failed], {requestId: "unknown"}), null);
+    });
+    it("builds bodies the server accepts", () => {
+      const page = load();
+      const item = completeAction(page, "a", page.newArchiveId(), T0, undefined);
+      const body = page.completeBody(item);
+      assert.deepEqual(Object.keys(body).sort(), ["archiveId", "at", "requestId", "taskId"]);
+      assert.equal(body.taskId, "a");
+      assert.equal(normalizeArchiveId(body.archiveId), body.archiveId);
+      assert.equal(normalizeRequestId(body.requestId), body.requestId);
+      assert.deepEqual(resolveActionTime(body.at, body.at + 1000), {at: body.at}, "booked at the time it was made");
+      assert.deepEqual(Object.keys(page.completeBody(item, false)).sort(), ["archiveId", "requestId", "taskId"], "the first attempt leaves the time to the server");
+      const {record} = completedFixture();
+      const undo = page.undoBody(undoAction(page, record, {requestId: "req-u0001"}));
+      assert.deepEqual(undo, {requestId: "req-u0001"});
+      assert.equal(normalizeRequestId(undo.requestId), "req-u0001");
     });
   });
 });

@@ -3327,15 +3327,18 @@
     //   COMPLETE: taskId and archiveId, the id the page gave the History entry (the server uses it as the row's id)
     //   REOPEN:   archiveId (the entry) and taskId (the entry's own `id`, the task that comes back)
     //   EDIT:     taskId (a queued task) or archiveId (an entry), fields {comments} (EDIT_FIELDS: the fields that can be held)
+    //   UNDO:     taskId and archiveId of a completion the server has (or may have), fields {task, spawnedId?}: the task as archived
+    //             (completionRecord) and the id of the next occurrence the completion made, so the page can show it undone
     // `at` is when the change was made, in epoch milliseconds on the server's clock (the device's corrected by `clockOffsetFrom`),
     // because the server books that instant and not the time it arrived; `title` is the task's, for the cards. `requestId` is
     // what makes a second attempt a no-op on the server. Only PENDING actions change what the page shows (withPendingActions).
     const ACTION_QUEUE_KEY = "taskhub-action-queue";
     const ACTION_QUEUE_MAX = 50;
-    const ACTION_KINDS = ["TIMER", "COMPLETE", "REOPEN", "EDIT"];
+    const ACTION_KINDS = ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO"];
     const TIMER_ACTIONS = ["START", "PAUSE", "ABORT"];
     const EDIT_FIELDS = ["comments"];
     const MAX_COMMENTS_LENGTH = 2000;
+    const UNDO_TASK_MAX_CHARS = 20000; // the most an UNDO may carry of the task it puts back
 
     // A new id for a History entry made on the page: the server takes it as the id of the row (8 to 64 letters, digits, - and _).
     function newArchiveId(randomUUID) {
@@ -3471,6 +3474,29 @@
       return { ...settled, ...recordCompletion(settled), completedAt: new Date(nowMs).toISOString(), archiveId };
     }
 
+    // What the server keeps of a completion for Undo (functions/tasks.js removalRecord, less its kind and time): `task` is the task as
+    // archived (timer settled at `nowMs`), `spawnedId` the id of the next occurrence of a repeating task (null when none or unknown).
+    function completionRecord(task, nowMs, archiveId, spawnedId) {
+      return { task: settleTimer(task, nowMs), archiveId: archiveId || null, spawnedId: spawnedId || null };
+    }
+    // The list with the removal on `record` undone (functions/tasks.js undoInList): {tasks, restored}, or null when the task is
+    // already on the list. The next occurrence it made leaves, and the task comes back at the end of the list with its own rank,
+    // its timer stopped and any calendar slot gone.
+    function undoInList(tasks, record) {
+      const task = record && record.task;
+      if (!task || typeof task.id !== "string" || tasks.some(t => t.id === task.id)) return null;
+      const rest = record.spawnedId ? tasks.filter(t => t.id !== record.spawnedId) : tasks;
+      const restored = { ...task };
+      delete restored.timerStartedAt;
+      delete restored.active;
+      if (!restored.locked) {
+        delete restored.googleCalendarEventId;
+        delete restored.scheduledStart;
+        delete restored.scheduledEnd;
+      }
+      return { tasks: [...rest, restored], restored };
+    }
+
     // The job history from before the completion on `row` (functions/reopen.js historyBefore), and the task a reopened entry
     // becomes (reopenTask there): {tasks, task, droppedRecurrence}, or {error} for a row with no title. `projectIds` are the
     // current projects; `makeId` makes the id when the row's own is not free.
@@ -3551,6 +3577,20 @@
         }
         return out;
       }
+      if (kind === "UNDO") {
+        if (!fields || typeof fields !== "object" || Array.isArray(fields)) return null;
+        const task = fields.task;
+        if (!task || typeof task !== "object" || Array.isArray(task) || typeof task.id !== "string" || task.id === "" || typeof task.title !== "string") return null;
+        let text;
+        try { text = JSON.stringify(task); } catch (e) { return null; }
+        if (typeof text !== "string" || text.length > UNDO_TASK_MAX_CHARS) return null;
+        const out = { task: JSON.parse(text) };
+        if (fields.spawnedId !== undefined && fields.spawnedId !== null) {
+          if (typeof fields.spawnedId !== "string" || fields.spawnedId === "") return null;
+          out.spawnedId = fields.spawnedId;
+        }
+        return out;
+      }
       return undefined; // COMPLETE and REOPEN carry no fields
     }
 
@@ -3570,8 +3610,9 @@
       if (item.kind === "TIMER") {
         if (!hasTask) return null;
         clean.taskId = item.taskId;
-      } else if (item.kind === "COMPLETE" || item.kind === "REOPEN") {
+      } else if (item.kind === "COMPLETE" || item.kind === "REOPEN" || item.kind === "UNDO") {
         if (!hasTask || !hasEntry) return null;
+        if (item.kind === "UNDO" && (!fields || fields.task.id !== item.taskId)) return null; // an undo carries the task it puts back
         clean.taskId = item.taskId;
         clean.archiveId = item.archiveId;
       } else {
@@ -3629,7 +3670,8 @@
     // COMPLETE takes the task off the Queue and puts its entry in History in place by time, marked `waitingRequestId` (no next
     // occurrence of a repeating task: the server makes that); a REOPEN takes the entry out and adds the task at the end of the
     // Queue as reopenTask builds it (`options.projectIds`: the current projects, else the task keeps its project); an EDIT applies
-    // its fields to the task or entry. Pure: the inputs are not modified. The lists passed in are the server's, never the result.
+    // its fields to the task or entry; an UNDO is undoInList with the record it carries (`fields.task`, `fields.spawnedId`) and takes the
+    // entry of its `archiveId` out of History, and does nothing when the task is already on the list, as the server does. Pure: the inputs are not modified. The lists passed in are the server's, never the result.
     function withPendingActions(tasks, completed, actions, options = {}) {
       let list = Array.isArray(tasks) ? tasks.slice() : [];
       let done = Array.isArray(completed) ? completed.slice() : [];
@@ -3655,6 +3697,11 @@
           if (result.error) continue;
           list = result.tasks;
           done = done.filter(r => r !== row);
+        } else if (action.kind === "UNDO") {
+          const undone = undoInList(list, { task: action.fields.task, spawnedId: action.fields.spawnedId });
+          if (!undone) continue;
+          list = undone.tasks;
+          done = done.filter(r => r.archiveId !== action.archiveId);
         } else if (action.kind === "EDIT") {
           if (action.taskId) list = list.map(t => (t.id === action.taskId ? applyEditFields(t, action.fields) : t));
           else done = done.map(r => (r.archiveId === action.archiveId ? applyEditFields(r, action.fields) : r));
@@ -3663,12 +3710,41 @@
       return { tasks: list, completed: done };
     }
 
-    // Whether `later` can only make sense after `earlier`: a COMPLETE gives the entry its archive id (a REOPEN or EDIT of that
-    // entry follows it), a REOPEN gives the task back (any later action on that task follows it).
+    // Whether `later` can only make sense after `earlier`: a COMPLETE gives the entry its archive id (an UNDO, REOPEN or EDIT of that
+    // entry follows it), a REOPEN or an UNDO gives the task back (any later action on that task follows it).
     function actionDependsOn(later, earlier) {
       if (earlier.kind === "COMPLETE") return later.archiveId !== undefined && later.archiveId === earlier.archiveId;
-      if (earlier.kind === "REOPEN") return later.taskId !== undefined && later.taskId === earlier.taskId;
+      if (earlier.kind === "REOPEN" || earlier.kind === "UNDO") return later.taskId !== undefined && later.taskId === earlier.taskId;
       return false;
+    }
+    // The earlier FAILED action that `action` depends on, or null: the queue goes on after a refusal, so what follows a change the
+    // server did not accept must not be sent (an UNDO would put back some other removal, the server keeping only the last).
+    function blockedBy(actions, action) {
+      const list = Array.isArray(actions) ? actions : [];
+      const at = list.findIndex(a => !!a && !!action && a.requestId === action.requestId);
+      for (let i = 0; i < at; i++) {
+        if (list[i] && list[i].status === "FAILED" && actionDependsOn(action, list[i])) return list[i];
+      }
+      return null;
+    }
+    // What the footnote's Undo does for a completion whose action has this request id: "CANCEL" when it is still waiting (nothing was
+    // sent, so taking it out of the queue is the whole undo), "NONE" when it was refused (the task is back already), else "SEND":
+    // the server has it or may have it, so Undo is a call (or, behind waiting changes or after a connection failure, an UNDO action).
+    function undoPlan(actions, requestId, sendingId) {
+      const found = (Array.isArray(actions) ? actions : []).find(a => !!a && a.requestId === requestId);
+      if (!found) return "SEND";
+      if (found.status === "FAILED") return "NONE";
+      return found.requestId === sendingId ? "SEND" : "CANCEL";
+    }
+    // The body a held action is sent with: a completion (the page's own archive id and request id, `at` unless `withTime` is false,
+    // as for the first attempt, which the server times itself) and an undo (its request id, so a repeat after a lost reply is a no-op).
+    function completeBody(action, withTime = true) {
+      const body = { taskId: action.taskId, requestId: action.requestId, archiveId: action.archiveId };
+      if (withTime) body.at = action.at;
+      return body;
+    }
+    function undoBody(action) {
+      return { requestId: action.requestId };
     }
     // The queue without the action that has this request id and every later action that depends on it, directly or through
     // another (undoing a completion that is still waiting leaves no trace of it, nor of what was done to its entry): {actions,
@@ -3700,6 +3776,7 @@
       }
       if (action.kind === "COMPLETE") return "Complete" + task;
       if (action.kind === "REOPEN") return "Reopen" + task;
+      if (action.kind === "UNDO") return "Undo completing" + task;
       if (action.kind === "EDIT") return `Update ${Object.keys(action.fields || {}).join(", ") || "details"} on` + task;
       return "Change" + task;
     }
@@ -4421,6 +4498,7 @@
     let undoTimer = null;
     let undoNoteKey = null; // what the footnote is about (a task id, or "material:..." / "shopping:..."), so a failed save can take its own footnote away
     let undoHandler = null; // what the Undo button does; it hides the footnote itself
+    let undoRemovalInfo = null; // for a completion's footnote: {requestId, archiveId, taskId, title, task, spawnedId}, what Undo needs to cancel, send or hold it
     function openUndoNote(text, handler) {
       document.getElementById("undoNoteText").textContent = text + ". ";
       document.getElementById("undoNote").hidden = false;
@@ -4435,11 +4513,26 @@
       clearTimeout(undoTimer);
       undoNoteKey = null;
       undoHandler = null;
+      undoRemovalInfo = null;
       document.getElementById("undoNote").hidden = true;
     }
     async function undoRemoval() {
+      const info = undoRemovalInfo; // a completion the page can undo itself (its action is in the queue, or was sent)
       hideUndoNote();
       await removalChain; // the server keeps one step, so an unfinished removal must land first
+      if (info) {
+        loadActionQueue();
+        const plan = undoPlan(actionQueue, info.requestId, sendingActionId);
+        if (plan === "NONE") return; // the server refused the completion: the task is back already
+        if (plan === "CANCEL") { // still waiting: the server never saw it, so cancelling it, and what was done to its entry, is the undo
+          saveActionQueue(cancelActions(actionQueue, info.requestId).actions);
+          renderAddQueue();
+          refreshShownTasks();
+          return;
+        }
+        await sendUndo(info);
+        return;
+      }
       try {
         const res = await apiFetch(UNDO_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
         const data = await res.json();
@@ -4451,16 +4544,52 @@
         askAlert(failureText("Error undoing", err), { tone: "error" });
       }
     }
+    // Undoes a completion the server has or may have: a call with its own request id, or, behind changes that are waiting and after
+    // a connection failure, an UNDO action that goes in order with them (keepUndo); a refusal is an alert as for any failed call.
+    async function sendUndo(info) {
+      const fields = { task: info.task };
+      if (info.spawnedId) fields.spawnedId = info.spawnedId;
+      let item = null;
+      try {
+        item = makeQueuedAction({ kind: "UNDO", taskId: info.taskId, archiveId: info.archiveId, title: info.title, fields, now: Date.now(), offset: clockOffsetMs });
+        if (!item) throw new Error("This completion could not be undone");
+        if (hasPendingActions(actionQueue) || actionDraining) {
+          const refusal = keepUndo(item, true);
+          if (refusal) throw new Error(refusal);
+          return;
+        }
+        const res = await apiFetch(UNDO_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(undoBody(item)) });
+        const data = await res.json();
+        noteServerTime(data);
+        setTasks(data.tasks || []);
+        templates = null; // an undone completion leaves the archive
+        renderFilterBar();
+        renderTasks();
+      } catch (caught) {
+        let err = caught;
+        if (isNetworkError(err, navigator.onLine)) {
+          const refusal = keepUndo(item, false);
+          if (!refusal) return;
+          err = new Error(refusal);
+        }
+        askAlert(failureText("Error undoing", err), { tone: "error" });
+      }
+    }
 
     // Deleting and completing take the task off the page at once and make the server call afterwards, one removal at a
     // time and in order. The server's list then replaces the page's (a repeating task's next occurrence arrives with
-    // it); if the call fails the task goes back where it was and an alert says so.
+    // it); if the call fails the task goes back where it was and an alert says so. A completion that fails on the connection, or
+    // that comes while other changes are waiting, is instead kept in the action queue (keepCompletion) and sent in order later.
     let removalChain = Promise.resolve();
     // `opts.noUndo` leaves the Undo footnote alone (a batch has none) and `opts.onError(err, taskId)` takes over from the alert.
     function removeTask(taskId, kind, url, body, opts = {}) {
       const index = allTasks.findIndex(t => t.id === taskId);
       if (index < 0) return removalChain;
       const task = allTasks[index];
+      // A completion's identity is fixed now: the request id and archive id make a repeat after a lost reply a no-op, and `at` is
+      // when the owner made it, which a held completion is booked at
+      const item = kind === "COMPLETE" ? makeQueuedAction({ kind: "COMPLETE", taskId, archiveId: newArchiveId(), title: task.title, now: Date.now(), offset: clockOffsetMs }) : null;
+      const sendBody = item ? completeBody(item, false) : body;
       pendingRemovals.add(taskId);
       allTasks = withoutTasks(allTasks, pendingRemovals);
       renderFilterBar();
@@ -4468,17 +4597,31 @@
       if (!opts.noUndo) {
         undoNoteKey = taskId;
         showUndoNote(kind, task.title);
+        undoRemovalInfo = item ? { requestId: item.requestId, archiveId: item.archiveId, taskId, title: task.title, task: completionRecord(task, item.at, item.archiveId, null).task, spawnedId: null } : null;
       }
       const run = async () => {
         try {
-          const res = await apiFetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          if (item && (hasPendingActions(actionQueue) || actionDraining)) { // waiting changes go first (a held timer is part of what this completes)
+            const refusal = keepCompletion(item, true);
+            if (!refusal) return;
+            throw new Error(refusal);
+          }
+          const res = await apiFetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sendBody) });
           const data = await res.json();
+          noteServerTime(data);
           pendingRemovals.delete(taskId);
+          if (item && undoRemovalInfo && undoRemovalInfo.requestId === item.requestId) undoRemovalInfo.spawnedId = (data.spawned && data.spawned.id) || null;
           setTasks(data.tasks || allTasks);
           if (kind === "COMPLETE") templates = null; // the archive has a new row
           renderFilterBar();
           renderTasks();
-        } catch (err) {
+        } catch (caught) {
+          let err = caught;
+          if (item && isNetworkError(err, navigator.onLine)) {
+            const refusal = keepCompletion(item, false);
+            if (!refusal) return;
+            err = new Error(refusal);
+          }
           pendingRemovals.delete(taskId);
           allTasks = insertTaskAt(allTasks, task, index);
           if (undoNoteKey === taskId) hideUndoNote();
@@ -5964,14 +6107,20 @@
     // The completed tasks fetched (newest first, up to COMPLETED_FETCH_LIMIT), searched and paged in the browser. The search
     // text lives in its box and the page here; both survive a reload of the list after an edit.
     const COMPLETED_FETCH_LIMIT = 1000;
-    let completedAll = [];
+    let completedAll = []; // what History shows: the server's entries with the waiting changes on top (shownCompleted)
+    let completedServer = []; // the entries as the server (or the saved copy) sent them, never the ones shown
     let completedListLimited = false;
     let completedPageNo = 1;
+    // The server's entries with the waiting actions replayed on the server's task list: a completion not sent yet is an entry at the top.
+    function shownCompleted() {
+      return withPendingActions(serverTasks, completedServer, actionQueue).completed;
+    }
     function completedRowHtml(t) {
       const done = t.completedAt ? new Date(t.completedAt) : null;
       const when = done && !isNaN(done) ? formatInstant(done) : "";
+      const open = t.archiveId && !t.waitingRequestId; // an entry still waiting to be sent has no row on the server to edit yet
       return `
-        <div class="task-item${t.archiveId ? ' completed-card' : ''}"${t.archiveId ? ` role="button" tabindex="0" title="Open to edit" data-completed-open="${esc(t.archiveId)}"` : ''}>
+        <div class="task-item${open ? ' completed-card' : ''}"${open ? ` role="button" tabindex="0" title="Open to edit" data-completed-open="${esc(t.archiveId)}"` : ''}>
           <div style="flex:1;">
             <strong>${esc(t.title)}</strong>
             <div class="task-meta">
@@ -5979,6 +6128,7 @@
               <span class="time-chip" title="${t.trackedSeconds > 0 ? 'Time tracked' : 'Estimate: no time was tracked'}">⏱️ ${esc(completedTimeText(t))}</span>
               ${(t.tags || []).map(tag => `<span class="chip">${esc(tag)}</span>`).join('')}
               ${when ? `<span class="chip">✅ ${esc(when)}</span>` : ''}
+              ${t.waitingRequestId ? '<span class="chip">⏳ Waiting to send</span>' : ''}
             </div>
             ${t.comments ? `<div class="completed-comments">${esc(t.comments)}</div>` : ''}
           </div>
@@ -6014,11 +6164,12 @@
       const list = document.getElementById("completedList");
       const browser = document.getElementById("completedBrowser");
       const stats = document.getElementById("statsDetails");
-      completedAll = saved.rows;
+      completedServer = saved.rows;
+      completedAll = shownCompleted();
       completedListLimited = saved.limited;
-      completedRows = new Map(saved.rows.filter(t => t.archiveId).map(t => [t.archiveId, t]));
+      completedRows = new Map(completedAll.filter(t => t.archiveId).map(t => [t.archiveId, t]));
       showSavedCompletedNote(saved.savedAt);
-      if (saved.rows.length === 0) {
+      if (completedAll.length === 0) {
         browser.hidden = true;
         stats.hidden = true;
         list.innerHTML = "<p style='color:var(--text-faint); margin:0;'>No completed tasks yet.</p>";
@@ -6041,7 +6192,9 @@
         const tasks = data.tasks || [];
         saveCompletedCache(tasks, data.listTruncated === true); // the server's list as it came
         showSavedCompletedNote(null); // a list from the server replaces any saved copy on screen
-        if (tasks.length === 0) {
+        completedServer = tasks;
+        const shown = shownCompleted();
+        if (shown.length === 0) {
           completedAll = [];
           completedRows = new Map();
           browser.hidden = true;
@@ -6049,9 +6202,9 @@
           list.innerHTML = "<p style='color:var(--text-faint); margin:0;'>No completed tasks yet.</p>";
           return;
         }
-        completedAll = tasks;
+        completedAll = shown;
         completedListLimited = data.listTruncated === true;
-        completedRows = new Map(tasks.filter(t => t.archiveId).map(t => [t.archiveId, t]));
+        completedRows = new Map(shown.filter(t => t.archiveId).map(t => [t.archiveId, t]));
         const summaryHtml = renderSummary(data.summary);
         document.getElementById("statsSummary").innerHTML = summaryHtml;
         stats.hidden = summaryHtml === "";
@@ -7358,6 +7511,39 @@
       allTasks = shownTasks(serverTasks);
       renderTasks();
       if (document.getElementById("editModal").style.display === "flex") showEditTimer();
+      refreshHistoryIfOpen(); // a waiting completion's entry comes or goes with the queue
+    }
+    // History is read on every visit; while it is on screen a change to the queue (or a completion that has just been sent) reads it again.
+    function refreshHistoryIfOpen() {
+      const page = document.querySelector('[data-page="history"]');
+      if (page && !page.hidden) fetchCompleted();
+    }
+    // Holds a completion for later: after a connection failure, or (`behind`) because other changes are waiting and this one must
+    // go after them. The task is already off the page; it now shows as a waiting entry at the top of History, as the page makes it
+    // (withPendingActions). Returns "" when kept, else why not (the text of the alert).
+    function keepCompletion(item, behind) {
+      loadActionQueue();
+      const refusal = actionQueueRefusal(actionQueue.length, actionQueueUsable);
+      if (refusal) return refusal;
+      if (!saveActionQueue([...actionQueue, item])) return actionQueueRefusal(0, false);
+      pendingRemovals.delete(item.taskId); // the queue now hides it (shownTasks), whatever list arrives
+      renderFilterBar();
+      renderAddQueue();
+      refreshHistoryIfOpen();
+      if (behind && navigator.onLine) setTimeout(drainAllQueues, 0);
+      return "";
+    }
+    // Holds an undo for later, as keepCompletion does a completion: the task shows back on the Queue at once. "" when kept, else why not.
+    function keepUndo(item, behind) {
+      loadActionQueue();
+      const refusal = actionQueueRefusal(actionQueue.length, actionQueueUsable);
+      if (refusal) return refusal;
+      if (!saveActionQueue([...actionQueue, item])) return actionQueueRefusal(0, false);
+      renderFilterBar();
+      renderAddQueue();
+      refreshShownTasks();
+      if (behind && navigator.onLine) setTimeout(drainAllQueues, 0);
+      return "";
     }
     // Keeps a timer change for later and shows it at once. `behind` is true when it was queued only because other changes
     // were waiting (the connection may be fine), so the queue is sent now; after a connection failure it waits for a trigger.
@@ -7381,9 +7567,23 @@
       sendingActionId = item.requestId;
       renderAddQueue();
       try {
-        const body = { taskId: item.taskId, action: item.fields.action, at: item.at };
-        if (Number.isInteger(item.fields.capSeconds)) body.capSeconds = item.fields.capSeconds;
-        const res = await apiFetch(TIMER_URL, {
+        loadActionQueue();
+        if (blockedBy(actionQueue, item)) throw new Error("Not sent: the change before it on the same task was not accepted");
+        let url = TIMER_URL;
+        let body;
+        if (item.kind === "TIMER") {
+          body = { taskId: item.taskId, action: item.fields.action, at: item.at };
+          if (Number.isInteger(item.fields.capSeconds)) body.capSeconds = item.fields.capSeconds;
+        } else if (item.kind === "COMPLETE") {
+          url = COMPLETE_TASK_URL;
+          body = completeBody(item);
+        } else if (item.kind === "UNDO") {
+          url = UNDO_URL;
+          body = undoBody(item);
+        } else {
+          throw new Error("This kind of change cannot be sent yet");
+        }
+        const res = await apiFetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body)
@@ -7392,10 +7592,16 @@
         noteServerTime(data);
         loadActionQueue();
         saveActionQueue(queueWithout(actionQueue, item.requestId));
+        if (item.kind === "COMPLETE" && undoRemovalInfo && undoRemovalInfo.requestId === item.requestId) undoRemovalInfo.spawnedId = (data.spawned && data.spawned.id) || null;
+        if (item.kind !== "TIMER") templates = null; // a completion adds an archive row, an undo takes it away
         if (Array.isArray(data.tasks)) {
           setTasks(data.tasks);
           renderTasks();
           if (document.getElementById("editModal").style.display === "flex") showEditTimer();
+        }
+        if (item.kind !== "TIMER") {
+          renderFilterBar();
+          refreshHistoryIfOpen();
         }
         return data;
       } catch (err) {
@@ -7411,6 +7617,7 @@
       loadActionQueue();
       saveActionQueue(item ? actionQueue.map(a => a.requestId === requestId ? item : a) : queueWithout(actionQueue, requestId));
       renderAddQueue();
+      if (item && undoRemovalInfo && undoRemovalInfo.requestId === requestId) hideUndoNote(); // refused: the task is back, nothing to undo
       if (item) refreshShownTasks();
     }
     // Sends the waiting actions, oldest first, one run at a time; does nothing without a signed-in user or a waiting action.
@@ -7446,6 +7653,7 @@
       if (!await askConfirm(actionDiscardPrompt(action, dependents), { tone: "danger", confirmLabel: "Discard" })) return;
       if (sendingActionId === requestId) return; // it went out while the question was open: too late to discard
       loadActionQueue();
+      if (undoRemovalInfo && cancelActions(actionQueue, requestId).cancelled.some(a => a.requestId === undoRemovalInfo.requestId)) hideUndoNote(); // its Undo has nothing left to cancel
       saveActionQueue(cancelActions(actionQueue, requestId).actions);
       renderAddQueue();
       refreshShownTasks();
