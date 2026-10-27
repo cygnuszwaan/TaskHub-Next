@@ -14,6 +14,8 @@ const {normalizeTravelKm} = require("../travel");
 const {normalizePhone, normalizeEmail} = require("../contact");
 const {normalizeLocation} = require("../location");
 const {applyCompletedEdit} = require("../completedEdit");
+const {normalizeMaterials: serverNormalizeMaterials} = require("../materials");
+const {normalizeMaterialCost: serverNormalizeMaterialCost} = require("../money");
 const {addComment: serverAddComment, removeComment: serverRemoveComment} = require("../comments");
 const {normalizeArchiveId, resolveActionTime} = require("../clientTime");
 const {normalizeRequestId} = require("../addRequests");
@@ -27,7 +29,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, ENTRY_EDIT_FIELDS, normalizeSnooze, normalizeTravelKm, normalizePhone, normalizeEmail, normalizeLocation, normalizeRecurrence, checkEditFields, taskEditChanges, serverOnlyEditChanges, taskEditBody, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, addCommentToList, removeCommentFromList, commentBody, commentDeleteBody, waitingCommentIds, MAX_COMMENTS, normalizeCommentText, commentsOf, cleanEntryTags, MAX_TRACKED_SECONDS, MAX_ENTRY_TAGS, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt, deletionRecord, deleteBody, removalBody};
+    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, ENTRY_EDIT_FIELDS, normalizeSnooze, normalizeTravelKm, normalizePhone, normalizeEmail, normalizeLocation, normalizeRecurrence, checkEditFields, taskEditChanges, serverOnlyEditChanges, taskEditBody, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, addCommentToList, removeCommentFromList, commentBody, commentDeleteBody, waitingCommentIds, MAX_COMMENTS, normalizeCommentText, commentsOf, cleanEntryTags, MAX_TRACKED_SECONDS, MAX_ENTRY_TAGS, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt, deletionRecord, deleteBody, removalBody, normalizeMaterials, normalizeMaterialCost, heldMaterials, withMaterialIds, coalesceMaterialsEdit, openMaterialGroups, openMaterialCount, withMaterialChecked, MAX_MATERIALS};
   `)();
 }
 
@@ -201,7 +203,8 @@ describe("action queue (public/index.html)", () => {
       assert.equal(page.makeQueuedAction({...base, kind: "REOPEN", archiveId: "archive-0001"}), null, "no task");
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", fields: {description: "x"}}), null, "no target");
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", archiveId: "archive-0001", fields: {description: "x"}}), null, "two targets");
-      assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {materials: []}}), null, "a field that cannot be held");
+      assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {materials: [{text: "Nails", checked: false}]}}), null, "a material without an id of its own cannot be held");
+      assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {projectId: "p"}}), null, "a field that cannot be held");
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {queueNumber: 2}}), null, "a field that needs the server");
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", archiveId: "archive-0001", fields: {title: "x"}}), null, "an entry holds only the plain fields of its archive row");
       for (const fields of [{materials: []}, {projectId: "p"}, {completedDate: "2026-10-27", completedTime: "09:00"}, {estimatedMinutes: 5}, {trackedSeconds: -1}, {priority: "URGENT"}]) {
@@ -263,7 +266,7 @@ describe("action queue (public/index.html)", () => {
     it("holds only the kinds stage 1 can replay and the fields it can apply", () => {
       const page = load();
       assert.deepEqual(page.ACTION_KINDS, ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO", "COMMENT", "COMMENT_DELETE", "DELETE"]);
-      assert.deepEqual(page.EDIT_FIELDS, ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "location", "snoozedUntil", "description"]);
+      assert.deepEqual(page.EDIT_FIELDS, ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "location", "snoozedUntil", "description", "materials"]);
       assert.deepEqual(page.ENTRY_EDIT_FIELDS, ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "location", "description"]);
     });
   });
@@ -928,7 +931,7 @@ describe("action queue (public/index.html)", () => {
       const page = load();
       assert.deepEqual(page.checkEditFields({title: " Fix ", priority: "HIGH", estimatedMinutes: 20, tags: [" a ", ""], dueDate: "", recurrence: {frequency: "weekly"}, travelKm: "2.26", phone: " 1  2 ", email: null, location: {name: " Rd "}, snoozedUntil: "2026-11-03", description: " d "}, page.EDIT_FIELDS),
           {fields: {title: "Fix", priority: "HIGH", estimatedMinutes: 20, tags: ["a"], dueDate: "", recurrence: {frequency: "WEEKLY", interval: 1}, travelKm: 2.3, phone: "1 2", email: null, location: {name: "Rd"}, snoozedUntil: "2026-11-03", description: "d"}, bad: []});
-      assert.deepEqual(page.checkEditFields({title: " ", priority: "URGENT", estimatedMinutes: 0, tags: "a", dueDate: "2026-02-30", email: "x", materials: []}, page.EDIT_FIELDS).bad, ["title", "priority", "estimatedMinutes", "tags", "dueDate", "email", "materials"]);
+      assert.deepEqual(page.checkEditFields({title: " ", priority: "URGENT", estimatedMinutes: 0, tags: "a", dueDate: "2026-02-30", email: "x", materials: "x"}, page.EDIT_FIELDS).bad, ["title", "priority", "estimatedMinutes", "tags", "dueDate", "email", "materials"]);
       assert.deepEqual(page.checkEditFields({estimatedMinutes: 1.5}, page.EDIT_FIELDS).bad, ["estimatedMinutes"]);
       for (const none of [{}, null, [], "x", undefined]) assert.deepEqual(page.checkEditFields(none, page.EDIT_FIELDS).bad, ["fields"]);
       assert.deepEqual(page.checkEditFields({title: "x"}, page.ENTRY_EDIT_FIELDS).bad, ["title"], "an entry holds only the plain fields of its archive row");
@@ -967,13 +970,13 @@ describe("action queue (public/index.html)", () => {
       assert.deepEqual(page.taskEditChanges(t, {...same, location: {name: "Orewa"}}), {location: {name: "Orewa"}}, "a location the form changed is taken as it is");
       assert.deepEqual(page.taskEditChanges(null, null), {});
     });
-    it("names the changes that need the server: materials, project, order number, task number", () => {
+    it("names the changes that need the server: project, order number, task number", () => {
       const page = load();
       const t = task("a", {projectId: "p1", projectOrder: 2, materials: [{id: "m1", text: "Screws", checked: false, cost: 3}]});
       const form = {materials: [{id: "m1", text: "Screws", checked: false, cost: 3}], projectId: "p1", projectOrder: 2, title: "x"};
       assert.deepEqual(page.serverOnlyEditChanges(t, form), []);
-      assert.deepEqual(page.serverOnlyEditChanges(t, {...form, materials: [{id: "m1", text: "Screws", checked: true, cost: 3}]}), ["materials"]);
-      assert.deepEqual(page.serverOnlyEditChanges(t, {...form, materials: null}), ["materials"]);
+      assert.deepEqual(page.serverOnlyEditChanges(t, {...form, materials: [{id: "m1", text: "Screws", checked: true, cost: 3}]}), [], "materials are held");
+      assert.deepEqual(page.serverOnlyEditChanges(t, {...form, materials: null}), [], "materials are held");
       assert.deepEqual(page.serverOnlyEditChanges(t, {...form, projectId: "p2"}), ["projectId"]);
       assert.deepEqual(page.serverOnlyEditChanges(t, {...form, projectId: null, projectOrder: null}), ["projectId", "projectOrder"]);
       assert.deepEqual(page.serverOnlyEditChanges(t, {...form, projectOrder: 3}), ["projectOrder"]);
@@ -982,6 +985,123 @@ describe("action queue (public/index.html)", () => {
       assert.deepEqual(page.serverOnlyEditChanges(task("b"), {materials: null, projectId: null, projectOrder: null}), [], "a task with none, left with none");
       assert.deepEqual(page.serverOnlyEditChanges(task("b"), {}), []);
       assert.equal(page.fieldNamesText(["newProject", "projectId", "projectOrder", "queueNumber", "materials"]), "project, order number, task number and materials");
+    });
+  });
+  describe("holding a task's materials", () => {
+    const list = () => [{id: "m1", text: "Screws", checked: false, cost: 3.5}, {id: "m2", text: "Paint", checked: false}, {id: "m3", text: "Brush", checked: true}];
+    const withList = (extra = {}) => task("a", {materials: list(), ...extra});
+    const materialsEdit = (page, materials, over = {}) => page.makeQueuedAction({kind: "EDIT", taskId: "a", title: "Task a", fields: {materials}, now: T0, requestId: "req-m0001", ...over});
+    it("reads a cost and a list as the server does", () => {
+      const page = load();
+      for (const cost of [null, "", " 12.5 ", "12.345", 12.345, 0, "0", -1, "abc", "1e3", 1000000, 1000000.01, "1234567890", true, undefined, {}, "7.1234567"]) {
+        assert.deepEqual(page.normalizeMaterialCost(cost), serverNormalizeMaterialCost(cost), JSON.stringify(cost));
+      }
+      let n = 0;
+      const makeId = () => `new-${++n}`;
+      const many = Array.from({length: 35}, (_, i) => ({id: `x${i}`, text: `Item ${i}`, checked: i % 2 === 0}));
+      const lists = [null, undefined, [], "x", {}, list(), [{text: "  Nails  "}], [{id: "m1", text: "A"}, {id: "m1", text: "B"}], [{id: "bad id", text: "A"}, {id: "", text: "B", cost: "4"}], [{id: "m1", text: " "}, null, 5, {text: 5}], [{id: "m1", text: "x".repeat(150), checked: "yes", cost: "2.50"}], many, [{id: "m1", text: "A", cost: -1}, {id: "m2", text: "B", cost: "abc"}]];
+      for (const value of lists) {
+        n = 0;
+        const expected = serverNormalizeMaterials(value, makeId);
+        n = 0;
+        assert.deepEqual(page.normalizeMaterials(value, makeId), expected, JSON.stringify(value));
+      }
+      assert.equal(page.MAX_MATERIALS, 30);
+    });
+    it("holds only a list in which every kept item has an id of its own", () => {
+      const page = load();
+      assert.deepEqual(page.heldMaterials(list()), list());
+      assert.equal(page.heldMaterials(null), null);
+      assert.equal(page.heldMaterials([]), null, "an empty list is no materials");
+      assert.equal(page.heldMaterials([{id: "m1", text: " "}]), null, "an item with no text is dropped, whatever its id");
+      assert.deepEqual(page.heldMaterials([{text: " "}, {id: "m1", text: " Nails ", checked: "no", cost: "2"}]), [{id: "m1", text: "Nails", checked: false, cost: 2}]);
+      for (const bad of [[{text: "Nails"}], [{id: "", text: "Nails"}], [{id: "a b", text: "Nails"}], [{id: "m1", text: "A"}, {id: "m1", text: "B"}], "x", {}, undefined, 5]) assert.equal(page.heldMaterials(bad), undefined, JSON.stringify(bad));
+      const shown = page.checkEditFields({materials: list()}, page.EDIT_FIELDS);
+      assert.deepEqual(shown, {fields: {materials: list()}, bad: []});
+      assert.deepEqual(page.checkEditFields({materials: [{text: "Nails"}]}, page.EDIT_FIELDS).bad, ["materials"]);
+      assert.deepEqual(page.checkEditFields({materials: list()}, page.ENTRY_EDIT_FIELDS).bad, ["materials"], "an entry does not hold materials");
+    });
+    it("gives every item an id of its own, keeping the ones it has", () => {
+      const page = load();
+      let n = 0;
+      const made = page.withMaterialIds([{id: "m1", text: "A"}, {id: "", text: "B"}, {text: "C"}, {id: "m1", text: "D"}, {id: "a b", text: "E"}], () => `n${++n}`);
+      assert.deepEqual(made.map((m) => m.id), ["m1", "n1", "n2", "n3", "n4"]);
+      assert.deepEqual(made.map((m) => m.text), ["A", "B", "C", "D", "E"]);
+      const input = [{id: "m1", text: "A"}];
+      assert.equal(page.withMaterialIds(input, () => "x")[0], input[0], "an item that has its id is the same object");
+      assert.equal(page.withMaterialIds(null, () => "x"), null);
+      assert.deepEqual(page.heldMaterials(page.withMaterialIds([{text: "A"}, {text: "B", cost: 2}], () => `q${++n}`)).map((m) => m.text), ["A", "B"], "what it makes can be held");
+    });
+    it("leaves a task as the server's direct update does", () => {
+      const page = load();
+      const olds = [task("a"), withList()];
+      const lists = [list(), [{id: "m1", text: "Screws", checked: true, cost: 3.5}, ...list().slice(1)], null, [], [{id: "n1", text: " New ", checked: false, cost: "4.20"}], [{id: "m1", text: "x".repeat(150), checked: true}], list().slice(1), [{id: "m3", text: "Brush", checked: true}]];
+      for (const t of olds) {
+        for (const materials of lists) {
+          const checked = page.checkEditFields({materials}, page.EDIT_FIELDS);
+          assert.deepEqual(checked.bad, []);
+          assert.deepEqual(page.applyEditFields(t, checked.fields), applyDirectUpdate(t, checked.fields), JSON.stringify(materials));
+        }
+      }
+      assert.equal(page.applyEditFields(withList(), {materials: null}).materials, undefined, "null takes the list away");
+    });
+    it("finds a changed list in a form and leaves an untouched one out, ignoring ids", () => {
+      const page = load();
+      const t = withList();
+      assert.deepEqual(page.taskEditChanges(t, {materials: list()}), {});
+      assert.deepEqual(page.taskEditChanges(t, {materials: list().map((m) => ({...m, id: ""}))}), {}, "a form's new rows have no ids yet");
+      assert.deepEqual(page.taskEditChanges(task("b"), {materials: null}), {}, "none, left with none");
+      const ticked = list().map((m) => (m.id === "m2" ? {...m, checked: true} : m));
+      assert.deepEqual(page.taskEditChanges(t, {materials: ticked}), {materials: ticked});
+      assert.deepEqual(page.taskEditChanges(t, {materials: null}), {materials: null}, "every item removed");
+      const added = [...list(), {id: "", text: "Glue", checked: false}];
+      assert.deepEqual(page.taskEditChanges(t, {materials: added}), {materials: added});
+      assert.deepEqual(page.taskEditChanges(t, {materials: list().map((m) => (m.id === "m1" ? {...m, cost: 4} : m))}).materials[0].cost, 4, "a changed cost");
+      assert.deepEqual(page.taskEditChanges(task("b"), {materials: [{id: "n1", text: "Glue", checked: false}]}), {materials: [{id: "n1", text: "Glue", checked: false}]}, "a first list");
+    });
+    it("shows a waiting check-off on the card at once, as the server will have it", () => {
+      const page = load();
+      const t = withList();
+      assert.deepEqual(page.openMaterialGroups([t]).map((g) => g.materials.map((m) => m.id)), [["m1", "m2"]]);
+      const edit = materialsEdit(page, page.withMaterialChecked(t, "m2", true));
+      const shown = page.withPendingActions([t, task("b")], [], [edit]).tasks;
+      assert.deepEqual(shown[0], applyDirectUpdate(t, {materials: edit.fields.materials}));
+      assert.deepEqual(page.openMaterialGroups(shown).map((g) => g.materials.map((m) => m.id)), [["m1"]]);
+      assert.equal(page.openMaterialCount(shown), 1);
+      const all = materialsEdit(page, page.withMaterialChecked({materials: page.withMaterialChecked(t, "m2", true)}, "m1", true));
+      assert.equal(page.openMaterialCount(page.withPendingActions([t], [], [all]).tasks), 0, "a task with every material ticked leaves the card");
+      assert.deepEqual(page.withPendingActions([t], [], [{...edit, status: "FAILED", error: "no"}]).tasks, [t], "a refused edit changes nothing");
+      assert.deepEqual(shown[1], task("b"));
+    });
+    it("sends the whole list to updateTaskDirect and names it on the card", () => {
+      const page = load();
+      const edit = materialsEdit(page, list());
+      assert.deepEqual(page.taskEditBody(edit), {taskId: "a", action: "UPDATE", updatedFields: {materials: list()}});
+      assert.equal(page.actionLabel(edit), "Update materials on “Task a”");
+      assert.deepEqual(page.parseActionQueue(page.serializeActionQueue([edit])), [edit], "it survives the stored queue");
+      assert.equal(page.actionLabel(materialsEdit(page, null)), "Update materials on “Task a”");
+      assert.deepEqual(materialsEdit(page, null).fields, {materials: null}, "an emptied list is held as none");
+    });
+    it("merges a tick into the last waiting materials edit of the same task and nowhere else", () => {
+      const page = load();
+      const first = materialsEdit(page, list());
+      const ticked = page.withMaterialChecked({materials: list()}, "m1", true);
+      const merged = page.coalesceMaterialsEdit([first], "a", ticked, "");
+      assert.equal(merged.length, 1);
+      assert.equal(merged[0].requestId, first.requestId);
+      assert.deepEqual(merged[0].fields, {materials: ticked});
+      assert.deepEqual(first.fields, {materials: list()}, "the queue passed in is not modified");
+      const other = page.makeQueuedAction({kind: "TIMER", taskId: "b", title: "Task b", fields: {action: "START"}, now: T0, requestId: "req-t0001"});
+      assert.equal(page.coalesceMaterialsEdit([first, other], "a", ticked, ""), null, "not the last action");
+      assert.equal(page.coalesceMaterialsEdit([other, first], "b", ticked, ""), null, "another task");
+      assert.equal(page.coalesceMaterialsEdit([first], "a", ticked, first.requestId), null, "one on its way");
+      assert.equal(page.coalesceMaterialsEdit([{...first, status: "FAILED", error: "no"}], "a", ticked, ""), null, "a refused one");
+      const more = materialsEdit(page, list(), {fields: {materials: list(), priority: "HIGH"}});
+      assert.equal(page.coalesceMaterialsEdit([more], "a", ticked, ""), null, "an edit that holds other fields too");
+      assert.equal(page.coalesceMaterialsEdit([page.makeQueuedAction({kind: "EDIT", taskId: "a", title: "Task a", fields: {priority: "HIGH"}, now: T0, requestId: "req-p0001"})], "a", ticked, ""), null, "an edit of something else");
+      assert.equal(page.coalesceMaterialsEdit([], "a", ticked, ""), null);
+      assert.equal(page.coalesceMaterialsEdit(undefined, "a", ticked, ""), null);
+      assert.equal(page.coalesceMaterialsEdit([first], "a", [{text: "no id"}], ""), null, "a list that cannot be held");
     });
   });
   describe("holding the edit of a History entry", () => {

@@ -3384,6 +3384,26 @@ describe("public/index.html helpers", () => {
       assert.match(fn, /That task is no longer on the list\./);
       assert.match(fn, /if \(undoNoteKey === key\) hideUndoNote\(\);/);
     });
+    it("keeps a check-off that cannot be sent as an EDIT of the task's materials, and goes behind waiting changes", () => {
+      const fn = html.slice(html.indexOf("function checkMaterial"), html.indexOf("// Shows a task's job number"));
+      assert.match(fn, /materialsPending === 0 && \(hasPendingActions\(actionQueue\) \|\| actionDraining\)/, "a tick made while changes are waiting is kept behind them");
+      assert.match(fn, /if \(hasPendingActions\(actionQueue\) \|\| actionDraining\) \{[^}]*holdMaterialCheck\(taskId, materialId, checked, true\)/, "so is one whose turn comes after an earlier tick was kept");
+      assert.match(fn, /isNetworkError\(err, navigator\.onLine\) \? holdMaterialCheck\(taskId, materialId, checked, false\) : "Could not save: " \+ err\.message/);
+      assert.match(fn, /updatedFields: \{ materials: withMaterialChecked\(task, materialId, checked\) \}/, "the save sets this one box, whatever other ticks are still on their way");
+      assert.match(fn, /const base = shownTasks\(serverTasks\)\.find\(t => t\.id === taskId\);/, "the kept list is the queue's view of the task with this one box set");
+      assert.match(fn, /withMaterialIds\(withMaterialChecked\(base, materialId, checked\), \(\) => newRequestId\(\)\)/);
+      assert.match(fn, /coalesceMaterialsEdit\(actionQueue, taskId, list, sendingActionId\)/);
+      assert.match(fn, /makeQueuedAction\(\{ kind: "EDIT", taskId, title: base\.title, fields: \{ materials: list \}/);
+      assert.match(fn, /if \(behind && navigator\.onLine\) setTimeout\(drainAllQueues, 0\);/);
+    });
+    it("holds a form's materials with ids of the page's own, and marks a waiting task on the Materials card", () => {
+      const fn = html.slice(html.indexOf("function holdTaskEdit"), html.indexOf("// Saves the edits first, then opens the snooze dialog"));
+      assert.match(fn, /materials: withMaterialIds\(form\.materials, \(\) => newRequestId\(\)\)/);
+      assert.doesNotMatch(fn, /materials \(/, "materials no longer need a connection");
+      const card = html.slice(html.indexOf("function renderMaterialsCard"), html.indexOf("function renderShoppingList"));
+      assert.match(card, /waitingIds\.has\(g\.taskId\)/);
+      assert.match(card, /Waiting to send/);
+    });
     it("the footnote's Undo button runs whatever the footnote was opened for, and hiding it forgets that", () => {
       assert.match(html, /getElementById\("undoNoteBtn"\)\.addEventListener\("click", \(\) => \{ if \(undoHandler\) undoHandler\(\); \}\);/);
       const fn = html.slice(html.indexOf("function openUndoNote"), html.indexOf("async function undoRemoval"));

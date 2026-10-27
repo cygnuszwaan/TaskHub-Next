@@ -2044,6 +2044,82 @@
     }
 
     const MAX_MATERIALS = 30;
+    const MAX_MATERIAL_LENGTH = 100;
+    const MATERIAL_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+    const MAX_MATERIAL_COST = 1000000;
+
+    // A material's cost as the server stores it (money.js normalizeMoney with the material maximum): undefined when unusable, null for none,
+    // else the amount rounded to cents. A page copy, held equal to the server's by actionQueue.test.js.
+    function normalizeMaterialCost(value) {
+      if (value === null) return null;
+      let n;
+      if (typeof value === "number") {
+        n = value;
+      } else if (typeof value === "string") {
+        const text = value.trim();
+        if (text === "") return null;
+        if (!/^\d{1,9}(\.\d{1,6})?$/.test(text)) return undefined;
+        n = Number(text);
+      } else {
+        return undefined;
+      }
+      if (!Number.isFinite(n) || n < 0) return undefined;
+      const cents = Math.round(n * 100) / 100;
+      return cents > MAX_MATERIAL_COST ? undefined : cents;
+    }
+
+    // A materials list as the server stores it (materials.js normalizeMaterials, a page copy held equal by actionQueue.test.js):
+    // undefined when unusable, null for none, else the cleaned list; an item without a usable, unused id gets one from `makeId`.
+    function normalizeMaterials(value, makeId) {
+      if (value === null) return null;
+      if (!Array.isArray(value)) return undefined;
+      const used = new Set();
+      const out = [];
+      for (const item of value) {
+        if (out.length >= MAX_MATERIALS) break;
+        if (!item || typeof item !== "object" || typeof item.text !== "string") continue;
+        const text = item.text.trim().slice(0, MAX_MATERIAL_LENGTH).trim();
+        if (!text) continue;
+        let id = typeof item.id === "string" && MATERIAL_ID_PATTERN.test(item.id) && !used.has(item.id) ? item.id : makeId();
+        while (used.has(id)) id = makeId();
+        used.add(id);
+        const entry = { id, text, checked: item.checked === true };
+        const cost = normalizeMaterialCost(item.cost);
+        if (typeof cost === "number") entry.cost = cost;
+        out.push(entry);
+      }
+      return out.length > 0 ? out : null;
+    }
+
+    // A materials list for a held EDIT: as normalizeMaterials, but every item that is kept must already carry its own id (the page gives
+    // them, see withMaterialIds, so the shown list and the sent one agree and a repeat after a lost reply changes nothing more), else
+    // undefined. null for none.
+    function heldMaterials(value) {
+      if (value === null) return null;
+      if (!Array.isArray(value)) return undefined;
+      const seen = new Set();
+      for (const item of value) {
+        if (seen.size >= MAX_MATERIALS) break;
+        if (!item || typeof item !== "object" || typeof item.text !== "string" || item.text.trim() === "") continue;
+        if (typeof item.id !== "string" || !MATERIAL_ID_PATTERN.test(item.id) || seen.has(item.id)) return undefined;
+        seen.add(item.id);
+      }
+      return normalizeMaterials(value, () => { throw new Error("every kept item has an id"); });
+    }
+
+    // A materials list with an id given to every item that has none (or an unusable or repeated one); `makeId` makes them. Pure: the
+    // input is not modified, and null stays null.
+    function withMaterialIds(list, makeId) {
+      if (!Array.isArray(list)) return list;
+      const used = new Set();
+      return list.map(m => {
+        if (!m || typeof m !== "object") return m;
+        let id = typeof m.id === "string" && MATERIAL_ID_PATTERN.test(m.id) && !used.has(m.id) ? m.id : makeId();
+        while (used.has(id)) id = makeId();
+        used.add(id);
+        return m.id === id ? m : { ...m, id };
+      });
+    }
 
     // The unchecked materials of a task as [{id, text}] (none when it has no list or everything is checked).
     function openMaterialsOf(task) {
@@ -3391,7 +3467,7 @@
     const ACTION_QUEUE_MAX = 50;
     const ACTION_KINDS = ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO", "COMMENT", "COMMENT_DELETE", "DELETE"];
     const TIMER_ACTIONS = ["START", "PAUSE", "ABORT"];
-    const EDIT_FIELDS = ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "location", "snoozedUntil", "description"]; // what a queued task's EDIT holds
+    const EDIT_FIELDS = ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "location", "snoozedUntil", "description", "materials"]; // what a queued task's EDIT holds
     const ENTRY_EDIT_FIELDS = ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "location", "description"]; // what a History entry's EDIT holds (the plain fields of the archive row; materials, the project and the completion time need the server)
     const MAX_TRACKED_SECONDS = 3600000; // the most time an entry may be corrected to (1000 hours)
     const MAX_ENTRY_TAGS = 20;
@@ -3717,6 +3793,7 @@
         else if (key === "location") clean = normalizeLocation(value);
         else if (key === "snoozedUntil") clean = normalizeSnooze(value);
         else if (key === "description") clean = normalizeDescription(value);
+        else if (key === "materials") clean = heldMaterials(value);
         if (clean === undefined) bad.push(key);
         else out[key] = clean;
       }
@@ -3756,17 +3833,31 @@
       diff("email", normalizeEmail);
       diff("description", normalizeDescription);
       if ("location" in f) changes.location = f.location;
+      if ("materials" in f && materialsKey(f.materials) !== materialsKey(t.materials)) changes.materials = f.materials;
       return changes;
     }
+    // A materials list as text for comparing: each item's text, checked state and cost, never its id (a new item's id is made when held).
+    function materialsKey(list) {
+      return JSON.stringify((Array.isArray(list) ? list : []).map(m => [m.text, m.checked === true, typeof m.cost === "number" ? m.cost : null]));
+    }
+    // The materials EDIT that a check-off merges into: when the last action in the queue is a PENDING EDIT of this task that holds only
+    // `materials` and is not on its way (`sendingId`), a copy of the queue with that action's list replaced by `list`, so ticking ten
+    // materials takes one place in the queue and not ten; else null. Pure: the input is not modified.
+    function coalesceMaterialsEdit(queue, taskId, list, sendingId) {
+      const actions = Array.isArray(queue) ? queue : [];
+      const last = actions[actions.length - 1];
+      if (!last || last.kind !== "EDIT" || last.taskId !== taskId || last.status !== "PENDING" || last.requestId === sendingId) return null;
+      const keys = Object.keys(last.fields || {});
+      if (keys.length !== 1 || keys[0] !== "materials") return null;
+      const merged = normalizeQueuedAction({ ...last, fields: { materials: list } });
+      return merged ? [...actions.slice(0, -1), merged] : null;
+    }
     // The names of the fields of a task form that changed and cannot be held offline, because they need an id or an order only the
-    // server makes: materials (until the Materials step), the project, its order number and the task number. `form` is the whole
-    // updateTaskDirect body of the form. Pure.
+    // server makes: the project, its order number and the task number. `form` is the whole updateTaskDirect body of the form. Pure.
     function serverOnlyEditChanges(task, form) {
       const t = task && typeof task === "object" ? task : {};
       const f = form && typeof form === "object" ? form : {};
       const names = [];
-      const strip = (list) => JSON.stringify((Array.isArray(list) ? list : []).map(m => [m.text, m.checked === true, typeof m.cost === "number" ? m.cost : null]));
-      if ("materials" in f && strip(f.materials) !== strip(t.materials)) names.push("materials");
       if (f.newProject !== undefined) names.push("newProject");
       else if ("projectId" in f && (f.projectId || null) !== (t.projectId || null)) names.push("projectId");
       if ("projectOrder" in f && (f.projectOrder === undefined ? null : f.projectOrder) !== (t.projectOrder === undefined ? null : t.projectOrder)) names.push("projectOrder");
@@ -5319,7 +5410,7 @@
         "<p style='color:var(--text-faint); margin:0;'>No task materials to get.</p>" :
         groups.map(g => `
           <div class="material-group">
-            <div class="material-group-title" data-open-task="${esc(g.taskId)}" title="Open this task">${esc(g.title)}</div>
+            <div class="material-group-title" data-open-task="${esc(g.taskId)}" title="Open this task">${esc(g.title)}${waitingIds.has(g.taskId) ? ' <span class="chip held-chip" title="A change to this task is waiting to be sent">⏳ Waiting to send</span>' : ""}</div>
             ${g.materials.map(m => `
               <label class="material-row" data-task-id="${esc(g.taskId)}" data-material-id="${esc(m.id)}">
                 <input type="checkbox"> <span>${esc(m.text)}</span>
@@ -5435,8 +5526,10 @@
       });
     }
 
-    // Checking a material shows it gone at once; the save runs in the background, one after another, and a failed one puts the box back.
-    // Ticking one offers Undo, which unticks it again.
+    // Checking a material shows it gone at once; the save runs in the background, one after another.
+    // Ticking one offers Undo, which unticks it again. A save that fails on the connection, or one made while other changes are waiting
+    // in the action queue (it must go after them), is kept there as an EDIT of the task's materials (holdMaterialCheck) and shown at
+    // once; any other failure puts the box back.
     function checkMaterial(taskId, materialId, checked) {
       const before = allTasks.find(t => t.id === taskId);
       if (!before) return renderMaterialsCard();
@@ -5454,30 +5547,76 @@
           checkMaterial(taskId, materialId, false);
         });
       }
-      materialsPending++;
+      // The tick did not happen after all: the box goes back and the reason shows under the card
+      const takeBack = (text) => {
+        allTasks = withTaskMaterialChecked(allTasks, taskId, materialId, !checked);
+        if (undoNoteKey === key) hideUndoNote();
+        status.textContent = text;
+      };
+      loadActionQueue();
       status.textContent = "";
+      if (materialsPending === 0 && (hasPendingActions(actionQueue) || actionDraining)) { // waiting changes go first
+        const refusal = holdMaterialCheck(taskId, materialId, checked, true);
+        if (refusal) takeBack(refusal);
+        renderFilterBar();
+        renderTasks();
+        return;
+      }
+      materialsPending++;
       materialsChain = materialsChain.then(async () => {
         try {
           const task = allTasks.find(t => t.id === taskId);
           if (!task) { materialsPending--; return; } // deleted or completed meanwhile
+          loadActionQueue();
+          if (hasPendingActions(actionQueue) || actionDraining) { // an earlier tick was kept (or a drain began): this one goes behind
+            materialsPending--;
+            const refusal = holdMaterialCheck(taskId, materialId, checked, true);
+            if (refusal) takeBack(refusal);
+            return;
+          }
           const res = await apiFetch(DIRECT_UPDATE_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ taskId, action: "UPDATE", updatedFields: { materials: task.materials } })
+            body: JSON.stringify({ taskId, action: "UPDATE", updatedFields: { materials: withMaterialChecked(task, materialId, checked) } })
           });
           const data = await res.json();
           materialsPending--;
           if (materialsPending === 0) setTasks(data.tasks || allTasks);
         } catch (err) {
           materialsPending--;
-          allTasks = withTaskMaterialChecked(allTasks, taskId, materialId, !checked);
-          if (undoNoteKey === key) hideUndoNote();
-          status.textContent = "Could not save: " + err.message;
+          const refusal = isNetworkError(err, navigator.onLine) ? holdMaterialCheck(taskId, materialId, checked, false) : "Could not save: " + err.message;
+          if (refusal) takeBack(refusal);
         } finally {
           renderFilterBar();
           renderTasks();
         }
       });
+    }
+
+    // Keeps a check-off (or the Undo of one) for later as an EDIT of the task's materials, shown at once (withPendingActions): the list is
+    // the task as the queue shows it with this one box set, every item with an id of its own (withMaterialIds), so the page and the
+    // server agree on them. It merges into the queue's last action when that is a waiting materials EDIT of the same task
+    // (coalesceMaterialsEdit). `behind` is true when it was kept only because other changes were waiting, so the queue is sent now; after
+    // a connection failure it waits for a trigger. Returns "" when kept, else why not (the text for under the card).
+    function holdMaterialCheck(taskId, materialId, checked, behind) {
+      loadActionQueue();
+      const base = shownTasks(serverTasks).find(t => t.id === taskId);
+      if (!base) return "That task is no longer on the list.";
+      const list = withMaterialIds(withMaterialChecked(base, materialId, checked), () => newRequestId());
+      let next = coalesceMaterialsEdit(actionQueue, taskId, list, sendingActionId);
+      if (!next) {
+        const refusal = actionQueueRefusal(actionQueue.length, actionQueueUsable);
+        if (refusal) return refusal;
+        const item = makeQueuedAction({ kind: "EDIT", taskId, title: base.title, fields: { materials: list }, now: Date.now(), offset: clockOffsetMs });
+        if (!item) return "This change cannot be kept for later.";
+        next = [...actionQueue, item];
+      }
+      if (!saveActionQueue(next)) return actionQueueRefusal(0, false);
+      renderFilterBar();
+      renderAddQueue();
+      refreshShownTasks();
+      if (behind && navigator.onLine) setTimeout(drainAllQueues, 0);
+      return "";
     }
 
     // Shows a task's job number in a form's read-only line, or hides the line when it has none.
@@ -5839,7 +5978,7 @@
       showEditTimer();
     }
     // Holds the save of a queued task's form for later: an EDIT of the fields that changed, shown at once (withPendingActions). `form` is
-    // the body the save would have sent. Fields that need an id or an order only the server makes (materials, the project, its order
+    // the body the save would have sent. Fields that need an id or an order only the server makes (the project, its order
     // number, the task number) cannot be held: the alert names them and nothing is kept. `behind` is true when it was queued only
     // because other changes were waiting, so the queue is sent now; after a connection failure it waits for a trigger. `formClosed` says
     // whether the form was already closed, in which case a refusal brings it back. Returns true when kept (or when nothing changed).
@@ -5849,6 +5988,7 @@
         if (formClosed) reopenEditForm();
         return false;
       };
+      if (form && Array.isArray(form.materials)) form = { ...form, materials: withMaterialIds(form.materials, () => newRequestId()) }; // a new item's id is the page's, so the shown list and the sent one agree
       const serverOnly = serverOnlyEditChanges(task, form);
       if (serverOnly.length > 0) return refuse(`Changes to ${fieldNamesText(serverOnly)} need a connection, so nothing was saved. Undo them to save the other changes now, or save again when you are back online.`);
       const changes = taskEditChanges(task, form);
