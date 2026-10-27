@@ -1,7 +1,7 @@
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
 
-// The time a change was made on the device. A change held offline (see PROJECT.md, "Offline changes") is sent later, so the
+// The time a change was made on the device. A change held offline (see docs/offline.md) is sent later, so the
 // page sends `at`, the epoch milliseconds when the owner made it, and the server books that instant instead of its own clock.
 // Pure: the caller passes the server's clock as `now`.
 

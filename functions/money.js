@@ -1,7 +1,7 @@
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
 // Money amounts for invoicing: the hourly rate and the cost of a material. Plain numbers in dollars with at most
-// two decimals, no currency symbol and no GST (see PROJECT.md). Pure: no I/O.
+// two decimals, no currency symbol and no GST (see docs/stretch-goals.md). Pure: no I/O.
 
 const MAX_HOURLY_RATE = 10000;
 const MAX_MATERIAL_COST = 1000000;

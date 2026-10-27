@@ -1,6 +1,6 @@
 # TaskHub-Next
 
-AI-enhanced to-do list that schedules tasks onto Google Calendar. Architecture, data model and roadmap are in [PROJECT.md](PROJECT.md).
+AI-enhanced to-do list that schedules tasks onto Google Calendar. The working rules, a map of the documentation and the roadmap are in [PROJECT.md](PROJECT.md); the architecture, data model and endpoints are in [docs/](docs/).
 
 Always target the `taskhub-next` Firebase project explicitly. The kids' chore tracker lives in a different project (`screen-time-chore-tracker`) and must never be deployed from here.
 
@@ -18,7 +18,7 @@ firebase functions:secrets:set GEMINI_API_KEY --project taskhub-next
 firebase functions:secrets:set GOOGLE_CALENDAR_CREDENTIALS --data-file service-account.json --project taskhub-next
 ```
 
-`service-account.json` is the key for the calendar service account listed in PROJECT.md. Delete the local copy afterwards.
+`service-account.json` is the key for the calendar service account listed in docs/infrastructure.md. Delete the local copy afterwards.
 
 **Config params** (`functions/.env`, or let the CLI prompt for them on deploy; it saves the answers to `functions/.env.taskhub-next`)
 
