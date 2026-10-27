@@ -38,6 +38,16 @@ describe("clients.js", () => {
       assert.deepEqual(normalizeClientFields({name: "Jo", location: {name: "Smith's yard"}}).client.location, {name: "Smith's yard"});
       for (const location of [undefined, null, "", {name: ""}]) assert.equal("location" in normalizeClientFields({name: "Jo", location}).client, false, JSON.stringify(location));
     });
+    it("keeps a normalized url and leaves the key out for none", () => {
+      assert.equal(normalizeClientFields({name: "Jo", url: " example.com/jo "}).client.url, "https://example.com/jo");
+      assert.equal(normalizeClientFields({name: "Jo", url: "http://example.com"}).client.url, "http://example.com");
+      for (const url of [undefined, null, "", "   "]) assert.equal("url" in normalizeClientFields({name: "Jo", url}).client, false, JSON.stringify(url));
+    });
+    it("rejects an unusable url", () => {
+      for (const url of [5, [], {}, true, "javascript:alert(1)", "mailto:jo@x.nz", "two words", `https://example.com/${"a".repeat(500)}`]) {
+        assert.match(normalizeClientFields({name: "Jo", url}).error, /^url must be an http or https address/, JSON.stringify(url));
+      }
+    });
     it("rejects an unusable location", () => {
       for (const location of ["Beach Rd", 5, [], {name: "A", latitude: 1}, {name: "A", latitude: 99, longitude: 0}, {name: "x".repeat(201)}, {latitude: 1, longitude: 2}]) {
         assert.match(normalizeClientFields({name: "Jo", location}).error, /location must be a name/, JSON.stringify(location));
@@ -96,6 +106,15 @@ describe("clients.js", () => {
       assert.equal(on.client.useWhatsApp, true);
       assert.equal("useWhatsApp" in updateClient(on.clients, "c1", {name: "Smith Family", useWhatsApp: false}).client, false);
       assert.equal("useWhatsApp" in updateClient(on.clients, "c1", {name: "Smith Family"}).client, false);
+    });
+    it("sets, changes and clears the url (an update replaces the fields)", () => {
+      const linked = updateClient(list, "c1", {name: "Smith Family", url: "smith.example.com"});
+      assert.equal(linked.client.url, "https://smith.example.com");
+      assert.equal(updateClient(linked.clients, "c1", {name: "Smith Family", url: "http://other.example.com"}).client.url, "http://other.example.com");
+      assert.equal("url" in updateClient(linked.clients, "c1", {name: "Smith Family", url: null}).client, false);
+      assert.equal("url" in updateClient(linked.clients, "c1", {name: "Smith Family"}).client, false);
+      assert.match(updateClient(list, "c1", {name: "Smith Family", url: "ftp://x.com"}).error, /url/);
+      assert.equal(addClient(list, {name: "New Co", url: "newco.example.com"}, () => "c9").client.url, "https://newco.example.com");
     });
     it("sets, changes and clears the location (an update replaces the fields)", () => {
       const placed = updateClient(list, "c1", {name: "Smith Family", location: {name: "1 Beach Rd", latitude: -36.6, longitude: 174.7}});

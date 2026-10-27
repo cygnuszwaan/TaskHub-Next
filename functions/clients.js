@@ -5,6 +5,7 @@
 
 const {normalizeMoney, MAX_HOURLY_RATE} = require("./money");
 const {normalizeLocation, MAX_LOCATION_NAME_LENGTH} = require("./location");
+const {normalizeUrl, MAX_URL_LENGTH} = require("./contact");
 
 const MAX_NAME_LENGTH = 100;
 const MAX_PHONE_LENGTH = 40;
@@ -28,8 +29,10 @@ function oneLine(value, label, max) {
 // none (the global rate applies), and then the key is absent from the client. `useWhatsApp` (a boolean) says the client's Call and Text
 // buttons open WhatsApp instead of the phone; false, null or a missing value means no and the key is absent.
 // `location` (see location.js: `{name, latitude?, longitude?}`; null, blank text or an empty object means none) is where the client is, the
-// name shown and used for navigation, the coordinates the scheduler's only input; the key is absent for none. Returns
-// {client: {name, phone, email, hourlyRate?, useWhatsApp?, location?}} or {error}. Any other key (an old `address`) is ignored.
+// name shown and used for navigation, the coordinates the scheduler's only input; the key is absent for none. `url` (see contact.js's
+// `normalizeUrl`: an http or https link of at most 500 characters, `https://` put in front of text with no scheme; null or blank text means none)
+// is the client's link, which its projects' and tasks' Link buttons open unless they have one of their own; the key is absent for none. Returns
+// {client: {name, phone, email, hourlyRate?, useWhatsApp?, location?, url?}} or {error}. Any other key (an old `address`) is ignored.
 function normalizeClientFields(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {error: "client must be an object"};
   const name = oneLine(value.name, "name", MAX_NAME_LENGTH);
@@ -54,6 +57,11 @@ function normalizeClientFields(value) {
     const location = normalizeLocation(value.location);
     if (location === undefined) return {error: `location must be a name of at most ${MAX_LOCATION_NAME_LENGTH} characters, with latitude and longitude either both given (in range) or both left out`};
     if (location !== null) client.location = location;
+  }
+  if (value.url !== undefined) {
+    const url = normalizeUrl(value.url);
+    if (url === undefined) return {error: `url must be an http or https address of at most ${MAX_URL_LENGTH} characters, or empty`};
+    if (url !== null) client.url = url;
   }
   return {client};
 }

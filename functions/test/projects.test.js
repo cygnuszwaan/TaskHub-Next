@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {MAX_NAME_LENGTH, MAX_PROJECT_ORDER, normalizeProjectName, normalizeProjectOrder, applyProjectFields, projectFieldsOf, removeProjectFromTasks, setProjectLocation, sortProjects, addProject, withNewProject, renameProject} = require("../projects");
+const {MAX_NAME_LENGTH, MAX_PROJECT_ORDER, normalizeProjectName, normalizeProjectOrder, applyProjectFields, projectFieldsOf, removeProjectFromTasks, setProjectLocation, setProjectUrl, sortProjects, addProject, withNewProject, renameProject} = require("../projects");
 
 const task = (id, extra = {}) => ({id, title: `Task ${id}`, priority: "MEDIUM", dueDate: "", estimatedMinutes: 15, tags: [], status: "PENDING", ...extra});
 const ids = ["p1", "p2"];
@@ -180,6 +180,30 @@ describe("projects.js", () => {
     });
     it("rejects an unusable name", () => {
       assert.match(renameProject(list, "p1", 5).error, /non-empty/);
+    });
+  });
+
+  describe("setProjectUrl", () => {
+    const projects = [{id: "p1", name: "Alpha", clientId: "c1"}, {id: "p2", name: "Beta", url: "https://old.example.com"}];
+    it("sets the project's own link, keeping its other fields", () => {
+      const r = setProjectUrl(projects, "p1", " alpha.example.com/plans ");
+      assert.deepEqual(r.project, {id: "p1", name: "Alpha", clientId: "c1", url: "https://alpha.example.com/plans"});
+      assert.deepEqual(r.projects[0], r.project);
+      assert.equal(r.projects[1], projects[1], "other projects are untouched");
+      assert.equal("url" in projects[0], false, "the input is not modified");
+    });
+    it("replaces an existing link and keeps an http one as typed", () => {
+      assert.equal(setProjectUrl(projects, "p2", "http://new.example.com").project.url, "http://new.example.com");
+    });
+    it("takes it off for null or blank text, so the project uses its client's again", () => {
+      for (const v of [null, "", "  "]) assert.equal("url" in setProjectUrl(projects, "p2", v).project, false, String(v));
+      assert.equal(setProjectUrl(projects, "p1", null).project.clientId, "c1");
+    });
+    it("reports an unknown project and an unusable link", () => {
+      assert.deepEqual(setProjectUrl(projects, "zzz", null), {notFound: true});
+      for (const bad of [undefined, 5, [], {}, "javascript:alert(1)", "tel:5551234", "two words", `https://example.com/${"a".repeat(500)}`]) {
+        assert.match(setProjectUrl(projects, "p1", bad).error, /^url must be null or an http or https address/, JSON.stringify(bad));
+      }
     });
   });
 

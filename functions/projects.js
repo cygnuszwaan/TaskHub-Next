@@ -2,6 +2,7 @@
 /* eslint-disable require-jsdoc */
 
 const {normalizeLocation, MAX_LOCATION_NAME_LENGTH} = require("./location");
+const {normalizeUrl, MAX_URL_LENGTH} = require("./contact");
 
 const MAX_NAME_LENGTH = 100;
 const MAX_PROJECT_ORDER = 999;
@@ -131,8 +132,23 @@ function setProjectLocation(projects, projectId, location) {
   return {projects: projects.map((p) => (p.id === projectId ? next : p)), project: next};
 }
 
+// Set a project's own link, or take it off (null or blank text removes it; the project then uses its client's). `url` is checked by
+// contact.js's `normalizeUrl` (an http or https link of at most 500 characters, `https://` put in front of text with no scheme). Returns
+// {projects, project}, {notFound: true} for an unknown project or {error} for a link that is missing or unusable. Pure: no I/O.
+function setProjectUrl(projects, projectId, url) {
+  const project = projects.find((p) => p.id === projectId);
+  if (!project) return {notFound: true};
+  const clean = normalizeUrl(url);
+  if (clean === undefined) return {error: `url must be null or an http or https address of at most ${MAX_URL_LENGTH} characters`};
+  const next = {...project};
+  if (clean === null) delete next.url;
+  else next.url = clean;
+  return {projects: projects.map((p) => (p.id === projectId ? next : p)), project: next};
+}
+
 module.exports = {
   setProjectLocation,
+  setProjectUrl,
   MAX_NAME_LENGTH,
   MAX_PROJECT_ORDER,
   normalizeProjectName,

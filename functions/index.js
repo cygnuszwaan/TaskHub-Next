@@ -60,7 +60,7 @@ const LAST_REMOVED_REF = db.doc("settings/lastRemoved");
 // Photos of tasks, one document each in `completed_photos/{auto-id}` {archiveId | taskId, data, bytes, addedAt}; see photos.js.
 const PHOTOS = db.collection("completed_photos");
 // Projects that tasks can belong to, in `projects/{id}`; see projects.js and store.js.
-const {getProjects: readProjects, createProject, renameProject, setProjectClient, setProjectLocation, deleteProject} = makeProjectStore(db);
+const {getProjects: readProjects, createProject, renameProject, setProjectClient, setProjectLocation, setProjectUrl, deleteProject} = makeProjectStore(db);
 // Clients that projects can belong to, in `clients/{id}`; see clients.js and store.js.
 const {getClients: readClients, createClient, updateClient, deleteClient} = makeClientStore(db);
 // The Miscellaneous shopping list on the Materials tab, one document `settings/shoppingList`; see shopping.js and store.js.
@@ -1451,7 +1451,7 @@ exports.getProjects = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, r
 }));
 
 // 11. Endpoint: Create / Rename / Delete a Project
-// Body: {action: "CREATE", name} | {action: "UPDATE", projectId, name} (rename) | {action: "SET_CLIENT", projectId, clientId} (null or "" takes the client off; 400 for an unknown client) | {action: "SET_LOCATION", projectId, location} (`{name, latitude?, longitude?}`; null removes the project's own location; 400 for a missing or unusable one) | {action: "DELETE", projectId}.
+// Body: {action: "CREATE", name} | {action: "UPDATE", projectId, name} (rename) | {action: "SET_CLIENT", projectId, clientId} (null or "" takes the client off; 400 for an unknown client) | {action: "SET_LOCATION", projectId, location} (`{name, latitude?, longitude?}`; null removes the project's own location; 400 for a missing or unusable one) | {action: "SET_URL", projectId, url} (an http or https link; null or blank text removes the project's own link; 400 for a missing or unusable one) | {action: "DELETE", projectId}.
 // 400 with the reason for an unusable or taken name or an unknown action, 404 for an unknown projectId. DELETE also
 // takes its member tasks out of the project (the tasks stay) and returns the updated `tasks`. No calendar changes.
 exports.updateProject = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
@@ -1462,8 +1462,9 @@ exports.updateProject = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req,
     else if (action === "UPDATE") result = await renameProject(projectId, name);
     else if (action === "SET_CLIENT") result = await setProjectClient(projectId, req.body.clientId);
     else if (action === "SET_LOCATION") result = await setProjectLocation(projectId, req.body.location);
+    else if (action === "SET_URL") result = await setProjectUrl(projectId, req.body.url);
     else if (action === "DELETE") result = await deleteProject(projectId);
-    else return res.status(400).send({error: "action must be CREATE, UPDATE, SET_CLIENT, SET_LOCATION or DELETE"});
+    else return res.status(400).send({error: "action must be CREATE, UPDATE, SET_CLIENT, SET_LOCATION, SET_URL or DELETE"});
     if (result.notFound) return res.status(404).send({error: "Project not found"});
     if (result.error) return res.status(400).send({error: result.error});
     res.status(200).send({success: true, ...result});
@@ -1484,7 +1485,7 @@ exports.getClients = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, re
 }));
 
 // 13. Endpoint: Create / Update / Delete a Client
-// Body: {action: "CREATE", client: {name, phone?, email?, hourlyRate?, useWhatsApp?, location?}} | {action: "UPDATE", clientId, client} (replaces the fields) | {action: "DELETE", clientId}.
+// Body: {action: "CREATE", client: {name, phone?, email?, hourlyRate?, useWhatsApp?, location?, url?}} | {action: "UPDATE", clientId, client} (replaces the fields) | {action: "DELETE", clientId}.
 // 400 with the reason for an unusable field or a taken name (ignoring case) or an unknown action, 404 for an unknown clientId. DELETE takes the
 // client off its projects (they stay) and returns the updated `projects`. No calendar changes.
 exports.updateClient = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
