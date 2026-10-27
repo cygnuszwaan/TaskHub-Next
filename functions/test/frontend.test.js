@@ -3090,11 +3090,11 @@ describe("public/index.html helpers", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(code, /(?<![\w.])alert\(/, "a native alert() is left");
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
-      assert.equal(calls.length, 39, "the thirty-nine messages the page shows (three are refusals to keep an add or a change for later)");
+      assert.equal(calls.length, 45, "the forty-five messages the page shows (six are refusals to keep an add or a change for later)");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 17, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
-      assert.equal(warnings.length, 21, "every validation message is a warning alert");
+      assert.equal(warnings.length, 26, "every validation message is a warning alert");
     });
     it("hides Cancel for an alert, shows it again for a question and focuses the button", () => {
       const fn = html.slice(html.indexOf("function openConfirm"), html.indexOf("function askConfirm"));
@@ -4236,8 +4236,33 @@ describe("offline add queue display (page)", () => {
       const set = body("setTasks");
       assert.match(set, /serverTasks = list;\s*allTasks = shownTasks\(list\);/);
       assert.match(set, /saveTaskCache\(list\)/);
-      assert.match(body("shownTasks"), /withPendingActions\(withoutTasks\(list, pendingRemovals\), \[\], actionQueue\)\.tasks/);
+      assert.match(body("shownTasks"), /withPendingActions\(withoutTasks\(list, pendingRemovals\), replayEntries\(\), actionQueue\)\.tasks/);
       assert.match(body("fetchTasks"), /serverTasks = saved\.tasks;\s*allTasks = shownTasks\(saved\.tasks\);/);
+    });
+    it("holds a reopen after a connection failure or behind waiting changes, with the entry's comments edit before it", () => {
+      const reopen = body("reopenCompletedEntry");
+      assert.match(reopen, /const requestId = newRequestId\(\);/);
+      assert.match(reopen, /if \(hasPendingActions\(actionQueue\) \|\| actionDraining\) \{ queueReopen\(row, result\.fields, requestId, true\); return; \}/);
+      assert.match(reopen, /body: JSON\.stringify\(\{ id, requestId \}\)/);
+      assert.match(reopen, /if \(isNetworkError\(err, navigator\.onLine\)\) \{ queueReopen\(row, editsSaved \? \{\} : result\.fields, requestId, false\); return; \}/);
+      assert.match(reopen, /if \(row\.waitingRequestId\) \{ takeBackWaitingCompletion\(row\); return; \}/);
+      const queue = body("queueReopen");
+      assert.match(queue, /splitHeldFields\(fields\)/);
+      assert.ok(queue.indexOf("kind: \"EDIT\"") < queue.indexOf("kind: \"REOPEN\""), "the edit goes first");
+      assert.match(queue, /taskId: row\.id, archiveId: row\.archiveId/);
+      assert.match(queue, /requestId \}\)\);/);
+      assert.match(queue, /refreshShownTasks\(\);/);
+      assert.match(queue, /if \(behind && navigator\.onLine\) setTimeout\(drainAllQueues, 0\);/);
+    });
+    it("sends a held reopen to reopenCompletedTask and a held edit of an entry to updateCompletedTask", () => {
+      const send = body("sendQueuedAction");
+      assert.match(send, /item\.kind === "REOPEN"\) \{\s*url = REOPEN_COMPLETED_URL;\s*body = reopenBody\(item\);/);
+      assert.match(send, /item\.kind === "EDIT" && item\.archiveId\) \{\s*url = UPDATE_COMPLETED_URL;\s*body = entryEditBody\(item\);/);
+    });
+    it("shows a waiting reopen on the Queue from the page's entries, else the saved copy's, and reads nothing unless one is waiting", () => {
+      const fn = body("replayEntries");
+      assert.match(fn, /a\.kind === "REOPEN"\)\) return \[\];/);
+      assert.ok(fn.indexOf("completedServer.length") < fn.indexOf("readCompletedCache()"));
     });
     it("sends the actions after the add queue, oldest first, with the time they were made, in rounds until none is waiting", () => {
       assert.match(body("drainAllQueues"), /await drainAddQueue\(\);\s*await drainActionQueue\(\);/);

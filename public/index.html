@@ -1348,7 +1348,16 @@
     // with the changes waiting in the action queue replayed on top (shownTasks).
     let serverTasks = [];
     function shownTasks(list) {
-      return withPendingActions(withoutTasks(list, pendingRemovals), [], actionQueue).tasks;
+      return withPendingActions(withoutTasks(list, pendingRemovals), replayEntries(), actionQueue).tasks;
+    }
+    // The History entries a waiting reopen needs to put its task back on the Queue (withPendingActions finds the entry in them): the
+    // entries the page has, else the saved copy's, so a reopen shows on a cold start before History has been opened. Nothing is read
+    // unless a reopen is waiting.
+    function replayEntries() {
+      if (!actionQueue.some(a => !!a && a.status === "PENDING" && a.kind === "REOPEN")) return [];
+      if (completedServer.length) return completedServer;
+      const saved = readCompletedCache();
+      return saved ? saved.rows : [];
     }
     function setTasks(list) {
       serverTasks = list;
@@ -3754,6 +3763,34 @@
     function undoBody(action) {
       return { requestId: action.requestId };
     }
+    // A held reopen is sent as the entry's id and its request id (a repeat after a lost reply is a no-op on the server); a held
+    // edit of an entry is updateCompletedTask's body.
+    function reopenBody(action) {
+      return { id: action.archiveId, requestId: action.requestId };
+    }
+    function entryEditBody(action) {
+      return { id: action.archiveId, updatedFields: action.fields };
+    }
+    // The fields an entry's form changed, split into the ones a change made offline can hold (EDIT_FIELDS) and the names of the others.
+    function splitHeldFields(fields) {
+      const held = {};
+      const other = [];
+      for (const [key, value] of Object.entries(fields && typeof fields === "object" && !Array.isArray(fields) ? fields : {})) {
+        if (EDIT_FIELDS.includes(key)) held[key] = value;
+        else other.push(key);
+      }
+      return { held, other };
+    }
+    // The names of changed fields as the owner knows them, for "needs a connection" texts (each once, in order).
+    const FIELD_NAMES = { trackedSeconds: "time spent", completedDate: "completion time", completedTime: "completion time", travelKm: "travel", projectId: "project", estimatedMinutes: "estimate", dueDate: "due date" };
+    function fieldNamesText(keys) {
+      const names = [];
+      for (const key of Array.isArray(keys) ? keys : []) {
+        const name = FIELD_NAMES[key] || String(key);
+        if (!names.includes(name)) names.push(name);
+      }
+      return names.length > 1 ? names.slice(0, -1).join(", ") + " and " + names[names.length - 1] : names.join("");
+    }
     // The queue without the action that has this request id and every later action that depends on it, directly or through
     // another (undoing a completion that is still waiting leaves no trace of it, nor of what was done to its entry): {actions,
     // cancelled}, the actions left in order and the ones taken out. An unknown request id changes nothing. The input is not changed.
@@ -3772,6 +3809,19 @@
         }
       }
       return { actions: list.filter((a, i) => !gone.has(i)), cancelled: list.filter((a, i) => gone.has(i)) };
+    }
+    // Reopening an entry whose completion is still waiting just takes the completion back (cancelActions: what was done to the entry
+    // goes with it) and the task is as it was before. A timer that was running when it was completed is paused at the instant of the
+    // completion, so the task comes back stopped with the time it had accrued. `tasks` and `completed` are the server's lists. Returns
+    // {actions, cancelled, pause} (`pause` the TIMER action added, or null), or null when no PENDING completion has this request id.
+    function takeBackCompletion(actions, tasks, completed, requestId, options = {}) {
+      const list = Array.isArray(actions) ? actions : [];
+      const complete = list.find(a => !!a && a.requestId === requestId && a.kind === "COMPLETE" && a.status === "PENDING");
+      if (!complete) return null;
+      const { actions: left, cancelled } = cancelActions(list, requestId);
+      const task = withPendingActions(tasks, completed, left, options).tasks.find(t => t.id === complete.taskId);
+      const pause = task && task.timerStartedAt ? makeQueuedAction({ kind: "TIMER", taskId: task.id, title: task.title, fields: { action: "PAUSE" }, now: complete.at, offset: 0 }) : null;
+      return { actions: pause ? [...left, pause] : left, cancelled, pause };
     }
 
     // What an action's card says it does: "Complete “Fix gate”", "Start timer for “Fix gate”", "Update comments on “Fix gate”".
@@ -5931,7 +5981,8 @@
       }
     }
     // Reopen: the entry leaves the completed list and its task returns to the queue with its accrued time. Edits made in the
-    // form and not yet saved are saved first, so they come back with it.
+    // form and not yet saved are saved first, so they come back with it. Without a connection (or behind changes still waiting,
+    // which must go first) the reopen is held: queueReopen. A completion that is still waiting is taken back instead.
     async function reopenCompletedEntry() {
       const id = document.getElementById("ceId").value;
       const row = completedRows.get(id);
@@ -5939,6 +5990,11 @@
       const result = readCompletedForm(row);
       if (result.error) { askAlert(result.error, { tone: "warning" }); return; }
       if (!await askConfirm(reopenPrompt({ ...row, ...result.fields }), { tone: "info", confirmLabel: "Reopen" })) return;
+      if (row.waitingRequestId) { takeBackWaitingCompletion(row); return; }
+      const requestId = newRequestId(); // fixed before the first attempt, so a send repeated after a lost reply changes nothing
+      loadActionQueue();
+      if (hasPendingActions(actionQueue) || actionDraining) { queueReopen(row, result.fields, requestId, true); return; }
+      let editsSaved = false;
       try {
         if (Object.keys(result.fields).length > 0) {
           await apiFetch(UPDATE_COMPLETED_URL, {
@@ -5946,13 +6002,15 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id, updatedFields: result.fields })
           });
+          editsSaved = true;
         }
         const res = await apiFetch(REOPEN_COMPLETED_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id })
+          body: JSON.stringify({ id, requestId })
         });
         const data = await res.json();
+        noteServerTime(data);
         setTasks(data.tasks || allTasks);
         templates = null; // the archive has one row fewer
         closeCompletedEditor();
@@ -5960,8 +6018,55 @@
         renderTasks();
         await fetchCompleted();
       } catch (err) {
+        if (isNetworkError(err, navigator.onLine)) { queueReopen(row, editsSaved ? {} : result.fields, requestId, false); return; }
         askAlert(failureText("Failed to reopen", err), { tone: "error" });
       }
+    }
+    // Holds a reopen for later: a REOPEN action behind an EDIT of the entry's comments when the form changed them (the other fields
+    // need a connection, so they refuse). `behind` is true when it was queued only because other changes were waiting, so the
+    // queue is sent now; after a connection failure it waits for a trigger. The entry leaves History and the task joins the end of
+    // the Queue at once (withPendingActions); the form closes.
+    function queueReopen(row, fields, requestId, behind) {
+      const { held, other } = splitHeldFields(fields);
+      if (other.length > 0) {
+        askAlert(`Save the changes to ${fieldNamesText(other)} first (they need a connection), then reopen the task.`, { tone: "warning" });
+        return;
+      }
+      if (typeof row.id !== "string" || !row.id || !usableArchiveId(row.archiveId)) {
+        askAlert("This entry cannot be reopened without a connection.", { tone: "warning" });
+        return;
+      }
+      loadActionQueue();
+      const edited = Object.keys(held).length > 0;
+      const refusal = actionQueueRefusal(actionQueue.length + (edited ? 1 : 0), actionQueueUsable);
+      if (refusal) { askAlert(refusal, { tone: "warning" }); return; }
+      const now = Date.now();
+      const items = [];
+      if (edited) items.push(makeQueuedAction({ kind: "EDIT", archiveId: row.archiveId, title: row.title, fields: held, now, offset: clockOffsetMs }));
+      items.push(makeQueuedAction({ kind: "REOPEN", taskId: row.id, archiveId: row.archiveId, title: row.title, now, offset: clockOffsetMs, requestId }));
+      if (items.some(item => !item) || !saveActionQueue([...actionQueue, ...items])) { askAlert(actionQueueRefusal(0, false), { tone: "warning" }); return; }
+      closeCompletedEditor();
+      renderFilterBar();
+      renderAddQueue();
+      refreshShownTasks();
+      if (behind && navigator.onLine) setTimeout(drainAllQueues, 0);
+    }
+    // Reopening an entry whose completion has not been sent: the completion is taken back with what was done to its entry and the
+    // task is as it was before (takeBackCompletion). Nothing reaches the server.
+    function takeBackWaitingCompletion(row) {
+      loadActionQueue();
+      if (sendingActionId === row.waitingRequestId) {
+        askAlert("That completion is being sent. Reopen it from History in a moment.", { tone: "info" });
+        return;
+      }
+      const taken = takeBackCompletion(actionQueue, serverTasks, completedServer, row.waitingRequestId);
+      closeCompletedEditor();
+      if (!taken) { refreshHistoryIfOpen(); return; } // it was sent meanwhile: the entry is on the server now
+      if (undoRemovalInfo && taken.cancelled.some(a => a.requestId === undoRemovalInfo.requestId)) hideUndoNote(); // its Undo has nothing left to cancel
+      if (!saveActionQueue(taken.actions)) { askAlert(actionQueueRefusal(0, false), { tone: "warning" }); return; }
+      renderFilterBar();
+      renderAddQueue();
+      refreshShownTasks();
     }
     async function deleteCompletedEntry() {
       const id = document.getElementById("ceId").value;
@@ -7619,6 +7724,12 @@
         } else if (item.kind === "UNDO") {
           url = UNDO_URL;
           body = undoBody(item);
+        } else if (item.kind === "REOPEN") {
+          url = REOPEN_COMPLETED_URL;
+          body = reopenBody(item);
+        } else if (item.kind === "EDIT" && item.archiveId) {
+          url = UPDATE_COMPLETED_URL;
+          body = entryEditBody(item);
         } else {
           throw new Error("This kind of change cannot be sent yet");
         }

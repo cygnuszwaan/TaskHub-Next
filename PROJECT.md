@@ -69,13 +69,12 @@ Goal: the changes made on site (Start, Pause, Abort, Complete, Reopen, comments)
 - Stays online-only: photos, Settings, Clients, project and template management, Update now, job sheets, exports, History's Stats and Project hours.
 
 Stage 1, the changes needed on site:
-1. Page, reopen: the completed form's Reopen queues REOPEN (after its confirmation and after folding in its unsaved edits), the entry leaves History and the task joins the end of the Queue as the server will build it; reopening a waiting entry just cancels its COMPLETE. A reopened task that was never sent is the original task, timer stopped.
-2. Page, comments: saving a queued task's modal while offline queues an EDIT of `comments` alone (any other changed field makes Save say it needs a connection and names the fields); the completed form queues the same for an entry (`updateCompletedTask`, or folded into the COMPLETE of a waiting one); the cards show the new comments at once.
+1. Page, comments: saving a queued task's modal while offline queues an EDIT of `comments` alone (any other changed field makes Save say it needs a connection and names the fields); the completed form queues the same for an entry (`updateCompletedTask`, or folded into the COMPLETE of a waiting one); the cards show the new comments at once.
 
 Stage 2, the rest of the Queue's changes, each the same machinery with its own replay and tests; a change that needs an id or an order only the server makes (a new project, Order number, a move to a task number) waits until the server has them:
-3. Delete: queued DELETE (the task hides at once, its photos are untouched until the send), Undo as above, calendar cleanup after the send.
-4. Snooze and the edit modal's plain fields (title, priority, estimate, tags, due date, Repeats, travel, phone, email, location), as EDIT with the changed fields; a snooze runs `rescheduleTask` after its send when the task has an event.
-5. Materials: checking off, editing a task's list, the Miscellaneous list (an add keeps its temporary id until the send, as today), Multi-Select actions that need no new project.
+2. Delete: queued DELETE (the task hides at once, its photos are untouched until the send), Undo as above, calendar cleanup after the send.
+3. Snooze and the edit modal's plain fields (title, priority, estimate, tags, due date, Repeats, travel, phone, email, location), as EDIT with the changed fields; a snooze runs `rescheduleTask` after its send when the task has an event.
+4. Materials: checking off, editing a task's list, the Miscellaneous list (an add keeps its temporary id until the send, as today), Multi-Select actions that need no new project.
 
 The stretch goals below are unplanned.
 
