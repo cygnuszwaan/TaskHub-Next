@@ -21,7 +21,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeComments, applyEditFields, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionDiscardPrompt};
+    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeComments, applyEditFields, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionDiscardPrompt};
   `)();
 }
 
@@ -479,6 +479,78 @@ describe("action queue (public/index.html)", () => {
       const page = load();
       const queue = [complete(page, "a", "archive-0001", T0, "req-00001"), {...reopen(page, "a", "archive-0001", T0 + 1, "req-00002"), status: "FAILED", error: "no"}];
       assert.equal(page.cancelActions(queue, "req-00001").actions.length, 0);
+    });
+  });
+
+  describe("the page's clock and what is waiting", () => {
+    it("keeps the offset it is given and ignores one that is not a number", () => {
+      const page = load();
+      const before = Date.now();
+      page.setClockOffset(5000);
+      const shifted = page.serverNow();
+      assert.ok(shifted >= before + 5000 && shifted <= Date.now() + 5000);
+      page.setClockOffset(NaN);
+      page.setClockOffset(undefined);
+      page.setClockOffset(null);
+      assert.ok(Math.abs(page.serverNow() - (Date.now() + 5000)) < 50, "an unusable offset changes nothing");
+    });
+    it("measures a running timer on the server's clock", () => {
+      const page = load();
+      const running = {trackedSeconds: 60, timerStartedAt: iso(Date.now() + 5000 - 120 * 1000)};
+      page.setClockOffset(5000);
+      assert.ok(Math.abs(page.elapsedSecondsOf(running) - 180) <= 1);
+      assert.ok(Math.abs(page.runningSeconds(running) - 120) <= 1);
+      page.setClockOffset(0);
+      assert.ok(Math.abs(page.runningSeconds(running) - 115) <= 1, "without the offset the same timer reads 5 s short");
+      assert.equal(page.elapsedSecondsOf(running, Date.parse(running.timerStartedAt) + 10 * 1000), 70, "an explicit clock still wins");
+    });
+    it("parses a stored offset: whole milliseconds within a day", () => {
+      const page = load();
+      assert.equal(page.parseClockOffset("1500"), 1500);
+      assert.equal(page.parseClockOffset("-86400000"), -86400000);
+      assert.equal(page.parseClockOffset(" 0 "), 0);
+      for (const bad of [null, undefined, "", "abc", "1.5", "86400001", "-86400001", "12345678901", 5]) assert.equal(page.parseClockOffset(bad), null, String(bad));
+    });
+    it("makes an action's time the device's clock plus the offset", () => {
+      const page = load();
+      assert.equal(action(page, {offset: 2500}).at, T0 + 2500);
+      assert.equal(action(page, {offset: -2500}).at, T0 - 2500);
+      assert.equal(action(page, {offset: undefined}).at, T0);
+    });
+    it("lists the tasks with a PENDING action, and not those with a FAILED one", () => {
+      const page = load();
+      const failed = {...action(page, {taskId: "c"}), status: "FAILED", error: "x"};
+      const ids = page.waitingTaskIds([action(page, {taskId: "a"}), action(page, {taskId: "a", fields: {action: "PAUSE"}}), failed, null, {status: "PENDING"}, {status: "PENDING", taskId: ""}]);
+      assert.deepEqual([...ids], ["a"]);
+      assert.equal(page.waitingTaskIds(undefined).size, 0);
+      assert.equal(page.waitingTaskIds([]).size, 0);
+    });
+    it("knows when something is PENDING", () => {
+      const page = load();
+      const failed = {...action(page), status: "FAILED", error: "x"};
+      assert.equal(page.hasPendingActions([failed, action(page)]), true);
+      assert.equal(page.hasPendingActions([failed]), false);
+      assert.equal(page.hasPendingActions([]), false);
+      assert.equal(page.hasPendingActions(undefined), false);
+      assert.equal(page.hasPendingActions([null]), false);
+    });
+    it("says why a change cannot be kept: no storage, or a full queue", () => {
+      const page = load();
+      assert.equal(page.actionQueueRefusal(0, true), "");
+      assert.equal(page.actionQueueRefusal(page.ACTION_QUEUE_MAX - 1, true), "");
+      assert.match(page.actionQueueRefusal(0, false), /cannot keep a change for later/);
+      assert.match(page.actionQueueRefusal(page.ACTION_QUEUE_MAX, true), /^50 changes are already waiting/);
+      assert.match(page.actionQueueRefusal(page.ACTION_QUEUE_MAX + 5, true), /already waiting/);
+    });
+    it("shows a held timer change the way the server will make it, from the server's list", () => {
+      const page = load();
+      const start = action(page, {taskId: "a", now: T0, offset: 3000});
+      const pause = action(page, {taskId: "a", fields: {action: "PAUSE"}, now: T0 + 5 * MIN, offset: 3000});
+      const shown = page.withPendingActions(timerTasks(), [], [start, pause]).tasks;
+      const sent = setTimerInList(setTimerInList(timerTasks(), "a", "START", T0 + 3000).tasks, "a", "PAUSE", T0 + 5 * MIN + 3000).tasks;
+      assert.deepEqual(shown, sent);
+      assert.equal(shown.find((t) => t.id === "a").trackedSeconds, 300);
+      assert.equal(shown.find((t) => t.id === "b").timerStartedAt, undefined, "starting a task pauses the running one");
     });
   });
 

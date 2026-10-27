@@ -1262,7 +1262,7 @@
           if (user) {
             showApp();
             applyPendingShare();
-            fetchTasks().then(drainAddQueue); // after the list, so an older list cannot replace a task the queue adds
+            fetchTasks().then(drainAllQueues); // after the list, so an older list cannot replace a task the queue adds
             loadProjects();
             loadClients();
             loadProjectTemplates();
@@ -1328,7 +1328,7 @@
         } catch (e) { /* non-JSON error body */ }
         throw new Error(message);
       }
-      if (addQueue.some(i => i.status === "PENDING")) setTimeout(drainAddQueue, 0); // a call got through: send what is waiting
+      if (addQueue.some(i => i.status === "PENDING") || hasPendingActions(actionQueue)) setTimeout(drainAllQueues, 0); // a call got through: send what is waiting
       return res;
     }
 
@@ -1336,8 +1336,15 @@
     // Deleted or completed tasks whose server call has not finished: they are already off the page, and no list that
     // arrives meanwhile (from any call) may bring them back.
     const pendingRemovals = new Set();
+    // The server's last list, as it came; `allTasks` is what the page shows: that list less the removals still on their way,
+    // with the changes waiting in the action queue replayed on top (shownTasks).
+    let serverTasks = [];
+    function shownTasks(list) {
+      return withPendingActions(withoutTasks(list, pendingRemovals), [], actionQueue).tasks;
+    }
     function setTasks(list) {
-      allTasks = withoutTasks(list, pendingRemovals);
+      serverTasks = list;
+      allTasks = shownTasks(list);
       lastSyncAt = Date.now();
       showSavedListNote(null); // a list from the server replaces any saved copy on screen
       saveTaskCache(list); // the server's list as it came, never the one shown with waiting changes on it
@@ -2315,13 +2322,13 @@
     }
     // Seconds tracked on a task at `nowMs`, the running stretch included (never negative, even if this device's clock
     // is behind the server's).
-    function elapsedSecondsOf(task, nowMs = Date.now()) {
+    function elapsedSecondsOf(task, nowMs = serverNow()) {
       const saved = task && Number.isFinite(task.trackedSeconds) && task.trackedSeconds > 0 ? Math.round(task.trackedSeconds) : 0;
       const start = Date.parse(task && task.timerStartedAt);
       return saved + (isNaN(start) || !(nowMs > start) ? 0 : Math.round((nowMs - start) / 1000));
     }
     // Seconds the task's timer has been running since it was last started (0 when it is paused).
-    function runningSeconds(task, nowMs = Date.now()) {
+    function runningSeconds(task, nowMs = serverNow()) {
       const start = Date.parse(task && task.timerStartedAt);
       return isNaN(start) || !(nowMs > start) ? 0 : Math.round((nowMs - start) / 1000);
     }
@@ -3344,6 +3351,42 @@
     function clockOffsetFrom(serverTime, deviceNow) {
       return Number.isFinite(serverTime) && Number.isFinite(deviceNow) ? Math.round(serverTime - deviceNow) : null;
     }
+    // The correction the page applies to its own clock (0 until a reply has told it), and the server's time as the page
+    // believes it: what a held timer change is booked at (`at`) and what a running timer is measured against.
+    let clockOffsetMs = 0;
+    function setClockOffset(offset) {
+      if (Number.isFinite(offset)) clockOffsetMs = offset;
+    }
+    function serverNow() {
+      return Date.now() + clockOffsetMs;
+    }
+    // The offset to keep from a stored text (a whole number of milliseconds within a day either way), else null.
+    function parseClockOffset(text) {
+      if (typeof text !== "string" || !/^-?\d{1,9}$/.test(text.trim())) return null;
+      const value = Number(text);
+      return Math.abs(value) <= 24 * 3600 * 1000 ? value : null;
+    }
+
+    // The task ids that have a PENDING action waiting (a FAILED one changes nothing, so it does not count): they show a
+    // "Waiting to send" chip.
+    function waitingTaskIds(actions) {
+      const ids = new Set();
+      for (const action of Array.isArray(actions) ? actions : []) {
+        if (action && action.status === "PENDING" && typeof action.taskId === "string" && action.taskId) ids.add(action.taskId);
+      }
+      return ids;
+    }
+    // Whether any action is PENDING: a new change then goes behind it, even with a connection, so the order holds.
+    function hasPendingActions(actions) {
+      return (Array.isArray(actions) ? actions : []).some(a => !!a && a.status === "PENDING");
+    }
+    // Why a change cannot be kept for later, as the alert text: "" when it can. `count` is the actions already queued and
+    // `usable` whether the device's storage works.
+    function actionQueueRefusal(count, usable) {
+      if (usable === false) return "This browser cannot keep a change for later, so it was not made. Check your connection and try again.";
+      if (count >= ACTION_QUEUE_MAX) return `${ACTION_QUEUE_MAX} changes are already waiting to be sent, so this one was not made. Wait for the connection or discard some, then try again.`;
+      return "";
+    }
 
     // The task's history and timer, as the server works them out. Copies of functions/history.js and functions/timer.js, kept
     // equal to them by a test: the page shows a waiting change as the server will make it.
@@ -4084,14 +4127,20 @@
 
       updateRecurUnit("manual"); // hides the interval controls until a frequency is chosen
       loadAddQueue();
+      loadActionQueue();
+      loadClockOffset();
       renderAddQueue();
       document.getElementById("addQueueBox").addEventListener("click", e => {
         const discard = e.target.closest("[data-queue-discard]");
         if (discard) return discardQueuedAdd(discard.dataset.queueDiscard);
         const retry = e.target.closest("[data-queue-retry]");
-        if (retry) retryQueuedAdd(retry.dataset.queueRetry);
+        if (retry) return retryQueuedAdd(retry.dataset.queueRetry);
+        const discardAction = e.target.closest("[data-action-discard]");
+        if (discardAction) return discardQueuedAction(discardAction.dataset.actionDiscard);
+        const retryAction = e.target.closest("[data-action-retry]");
+        if (retryAction) retryQueuedAction(retryAction.dataset.actionRetry);
       });
-      window.addEventListener("online", () => { if (savedListAt !== null) fetchTasks().then(drainAddQueue); else drainAddQueue(); });
+      window.addEventListener("online", () => { if (savedListAt !== null) fetchTasks().then(drainAllQueues); else drainAllQueues(); });
       window.addEventListener("online", () => { if (savedCompletedAt !== null) fetchCompleted(); }); // History's saved copy is replaced too
       document.getElementById("offlineRetryBtn").addEventListener("click", fetchTasks);
       document.getElementById("completedRetryBtn").addEventListener("click", fetchCompleted);
@@ -4105,6 +4154,7 @@
       try {
         const res = await apiFetch(GET_TASKS_URL);
         const data = await res.json();
+        noteServerTime(data);
         setTasks(data.tasks || []);
         renderFilterBar();
         renderTasks();
@@ -4114,7 +4164,8 @@
           if (tasksLoaded) { showSavedListNote(savedListAt !== null ? savedListAt : lastSyncAt); return; }
           const saved = readTaskCache();
           if (saved) {
-            allTasks = withoutTasks(saved.tasks, pendingRemovals);
+            serverTasks = saved.tasks;
+            allTasks = shownTasks(saved.tasks);
             renderFilterBar();
             renderTasks();
             showSavedListNote(saved.savedAt);
@@ -4562,6 +4613,7 @@
               ${numberChipText(taskNumbers, t.id) ? `<span class="chip number-chip" title="Place in the queue">${esc(numberChipText(taskNumbers, t.id))}</span>` : ''}
               <span class="badge ${PRIORITIES.includes(t.priority) ? t.priority : ''}">${esc(t.priority)}</span>
               <span class="time-chip">⏱️ ${esc(t.estimatedMinutes || 15)}m</span>
+              ${waitingIds.has(t.id) ? `<span class="chip held-chip" title="A change to this task is waiting to be sent">⏳ Waiting to send</span>` : ''}
               ${timerChipIcon(t) ? `<span class="chip timer-chip" title="${isTimerRunning(t) ? 'Timer running' : 'Timer paused'}" aria-label="${isTimerRunning(t) ? 'Timer running' : 'Timer paused'}">${timerChipIcon(t)}</span>` : ''}
               ${isActive ? `<span class="time-chip" id="activeElapsed" title="Time tracked on this task">Tracked ${esc(formatElapsed(elapsedSecondsOf(t)))}</span>` : ''}
               ${(t.tags || []).map(tag => `<span class="chip">${esc(tag)}</span>`).join('')}
@@ -4617,7 +4669,7 @@
     }
     // Shows or hides the long-running timer warning under the Active task
     function updateTimerWarning(task) {
-      const warning = task ? longTimerWarning(task, Date.now(), timerWarnHours()) : null;
+      const warning = task ? longTimerWarning(task, serverNow(), timerWarnHours()) : null;
       document.getElementById("timerWarning").hidden = !warning;
       if (!warning) return;
       document.getElementById("timerWarningText").textContent = `⚠️ This timer has been running for ${formatElapsed(warning.stretch)} without a pause. Did you forget it?`;
@@ -4628,7 +4680,7 @@
     function pauseLongTimer(capIt) {
       const task = activeTaskOf(allTasks);
       if (!task || !isTimerRunning(task)) return;
-      const warning = longTimerWarning(task, Date.now(), timerWarnHours());
+      const warning = longTimerWarning(task, serverNow(), timerWarnHours());
       return sendTimerAction(task.id, "PAUSE", capIt && warning ? { capSeconds: warning.cap } : {});
     }
 
@@ -5056,7 +5108,10 @@
       return sendTimerAction(taskId, "ABORT");
     }
     async function sendTimerAction(taskId, action, extra = {}) {
-      if (!allTasks.some(t => t.id === taskId) || timerBusy) return;
+      const task = allTasks.find(t => t.id === taskId);
+      if (!task || timerBusy) return;
+      // Changes already waiting go first: a new one is kept behind them, with a connection or not, so the order holds.
+      if (hasPendingActions(actionQueue) || actionDraining) return queueTimerAction(task, action, extra, true);
       timerBusy = true;
       try {
         const res = await apiFetch(TIMER_URL, {
@@ -5065,11 +5120,14 @@
           body: JSON.stringify({ taskId, action, ...extra })
         });
         const data = await res.json();
+        noteServerTime(data);
         setTasks(data.tasks || allTasks);
         renderTasks();
         if (document.getElementById("editModal").style.display === "flex") showEditTimer();
       } catch (err) {
-        askAlert(failureText("Failed to change the timer", err), { tone: "error" });
+        // No connection: the change is kept, shown at once and sent when the connection returns.
+        if (isNetworkError(err, navigator.onLine)) queueTimerAction(task, action, extra, false);
+        else askAlert(failureText("Failed to change the timer", err), { tone: "error" });
       } finally {
         timerBusy = false;
       }
@@ -7150,20 +7208,21 @@
         return false;
       }
     }
-    // Draws the queue's items as cards at the top of the Queue; the box is hidden while the queue is empty.
+    // Draws the waiting adds, then the waiting changes (the action queue), as cards at the top of the Queue; the box is hidden
+    // while both are empty.
     function renderAddQueue() {
       const box = document.getElementById("addQueueBox");
       if (!box) return;
-      box.hidden = addQueue.length === 0;
-      box.innerHTML = addQueue.map(item => {
-        const view = queueCardView(item, item.requestId === sendingRequestId);
-        const id = esc(item.requestId);
+      box.hidden = addQueue.length === 0 && actionQueue.length === 0;
+      const card = (view, id, retryAttr, discardAttr) => {
         const off = view.sending ? " disabled" : "";
         return `<div class="add-queue-card${view.failed ? " failed" : ""}" data-request-id="${id}">` +
           `<div><div class="add-queue-label">${esc(view.label)}</div><div class="add-queue-status">${esc(view.text)}</div></div>` +
-          `<div class="add-queue-actions">${view.failed ? `<button type="button" class="btn-secondary" data-queue-retry="${id}">Retry</button>` : ""}` +
-          `<button type="button" class="btn-secondary" data-queue-discard="${id}"${off}>Discard</button></div></div>`;
-      }).join("");
+          `<div class="add-queue-actions">${view.failed ? `<button type="button" class="btn-secondary" ${retryAttr}="${id}">Retry</button>` : ""}` +
+          `<button type="button" class="btn-secondary" ${discardAttr}="${id}"${off}>Discard</button></div></div>`;
+      };
+      box.innerHTML = addQueue.map(item => card(queueCardView(item, item.requestId === sendingRequestId), esc(item.requestId), "data-queue-retry", "data-queue-discard")).join("") +
+        actionQueue.map(action => card(actionCardView(action, action.requestId === sendingActionId), esc(action.requestId), "data-action-retry", "data-action-discard")).join("");
     }
     // Discard on a card: after a confirmation the item leaves the queue. The queue is read again after the question, so an item
     // another tab sent or discarded meanwhile is not brought back.
@@ -7245,7 +7304,159 @@
       loadAddQueue();
       saveAddQueue(queueRetry(addQueue, requestId));
       renderAddQueue();
-      drainAddQueue();
+      drainAllQueues();
+    }
+
+    // The offline action queue on the page (the model is in the pure helpers above, and its comments give the item shape).
+    // `actionQueue` mirrors localStorage, every access in try/catch; `actionQueueUsable` is false when storage cannot be used.
+    // The queue is sent after the add queue (drainAllQueues), one run at a time, and what is waiting is shown on top of the
+    // server's lists (shownTasks, withPendingActions).
+    let actionQueue = [];
+    let actionQueueUsable = true;
+    let sendingActionId = ""; // the request id of the action on its way to the server ("" when none)
+    let actionDraining = false; // true while drainActionQueue runs: one run at a time
+    let waitingIds = new Set(); // the tasks with a change waiting (waitingTaskIds)
+    function loadActionQueue() {
+      try {
+        actionQueue = parseActionQueue(localStorage.getItem(ACTION_QUEUE_KEY));
+        actionQueueUsable = true;
+      } catch (e) {
+        actionQueue = [];
+        actionQueueUsable = false;
+      }
+      waitingIds = waitingTaskIds(actionQueue);
+    }
+    // Keeps `queue` as the queue and writes it to storage; false (and the queue unusable) when the write fails.
+    function saveActionQueue(queue) {
+      actionQueue = cleanActionQueue(queue);
+      waitingIds = waitingTaskIds(actionQueue);
+      try {
+        if (actionQueue.length) localStorage.setItem(ACTION_QUEUE_KEY, serializeActionQueue(actionQueue));
+        else localStorage.removeItem(ACTION_QUEUE_KEY);
+        actionQueueUsable = true;
+        return true;
+      } catch (e) {
+        actionQueueUsable = false;
+        return false;
+      }
+    }
+    // The page's clock correction survives a reload, so a change made on a cold start with no connection is still booked right.
+    const CLOCK_OFFSET_KEY = "taskhub-clock-offset";
+    function loadClockOffset() {
+      try { setClockOffset(parseClockOffset(localStorage.getItem(CLOCK_OFFSET_KEY))); } catch (e) { /* keeps 0 */ }
+    }
+    // Takes the correction from a reply that carries the server's clock (`serverTime`).
+    function noteServerTime(data) {
+      const offset = clockOffsetFrom(data && data.serverTime, Date.now());
+      if (offset === null) return;
+      setClockOffset(offset);
+      try { localStorage.setItem(CLOCK_OFFSET_KEY, String(offset)); } catch (e) { /* kept in memory only */ }
+    }
+    // Draws the list again from the server's last one with what is waiting on top (after a change to the queue that is not an
+    // addition: a discard, a failure), and refreshes the open edit modal's timer.
+    function refreshShownTasks() {
+      allTasks = shownTasks(serverTasks);
+      renderTasks();
+      if (document.getElementById("editModal").style.display === "flex") showEditTimer();
+    }
+    // Keeps a timer change for later and shows it at once. `behind` is true when it was queued only because other changes
+    // were waiting (the connection may be fine), so the queue is sent now; after a connection failure it waits for a trigger.
+    function queueTimerAction(task, verb, extra, behind) {
+      loadActionQueue();
+      const refusal = actionQueueRefusal(actionQueue.length, actionQueueUsable);
+      if (refusal) { askAlert(refusal, { tone: "warning" }); return; }
+      const fields = { action: verb };
+      if (verb === "PAUSE" && extra && Number.isInteger(extra.capSeconds)) fields.capSeconds = extra.capSeconds;
+      const item = makeQueuedAction({ kind: "TIMER", taskId: task.id, title: task.title, fields, now: Date.now(), offset: clockOffsetMs });
+      if (!item || !saveActionQueue([...actionQueue, item])) { askAlert(actionQueueRefusal(0, false), { tone: "warning" }); return; }
+      allTasks = withPendingActions(allTasks, [], [item]).tasks; // on top of what is shown, so unsaved local changes stay
+      renderTasks();
+      renderAddQueue();
+      if (document.getElementById("editModal").style.display === "flex") showEditTimer();
+      if (behind && navigator.onLine) setTimeout(drainAllQueues, 0);
+    }
+    // One queued action posted to the server, with the time it was made. A lost or rejected sign-in keeps it PENDING for after
+    // the next sign-in. It leaves the stored queue before the list it answers with is shown, so it is not replayed on its own result.
+    async function sendQueuedAction(item) {
+      sendingActionId = item.requestId;
+      renderAddQueue();
+      try {
+        const body = { taskId: item.taskId, action: item.fields.action, at: item.at };
+        if (Number.isInteger(item.fields.capSeconds)) body.capSeconds = item.fields.capSeconds;
+        const res = await apiFetch(TIMER_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        noteServerTime(data);
+        loadActionQueue();
+        saveActionQueue(queueWithout(actionQueue, item.requestId));
+        if (Array.isArray(data.tasks)) {
+          setTasks(data.tasks);
+          renderTasks();
+          if (document.getElementById("editModal").style.display === "flex") showEditTimer();
+        }
+        return data;
+      } catch (err) {
+        if (!(firebaseAuth && firebaseAuth.currentUser) && err && typeof err === "object") err.keepQueued = true;
+        throw err;
+      } finally {
+        sendingActionId = "";
+      }
+    }
+    // One action settled by drainQueue: it leaves the stored queue (sent) or is replaced by its FAILED copy, which stops
+    // changing what the page shows.
+    function settleQueuedAction({ requestId, item }) {
+      loadActionQueue();
+      saveActionQueue(item ? actionQueue.map(a => a.requestId === requestId ? item : a) : queueWithout(actionQueue, requestId));
+      renderAddQueue();
+      if (item) refreshShownTasks();
+    }
+    // Sends the waiting actions, oldest first, one run at a time; does nothing without a signed-in user or a waiting action.
+    // A change queued while a run is going is sent by the next round.
+    async function drainActionQueue() {
+      if (actionDraining || !firebaseAuth || !firebaseAuth.currentUser) return;
+      actionDraining = true;
+      try {
+        for (let round = 0; round < 20; round++) {
+          loadActionQueue();
+          if (!hasPendingActions(actionQueue)) break;
+          const result = await drainQueue(actionQueue, sendQueuedAction, () => navigator.onLine, settleQueuedAction);
+          if (result.stopped) break;
+        }
+      } finally {
+        actionDraining = false;
+        sendingActionId = "";
+        renderAddQueue();
+      }
+    }
+    // The add queue first, then the actions: a change may name a task an add creates. Called on sign-in, when the connection
+    // returns, after any successful call and from a Retry button.
+    async function drainAllQueues() {
+      await drainAddQueue();
+      await drainActionQueue();
+    }
+    // Discard on an action's card: after a confirmation the action leaves the queue with the later ones that depend on it
+    // (cancelActions). The queue is read again after the question, so an action sent meanwhile is not brought back.
+    async function discardQueuedAction(requestId) {
+      const action = actionQueue.find(a => a.requestId === requestId);
+      if (!action || sendingActionId === requestId) return;
+      const dependents = cancelActions(actionQueue, requestId).cancelled.length - 1;
+      if (!await askConfirm(actionDiscardPrompt(action, dependents), { tone: "danger", confirmLabel: "Discard" })) return;
+      if (sendingActionId === requestId) return; // it went out while the question was open: too late to discard
+      loadActionQueue();
+      saveActionQueue(cancelActions(actionQueue, requestId).actions);
+      renderAddQueue();
+      refreshShownTasks();
+    }
+    // Retry on a FAILED action's card: it becomes PENDING again and the queues are sent.
+    function retryQueuedAction(requestId) {
+      loadActionQueue();
+      saveActionQueue(queueRetry(actionQueue, requestId));
+      renderAddQueue();
+      refreshShownTasks();
+      drainAllQueues();
     }
 
     function setLoading(isLoading) {

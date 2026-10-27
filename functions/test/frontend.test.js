@@ -2985,7 +2985,7 @@ describe("public/index.html helpers", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(code, /(?<![\w.])confirm\(/, "a native confirm() is left");
       const asks = code.match(/(?<!function )askConfirm\(/g) || [];
-      assert.equal(asks.length, 13, "the thirteen questions the page asks");
+      assert.equal(asks.length, 14, "the fourteen questions the page asks (one discards a waiting change)");
     });
     it("marks the dialog up as a modal alert dialog above every other modal, with Cancel and a confirm button", () => {
       assert.match(html, /<div id="confirmModal" class="modal-overlay confirm-overlay"/);
@@ -3090,11 +3090,11 @@ describe("public/index.html helpers", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(code, /(?<![\w.])alert\(/, "a native alert() is left");
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
-      assert.equal(calls.length, 36, "the thirty-six messages the page shows (one is the refusal to keep an add for later)");
+      assert.equal(calls.length, 38, "the thirty-eight messages the page shows (three are refusals to keep an add or a change for later)");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 16, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
-      assert.equal(warnings.length, 19, "every validation message is a warning alert");
+      assert.equal(warnings.length, 21, "every validation message is a warning alert");
     });
     it("hides Cancel for an alert, shows it again for a question and focuses the button", () => {
       const fn = html.slice(html.indexOf("function openConfirm"), html.indexOf("function askConfirm"));
@@ -4063,9 +4063,10 @@ describe("offline add queue display (page)", () => {
       assert.ok(body.indexOf("loadAddQueue()") < body.indexOf("queueWithout("));
     });
     it("draws the stored queue at start-up, before sign-in, and wires Discard once", () => {
-      const start = html.indexOf("loadAddQueue();\n      renderAddQueue();");
+      const start = html.indexOf("loadAddQueue();\n      loadActionQueue();\n      loadClockOffset();\n      renderAddQueue();");
       assert.ok(start > 0 && start < html.indexOf("      initAuth();\n"));
       assert.equal(html.split("\"[data-queue-discard]\"").length - 1, 1);
+      assert.equal(html.split("\"[data-action-discard]\"").length - 1, 1);
     });
   });
 
@@ -4188,23 +4189,119 @@ describe("offline add queue display (page)", () => {
       assert.match(settle, /queueWithout\(addQueue, requestId\)/);
     });
     it("drains on sign-in after the first list, on the online event and after any successful call", () => {
-      assert.match(html, /fetchTasks\(\)\.then\(drainAddQueue\);/);
+      assert.match(html, /fetchTasks\(\)\.then\(drainAllQueues\);/);
       // while the saved list is on screen the list is read again first, so an older list cannot replace a task the queue adds
-      assert.match(html, /window\.addEventListener\("online", \(\) => \{ if \(savedListAt !== null\) fetchTasks\(\)\.then\(drainAddQueue\); else drainAddQueue\(\); \}\);/);
+      assert.match(html, /window\.addEventListener\("online", \(\) => \{ if \(savedListAt !== null\) fetchTasks\(\)\.then\(drainAllQueues\); else drainAllQueues\(\); \}\);/);
       const api = body("apiFetch").replace(/^[\s\S]*?if \(!res\.ok\)/, "");
-      assert.match(api, /setTimeout\(drainAddQueue, 0\)[\s\S]*return res;/);
+      assert.match(api, /setTimeout\(drainAllQueues, 0\)[\s\S]*return res;/);
     });
     it("has a Retry button on FAILED cards that resets the item and drains", () => {
-      assert.match(body("renderAddQueue"), /view\.failed \? `<button[^`]*data-queue-retry/);
+      assert.match(body("renderAddQueue"), /view\.failed \? `<button[^`]*\$\{retryAttr\}/);
+      assert.match(body("renderAddQueue"), /"data-queue-retry", "data-queue-discard"/);
       const retry = body("retryQueuedAdd");
       assert.match(retry, /queueRetry\(addQueue, requestId\)/);
-      assert.ok(retry.indexOf("saveAddQueue(") < retry.indexOf("drainAddQueue()"));
+      assert.ok(retry.indexOf("saveAddQueue(") < retry.indexOf("drainAllQueues()"));
       assert.equal(html.split("\"[data-queue-retry]\"").length - 1, 1);
     });
     it("does not let the item on its way be discarded", () => {
-      assert.match(body("renderAddQueue"), /data-queue-discard="\$\{id\}"\$\{off\}/);
+      assert.match(body("renderAddQueue"), /\$\{discardAttr\}="\$\{id\}"\$\{off\}/);
+      assert.match(body("renderAddQueue"), /"data-queue-retry", "data-queue-discard"/);
       const discard = body("discardQueuedAdd");
       assert.equal((discard.match(/sendingRequestId === requestId\) return;/g) || []).length, 2);
+    });
+  });
+
+  describe("offline timer changes (page)", () => {
+    const body = (name) => {
+      const from = html.indexOf(`function ${name}(`);
+      assert.ok(from > 0, `${name} not found`);
+      return html.slice(from, html.indexOf("\n    }\n", from));
+    };
+    it("queues Start, Pause and Abort after a connection failure, and shows any other failure as before", () => {
+      const fn = body("sendTimerAction");
+      assert.match(fn, /if \(isNetworkError\(err, navigator\.onLine\)\) queueTimerAction\(task, action, extra, false\);\s*else askAlert\(failureText\("Failed to change the timer", err\), \{ tone: "error" \}\);/);
+      assert.ok(fn.indexOf("queueTimerAction(task, action, extra, true)") < fn.indexOf("apiFetch(TIMER_URL"), "waiting changes go first, before any call");
+      assert.match(fn, /hasPendingActions\(actionQueue\) \|\| actionDraining/);
+      assert.match(fn, /noteServerTime\(data\)/);
+    });
+    it("books a held change at the device's clock corrected by the offset and shows it on top of what is shown", () => {
+      const fn = body("queueTimerAction");
+      assert.match(fn, /makeQueuedAction\(\{ kind: "TIMER", taskId: task\.id, title: task\.title, fields, now: Date\.now\(\), offset: clockOffsetMs \}\)/);
+      assert.match(fn, /withPendingActions\(allTasks, \[\], \[item\]\)/);
+      assert.match(fn, /capSeconds/);
+      assert.match(fn, /actionQueueRefusal\(actionQueue\.length, actionQueueUsable\)/);
+      assert.match(fn, /if \(behind && navigator\.onLine\) setTimeout\(drainAllQueues, 0\)/);
+    });
+    it("keeps the saved copy of the list server-only while the page shows the waiting changes on top", () => {
+      const set = body("setTasks");
+      assert.match(set, /serverTasks = list;\s*allTasks = shownTasks\(list\);/);
+      assert.match(set, /saveTaskCache\(list\)/);
+      assert.match(body("shownTasks"), /withPendingActions\(withoutTasks\(list, pendingRemovals\), \[\], actionQueue\)\.tasks/);
+      assert.match(body("fetchTasks"), /serverTasks = saved\.tasks;\s*allTasks = shownTasks\(saved\.tasks\);/);
+    });
+    it("sends the actions after the add queue, oldest first, with the time they were made, in rounds until none is waiting", () => {
+      assert.match(body("drainAllQueues"), /await drainAddQueue\(\);\s*await drainActionQueue\(\);/);
+      const send = body("sendQueuedAction");
+      assert.match(send, /\{ taskId: item\.taskId, action: item\.fields\.action, at: item\.at \}/);
+      assert.match(send, /capSeconds/);
+      assert.match(send, /err\.keepQueued = true/);
+      const drain = body("drainActionQueue");
+      assert.match(drain, /drainQueue\(actionQueue, sendQueuedAction, \(\) => navigator\.onLine, settleQueuedAction\)/);
+      assert.match(drain, /if \(result\.stopped\) break;/);
+      assert.match(drain, /round < 20/);
+      assert.match(drain, /if \(actionDraining \|\| !firebaseAuth \|\| !firebaseAuth\.currentUser\) return;/);
+    });
+    it("takes a sent action out of the queue before its list is shown, so it is not replayed on its own result", () => {
+      const send = body("sendQueuedAction");
+      assert.ok(send.indexOf("saveActionQueue(queueWithout(actionQueue, item.requestId))") < send.indexOf("setTasks(data.tasks)"));
+    });
+    it("marks a refused action FAILED with its text and stops showing it", () => {
+      const settle = body("settleQueuedAction");
+      assert.match(settle, /actionQueue\.map\(a => a\.requestId === requestId \? item : a\)/);
+      assert.match(settle, /if \(item\) refreshShownTasks\(\)/);
+    });
+    it("draws action cards after the add cards, with Retry on a FAILED one and no Discard while one is on its way", () => {
+      const fn = body("renderAddQueue");
+      assert.match(fn, /box\.hidden = addQueue\.length === 0 && actionQueue\.length === 0/);
+      assert.match(fn, /actionCardView\(action, action\.requestId === sendingActionId\)/);
+      assert.ok(fn.indexOf("queueCardView(") < fn.indexOf("actionCardView("));
+      assert.match(fn, /"data-action-retry", "data-action-discard"/);
+    });
+    it("asks before discarding an action, takes its dependents with it and refuses one on its way", () => {
+      const fn = body("discardQueuedAction");
+      assert.match(fn, /actionDiscardPrompt\(action, dependents\)/);
+      assert.equal((fn.match(/sendingActionId === requestId\) return;/g) || []).length, 2);
+      assert.ok(fn.indexOf("askConfirm") < fn.indexOf("loadActionQueue()"));
+      assert.ok(fn.indexOf("loadActionQueue()") < fn.indexOf("cancelActions(actionQueue, requestId).actions"));
+    });
+    it("retries a FAILED action by making it PENDING again and sending the queues", () => {
+      const fn = body("retryQueuedAction");
+      assert.match(fn, /queueRetry\(actionQueue, requestId\)/);
+      assert.ok(fn.indexOf("saveActionQueue(") < fn.indexOf("drainAllQueues()"));
+      assert.equal(html.split("\"[data-action-retry]\"").length - 1, 1);
+    });
+    it("keeps every access to the action queue's storage in try/catch", () => {
+      for (const name of ["loadActionQueue", "saveActionQueue"]) {
+        assert.match(body(name), /try \{[\s\S]*localStorage\.[a-zA-Z]+Item\(ACTION_QUEUE_KEY[\s\S]*\} catch/, name);
+        assert.match(body(name), /actionQueueUsable = false/, name);
+      }
+    });
+    it("keeps the clock offset from the server's replies and across reloads", () => {
+      const fn = body("noteServerTime");
+      assert.match(fn, /clockOffsetFrom\(data && data\.serverTime, Date\.now\(\)\)/);
+      assert.match(fn, /CLOCK_OFFSET_KEY/);
+      assert.match(body("loadClockOffset"), /parseClockOffset\(localStorage\.getItem\(CLOCK_OFFSET_KEY\)\)/);
+      assert.match(body("fetchTasks"), /noteServerTime\(data\)/);
+    });
+    it("shows a Waiting to send chip on a task with a PENDING change, in a colour that has a dark value", () => {
+      assert.match(body("taskItemHtml"), /waitingIds\.has\(t\.id\) \? `<span class="chip held-chip"[^`]*Waiting to send/);
+      assert.match(body("saveActionQueue"), /waitingIds = waitingTaskIds\(actionQueue\)/);
+      assert.match(body("loadActionQueue"), /waitingIds = waitingTaskIds\(actionQueue\)/);
+    });
+    it("measures timers and the long-timer warning on the server's clock", () => {
+      assert.match(html, /function elapsedSecondsOf\(task, nowMs = serverNow\(\)\)/);
+      assert.match(html, /function runningSeconds\(task, nowMs = serverNow\(\)\)/);
+      assert.equal((html.match(/longTimerWarning\(task, serverNow\(\), timerWarnHours\(\)\)/g) || []).length, 2);
     });
   });
 
