@@ -108,6 +108,24 @@ describe("jobsheetPdf.js", () => {
       assert.equal(pages(pdf), 1);
     });
   });
+  describe("comments", () => {
+    const written = (n) => Array.from({length: n}, (_, i) => ({id: `comment-${String(i).padStart(4, "0")}`, at: Date.parse("2026-10-12T00:00:00Z") + i * 3600e3, text: `Update ${i} Māori 🌿 ` + "word ".repeat(30)}));
+    it("renders entries that carry a timeline, one page for a task", async () => {
+      const pdf = await render({type: "TASK"}, rows(1, {comments: written(3)}));
+      assert.equal(pdf.subarray(0, 5).toString("latin1"), "%PDF-");
+      assert.equal(pages(pdf), 1);
+    });
+    it("makes the sheet longer by the timeline it carries, over several pages when it is long", async () => {
+      const without = pages(await render({type: "PROJECT"}, rows(8)));
+      const withComments = pages(await render({type: "PROJECT"}, rows(8, {comments: written(6)})));
+      assert.ok(withComments > without);
+      assert.ok(pages(await render({type: "TASK"}, rows(1, {comments: written(200)}))) >= 3);
+    });
+    it("renders a comment-only entry and a very long unbroken comment", async () => {
+      assert.equal(pages(await render({type: "TASK"}, rows(1, {description: undefined, comments: written(1)}))), 1);
+      assert.ok(pages(await render({type: "TASK"}, rows(1, {comments: [{id: "comment-0001", at: Date.parse("2026-10-12T00:00:00Z"), text: "W".repeat(2000)}]}))) >= 1);
+    });
+  });
   it("renders the client's details, with or without contractor information", async () => {
     const client = {name: "Jo Smith", location: {name: "1 Beach Rd, Whangaparāoa"}, phone: "021 000 000", email: "jo@example.co.nz"};
     const draw = (request, r, contractorInfo) => renderJobSheetPdf(buildJobSheet({request, rows: r, project, client, timeZone: NZ, now, contractorInfo}));

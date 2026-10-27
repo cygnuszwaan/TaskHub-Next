@@ -55,7 +55,7 @@ npm run migrate-client-addresses -- --apply
 
 A client with no location gets its old address as its location text (pick the address in the Clients form to add a map position); a client that already has a location keeps it and the dry run lists the address being dropped, so you can copy it elsewhere first. Safe to run again.
 
-**Moving stored comments to descriptions** (one-off, once, right after deploying the release that renamed the field)
+**Moving stored comments to descriptions** (one-off, once; run it before deploying the release that adds comments, which no longer reads a text `comments`)
 
 ```
 cd functions

@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {MAX_DESCRIPTION_LENGTH, normalizeDescription, readDescription} = require("../description");
+const {MAX_DESCRIPTION_LENGTH, normalizeDescription} = require("../description");
 const {applyCompletedEdit} = require("../completedEdit");
 const {normalizeStep} = require("../proposal");
 const {applyDirectUpdate, completeInList, mergeTaskChanges, manualTaskChange} = require("../tasks");
@@ -88,43 +88,25 @@ describe("description.js", () => {
       assert.equal("description" in completeInList([task], "t1", "2026-10-22", makeId).spawned, false);
     });
   });
-  describe("an older page's comments", () => {
-    it("readDescription takes description first, then a non-empty comments text, else nothing", () => {
-      assert.deepEqual(readDescription({description: "New", comments: "Old"}), {has: true, value: "New"});
-      assert.deepEqual(readDescription({description: null, comments: "Old"}), {has: true, value: null});
-      assert.deepEqual(readDescription({comments: "Old"}), {has: true, value: "Old"});
-      for (const comments of ["", "   ", null, 5, ["a"], [{id: "c1", at: 1, text: "x"}], undefined]) assert.deepEqual(readDescription({comments}), {has: false}, JSON.stringify(comments));
-      for (const fields of [undefined, null, "text", [], {}, {title: "x"}]) assert.deepEqual(readDescription(fields), {has: false}, JSON.stringify(fields));
+  describe("comments are not a description", () => {
+    it("a direct edit never takes a comments value as the description or writes it, text or list", () => {
+      for (const comments of ["  Ring first ", "", null, [{id: "comment-0001", at: 1, text: "x"}]]) {
+        const next = applyDirectUpdate(withDescription(), {comments});
+        assert.equal(next.description, withDescription().description, JSON.stringify(comments));
+        assert.equal("comments" in next, false, JSON.stringify(comments));
+      }
     });
-    it("a direct edit sets the description from a non-empty comments text and never writes a comments key", () => {
-      const next = applyDirectUpdate(base(), {comments: "  Ring first "});
-      assert.equal(next.description, "Ring first");
-      assert.equal("comments" in next, false);
+    it("a direct edit keeps the comments a task holds", () => {
+      const comments = [{id: "comment-0001", at: 1760000000000, text: "Rang the client"}];
+      assert.deepEqual(applyDirectUpdate({...base(), comments}, {title: "Renamed", comments: []}).comments, comments);
     });
-    it("a direct edit ignores an empty comments box, so an older page cannot erase a description", () => {
-      for (const comments of ["", "  ", null]) assert.equal(applyDirectUpdate(withDescription(), {comments}).description, withDescription().description, JSON.stringify(comments));
-    });
-    it("a direct edit ignores comments of any other type, which are not an old description", () => {
-      const next = applyDirectUpdate(withDescription(), {comments: [{id: "c1", at: 1, text: "x"}]});
-      assert.equal(next.description, withDescription().description);
-      assert.equal("comments" in next, false);
-    });
-    it("description wins when both are sent", () => {
-      assert.equal(applyDirectUpdate(base(), {description: "New", comments: "Old"}).description, "New");
-    });
-    it("a manual entry takes comments as its description", () => {
+    it("a manual entry, a completed entry's edit and a suggested step ignore comments", () => {
       const merged = mergeTaskChanges([], [manualTaskChange({title: "Fix gate", comments: " Hinge is loose "})], makeId, [], {description: true});
-      assert.equal(merged.tasks[0].description, "Hinge is loose");
+      assert.equal("description" in merged.tasks[0], false);
       assert.equal("comments" in merged.tasks[0], false);
-    });
-    it("a completed entry's edit takes comments as its description", () => {
       const row = {title: "Mow lawn", priority: "LOW", estimatedMinutes: 30, tags: [], completedAt: new Date("2026-10-20T01:00:00Z")};
-      assert.deepEqual(applyCompletedEdit(row, {comments: " Front only "}, {timeZone: "Pacific/Auckland"}), {set: {description: "Front only"}, remove: []});
-      assert.deepEqual(applyCompletedEdit({...row, description: "x"}, {comments: ""}, {timeZone: "Pacific/Auckland"}), {error: "Nothing to change"});
-    });
-    it("a suggested project's step takes comments as its description", () => {
-      assert.equal(normalizeStep({title: "Dig", comments: " Mind the pipes "}).description, "Mind the pipes");
-      assert.equal(normalizeStep({title: "Dig", description: "New", comments: "Old"}).description, "New");
+      assert.deepEqual(applyCompletedEdit(row, {comments: " Front only "}, {timeZone: "Pacific/Auckland"}), {error: "Nothing to change"});
+      assert.equal("description" in normalizeStep({title: "Dig", comments: " Mind the pipes "}), false);
       assert.equal("comments" in normalizeStep({title: "Dig", comments: "x"}), false);
     });
   });

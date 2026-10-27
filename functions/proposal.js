@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {normalizeProjectName, addProject} = require("./projects");
 const {cleanTags, mergeTaskChanges} = require("./tasks");
-const {normalizeDescription, readDescription} = require("./description");
+const {normalizeDescription} = require("./description");
 
 // A suggested project has at least this many steps and at most this many.
 const MIN_STEPS = 3;
@@ -40,8 +40,7 @@ function normalizeStep(raw) {
     estimatedMinutes: Number.isFinite(raw.estimatedMinutes) && raw.estimatedMinutes > 0 ? Math.round(raw.estimatedMinutes) : DEFAULT_ESTIMATE,
     tags: cleanTags(raw.tags),
   };
-  const sent = readDescription(raw); // an accepted suggestion shown by an older page still names it `comments`
-  const description = sent.has ? normalizeDescription(sent.value) : undefined;
+  const description = normalizeDescription(raw.description);
   if (typeof description === "string") step.description = description;
   return step;
 }

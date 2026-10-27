@@ -15,14 +15,4 @@ function normalizeDescription(value) {
   return text === "" ? null : text;
 }
 
-// The description a client sent in `fields` (an edit's fields, a manual entry, a step): {has, value}, `has` false when it sent none.
-// `description` is the field. An older page's `comments`, when it is non-empty text, is read as the description if `description` is
-// absent; an empty or null `comments` is ignored, so an older page that sends its empty box with every edit cannot erase a description.
-function readDescription(fields) {
-  if (!fields || typeof fields !== "object" || Array.isArray(fields)) return {has: false};
-  if ("description" in fields) return {has: true, value: fields.description};
-  if (typeof fields.comments === "string" && fields.comments.trim() !== "") return {has: true, value: fields.comments};
-  return {has: false};
-}
-
-module.exports = {MAX_DESCRIPTION_LENGTH, normalizeDescription, readDescription};
+module.exports = {MAX_DESCRIPTION_LENGTH, normalizeDescription};

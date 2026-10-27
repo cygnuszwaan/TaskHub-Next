@@ -5,7 +5,8 @@ const {randomUUID} = require("crypto");
 const {applyProjectFields, projectFieldsOf} = require("./projects");
 const {normalizeMaterials} = require("./materials");
 const {normalizeSnooze} = require("./snooze");
-const {normalizeDescription, readDescription} = require("./description");
+const {normalizeDescription} = require("./description");
+const {commentsOf, withComments} = require("./comments");
 const {normalizeTravelKm} = require("./travel");
 const {normalizePhone, normalizeEmail} = require("./contact");
 const {normalizeLocation} = require("./location");
@@ -38,7 +39,7 @@ function normalizeRecurrence(value) {
 // validated by normalizeMaterials (null or an empty list removes it, an unusable value leaves it as it was; new
 // items get ids from `makeId`); and `snoozedUntil`, validated by normalizeSnooze (null or an empty string removes it, an
 // unusable value leaves it as it was); and `description`, validated by normalizeDescription (null or empty text removes it, a
-// non-string leaves it as it was; see readDescription for an older page's `comments`); and `travelKm`, validated by normalizeTravelKm (null, empty text or 0 removes it, an unusable value
+// non-string leaves it as it was); and `travelKm`, validated by normalizeTravelKm (null, empty text or 0 removes it, an unusable value
 // leaves it as it was); and `phone` and `email`, validated by normalizePhone and normalizeEmail (null or empty text removes it, an unusable value
 // leaves it as it was); and `location`, validated by normalizeLocation (null, blank text or an empty object removes it, an unusable value leaves it as it was). `addedAt`, `trackedSeconds`, `firstStartedAt`, `timerStartedAt`, `active`, `order` and `jobNumber` are never changed by an edit.
 // Pure apart from `makeId`: the input is not modified.
@@ -50,7 +51,7 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   delete rest.materials;
   delete rest.snoozedUntil;
   delete rest.description;
-  delete rest.comments;
+  delete rest.comments; // comments change only through addComment and deleteComment
   delete rest.travelKm;
   delete rest.phone;
   delete rest.email;
@@ -82,9 +83,8 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
     if (typeof snoozedUntil === "string") next.snoozedUntil = snoozedUntil;
     else if (snoozedUntil === null) delete next.snoozedUntil;
   }
-  const sentDescription = readDescription(fields);
-  if (sentDescription.has) {
-    const description = normalizeDescription(sentDescription.value);
+  if (fields && "description" in fields) {
+    const description = normalizeDescription(fields.description);
     if (typeof description === "string") next.description = description;
     else if (description === null) delete next.description;
   }
@@ -164,8 +164,7 @@ function manualTaskChange(manual) {
   for (const key of ["recurrence", "projectId", "projectOrder", "materials", "travelKm", "phone", "email", "location", "history"]) {
     if (manual[key] !== undefined) change[key] = manual[key];
   }
-  const sentDescription = readDescription(manual);
-  if (sentDescription.has && sentDescription.value !== undefined) change.description = sentDescription.value;
+  if (manual.description !== undefined) change.description = manual.description;
   return change;
 }
 
@@ -393,14 +392,22 @@ function isUndoable(record, now) {
 // The next occurrence a completion created is taken off again. The task returns with its own id, rank and fields; its
 // calendar event was deleted with it, so its schedule fields are dropped (the next run schedules it again), unless it is
 // pinned to a personal-calendar event (`locked`), whose event was never touched.
+// `archiveComments`, when given (an array: the comments the completion's archive row holds now, which may include ones added to the
+// entry after the completion), replace the comments the task had when it was removed, so none written meanwhile is lost; undefined keeps them.
 // Returns null when the task is already on the list (nothing to restore), otherwise {tasks, restored}.
-function undoInList(tasks, record) {
+function undoInList(tasks, record, archiveComments) {
   const task = record && record.task;
   if (!task || typeof task.id !== "string" || tasks.some((t) => t.id === task.id)) return null;
   const rest = record.spawnedId ? tasks.filter((t) => t.id !== record.spawnedId) : tasks;
   const restored = {...task};
   delete restored.timerStartedAt; // a restored task never comes back with its timer running or as the active task
   delete restored.active;
+  if (Array.isArray(archiveComments)) return finishUndo(withComments(restored, commentsOf({comments: archiveComments})), rest);
+  return finishUndo(restored, rest);
+}
+
+// The restored task with its schedule fields dropped (unless locked) and the list it goes back on: undoInList's result.
+function finishUndo(restored, rest) {
   if (!restored.locked) {
     delete restored.googleCalendarEventId;
     delete restored.scheduledStart;

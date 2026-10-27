@@ -31,6 +31,7 @@ const {SUMMARY_MAX_ROWS, PROJECT_MAX_ROWS, clampLimit, serializeCompleted, summa
 const {isArchiveId, applyCompletedEdit} = require("./completedEdit");
 const {reopenTask} = require("./reopen");
 const {normalizePhoto, photoOwner, canAddPhoto, serializePhoto, sortPhotos} = require("./photos");
+const {commentsOf, commentTarget, addComment, removeComment, withComments} = require("./comments");
 const {EXPORT_MAX_ROWS, buildExport} = require("./export");
 const {CSV_MAX_ROWS, parseCsvRequest, buildCompletedCsv} = require("./csvExport");
 const {parseJobSheetRequest, buildJobSheet, sheetArchiveIds, gatherPhotos, withPhotos} = require("./jobsheet");
@@ -986,6 +987,73 @@ exports.deleteCompletedPhoto = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(asyn
   }
 }));
 
+// 6c. Endpoints: comments on tasks (see comments.js)
+// addComment: body {taskId | archiveId, id, text, at?}: adds one comment to a queued task or a completed entry (exactly one of the two
+// ids), `id` made by the page (so a repeat after a lost reply adds nothing: `duplicate: true`), `text` one entry (trimmed, at most 2000
+// characters; 400 when blank), `at` the epoch milliseconds when it was written (resolveActionTime: missing counts as now). 404 for an
+// unknown task or entry, 400 with the reason for an unusable value or a task that already holds the most comments.
+// deleteComment: body {taskId | archiveId, id}, `id` the comment's id; removes it (`removed: false` when it is not there, so a repeat is
+// harmless). Both respond {success, comments, serverTime} (the item's comments as they now are) plus `tasks` (the list) for a queued task.
+// A task's change is a transaction on the task list, an entry's a transaction on its archive row.
+async function changeComments(target, change) {
+  if (target.field === "taskId") {
+    return updateTaskList((tasks) => {
+      const task = tasks.find((t) => t.id === target.id);
+      if (!task) return {current: tasks, notFound: true};
+      const done = change(task.comments);
+      if (done.error) return {current: tasks, error: done.error};
+      if (!done.added && !done.removed) return {current: tasks, comments: done.comments, unchanged: true};
+      const next = tasks.map((t) => (t.id === target.id ? withComments(t, done.comments) : t));
+      return {tasks: next, current: next, comments: done.comments, added: done.added, removed: done.removed};
+    });
+  }
+  const ref = db.collection("completed_tasks").doc(target.id);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return {notFound: true};
+    const done = change(snap.data().comments);
+    if (done.error) return {error: done.error};
+    if (!done.added && !done.removed) return {comments: done.comments, unchanged: true};
+    tx.update(ref, {comments: done.comments.length > 0 ? done.comments : admin.firestore.FieldValue.delete()});
+    return {comments: done.comments, added: done.added, removed: done.removed};
+  });
+}
+
+function commentReply(res, target, result, extra) {
+  if (result.notFound) return res.status(404).send({error: target.field === "taskId" ? "Task not found" : "Completed task not found"});
+  if (result.error) return res.status(400).send({error: result.error});
+  return res.status(200).send({success: true, comments: result.comments, ...(target.field === "taskId" ? {tasks: result.current} : {}), ...extra, serverTime: Date.now()});
+}
+
+exports.addComment = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const target = commentTarget(req.body);
+    if (target.error) return res.status(400).send({error: target.error});
+    const when = resolveActionTime(req.body.at, Date.now());
+    if (when.error) return res.status(400).send({error: when.error});
+    const comment = {id: req.body.id, text: req.body.text, at: when.at};
+    const result = await changeComments(target, (current) => addComment(current, comment));
+    commentReply(res, target, result, result.unchanged ? {duplicate: true} : {});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+exports.deleteComment = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const target = commentTarget(req.body);
+    if (target.error) return res.status(400).send({error: target.error});
+    const id = req.body.id;
+    if (typeof id !== "string" || id === "") return res.status(400).send({error: "Missing id"});
+    const result = await changeComments(target, (current) => removeComment(current, id));
+    commentReply(res, target, result, {removed: !result.unchanged});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
 // 7. Endpoint: Direct Update / Delete
 // An UPDATE's `snoozedUntil` (a YYYY-MM-DD date; null or "" removes it) keeps the task off the schedule before that day.
 // An UPDATE's `newProject` (a name) creates that project in the same transaction and puts the task in it (overriding `projectId`,
@@ -1189,9 +1257,12 @@ exports.undoRemove = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, re
     // any added in between are moved after the commit.
     const backToTask = (ref) => ref.update({taskId: record.task.id, archiveId: admin.firestore.FieldValue.delete()});
     const photoRefs = record.archiveId ? (await PHOTOS.where("archiveId", "==", record.archiveId).get()).docs.map((d) => d.ref) : [];
+    // So do the entry's comments, including any added to it after the completion
+    const archiveRow = record.archiveId ? await db.collection("completed_tasks").doc(record.archiveId).get() : null;
+    const archiveComments = archiveRow && archiveRow.exists ? commentsOf(archiveRow.data()) : undefined;
     const result = await updateTaskList((tasks, tx, {addRequests}) => {
       if (isRepeatedRequest({ids: addRequests}, requestId)) return {current: tasks, duplicate: true};
-      const undone = undoInList(tasks, record);
+      const undone = undoInList(tasks, record, archiveComments);
       tx.delete(LAST_REMOVED_REF);
       if (!undone) return {current: tasks};
       if (record.archiveId) {

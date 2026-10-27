@@ -6,6 +6,10 @@ Ideas kept in sight, not started and not committed to. Each goal's steps are in 
 
 1. Only when the archive nears 1000 completions, or a job done rarely drops out of the completed-task search (`getCompletedTemplates` and the History summary each read at most the newest 1000 `completed_tasks` rows; the History project hours also read every archived row of each current project, up to 5000 each, on every load, which the same step can avoid by keeping each project's weekly totals on its own document): add a `jobs/{titleKey}` summary document, one per distinct title (`titleKey` from `templates.js`), `{title, priority, estimatedMinutes, tags, recurrence, projectId, projectOrder, materials, description, completedCount, recentSeconds, lastCompletedAt}`. `completeTask` updates it in the same transaction as the archive write, `undoRemove` rolls it back, and `getCompletedTemplates` reads it instead of scanning the archive (one read per job, no 1000-row cap). Add a one-off backfill from the existing archive and include `jobs` in `exportData`. `completed_tasks` stays one append-only row per completion, since the History tab queries by `completedAt` and the per-completion snapshots depend on it; do not merge a job's completions into one document with an array (unbounded growth against the 1 MiB document limit, a whole-document rewrite per completion, no range queries over elements).
 
+### Comments on the Active task
+
+1. A shortcut button on the Active task box that adds a comment without opening the edit modal, and a collapsible timeline there.
+
 ### GST on invoices
 
 Not needed while the owner is not GST registered; prices on job sheets carry no GST until then.

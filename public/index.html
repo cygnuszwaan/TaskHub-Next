@@ -200,6 +200,16 @@
     .pager .pager-gap { color: var(--text-faint); }
     .completed-description { font-size: 12px; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 4px; }
     .photo-note { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+    .comment-list { max-height: 240px; overflow-y: auto; margin-bottom: 8px; }
+    .comment-entry { padding: 6px 0; border-bottom: 1px solid var(--divider); }
+    .comment-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .comment-when { font-size: 12px; color: var(--text-muted); }
+    .comment-text { font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .comment-delete { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px; padding: 2px 6px; }
+    .comment-delete:disabled { opacity: 0.4; cursor: default; }
+    .comment-add { display: flex; gap: 8px; align-items: flex-start; }
+    .comment-add textarea { flex: 1; }
+    .task-comment, .completed-comment { margin-top: 6px; font-size: 13px; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .photo-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
     .photo-thumb { padding: 0; border: none; background: var(--chip-bg); border-radius: 6px; line-height: 0; overflow: hidden; cursor: pointer; }
     .photo-thumb img { display: block; width: 72px; height: 72px; object-fit: cover; }
@@ -921,6 +931,15 @@
       </details>
 
       <div class="form-group">
+        <label>Comments <small style="font-weight:normal; color:var(--text-faint);">(added at once, not on Save)</small></label>
+        <div id="editComments" class="comment-list"></div>
+        <div class="comment-add">
+          <textarea id="editCommentText" rows="2" maxlength="2000" placeholder="Add a comment"></textarea>
+          <button type="button" class="btn-secondary" id="editCommentAdd" onclick="addCommentClick('edit')">Add</button>
+        </div>
+      </div>
+
+      <div class="form-group">
         <label>Photos <small style="font-weight:normal; color:var(--text-faint);">(added at once, not on Save)</small></label>
         <div id="editPhotos"></div>
       </div>
@@ -1042,6 +1061,15 @@
         <div style="display: flex; gap: 6px;">
           <input type="date" id="ceDate" style="flex: 1;">
           <input type="time" id="ceTime" style="flex: 1;">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Comments</label>
+        <div id="ceComments" class="comment-list"></div>
+        <div class="comment-add">
+          <textarea id="ceCommentText" rows="2" maxlength="2000" placeholder="Add a comment"></textarea>
+          <button type="button" class="btn-secondary" id="ceCommentAdd" onclick="addCommentClick('ce')">Add</button>
         </div>
       </div>
 
@@ -1214,6 +1242,8 @@
     const GET_PHOTOS_URL = endpoint("getCompletedPhotos");
     const ADD_PHOTO_URL = endpoint("addCompletedPhoto");
     const DELETE_PHOTO_URL = endpoint("deleteCompletedPhoto");
+    const ADD_COMMENT_URL = endpoint("addComment");
+    const DELETE_COMMENT_URL = endpoint("deleteComment");
     const PUSH_TOKEN_URL = endpoint("updatePushToken");
     const TEST_PUSH_URL = endpoint("sendTestNotification");
 
@@ -2542,14 +2572,14 @@
     // Completed tasks are listed this many to a page.
     const COMPLETED_PAGE_SIZE = 50;
     // Whether a completed task matches a search: every word of `query` (case-insensitive, any order, part of a word is
-    // enough) must appear somewhere in its title, tags, materials, description, project name or its project's client name. Empty matches everything.
+    // enough) must appear somewhere in its title, tags, materials, description, comments, project name or its project's client name. Empty matches everything.
     function matchesCompletedSearch(row, query, projectName) {
       // A job-number word is matched exactly (so 12 does not find 123); a bare hash restricts nothing.
       const { numbers, words: rest } = jobNumberWords(query);
       if (numbers.some(n => n !== row.jobNumber)) return false;
       if (rest.length === 0) return true;
       const text = (v) => (typeof v === "string" ? v : "");
-      const hay = [text(row.title), ...(Array.isArray(row.tags) ? row.tags : []).map(text), ...completedMaterialTexts(row), text(row.description), text(projectName)].join("\n").toLowerCase();
+      const hay = [text(row.title), ...(Array.isArray(row.tags) ? row.tags : []).map(text), ...completedMaterialTexts(row), text(row.description), ...commentsOf(row).map(c => c.text), text(projectName)].join("\n").toLowerCase();
       return rest.every(w => hay.includes(w));
     }
     // One page of the completed tasks that match a search (the list is newest first and keeps that order). `page` is
@@ -3194,23 +3224,6 @@
       return err.name === "TypeError" && /failed to fetch|networkerror|load failed|network request failed|network connection was lost|internet connection appears to be offline/i.test(String(err.message || ""));
     }
 
-    // A task or History entry as the page now names it: a saved copy or a held action written when a task's text was still called
-    // `comments` has that text as its `description` (kept when it has one already) and no `comments`. Anything else is returned as it is,
-    // so a `comments` that is not text is never touched. Pure: the input is not modified.
-    function withDescriptionKey(item) {
-      if (!item || typeof item !== "object" || Array.isArray(item) || typeof item.comments !== "string") return item;
-      const { comments, ...rest } = item;
-      if (typeof rest.description === "string" && rest.description !== "") return rest;
-      return comments.trim() === "" ? rest : { ...rest, description: comments };
-    }
-    // The same for the `fields` of a held EDIT, where null (no text) is a value too.
-    function withDescriptionField(fields) {
-      if (!fields || typeof fields !== "object" || Array.isArray(fields) || !("comments" in fields)) return fields;
-      const { comments, ...rest } = fields;
-      if ("description" in rest) return rest;
-      return comments === null || typeof comments === "string" ? { ...rest, description: comments } : fields;
-    }
-
     // The saved copy of the task list, kept in localStorage under TASK_CACHE_KEY so the Queue can still show the last list the
     // server sent when the connection is down. It belongs to one signed-in account (`uid`) and is only ever read back for it.
     const TASK_CACHE_KEY = "taskhub-task-cache";
@@ -3223,7 +3236,7 @@
       try {
         const data = JSON.parse(text);
         if (!data || data.v !== 1 || data.uid !== uid || !Array.isArray(data.tasks) || !Number.isFinite(data.savedAt)) return null;
-        return { tasks: data.tasks.filter(t => t && typeof t === "object" && typeof t.id === "string").map(withDescriptionKey), savedAt: data.savedAt };
+        return { tasks: data.tasks.filter(t => t && typeof t === "object" && typeof t.id === "string"), savedAt: data.savedAt };
       } catch (e) { return null; }
     }
     // How long ago a copy was saved, in words: "just now", "5 minutes ago", "3 hours ago", "2 days ago".
@@ -3255,7 +3268,7 @@
       try {
         const data = JSON.parse(text);
         if (!data || data.v !== 1 || data.uid !== uid || !Array.isArray(data.rows) || !Number.isFinite(data.savedAt)) return null;
-        const rows = data.rows.filter(r => r && typeof r === "object").slice(0, COMPLETED_CACHE_ROWS).map(withDescriptionKey);
+        const rows = data.rows.filter(r => r && typeof r === "object").slice(0, COMPLETED_CACHE_ROWS);
         return { rows, savedAt: data.savedAt, limited: data.limited === true || data.rows.length > COMPLETED_CACHE_ROWS };
       } catch (e) { return null; }
     }
@@ -3267,7 +3280,8 @@
     // the fields in OFFLINE_COMPLETED_FIELDS (the ones a change made offline can be kept for) stay enabled.
     const COMPLETED_FORM_CONTROLS = {
       cePriority: "priority", ceTracked: "trackedMinutes", ceTags: "tags", ceProject: "projectId", ceMaterials: "materials", ceTravel: "travelKm",
-      ceLocation: "location", cePlaceSearchBtn: "location", ceLocationClearBtn: "location", cePhone: "phone", ceEmail: "email", ceDescription: "description", ceDate: "date", ceTime: "time"
+      ceLocation: "location", cePlaceSearchBtn: "location", ceLocationClearBtn: "location", cePhone: "phone", ceEmail: "email", ceDescription: "description", ceDate: "date", ceTime: "time",
+      ceCommentText: "comments", ceCommentAdd: "comments"
     };
     const OFFLINE_COMPLETED_FIELDS = ["description"];
     function completedFieldDisabled(field, offline) {
@@ -3590,6 +3604,59 @@
       return next;
     }
 
+    // Comments (functions/comments.js): {id, at, text} entries on a queued task or a History entry, `at` the epoch milliseconds when written.
+    const MAX_COMMENT_LENGTH = 2000;
+    // The usable comments of a task or History entry in the order held (the order written): entries with a text id, a whole-number `at`
+    // above 0 and text; a `comments` that is not a list gives none. Pure.
+    function commentsOf(item) {
+      const list = item && typeof item === "object" && Array.isArray(item.comments) ? item.comments : [];
+      const seen = new Set();
+      return list.filter(c => c && typeof c === "object" && typeof c.id === "string" && c.id !== "" && !seen.has(c.id) && seen.add(c.id) && Number.isSafeInteger(c.at) && c.at > 0 && typeof c.text === "string" && c.text.trim() !== "")
+        .map(c => ({ id: c.id, at: c.at, text: c.text }));
+    }
+    // A comment's text as the server keeps it: trimmed and cut to MAX_COMMENT_LENGTH; null when blank or not text.
+    function normalizeCommentText(value) {
+      if (typeof value !== "string") return null;
+      const text = value.trim().slice(0, MAX_COMMENT_LENGTH).trim();
+      return text === "" ? null : text;
+    }
+    // `item` with its comments set to `comments`, the key removed when empty. Pure: the input is not modified.
+    function withCommentsList(item, comments) {
+      const next = { ...item };
+      if (Array.isArray(comments) && comments.length > 0) next.comments = comments;
+      else delete next.comments;
+      return next;
+    }
+    // The bodies posted to addComment and deleteComment: `field` is "taskId" or "archiveId", `key` that id.
+    function addCommentBody(field, key, id, text) {
+      return { [field]: key, id, text };
+    }
+    function deleteCommentBody(field, key, id) {
+      return { [field]: key, id };
+    }
+    // The timeline of an item, oldest first: [{id, when, text}], `when` as formatInstant shows it.
+    function commentTimeline(item) {
+      return commentsOf(item).map(c => ({ id: c.id, when: formatInstant(new Date(c.at)), text: c.text }));
+    }
+    // What a card or History entry shows of an item's comments: null for none, else {meta, text}: the latest comment, its time and, when
+    // there are more, how many came earlier.
+    function commentLineView(item) {
+      const list = commentsOf(item);
+      if (list.length === 0) return null;
+      const last = list[list.length - 1];
+      const earlier = list.length - 1;
+      return { meta: formatInstant(new Date(last.at)) + (earlier > 0 ? ` \u00b7 +${earlier} earlier` : ""), text: last.text };
+    }
+    // The confirmation text for deleting a comment.
+    function deleteCommentPrompt(comment) {
+      const text = comment && typeof comment.text === "string" ? comment.text.replace(/\s+/g, " ").trim() : "";
+      return `Delete this comment?\n\n${text.length > 120 ? text.slice(0, 117) + "\u2026" : text}`;
+    }
+    // The id for a comment being sent: the id kept for the same text (a send repeated after a lost reply must not add it twice), else a new one.
+    function commentIdFor(pending, text, makeId) {
+      return pending && pending.text === text && typeof pending.id === "string" ? pending.id : makeId();
+    }
+
     // One action's `fields` cleaned for its kind: an object, or null when unusable (see the model above).
     function cleanActionFields(kind, fields) {
       if (kind === "TIMER") {
@@ -3600,7 +3667,6 @@
         return action === "PAUSE" && Number.isInteger(cap) && cap >= 0 ? { action, capSeconds: cap } : null;
       }
       if (kind === "EDIT") {
-        fields = withDescriptionField(fields); // a change held before the rename
         if (!fields || typeof fields !== "object" || Array.isArray(fields)) return null;
         const keys = Object.keys(fields);
         if (keys.length === 0 || keys.some(k => !EDIT_FIELDS.includes(k))) return null;
@@ -3614,7 +3680,7 @@
       }
       if (kind === "UNDO") {
         if (!fields || typeof fields !== "object" || Array.isArray(fields)) return null;
-        const task = withDescriptionKey(fields.task);
+        const task = fields.task;
         if (!task || typeof task !== "object" || Array.isArray(task) || typeof task.id !== "string" || task.id === "" || typeof task.title !== "string") return null;
         let text;
         try { text = JSON.stringify(task); } catch (e) { return null; }
@@ -4738,6 +4804,7 @@
     async function completeTaskFromModal() {
       const taskId = document.getElementById("editTaskId").value;
       if (!(await confirmComplete(taskId))) return;
+      if (!(await postComment("edit"))) return; // a comment typed and not yet added is kept with the completed entry
       closeEditModal();
       await completeTask(taskId);
     }
@@ -4861,6 +4928,7 @@
               ${t.locked ? `<span class="chip lock-chip" title="Pinned: its event was moved to your personal calendar, so Update now leaves it alone">🔒 Locked</span>` : ''}
             </div>
             ${t.description ? `<div class="task-description">${esc(t.description)}</div>` : ''}
+            ${commentLineHtml(t, "task-comment")}
           </div>
         </div>`;
     }
@@ -5180,6 +5248,7 @@
 
       document.getElementById("editExtraFields").open = false; // Extra fields start collapsed
       document.getElementById("editTaskId").value = task.id;
+      resetCommentPanel("edit");
       document.getElementById("editTitle").value = task.title || "";
       showJobNumber("editJobNumber", task.jobNumber);
       document.getElementById("editPriority").value = task.priority || "MEDIUM";
@@ -5374,6 +5443,7 @@
     function closeEditModal() {
       stopElapsedTicker();
       photoPanels.delete(document.getElementById("editTaskId").value);
+      clearCommentPanel("edit");
       document.getElementById("editPhotos").innerHTML = "";
       document.getElementById("editModal").style.display = "none";
       document.body.classList.remove("modal-open");
@@ -5473,6 +5543,7 @@
         }
       }
 
+      if (!(await postComment("edit"))) return false; // a comment typed and not yet added goes with the save
       closeEditModal();
       try {
         const res = await apiFetch(DIRECT_UPDATE_URL, {
@@ -5927,6 +5998,7 @@
       document.getElementById("ceExtraFields").open = false; // Extra fields start collapsed
       if (offline) document.getElementById("ceExtraFields").open = true; // but Description, the one field left to edit offline, is in them
       document.getElementById("ceId").value = id;
+      resetCommentPanel("ce");
       document.getElementById("ceTitle").textContent = row.title || "";
       showJobNumber("ceJobNumber", row.jobNumber);
       document.getElementById("cePriority").value = values.priority;
@@ -5955,6 +6027,7 @@
     }
     function closeCompletedEditor() {
       photoPanels.delete(document.getElementById("ceId").value);
+      clearCommentPanel("ce");
       document.getElementById("cePhotos").innerHTML = "";
       document.getElementById("completedEditModal").style.display = "none";
       document.body.classList.remove("modal-open");
@@ -5985,6 +6058,7 @@
       if (!row) return closeCompletedEditor();
       const result = readCompletedForm(row);
       if (result.error) { askAlert(result.error, { tone: "warning" }); return; }
+      if (!(await postComment("ce"))) return; // a comment typed and not yet added goes with the save
       if (Object.keys(result.fields).length === 0) return closeCompletedEditor();
       try {
         await apiFetch(UPDATE_COMPLETED_URL, {
@@ -6009,6 +6083,7 @@
       if (result.error) { askAlert(result.error, { tone: "warning" }); return; }
       if (!await askConfirm(reopenPrompt({ ...row, ...result.fields }), { tone: "info", confirmLabel: "Reopen" })) return;
       if (row.waitingRequestId) { takeBackWaitingCompletion(row); return; }
+      if (!(await postComment("ce"))) return; // a comment typed and not yet added comes back with the task
       const requestId = newRequestId(); // fixed before the first attempt, so a send repeated after a lost reply changes nothing
       loadActionQueue();
       if (hasPendingActions(actionQueue) || actionDraining) { queueReopen(row, result.fields, requestId, true); return; }
@@ -6108,6 +6183,115 @@
     // show a photo panel: the thumbnails are fetched when the form opens, through apiFetch (never with the list), and kept in
     // `photoPanels` by that id while it is open. A panel is {field: "archiveId" | "taskId", boxId, status: "loading" |
     // "ready" | "error", photos: [{id, data, bytes, addedAt}], message, busy}.
+    // ---- Comments panel of an edit form: "edit" is a queued task's, "ce" a History entry's ----
+    const COMMENT_PANELS = {
+      edit: { field: "taskId", key: () => document.getElementById("editTaskId").value, item: key => allTasks.find(t => t.id === key) },
+      ce: { field: "archiveId", key: () => document.getElementById("ceId").value, item: key => completedRows.get(key) }
+    };
+    const pendingComment = { edit: null, ce: null }; // {text, id} of a comment whose send may have been lost
+    let commentBusy = false;
+    function commentLineHtml(item, className) {
+      const view = commentLineView(item);
+      return view ? `<div class="${className}"><span class="comment-when">\u{1F4AC} ${esc(view.meta)}</span> ${esc(view.text)}</div>` : "";
+    }
+    function renderCommentPanel(prefix) {
+      const panel = COMMENT_PANELS[prefix];
+      const timeline = commentTimeline(panel.item(panel.key()));
+      const off = prefix === "ce" && completedFieldDisabled("comments", savedCompletedAt !== null);
+      document.getElementById(prefix + "Comments").innerHTML = timeline.length === 0
+        ? '<div class="photo-note">No comments yet.</div>'
+        : timeline.map(c => `<div class="comment-entry"><div class="comment-head"><span class="comment-when">${esc(c.when)}</span><button type="button" class="comment-delete" title="Delete comment" aria-label="Delete comment" data-comment-delete="${esc(c.id)}"${off ? " disabled" : ""}>\u2715</button></div><div class="comment-text">${esc(c.text)}</div></div>`).join("");
+      const list = document.getElementById(prefix + "Comments");
+      list.scrollTop = list.scrollHeight;
+    }
+    // Opening a form: an empty box and the timeline as it stands
+    function resetCommentPanel(prefix) {
+      document.getElementById(prefix + "CommentText").value = "";
+      pendingComment[prefix] = null;
+      renderCommentPanel(prefix);
+    }
+    function clearCommentPanel(prefix) {
+      document.getElementById(prefix + "CommentText").value = "";
+      document.getElementById(prefix + "Comments").innerHTML = "";
+      pendingComment[prefix] = null;
+    }
+    // Shows a comments list the server returned for one item
+    function applyCommentResult(prefix, key, data) {
+      if (prefix === "edit") {
+        if (data.tasks) { setTasks(data.tasks); renderFilterBar(); renderTasks(); }
+      } else {
+        completedServer = completedServer.map(r => r.archiveId === key ? withCommentsList(r, data.comments) : r);
+        completedAll = shownCompleted();
+        completedRows = new Map(completedAll.filter(t => t.archiveId).map(t => [t.archiveId, t]));
+        saveCompletedCache(completedServer, completedListLimited);
+        renderCompletedRows();
+      }
+      if (COMMENT_PANELS[prefix].key() === key) renderCommentPanel(prefix);
+    }
+    // Sends what is typed in the box as a new comment. True when there was nothing to send or it was added; false when it failed (the
+    // text stays in the box, and a retry reuses its id so a lost reply cannot add it twice).
+    async function postComment(prefix) {
+      const panel = COMMENT_PANELS[prefix];
+      const key = panel.key();
+      const input = document.getElementById(prefix + "CommentText");
+      const text = normalizeCommentText(input.value);
+      if (text === null) return true;
+      if (commentBusy) return false;
+      commentBusy = true;
+      document.getElementById(prefix + "CommentAdd").disabled = true;
+      try {
+        pendingComment[prefix] = { text, id: commentIdFor(pendingComment[prefix], text, newRequestId) };
+        const res = await apiFetch(ADD_COMMENT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(addCommentBody(panel.field, key, pendingComment[prefix].id, text))
+        });
+        const data = await res.json();
+        noteServerTime(data);
+        pendingComment[prefix] = null;
+        if (panel.key() === key) input.value = "";
+        applyCommentResult(prefix, key, data);
+        return true;
+      } catch (err) {
+        askAlert(failureText("Failed to add the comment", err), { tone: "error" });
+        return false;
+      } finally {
+        commentBusy = false;
+        document.getElementById(prefix + "CommentAdd").disabled = prefix === "ce" && completedFieldDisabled("comments", savedCompletedAt !== null);
+      }
+    }
+    async function addCommentClick(prefix) {
+      if (await postComment(prefix)) document.getElementById(prefix + "CommentText").focus();
+    }
+    async function deleteComment(prefix, id) {
+      const panel = COMMENT_PANELS[prefix];
+      const key = panel.key();
+      const comment = commentsOf(panel.item(key)).find(c => c.id === id);
+      if (!comment || commentBusy) return;
+      if (!await askConfirm(deleteCommentPrompt(comment), { tone: "warning", confirmLabel: "Delete" })) return;
+      commentBusy = true;
+      try {
+        const res = await apiFetch(DELETE_COMMENT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(deleteCommentBody(panel.field, key, id))
+        });
+        const data = await res.json();
+        noteServerTime(data);
+        applyCommentResult(prefix, key, data);
+      } catch (err) {
+        askAlert(failureText("Failed to delete the comment", err), { tone: "error" });
+      } finally {
+        commentBusy = false;
+      }
+    }
+    for (const prefix of Object.keys(COMMENT_PANELS)) {
+      document.getElementById(prefix + "Comments").addEventListener("click", e => {
+        const button = e.target.closest("[data-comment-delete]");
+        if (button && !button.disabled) deleteComment(prefix, button.dataset.commentDelete);
+      });
+    }
+
     const photoPanels = new Map();
     let photoTargetId = "";
     let photoViewing = null; // {key, id} of the photo shown full size
@@ -6276,6 +6460,7 @@
               ${t.waitingRequestId ? '<span class="chip">⏳ Waiting to send</span>' : ''}
             </div>
             ${t.description ? `<div class="completed-description">${esc(t.description)}</div>` : ''}
+            ${commentLineHtml(t, "completed-comment")}
           </div>
         </div>`;
     }

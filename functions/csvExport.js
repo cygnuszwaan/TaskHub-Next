@@ -3,12 +3,13 @@
 // The completed-work spreadsheet export: a CSV of completed tasks for a date range. Pure: no I/O.
 
 const {toIso} = require("./completed");
-const {localDate} = require("./time");
+const {localDate, localMinutesOfDay} = require("./time");
+const {commentsOf} = require("./comments");
 const {materialsCents, usableRate, travelTenths, toCents} = require("./invoice");
 
 // The most rows one CSV carries; a range holding more is refused so the file is never silently cut.
 const CSV_MAX_ROWS = 10000;
-const COLUMNS = ["Job number", "Task", "Project", "Client", "Completed", "Tracked hours", "Estimated hours", "Materials", "Materials cost", "Travel km", "Travel cost"];
+const COLUMNS = ["Job number", "Task", "Project", "Client", "Completed", "Tracked hours", "Estimated hours", "Materials", "Materials cost", "Travel km", "Travel cost", "Comments"];
 const BOM = "\uFEFF";
 
 function isRealDate(text) {
@@ -45,6 +46,15 @@ function textCell(value) {
   return /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
 }
 
+// A task's comments as one cell, one line each: "2026-10-27 14:05 Rang the client", the time on the owner's clock, the text's own line breaks turned to spaces.
+function commentsCell(row, timeZone) {
+  return commentsOf(row).map((c) => {
+    const when = new Date(c.at);
+    const minutes = localMinutesOfDay(timeZone, when);
+    return `${localDate(timeZone, when)} ${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")} ${c.text.replace(/\s+/g, " ")}`;
+  }).join("\n");
+}
+
 function hours(seconds) {
   return Number.isFinite(seconds) && seconds > 0 ? (seconds / 3600).toFixed(2) : "";
 }
@@ -56,7 +66,7 @@ function hours(seconds) {
 // Oldest first (ties by job number). Columns: job number (plain, no padding), task title, project and client names (empty for
 // none or a deleted project), completion date, tracked hours (empty when none was tracked), estimated hours, the materials'
 // texts joined with "; ", the materials' cost in dollars when any item has one, the travel distance in km (empty for none) and its
-// cost in dollars at `travelRate` (dollars per km; empty without a distance or a usable rate).
+// cost in dollars at `travelRate` (dollars per km; empty without a distance or a usable rate), and the comments, one line each as "2026-10-27 14:05 text" (empty for none).
 function buildCompletedCsv({rows, projects, clients, timeZone, travelRate}) {
   const tRate = usableRate(travelRate);
   const projectList = Array.isArray(projects) ? projects : [];
@@ -81,6 +91,7 @@ function buildCompletedCsv({rows, projects, clients, timeZone, travelRate}) {
       costs.hasCosts ? (costs.cents / 100).toFixed(2) : "",
       travelTenths(row) > 0 ? String(travelTenths(row) / 10) : "",
       travelTenths(row) > 0 && tRate !== null ? (Math.round(travelTenths(row) * toCents(tRate) / 10) / 100).toFixed(2) : "",
+      textCell(commentsCell(row, timeZone)),
     ].map(csvCell).join(","));
   }
   return BOM + lines.join("\r\n") + "\r\n";

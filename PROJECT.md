@@ -40,6 +40,7 @@ This file is the entry point to the project's documentation: the rules for worki
 | `docs/backend-modules.md` | what each file in `functions/` holds; how the code is tested |
 | `docs/endpoints-tasks.md` | `getTasks`, `addOrUpdateTask`, `updateTaskDirect`, `batchUpdateTasks`, `toggleTimer`, `undoRemove`, `completeTask`; task-list transactions |
 | `docs/endpoints-history.md` | completed tasks, reopen, photos, templates, job sheets, CSV and JSON exports |
+| `docs/endpoints-comments.md` | task and entry comments: the data, `addComment`, `deleteComment`, job sheet and CSV |
 | `docs/endpoints-admin.md` | scheduling runs, settings, notifications, duplicates, projects, clients, project templates, the Miscellaneous list |
 | `docs/frontend-shell.md` | the PWA and sharing, dark mode, service worker, API calls, sign-in, tabs, the page's dialogs |
 | `docs/frontend-tasks.md` | task cards, gestures, edit modals, timer, adding tasks, completing, deleting, Undo, Snooze |
@@ -55,14 +56,6 @@ A change usually touches several rows: a new endpoint touches an `endpoints-*.md
 ## Roadmap
 
 Each step fits in one turn. Do them in order unless told otherwise. Each step adds tests for any new pure logic.
-
-### Description and comments
-
-Goal: a task's free text is its `description`; `comments` is a new thing: timestamped entries added to a task in the Queue or to a completed entry, a record of updates with a timeline that a job sheet can include. Design:
-- A comment is `{id, at, text}`: `id` made by the page, `at` the real-world time it was written (never the timer's), `text` one entry; a task and its archive row hold `comments` as an array in the order written, kept when the task is completed or reopened. A comment is added, never edited in place; it can be added to a completed entry as well as to a queued task, and any comment can be deleted.
-- First version: add a comment from a task's edit modal and show its timeline there, with the latest comment on the card. The Active task's shortcut button and collapsible timeline come later.
-
-2. New comments, online: data model, endpoints to add one to a Queue task or a completed entry and to delete one, the edit modal's and the History form's add box and timeline (each comment with a delete control), the card line, History's entries, the job sheet's timeline and the exports. The old-name reading of a string `comments` as `description` (`readDescription`, `withDescriptionKey`, `withDescriptionField`) goes, since `comments` becomes a list.
 
 ### Offline changes
 

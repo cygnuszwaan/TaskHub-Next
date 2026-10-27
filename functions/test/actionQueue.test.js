@@ -211,26 +211,6 @@ describe("action queue (public/index.html)", () => {
     });
   });
 
-  describe("a change held before the rename", () => {
-    const held = (extra) => ({requestId: "req-00001", kind: "EDIT", taskId: "a", title: "Task a", at: T0, status: "PENDING", ...extra});
-    it("reads a stored EDIT of comments as an EDIT of the description, a clearing null included", () => {
-      const page = load();
-      assert.deepEqual(page.parseActionQueue(JSON.stringify([held({fields: {comments: "hi"}})]))[0].fields, {description: "hi"});
-      assert.deepEqual(page.parseActionQueue(JSON.stringify([held({fields: {comments: null}})]))[0].fields, {description: null});
-      assert.deepEqual(page.parseActionQueue(page.serializeActionQueue(page.parseActionQueue(JSON.stringify([held({fields: {comments: "hi"}})])))).map((a) => a.fields), [{description: "hi"}]);
-    });
-    it("still refuses an EDIT whose comments is not text", () => {
-      assert.deepEqual(load().parseActionQueue(JSON.stringify([held({fields: {comments: [{id: "c1", at: 1, text: "x"}]}})])), []);
-    });
-    it("reads the task a stored UNDO carries with its description", () => {
-      const page = load();
-      const stored = {requestId: "req-00002", kind: "UNDO", taskId: "a", archiveId: "archive-0001", title: "Task a", at: T0, status: "PENDING", fields: {task: task("a", {comments: "Blue paint"})}};
-      const [undo] = page.parseActionQueue(JSON.stringify([stored]));
-      assert.equal(undo.fields.task.description, "Blue paint");
-      assert.equal("comments" in undo.fields.task, false);
-    });
-  });
-
   describe("the stored queue", () => {
     it("round-trips and keeps the order", () => {
       const page = load();

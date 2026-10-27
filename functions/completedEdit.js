@@ -3,7 +3,7 @@
 const {cleanTags} = require("./tasks");
 const {localInstant} = require("./time");
 const {randomUUID} = require("crypto");
-const {normalizeDescription, readDescription} = require("./description");
+const {normalizeDescription} = require("./description");
 const {normalizeTravelKm} = require("./travel");
 const {normalizePhone, normalizeEmail} = require("./contact");
 const {normalizeLocation, MAX_LOCATION_NAME_LENGTH} = require("./location");
@@ -31,7 +31,7 @@ function isArchiveId(id) {
 //            priority (HIGH, MEDIUM or LOW), estimatedMinutes (a whole number from 1 to MAX_ESTIMATE_MINUTES),
 //            trackedSeconds (0 to MAX_TRACKED_SECONDS, whole seconds; 0 makes the estimate count), tags (a list, cleaned
 //            as the model's tags are, at most MAX_TAGS), description (text, trimmed and cut to 2000 characters; null or empty
-//            text removes it; an older page's non-empty `comments` text counts as the description, see readDescription), travelKm (kilometres, at most one decimal, 0.1 to 10000; null, empty or 0 removes it), location ({name, latitude?, longitude?} as location.js checks it; null, blank text or an empty object removes it), phone and email (as a task's, see contact.js: null or empty text removes them), materials (a list of texts, or of {text, cost?} objects, a plain record of what was used: each trimmed and cut
+//            text removes it), travelKm (kilometres, at most one decimal, 0.1 to 10000; null, empty or 0 removes it), location ({name, latitude?, longitude?} as location.js checks it; null, blank text or an empty object removes it), phone and email (as a task's, see contact.js: null or empty text removes them), materials (a list of texts, or of {text, cost?} objects, a plain record of what was used: each trimmed and cut
 //            to 100 characters, blanks dropped, at most 30, a cost kept when usable as in materials.js; null or an empty list removes them; stored as a task's materials are,
 //            every item checked), projectId (a current project, or null or "" for none; the id the row
 //            already has counts as unchanged even when that project is gone), and the completion time as the two
@@ -64,9 +64,8 @@ function applyCompletedEdit(row, fields, options) {
     if (!Array.isArray(fields.tags)) return {error: "Tags must be a list"};
     set.tags = cleanTags(fields.tags, MAX_TAGS);
   }
-  const sentDescription = readDescription(fields);
-  if (sentDescription.has) {
-    const description = normalizeDescription(sentDescription.value);
+  if ("description" in fields) {
+    const description = normalizeDescription(fields.description);
     if (description === undefined) return {error: "Description must be text"};
     if (description === null) {
       if (row && row.description !== undefined) remove.push("description");

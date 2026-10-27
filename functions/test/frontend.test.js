@@ -16,42 +16,87 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {withDescriptionKey, withDescriptionField, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
+    return {MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
 }
 
 describe("public/index.html helpers", () => {
-  describe("names from before the rename", () => {
-    it("withDescriptionKey moves a text comments to the description, keeping a description it already has", () => {
-      const {withDescriptionKey} = load();
-      assert.deepEqual(withDescriptionKey({id: "a", comments: "Note"}), {id: "a", description: "Note"});
-      assert.deepEqual(withDescriptionKey({id: "a", comments: "Old", description: "New"}), {id: "a", description: "New"});
-      assert.deepEqual(withDescriptionKey({id: "a", comments: "   "}), {id: "a"});
-      assert.deepEqual(withDescriptionKey({id: "a", comments: "Old", description: ""}), {id: "a", description: "Old"});
+  describe("comments", () => {
+    const c = (n, at = 1761500000000 + n * 1000, text = `Note ${n}`) => ({id: `comment-000${n}`, at, text});
+    it("commentsOf keeps usable comments in order as {id, at, text} and gives none for anything else", () => {
+      const {commentsOf} = load();
+      assert.deepEqual(commentsOf({comments: [{...c(1), extra: 1}, c(2)]}), [c(1), c(2)]);
+      for (const item of [undefined, null, 5, {}, {comments: "An old text note"}, {comments: null}, {comments: {}}]) assert.deepEqual(commentsOf(item), [], JSON.stringify(item));
+      assert.deepEqual(commentsOf({comments: [c(1), null, {id: "", at: 1, text: "x"}, {...c(2), at: 0}, {...c(3), at: 1.5}, {...c(4), text: "  "}, {...c(5), text: 5}, {...c(1), text: "again"}, c(6)]}), [c(1), c(6)]);
     });
-    it("withDescriptionKey leaves anything else as it is, comments that are not text included", () => {
-      const {withDescriptionKey} = load();
-      const list = {id: "a", comments: [{id: "c1", at: 1, text: "x"}]};
-      for (const item of [list, {id: "a"}, {id: "a", description: "d"}, null, undefined, 5, "x", [1]]) assert.equal(withDescriptionKey(item), item);
+    it("normalizeCommentText trims, cuts to the limit and gives null for blank or not text", () => {
+      const {normalizeCommentText, MAX_COMMENT_LENGTH} = load();
+      assert.equal(normalizeCommentText("  Rang Sam.\nNo answer. "), "Rang Sam.\nNo answer.");
+      assert.equal(normalizeCommentText("x".repeat(MAX_COMMENT_LENGTH + 5)).length, MAX_COMMENT_LENGTH);
+      for (const v of ["", "  \n", null, undefined, 5, {}]) assert.equal(normalizeCommentText(v), null);
     });
-    it("withDescriptionKey does not modify its input", () => {
-      const {withDescriptionKey} = load();
-      const item = {id: "a", comments: "Note"};
-      withDescriptionKey(item);
-      assert.deepEqual(item, {id: "a", comments: "Note"});
+    it("withCommentsList sets the list, removes the key for an empty one and leaves its input alone", () => {
+      const {withCommentsList} = load();
+      const item = {id: "a", comments: [c(1)]};
+      assert.deepEqual(withCommentsList(item, [c(1), c(2)]).comments, [c(1), c(2)]);
+      assert.equal("comments" in withCommentsList(item, []), false);
+      assert.equal("comments" in withCommentsList({id: "a"}, undefined), false);
+      assert.deepEqual(item, {id: "a", comments: [c(1)]});
     });
-    it("withDescriptionField renames the key of a held edit, null included, and drops it when description is there", () => {
-      const {withDescriptionField} = load();
-      assert.deepEqual(withDescriptionField({comments: "x"}), {description: "x"});
-      assert.deepEqual(withDescriptionField({comments: null}), {description: null});
-      assert.deepEqual(withDescriptionField({comments: "old", description: "new"}), {description: "new"});
-      const unusable = {comments: 5};
-      assert.equal(withDescriptionField(unusable), unusable);
-      for (const fields of [{description: "x"}, {}, null, undefined, []]) assert.equal(withDescriptionField(fields), fields);
+    it("builds the add and delete bodies for a task or a History entry", () => {
+      const {addCommentBody, deleteCommentBody} = load();
+      assert.deepEqual(addCommentBody("taskId", "t1", "comment-0001", "Hi"), {taskId: "t1", id: "comment-0001", text: "Hi"});
+      assert.deepEqual(addCommentBody("archiveId", "arch-1", "comment-0001", "Hi"), {archiveId: "arch-1", id: "comment-0001", text: "Hi"});
+      assert.deepEqual(deleteCommentBody("taskId", "t1", "comment-0001"), {taskId: "t1", id: "comment-0001"});
+      assert.deepEqual(deleteCommentBody("archiveId", "arch-1", "comment-0001"), {archiveId: "arch-1", id: "comment-0001"});
     });
-    it("reads a saved completed list from before the rename the same way", () => {
-      const {parseCompletedCache} = load();
-      const text = JSON.stringify({v: 1, uid: "u1", savedAt: 5, limited: false, rows: [{archiveId: "r1", comments: "Washer replaced"}, {archiveId: "r2", description: "Kept"}]});
-      assert.deepEqual(parseCompletedCache(text, "u1").rows, [{archiveId: "r1", description: "Washer replaced"}, {archiveId: "r2", description: "Kept"}]);
+    it("shows the timeline oldest first with the time on the owner's clock", () => {
+      const {commentTimeline, setTimeZone} = load();
+      setTimeZone("Pacific/Auckland");
+      const at = Date.parse("2026-10-20T01:05:00Z");
+      const [first, second] = commentTimeline({comments: [c(1, at, "Rang Sam"), c(2, at + 3600e3, "Back at 3")]});
+      assert.equal(first.id, "comment-0001");
+      assert.equal(first.text, "Rang Sam");
+      assert.match(first.when, /2:05/);
+      assert.match(second.when, /3:05/);
+      assert.deepEqual(commentTimeline({}), []);
+    });
+    it("shows the latest comment on a card with how many came earlier", () => {
+      const {commentLineView, setTimeZone} = load();
+      setTimeZone("Pacific/Auckland");
+      assert.equal(commentLineView({}), null);
+      assert.equal(commentLineView({comments: "An old text note"}), null);
+      const one = commentLineView({comments: [c(1)]});
+      assert.equal(one.text, "Note 1");
+      assert.doesNotMatch(one.meta, /earlier/);
+      const three = commentLineView({comments: [c(1), c(2), c(3)]});
+      assert.equal(three.text, "Note 3");
+      assert.match(three.meta, /\+2 earlier/);
+    });
+    it("asks before deleting, showing the start of a long comment on one line", () => {
+      const {deleteCommentPrompt} = load();
+      assert.match(deleteCommentPrompt(c(1, 1, "Rang\nSam")), /Delete this comment\?[\s\S]*Rang Sam/);
+      assert.ok(deleteCommentPrompt(c(1, 1, "w".repeat(500))).length < 160);
+    });
+    it("keeps the id for the same text so a send repeated after a lost reply cannot add it twice", () => {
+      const {commentIdFor} = load();
+      let n = 0;
+      const make = () => `comment-new${++n}`;
+      assert.equal(commentIdFor(null, "Hi", make), "comment-new1");
+      assert.equal(commentIdFor({text: "Hi", id: "comment-new1"}, "Hi", make), "comment-new1");
+      assert.equal(commentIdFor({text: "Hi", id: "comment-new1"}, "Changed", make), "comment-new2");
+    });
+    it("History search finds a comment's text", () => {
+      const {matchesCompletedSearch} = load();
+      const row = {title: "Fit tap", comments: [c(1, 1761500000000, "Valve seized")], completedAt: "2026-10-20T01:00:00.000Z"};
+      assert.equal(matchesCompletedSearch(row, "seized", ""), true);
+      assert.equal(matchesCompletedSearch(row, "gasket", ""), false);
+    });
+    it("keeps comment controls off while the saved copy of History is shown", () => {
+      const {COMPLETED_FORM_CONTROLS, completedFieldDisabled} = load();
+      assert.equal(COMPLETED_FORM_CONTROLS.ceCommentText, "comments");
+      assert.equal(COMPLETED_FORM_CONTROLS.ceCommentAdd, "comments");
+      assert.equal(completedFieldDisabled("comments", true), true);
+      assert.equal(completedFieldDisabled("comments", false), false);
     });
   });
   describe("saved task list", () => {
@@ -72,11 +117,6 @@ describe("public/index.html helpers", () => {
       const {parseTaskCache} = load();
       const text = JSON.stringify({v: 1, uid: "u1", savedAt: 5, tasks: [{id: "a"}, null, 3, {title: "no id"}]});
       assert.deepEqual(parseTaskCache(text, "u1").tasks, [{id: "a"}]);
-    });
-    it("reads a copy saved before the rename with its comments text as the description", () => {
-      const {parseTaskCache} = load();
-      const text = JSON.stringify({v: 1, uid: "u1", savedAt: 5, tasks: [{id: "a", comments: "Blue paint"}, {id: "b", comments: "Old", description: "New"}, {id: "c", description: "Kept"}]});
-      assert.deepEqual(parseTaskCache(text, "u1").tasks, [{id: "a", description: "Blue paint"}, {id: "b", description: "New"}, {id: "c", description: "Kept"}]);
     });
     it("says how old a copy is", () => {
       const {cacheAgeText, offlineNoteText} = load();
@@ -3024,7 +3064,7 @@ describe("public/index.html helpers", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(code, /(?<![\w.])confirm\(/, "a native confirm() is left");
       const asks = code.match(/(?<!function )askConfirm\(/g) || [];
-      assert.equal(asks.length, 14, "the fourteen questions the page asks (one discards a waiting change)");
+      assert.equal(asks.length, 15, "the fifteen questions the page asks (one discards a waiting change, one deletes a comment)");
     });
     it("marks the dialog up as a modal alert dialog above every other modal, with Cancel and a confirm button", () => {
       assert.match(html, /<div id="confirmModal" class="modal-overlay confirm-overlay"/);
@@ -3129,9 +3169,9 @@ describe("public/index.html helpers", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(code, /(?<![\w.])alert\(/, "a native alert() is left");
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
-      assert.equal(calls.length, 45, "the forty-five messages the page shows (six are refusals to keep an add or a change for later)");
+      assert.equal(calls.length, 47, "the forty-seven messages the page shows (six are refusals to keep an add or a change for later)");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
-      assert.equal(errors.length, 17, "every failed call is an error alert with the reason as detail");
+      assert.equal(errors.length, 19, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
       assert.equal(warnings.length, 26, "every validation message is a warning alert");
     });

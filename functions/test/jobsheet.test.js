@@ -200,7 +200,7 @@ describe("jobsheet.js", () => {
       assert.equal(s.empty, false);
       assert.equal(s.sections.length, 1);
       assert.equal(s.sections[0].heading, "");
-      assert.deepEqual(s.sections[0].entries[0], {archiveId: "", jobNumber: "", title: "Fit tap", started: "", completed: "Tue, 20 Oct, 12:00 pm", timeText: "25m", travelText: "", estimated: false, money: null, materials: ["Tap", "PTFE tape"], description: "Washer replaced"});
+      assert.deepEqual(s.sections[0].entries[0], {archiveId: "", jobNumber: "", title: "Fit tap", started: "", completed: "Tue, 20 Oct, 12:00 pm", timeText: "25m", travelText: "", estimated: false, money: null, materials: ["Tap", "PTFE tape"], description: "Washer replaced", comments: []});
       assert.match(s.generatedText, /24 October 2026/);
       assert.equal(s.timeZone, NZ);
     });
@@ -238,6 +238,29 @@ describe("jobsheet.js", () => {
       assert.equal(entries(row({trackedSeconds: undefined})).timeText, "30m est.");
       assert.equal(entries(row({trackedSeconds: 0, estimatedMinutes: undefined})).estimated, false);
       assert.equal(entries(row()).estimated, false);
+    });
+    describe("comments", () => {
+      const comment = (n, iso, text) => ({id: `comment-000${n}`, at: Date.parse(iso), text});
+      const comments = [comment(1, "2026-10-19T21:05:00Z", "Rang the client"), comment(2, "2026-10-20T00:30:00Z", "🌿 Needs a second\r\ncoat")];
+      const entry = (rowExtra) => sheet({type: "TASK"}, [row(rowExtra)]).sections[0].entries[0];
+      it("lists them oldest first with the time on the owner's clock and the text cleaned for the PDF font", () => {
+        assert.deepEqual(entry({comments}).comments, [{when: "Tue, 20 Oct, 10:05 am", text: "Rang the client"}, {when: "Tue, 20 Oct, 1:30 pm", text: "Needs a second\ncoat"}]);
+      });
+      it("keeps them in the order stored, the order they were written", () => {
+        assert.deepEqual(entry({comments: [...comments].reverse()}).comments.map((c) => c.text), ["Needs a second\ncoat", "Rang the client"]);
+      });
+      it("has none for a row without comments, with a comments value that is not a list or with unusable entries", () => {
+        for (const extra of [{}, {comments: []}, {comments: "An old text note"}, {comments: [{id: "bad"}, null]}]) assert.deepEqual(entry(extra).comments, [], JSON.stringify(extra));
+      });
+      it("leaves out a comment with nothing left after cleaning", () => {
+        assert.deepEqual(entry({comments: [comment(1, "2026-10-20T00:30:00Z", "🌿")]}).comments, []);
+      });
+      it("puts each entry's own comments on a project sheet", () => {
+        const s = sheet({type: "PROJECT"}, [row({title: "A", comments}), row({title: "B", completedAt: at("2026-10-21")})]);
+        const entries = s.sections.flatMap((section) => section.entries);
+        assert.equal(entries.find((e) => e.title === "A").comments.length, 2);
+        assert.equal(entries.find((e) => e.title === "B").comments.length, 0);
+      });
     });
     it("cleans titles and description for the PDF font and gives an untitled task a name", () => {
       const e = sheet({type: "TASK"}, [row({title: "🌿 Mow   lawn", description: "Front\r\nback"})]).sections[0].entries[0];
