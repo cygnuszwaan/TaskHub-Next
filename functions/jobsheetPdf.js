@@ -160,10 +160,10 @@ function draw(doc, sheet) {
       const titleH = textHeight(entry.title, "Bold", 10.5, titleW);
       const metaH = meta ? textHeight(meta, "Sans", 8.5, width) + 1 : 0;
       const materialsH = materials ? textHeight(materials, "Sans", 8.5, width) + 2 : 0;
-      const commentsH = entry.comments ? textHeight(entry.comments, "Sans", 9, width - 12) + 3 : 0;
+      const descriptionH = entry.description ? textHeight(entry.description, "Sans", 9, width - 12) + 3 : 0;
       const money = entry.money ? moneyLine(entry.money) : "";
       const moneyH = money ? textHeight(money, "Bold", 9, width) + 3 : 0;
-      ensure(titleH + metaH + materialsH + commentsH + moneyH + 12);
+      ensure(titleH + metaH + materialsH + descriptionH + moneyH + 12);
 
       const y = doc.y;
       doc.font("Bold").fontSize(10.5).fillColor(INK).text(entry.title, left, y, {width: titleW});
@@ -171,7 +171,7 @@ function draw(doc, sheet) {
       doc.y = y + titleH;
       if (meta) doc.font("Sans").fontSize(8.5).fillColor(MUTED).text(meta, left, doc.y + 1, {width});
       if (materials) doc.font("Sans").fontSize(8.5).fillColor(MUTED).text(materials, left, doc.y + 2, {width});
-      if (entry.comments) doc.font("Sans").fontSize(9).fillColor(INK).text(entry.comments, left + 12, doc.y + 3, {width: width - 12});
+      if (entry.description) doc.font("Sans").fontSize(9).fillColor(INK).text(entry.description, left + 12, doc.y + 3, {width: width - 12});
       if (money) doc.font("Bold").fontSize(9).fillColor(INK).text(money, left, doc.y + 3, {width, align: "right"});
       if (entry.photos && entry.photos.length) {
         doc.y += 6;

@@ -160,7 +160,7 @@ const proposalSchema = {
           priority: {type: Type.STRING, enum: ["HIGH", "MEDIUM", "LOW"]},
           estimatedMinutes: {type: Type.INTEGER},
           tags: {type: Type.ARRAY, items: {type: Type.STRING}},
-          comments: {type: Type.STRING, description: "The useful detail the input gives for this step (measurements, materials, rules, warnings), as short plain-text lines; omit when the input has nothing specific for the step"},
+          description: {type: Type.STRING, description: "The useful detail the input gives for this step (measurements, materials, rules, warnings), as short plain-text lines; omit when the input has nothing specific for the step"},
         },
         required: ["title", "priority", "estimatedMinutes", "tags"],
       },
@@ -559,7 +559,7 @@ exports.rescheduleTask = onRequest({
 
 // 3. Endpoint: Add / Ingest Task. The model returns only new or changed tasks; they are merged into the
 // stored list inside a transaction, so everything else on the list is preserved. With a `manual` body ({title,
-// priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?, comments?, travelKm?, phone?, email?, location?}) no model is
+// priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?, description?, travelKm?, phone?, email?, location?}) no model is
 // called to parse it: the fields are used as entered (validated like the model's) and the task is added at the end of the
 // list. The one exception is a manual entry with no tags, for which the model is asked for tags only (a failure leaves
 // the task untagged). `startNow: true` starts the timer of
@@ -670,7 +670,7 @@ exports.addOrUpdateTask = onRequest({
         entry = created.changes;
         stored = created.projects;
       }
-      const merged = mergeTaskChanges(tasks, entry, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined, comments: body.manual !== undefined, travelKm: body.manual !== undefined, contact: body.manual !== undefined, location: body.manual !== undefined, history: body.manual !== undefined, now: new Date().toISOString(), jobCounter});
+      const merged = mergeTaskChanges(tasks, entry, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined, description: body.manual !== undefined, travelKm: body.manual !== undefined, contact: body.manual !== undefined, location: body.manual !== undefined, history: body.manual !== undefined, now: new Date().toISOString(), jobCounter});
       const changed = merged.added + merged.updated > 0;
       let list = merged.tasks;
       if (body.startNow === true) {
@@ -834,7 +834,7 @@ exports.getCompletedTemplates = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(asy
 
 // 6c. Endpoint: Correct or remove a completed task
 // updateCompletedTask: body {id, updatedFields}, `id` the `archiveId` getCompletedTasks gives each entry. The editable fields
-// are priority, estimatedMinutes, trackedSeconds, tags, materials (a plain list of texts), comments, travelKm, location, phone, email, projectId and the completion time (completedDate and completedTime
+// are priority, estimatedMinutes, trackedSeconds, tags, materials (a plain list of texts), description, travelKm, location, phone, email, projectId and the completion time (completedDate and completedTime
 // together, in the owner's zone); see applyCompletedEdit. Responds {success, task} with the entry as it now is; 400 with the
 // reason for an unusable value, 404 for an unknown id. deleteCompletedTask: body {id}, removes the entry for good.
 // Both change the archive row only, which History and Project hours are computed from: the job history already carried by
@@ -1265,7 +1265,7 @@ exports.exportCompletedCsv = onRequest({cors: ALLOWED_ORIGINS, timeoutSeconds: 6
 // 7d. Endpoint: Job sheet (PDF)
 // Body {archiveId} (one completed task, the `archiveId` getCompletedTasks gives each entry), {projectId} (a project to date) or
 // {projectId, weekStart} (its Monday-to-Sunday week; any date in the week names it); see parseJobSheetRequest. Responds
-// with the PDF itself (application/pdf): every time and date on the owner's clock, the tracked time (or estimate), comments, tags and
+// with the PDF itself (application/pdf): every time and date on the owner's clock, the tracked time (or estimate), description, tags and
 // materials (with costs) and photos (at most JOB_SHEET_MAX_PHOTOS a sheet) of each completed task, and for a project the hours as the History page figures them (see buildJobSheet,
 // renderJobSheetPdf), plus labour at the hourly rate, materials cost, travel (the task's km at the travel rate) and a total when a rate or any cost is set (see invoice.js). 400 for an unusable body, 404 for an unknown task or project. Read-only. A project's rows are
 // read the way the History hours are (at most PROJECT_MAX_ROWS), and a sheet lists at most its newest JOB_SHEET_MAX_ENTRIES.

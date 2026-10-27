@@ -5,7 +5,7 @@ const {randomUUID} = require("crypto");
 const {applyProjectFields, projectFieldsOf} = require("./projects");
 const {normalizeMaterials} = require("./materials");
 const {normalizeSnooze} = require("./snooze");
-const {normalizeComments} = require("./comments");
+const {normalizeDescription, readDescription} = require("./description");
 const {normalizeTravelKm} = require("./travel");
 const {normalizePhone, normalizeEmail} = require("./contact");
 const {normalizeLocation} = require("./location");
@@ -37,8 +37,8 @@ function normalizeRecurrence(value) {
 // that exist; none when omitted, so a task can leave a project but not join one); and `materials`, which is
 // validated by normalizeMaterials (null or an empty list removes it, an unusable value leaves it as it was; new
 // items get ids from `makeId`); and `snoozedUntil`, validated by normalizeSnooze (null or an empty string removes it, an
-// unusable value leaves it as it was); and `comments`, validated by normalizeComments (null or empty text removes it, a
-// non-string leaves it as it was); and `travelKm`, validated by normalizeTravelKm (null, empty text or 0 removes it, an unusable value
+// unusable value leaves it as it was); and `description`, validated by normalizeDescription (null or empty text removes it, a
+// non-string leaves it as it was; see readDescription for an older page's `comments`); and `travelKm`, validated by normalizeTravelKm (null, empty text or 0 removes it, an unusable value
 // leaves it as it was); and `phone` and `email`, validated by normalizePhone and normalizeEmail (null or empty text removes it, an unusable value
 // leaves it as it was); and `location`, validated by normalizeLocation (null, blank text or an empty object removes it, an unusable value leaves it as it was). `addedAt`, `trackedSeconds`, `firstStartedAt`, `timerStartedAt`, `active`, `order` and `jobNumber` are never changed by an edit.
 // Pure apart from `makeId`: the input is not modified.
@@ -49,6 +49,7 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
   delete rest.newProject; // a project to create is handled by the endpoint, which passes its id as `projectId`
   delete rest.materials;
   delete rest.snoozedUntil;
+  delete rest.description;
   delete rest.comments;
   delete rest.travelKm;
   delete rest.phone;
@@ -81,10 +82,11 @@ function applyDirectUpdate(task, fields, projectIds = [], makeId = randomUUID) {
     if (typeof snoozedUntil === "string") next.snoozedUntil = snoozedUntil;
     else if (snoozedUntil === null) delete next.snoozedUntil;
   }
-  if (fields && "comments" in fields) {
-    const comments = normalizeComments(fields.comments);
-    if (typeof comments === "string") next.comments = comments;
-    else if (comments === null) delete next.comments;
+  const sentDescription = readDescription(fields);
+  if (sentDescription.has) {
+    const description = normalizeDescription(sentDescription.value);
+    if (typeof description === "string") next.description = description;
+    else if (description === null) delete next.description;
   }
   if (fields && "travelKm" in fields) {
     const travelKm = normalizeTravelKm(fields.travelKm);
@@ -121,7 +123,7 @@ function moveToQueueNumber(tasks, taskId, number) {
 }
 
 // Fields the model may set. Everything else on a task (id, status, order, calendar and schedule fields, locked,
-// materials, snoozedUntil, comments, addedAt, trackedSeconds, timerStartedAt, active) is server-owned.
+// materials, snoozedUntil, description, addedAt, trackedSeconds, timerStartedAt, active) is server-owned.
 function cleanFields(change) {
   const out = {};
   if (typeof change.title === "string" && change.title.trim()) out.title = change.title.trim();
@@ -148,20 +150,22 @@ function changeProjectFields(change, projectIds) {
 }
 
 // The new-task change for a task entered by hand, in the shape mergeTaskChanges takes. Pure: no I/O.
-//   manual: {title, priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?, comments?, travelKm?, phone?, email?, location?}
+//   manual: {title, priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?, description?, travelKm?, phone?, email?, location?}
 //           from the entry form
 // Returns null without a usable title. The fields are validated by the same rules as the model's (see cleanFields,
 // changeProjectFields), so an unusable priority, date, estimate, tag list, recurrence or project falls back to the
-// new-task default; a field the form did not send is left out of the change. `materials`, `comments`, `travelKm`, `phone`, `email` and `location` are passed on as
+// new-task default; a field the form did not send is left out of the change. `materials`, `description`, `travelKm`, `phone`, `email` and `location` are passed on as
 // sent and are only applied when mergeTaskChanges is told to (the model's changes never set them). There is no id (a manual
 // entry is always a new task) and no rank (it goes last).
 function manualTaskChange(manual) {
   if (!manual || typeof manual !== "object" || Array.isArray(manual)) return null;
   if (typeof manual.title !== "string" || !manual.title.trim()) return null;
   const change = {title: manual.title, priority: manual.priority, dueDate: manual.dueDate, estimatedMinutes: manual.estimatedMinutes, tags: manual.tags};
-  for (const key of ["recurrence", "projectId", "projectOrder", "materials", "comments", "travelKm", "phone", "email", "location", "history"]) {
+  for (const key of ["recurrence", "projectId", "projectOrder", "materials", "travelKm", "phone", "email", "location", "history"]) {
     if (manual[key] !== undefined) change[key] = manual[key];
   }
+  const sentDescription = readDescription(manual);
+  if (sentDescription.has && sentDescription.value !== undefined) change.description = sentDescription.value;
   return change;
 }
 
@@ -221,7 +225,7 @@ function placeAtRank(list, task, rank) {
 //             through applyProjectFields (see changeProjectFields for what counts).
 //   options:  {jobCounter: n} numbers each new task (`jobNumber`) from n + 1 on, in the order the changes are listed, and returns the
 //             last number issued as `jobCounter`; without it new tasks are not numbered. {history: true} lets a new task take the change's `history` (validated by normalizeHistory), {materials: true} lets a new task take the change's `materials` (validated by normalizeMaterials) and
-//             {comments: true} its `comments` (validated by normalizeComments) and {travelKm: true} its `travelKm` (validated by normalizeTravelKm) and {contact: true} its `phone` and `email` (validated by normalizePhone and normalizeEmail) and {location: true} its `location` (validated by normalizeLocation); only a manual entry or a template sets them. Without
+//             {description: true} its `description` (validated by normalizeDescription) and {travelKm: true} its `travelKm` (validated by normalizeTravelKm) and {contact: true} its `phone` and `email` (validated by normalizePhone and normalizeEmail) and {location: true} its `location` (validated by normalizeLocation); only a manual entry or a template sets them. Without
 //             the option, and for an update, the field is never read.
 // Untouched tasks, and every server-owned field of updated tasks, are preserved. A change naming an id that is
 // no longer stored is skipped. An existing task never moves: a rank on a change to one is ignored. A new task takes
@@ -268,9 +272,9 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
         const materials = normalizeMaterials(change.materials, makeId);
         if (materials) task.materials = materials;
       }
-      if (options.comments === true) {
-        const comments = normalizeComments(change.comments);
-        if (comments) task.comments = comments;
+      if (options.description === true) {
+        const description = normalizeDescription(change.description);
+        if (description) task.description = description;
       }
       if (options.travelKm === true) {
         const travelKm = normalizeTravelKm(change.travelKm);
@@ -316,7 +320,7 @@ function mergeTaskChanges(existing, changes, makeId, projectIds = [], options = 
 //           completed task stops at. The completed task always carries `trackedSeconds` (0 if never timed) and no
 //           `timerStartedAt` or `active`; the next occurrence starts with no tracked time.
 // The next occurrence copies title, priority, estimatedMinutes, tags, recurrence and project membership
-// (projectId, projectOrder), materials (all unchecked, as the next occurrence needs them again) and comments, is PENDING, has the next due date (see nextDueDate) and takes the completed task's
+// (projectId, projectOrder), materials (all unchecked, as the next occurrence needs them again) and description, is PENDING, has the next due date (see nextDueDate) and takes the completed task's
 // rank; it has no schedule, calendar event or lock. It is snoozed until that due date (a cooldown: the next occurrence is not scheduled before it is
 // due, so a weekly task completed today does not come back on today's schedule).
 // The job's history moves on (see history.js): `history` is {completedCount, recentSeconds?} after this completion, which the
@@ -354,7 +358,7 @@ function completeInList(tasks, taskId, today, makeId, now, jobCounter) {
   if (Array.isArray(completedTask.materials) && completedTask.materials.length > 0) {
     spawned.materials = completedTask.materials.map((m) => ({id: makeId(), text: m.text, checked: false, ...(typeof m.cost === "number" ? {cost: m.cost} : {})}));
   }
-  if (typeof completedTask.comments === "string" && completedTask.comments !== "") spawned.comments = completedTask.comments;
+  if (typeof completedTask.description === "string" && completedTask.description !== "") spawned.description = completedTask.description;
   if (typeof completedTask.travelKm === "number" && completedTask.travelKm > 0) spawned.travelKm = completedTask.travelKm;
   if (typeof completedTask.phone === "string" && completedTask.phone !== "") spawned.phone = completedTask.phone;
   if (typeof completedTask.email === "string" && completedTask.email !== "") spawned.email = completedTask.email;

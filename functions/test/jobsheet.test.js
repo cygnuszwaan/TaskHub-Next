@@ -190,8 +190,8 @@ describe("jobsheet.js", () => {
   });
 
   describe("buildJobSheet", () => {
-    it("builds a task sheet with its times, comments and materials, no totals, priority or tags", () => {
-      const s = sheet({type: "TASK"}, [row({comments: "Washer replaced", materials: [{id: "m", text: "Tap", checked: true}, {id: "n", text: "PTFE tape", checked: false}]})]);
+    it("builds a task sheet with its times, description and materials, no totals, priority or tags", () => {
+      const s = sheet({type: "TASK"}, [row({description: "Washer replaced", materials: [{id: "m", text: "Tap", checked: true}, {id: "n", text: "PTFE tape", checked: false}]})]);
       assert.equal(s.kind, "TASK");
       assert.equal(s.heading, "Fit tap");
       assert.equal(s.projectName, "Kitchen reno");
@@ -200,7 +200,7 @@ describe("jobsheet.js", () => {
       assert.equal(s.empty, false);
       assert.equal(s.sections.length, 1);
       assert.equal(s.sections[0].heading, "");
-      assert.deepEqual(s.sections[0].entries[0], {archiveId: "", jobNumber: "", title: "Fit tap", started: "", completed: "Tue, 20 Oct, 12:00 pm", timeText: "25m", travelText: "", estimated: false, money: null, materials: ["Tap", "PTFE tape"], comments: "Washer replaced"});
+      assert.deepEqual(s.sections[0].entries[0], {archiveId: "", jobNumber: "", title: "Fit tap", started: "", completed: "Tue, 20 Oct, 12:00 pm", timeText: "25m", travelText: "", estimated: false, money: null, materials: ["Tap", "PTFE tape"], description: "Washer replaced"});
       assert.match(s.generatedText, /24 October 2026/);
       assert.equal(s.timeZone, NZ);
     });
@@ -239,10 +239,10 @@ describe("jobsheet.js", () => {
       assert.equal(entries(row({trackedSeconds: 0, estimatedMinutes: undefined})).estimated, false);
       assert.equal(entries(row()).estimated, false);
     });
-    it("cleans titles and comments for the PDF font and gives an untitled task a name", () => {
-      const e = sheet({type: "TASK"}, [row({title: "🌿 Mow   lawn", comments: "Front\r\nback"})]).sections[0].entries[0];
+    it("cleans titles and description for the PDF font and gives an untitled task a name", () => {
+      const e = sheet({type: "TASK"}, [row({title: "🌿 Mow   lawn", description: "Front\r\nback"})]).sections[0].entries[0];
       assert.equal(e.title, "Mow lawn");
-      assert.equal(e.comments, "Front\nback");
+      assert.equal(e.description, "Front\nback");
       assert.equal(sheet({type: "TASK"}, [row({title: undefined})]).sections[0].entries[0].title, "Untitled task");
     });
 
@@ -306,7 +306,7 @@ describe("jobsheet.js", () => {
       assert.ok(!listed.some((e) => e.title === "T0"));
     });
     it("does not modify its input", () => {
-      const rows = [row({comments: "x", materials: [{id: "m", text: "Tap", checked: true}]})];
+      const rows = [row({description: "x", materials: [{id: "m", text: "Tap", checked: true}]})];
       const copy = JSON.parse(JSON.stringify(rows));
       sheet({type: "PROJECT"}, rows);
       sheet({type: "TASK"}, rows);

@@ -10,7 +10,7 @@ const {mergeTaskChanges} = require("./tasks");
 const MAX_TEMPLATE_STEPS = 100;
 
 // One queued task as a template step: title, priority, estimate, tags, materials as {text, cost?} (never checked, no ids),
-// comments, travel (km) and its order number, each of the last four only when the task has one.
+// description, travel (km) and its order number, each of the last four only when the task has one.
 function stepFromTask(task) {
   const step = {
     title: task.title,
@@ -21,7 +21,7 @@ function stepFromTask(task) {
   if (Array.isArray(task.materials) && task.materials.length > 0) {
     step.materials = task.materials.map((m) => (typeof m.cost === "number" ? {text: m.text, cost: m.cost} : {text: m.text}));
   }
-  if (typeof task.comments === "string" && task.comments) step.comments = task.comments;
+  if (typeof task.description === "string" && task.description) step.description = task.description;
   if (typeof task.travelKm === "number" && task.travelKm > 0) step.travelKm = task.travelKm;
   if (Number.isInteger(task.projectOrder)) step.projectOrder = task.projectOrder;
   return step;
@@ -75,7 +75,7 @@ function templateChanges(template, projectId) {
     estimatedMinutes: step.estimatedMinutes,
     tags: step.tags,
     ...(step.materials ? {materials: step.materials.map((m) => ({text: m.text, checked: false, ...(typeof m.cost === "number" ? {cost: m.cost} : {})}))} : {}),
-    ...(step.comments ? {comments: step.comments} : {}),
+    ...(step.description ? {description: step.description} : {}),
     ...(step.travelKm ? {travelKm: step.travelKm} : {}),
     projectId,
     ...(Number.isInteger(step.projectOrder) ? {projectOrder: step.projectOrder} : {}),
@@ -92,7 +92,7 @@ function startFromTemplate(tasks, projects, template, rawName, makeId, now, jobC
   if (!template || !Array.isArray(template.steps) || template.steps.length === 0) return {error: "The template has no steps"};
   const created = addProject(projects, rawName, makeId);
   if (created.error) return {error: created.error};
-  const merged = mergeTaskChanges(tasks, templateChanges(template, created.project.id), makeId, [created.project.id], {comments: true, materials: true, travelKm: true, now, jobCounter});
+  const merged = mergeTaskChanges(tasks, templateChanges(template, created.project.id), makeId, [created.project.id], {description: true, materials: true, travelKm: true, now, jobCounter});
   return {tasks: merged.tasks, project: created.project, projects: created.projects, added: merged.added, ...(merged.jobCounter !== undefined ? {jobCounter: merged.jobCounter} : {})};
 }
 

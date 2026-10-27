@@ -16,10 +16,10 @@ describe("projectTemplates.js stepFromTask", () => {
     }));
     assert.deepEqual(step, {title: "Strip walls", priority: "HIGH", estimatedMinutes: 90, tags: ["Indoor"]});
   });
-  it("keeps materials as text and cost only, unchecked, comments and the order number", () => {
-    const step = stepFromTask(task("a", {materials: [{id: "m1", text: "Paint", checked: true, cost: 45.5}, {id: "m2", text: "Tape", checked: false}], comments: "Two coats", projectOrder: 2}));
+  it("keeps materials as text and cost only, unchecked, description and the order number", () => {
+    const step = stepFromTask(task("a", {materials: [{id: "m1", text: "Paint", checked: true, cost: 45.5}, {id: "m2", text: "Tape", checked: false}], description: "Two coats", projectOrder: 2}));
     assert.deepEqual(step.materials, [{text: "Paint", cost: 45.5}, {text: "Tape"}]);
-    assert.equal(step.comments, "Two coats");
+    assert.equal(step.description, "Two coats");
     assert.equal(step.projectOrder, 2);
   });
   it("copies the tags rather than sharing them", () => {
@@ -97,11 +97,11 @@ describe("projectTemplates.js addTemplate and renameTemplate", () => {
 describe("projectTemplates.js templateChanges", () => {
   it("makes a change per step in the project, with its order number, materials unchecked and no ids", () => {
     const template = {id: "t", name: "T", steps: [
-      {title: "A", priority: "HIGH", estimatedMinutes: 30, tags: ["X"], projectOrder: 1, materials: [{text: "Paint", cost: 9.5}, {text: "Tape"}], comments: "note"},
+      {title: "A", priority: "HIGH", estimatedMinutes: 30, tags: ["X"], projectOrder: 1, materials: [{text: "Paint", cost: 9.5}, {text: "Tape"}], description: "note"},
       {title: "B", priority: "LOW", estimatedMinutes: 10, tags: []},
     ]};
     const changes = templateChanges(template, "p9");
-    assert.deepEqual(changes[0], {title: "A", priority: "HIGH", estimatedMinutes: 30, tags: ["X"], materials: [{text: "Paint", checked: false, cost: 9.5}, {text: "Tape", checked: false}], comments: "note", projectId: "p9", projectOrder: 1});
+    assert.deepEqual(changes[0], {title: "A", priority: "HIGH", estimatedMinutes: 30, tags: ["X"], materials: [{text: "Paint", checked: false, cost: 9.5}, {text: "Tape", checked: false}], description: "note", projectId: "p9", projectOrder: 1});
     assert.deepEqual(changes[1], {title: "B", priority: "LOW", estimatedMinutes: 10, tags: [], projectId: "p9"});
     assert.ok(changes.every((c) => !("id" in c) && !("order" in c)));
   });
@@ -109,7 +109,7 @@ describe("projectTemplates.js templateChanges", () => {
 
 describe("projectTemplates.js startFromTemplate", () => {
   const template = {id: "t", name: "Deck", steps: [
-    {title: "Dig", priority: "HIGH", estimatedMinutes: 60, tags: ["Outdoor"], projectOrder: 1, comments: "Mind the pipes"},
+    {title: "Dig", priority: "HIGH", estimatedMinutes: 60, tags: ["Outdoor"], projectOrder: 1, description: "Mind the pipes"},
     {title: "Frame", priority: "MEDIUM", estimatedMinutes: 120, tags: [], projectOrder: 2, materials: [{text: "Timber", cost: 300}]},
     {title: "Oil", priority: "LOW", estimatedMinutes: 45, tags: []},
   ]};
@@ -127,7 +127,7 @@ describe("projectTemplates.js startFromTemplate", () => {
     const [dig, frame, oil] = r.tasks.slice(1);
     assert.ok([dig, frame, oil].every((t) => t.projectId === r.project.id && t.status === "PENDING" && t.addedAt === "2026-10-25T01:00:00.000Z"));
     assert.deepEqual([dig.projectOrder, frame.projectOrder, oil.projectOrder], [1, 2, undefined]);
-    assert.equal(dig.comments, "Mind the pipes");
+    assert.equal(dig.description, "Mind the pipes");
     assert.deepEqual(frame.materials.map((m) => [m.text, m.checked, m.cost]), [["Timber", false, 300]]);
     assert.ok(frame.materials[0].id);
     assert.ok([dig, frame, oil].every((t) => !t.scheduledStart && !t.trackedSeconds && !t.dueDate && !t.recurrence));

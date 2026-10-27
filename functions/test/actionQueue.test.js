@@ -8,7 +8,7 @@ const {setTimerInList, settleTimer} = require("../timer");
 const {completeInList, applyDirectUpdate, removalRecord, undoInList: serverUndoInList} = require("../tasks");
 const {reopenTask} = require("../reopen");
 const {recordCompletion} = require("../history");
-const {normalizeComments} = require("../comments");
+const {normalizeDescription} = require("../description");
 const {applyCompletedEdit} = require("../completedEdit");
 const {normalizeArchiveId, resolveActionTime} = require("../clientTime");
 const {normalizeRequestId} = require("../addRequests");
@@ -22,7 +22,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeComments, applyEditFields, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt};
+    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt};
   `)();
 }
 
@@ -96,7 +96,7 @@ describe("action queue (public/index.html)", () => {
     it("completedRowOf is the row completeTask archives, and the Queue loses the task as completeInList removes it", () => {
       const page = load();
       const repeating = task("b", {order: 2, timerStartedAt: iso(T0 - 10 * MIN), firstStartedAt: iso(T0 - 10 * MIN), trackedSeconds: 120, active: true, recurrence: {frequency: "WEEKLY", interval: 1}, dueDate: "2026-10-27", completedCount: 3, recentSeconds: [600, 700, 800]});
-      const cases = [task("a"), repeating, task("c", {trackedSeconds: 45, comments: "note", projectId: "p1", projectOrder: 2, materials: [{id: "m1", text: "Nails", checked: true, cost: 3.5}]}), task("d", {locked: true, googleCalendarEventId: "ev", scheduledStart: iso(T0 + MIN), scheduledEnd: iso(T0 + 31 * MIN)})];
+      const cases = [task("a"), repeating, task("c", {trackedSeconds: 45, description: "note", projectId: "p1", projectOrder: 2, materials: [{id: "m1", text: "Nails", checked: true, cost: 3.5}]}), task("d", {locked: true, googleCalendarEventId: "ev", scheduledStart: iso(T0 + MIN), scheduledEnd: iso(T0 + 31 * MIN)})];
       for (const t of cases) {
         const list = [task("z", {order: 0}), t, task("y", {order: 9})];
         const done = completeInList(list, t.id, "2026-10-27", () => "new-id", iso(T0), 4);
@@ -109,7 +109,7 @@ describe("action queue (public/index.html)", () => {
     });
     it("reopenTask gives the server's answer, with the row's history taken back and the same errors", () => {
       const page = load();
-      const finished = completeInList([task("a", {trackedSeconds: 90, completedCount: 2, recentSeconds: [60, 90], projectId: "p1", projectOrder: 1, travelKm: 4, location: {name: "Gate"}, comments: "c", recurrence: {frequency: "DAILY", interval: 1}, dueDate: "2026-10-26"}), task("b")], "a", "2026-10-27", () => "new-id", iso(T0), 7);
+      const finished = completeInList([task("a", {trackedSeconds: 90, completedCount: 2, recentSeconds: [60, 90], projectId: "p1", projectOrder: 1, travelKm: 4, location: {name: "Gate"}, description: "c", recurrence: {frequency: "DAILY", interval: 1}, dueDate: "2026-10-26"}), task("b")], "a", "2026-10-27", () => "new-id", iso(T0), 7);
       const row = {...finished.completedTask, ...finished.history, completedAt: iso(T0)};
       const rows = [
         row,
@@ -131,17 +131,17 @@ describe("action queue (public/index.html)", () => {
       assert.deepEqual(page.reopenTask([], null, {makeId: () => "x"}), reopenTask([], null, {makeId: () => "x"}));
       assert.equal(page.reopenTask([], rows[0], {projectIds: [], makeId: () => "x"}).task.completedCount, 2, "the history is back to before the completion");
     });
-    it("an EDIT of comments leaves a task and an entry as the server's edits do", () => {
+    it("an EDIT of description leaves a task and an entry as the server's edits do", () => {
       const page = load();
-      for (const comments of ["  hi  ", "", "   ", null, "x".repeat(2500), 5, undefined]) {
-        assert.equal(page.normalizeComments(comments), normalizeComments(comments));
-        for (const t of [task("a"), task("a", {comments: "old"})]) {
-          if (normalizeComments(comments) === undefined) continue;
-          assert.deepEqual(page.applyEditFields(t, {comments}), applyDirectUpdate(t, {comments}));
-          const edit = applyCompletedEdit(t, {comments}, {timeZone: "Pacific/Auckland"});
+      for (const description of ["  hi  ", "", "   ", null, "x".repeat(2500), 5, undefined]) {
+        assert.equal(page.normalizeDescription(description), normalizeDescription(description));
+        for (const t of [task("a"), task("a", {description: "old"})]) {
+          if (normalizeDescription(description) === undefined) continue;
+          assert.deepEqual(page.applyEditFields(t, {description}), applyDirectUpdate(t, {description}));
+          const edit = applyCompletedEdit(t, {description}, {timeZone: "Pacific/Auckland"});
           const expected = edit.error ? {...t} : {...t, ...edit.set}; // the server refuses an edit that changes nothing, which leaves the entry as it is
           for (const key of edit.remove || []) delete expected[key];
-          assert.deepEqual(page.applyEditFields(t, {comments}), expected);
+          assert.deepEqual(page.applyEditFields(t, {description}), expected);
         }
       }
     });
@@ -163,8 +163,8 @@ describe("action queue (public/index.html)", () => {
       assert.deepEqual(action(page, {requestId: "req-00002", fields: {action: "pause", capSeconds: 90}}).fields, {action: "PAUSE", capSeconds: 90});
       assert.deepEqual(page.makeQueuedAction({kind: "COMPLETE", taskId: "a", archiveId: "archive-0001", title: "Task a", now: T0, requestId: "req-00003"}), {requestId: "req-00003", kind: "COMPLETE", taskId: "a", archiveId: "archive-0001", title: "Task a", at: T0, status: "PENDING"});
       assert.deepEqual(page.makeQueuedAction({kind: "REOPEN", taskId: "a", archiveId: "archive-0001", title: "Task a", now: T0, requestId: "req-00004"}).archiveId, "archive-0001");
-      assert.deepEqual(page.makeQueuedAction({kind: "EDIT", taskId: "a", title: "Task a", fields: {comments: "  hi "}, now: T0, requestId: "req-00005"}).fields, {comments: "hi"});
-      assert.deepEqual(page.makeQueuedAction({kind: "EDIT", archiveId: "archive-0001", title: "Task a", fields: {comments: ""}, now: T0, requestId: "req-00006"}).fields, {comments: null});
+      assert.deepEqual(page.makeQueuedAction({kind: "EDIT", taskId: "a", title: "Task a", fields: {description: "  hi "}, now: T0, requestId: "req-00005"}).fields, {description: "hi"});
+      assert.deepEqual(page.makeQueuedAction({kind: "EDIT", archiveId: "archive-0001", title: "Task a", fields: {description: ""}, now: T0, requestId: "req-00006"}).fields, {description: null});
     });
     it("makes a request id of its own when none is given", () => {
       const page = load();
@@ -194,10 +194,10 @@ describe("action queue (public/index.html)", () => {
       assert.equal(page.makeQueuedAction({...base, kind: "COMPLETE", taskId: "a", archiveId: "__name__"}), null);
       assert.equal(page.makeQueuedAction({...base, kind: "COMPLETE", archiveId: "archive-0001"}), null, "no task");
       assert.equal(page.makeQueuedAction({...base, kind: "REOPEN", archiveId: "archive-0001"}), null, "no task");
-      assert.equal(page.makeQueuedAction({...base, kind: "EDIT", fields: {comments: "x"}}), null, "no target");
-      assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", archiveId: "archive-0001", fields: {comments: "x"}}), null, "two targets");
+      assert.equal(page.makeQueuedAction({...base, kind: "EDIT", fields: {description: "x"}}), null, "no target");
+      assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", archiveId: "archive-0001", fields: {description: "x"}}), null, "two targets");
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {priority: "HIGH"}}), null, "a field that cannot be held");
-      assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {comments: 5}}), null);
+      assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {description: 5}}), null);
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {}}), null);
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a"}), null);
     });
@@ -211,10 +211,30 @@ describe("action queue (public/index.html)", () => {
     });
   });
 
+  describe("a change held before the rename", () => {
+    const held = (extra) => ({requestId: "req-00001", kind: "EDIT", taskId: "a", title: "Task a", at: T0, status: "PENDING", ...extra});
+    it("reads a stored EDIT of comments as an EDIT of the description, a clearing null included", () => {
+      const page = load();
+      assert.deepEqual(page.parseActionQueue(JSON.stringify([held({fields: {comments: "hi"}})]))[0].fields, {description: "hi"});
+      assert.deepEqual(page.parseActionQueue(JSON.stringify([held({fields: {comments: null}})]))[0].fields, {description: null});
+      assert.deepEqual(page.parseActionQueue(page.serializeActionQueue(page.parseActionQueue(JSON.stringify([held({fields: {comments: "hi"}})])))).map((a) => a.fields), [{description: "hi"}]);
+    });
+    it("still refuses an EDIT whose comments is not text", () => {
+      assert.deepEqual(load().parseActionQueue(JSON.stringify([held({fields: {comments: [{id: "c1", at: 1, text: "x"}]}})])), []);
+    });
+    it("reads the task a stored UNDO carries with its description", () => {
+      const page = load();
+      const stored = {requestId: "req-00002", kind: "UNDO", taskId: "a", archiveId: "archive-0001", title: "Task a", at: T0, status: "PENDING", fields: {task: task("a", {comments: "Blue paint"})}};
+      const [undo] = page.parseActionQueue(JSON.stringify([stored]));
+      assert.equal(undo.fields.task.description, "Blue paint");
+      assert.equal("comments" in undo.fields.task, false);
+    });
+  });
+
   describe("the stored queue", () => {
     it("round-trips and keeps the order", () => {
       const page = load();
-      const queue = [action(page, {requestId: "req-00001"}), page.makeQueuedAction({kind: "COMPLETE", taskId: "a", archiveId: "archive-0001", title: "Task a", now: T0 + 1, requestId: "req-00002"}), page.makeQueuedAction({kind: "EDIT", archiveId: "archive-0001", title: "Task a", fields: {comments: "hi"}, now: T0 + 2, requestId: "req-00003"})];
+      const queue = [action(page, {requestId: "req-00001"}), page.makeQueuedAction({kind: "COMPLETE", taskId: "a", archiveId: "archive-0001", title: "Task a", now: T0 + 1, requestId: "req-00002"}), page.makeQueuedAction({kind: "EDIT", archiveId: "archive-0001", title: "Task a", fields: {description: "hi"}, now: T0 + 2, requestId: "req-00003"})];
       assert.deepEqual(page.parseActionQueue(page.serializeActionQueue(queue)), queue);
       assert.equal(page.ACTION_QUEUE_KEY, "taskhub-action-queue");
     });
@@ -252,7 +272,7 @@ describe("action queue (public/index.html)", () => {
     it("holds only the kinds stage 1 can replay and the fields it can apply", () => {
       const page = load();
       assert.deepEqual(page.ACTION_KINDS, ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO"]);
-      assert.deepEqual(page.EDIT_FIELDS, ["comments"]);
+      assert.deepEqual(page.EDIT_FIELDS, ["description"]);
     });
   });
 
@@ -288,7 +308,7 @@ describe("action queue (public/index.html)", () => {
       const page = load();
       const tasks = timerTasks();
       const completed = [{archiveId: "archive-0001", title: "Old", completedAt: iso(T0 - MIN), trackedSeconds: 60}];
-      const actions = [timer(page, "a", "START", T0), page.makeQueuedAction({kind: "COMPLETE", taskId: "b", archiveId: "archive-0002", title: "B", now: T0 + MIN}), page.makeQueuedAction({kind: "REOPEN", taskId: "old", archiveId: "archive-0001", title: "Old", now: T0 + 2 * MIN}), page.makeQueuedAction({kind: "EDIT", taskId: "c", title: "C", fields: {comments: "hi"}, now: T0 + 3 * MIN})];
+      const actions = [timer(page, "a", "START", T0), page.makeQueuedAction({kind: "COMPLETE", taskId: "b", archiveId: "archive-0002", title: "B", now: T0 + MIN}), page.makeQueuedAction({kind: "REOPEN", taskId: "old", archiveId: "archive-0001", title: "Old", now: T0 + 2 * MIN}), page.makeQueuedAction({kind: "EDIT", taskId: "c", title: "C", fields: {description: "hi"}, now: T0 + 3 * MIN})];
       page.withPendingActions(tasks, completed, actions);
       assert.deepEqual(tasks, timerTasks());
       assert.deepEqual(completed, [{archiveId: "archive-0001", title: "Old", completedAt: iso(T0 - MIN), trackedSeconds: 60}]);
@@ -331,8 +351,8 @@ describe("action queue (public/index.html)", () => {
       const nothing = page.withPendingActions(timerTasks(), [], [
         page.makeQueuedAction({kind: "COMPLETE", taskId: "gone", archiveId: "archive-0001", title: "G", now: T0}),
         page.makeQueuedAction({kind: "REOPEN", taskId: "x", archiveId: "archive-0009", title: "G", now: T0}),
-        page.makeQueuedAction({kind: "EDIT", taskId: "gone", title: "G", fields: {comments: "hi"}, now: T0}),
-        page.makeQueuedAction({kind: "EDIT", archiveId: "archive-0009", title: "G", fields: {comments: "hi"}, now: T0}),
+        page.makeQueuedAction({kind: "EDIT", taskId: "gone", title: "G", fields: {description: "hi"}, now: T0}),
+        page.makeQueuedAction({kind: "EDIT", archiveId: "archive-0009", title: "G", fields: {description: "hi"}, now: T0}),
       ]);
       assert.deepEqual(nothing, {tasks: timerTasks(), completed: []});
     });
@@ -409,18 +429,18 @@ describe("action queue (public/index.html)", () => {
       assert.equal("waitingRequestId" in back, false);
       assert.equal(back.trackedSeconds, 30);
     });
-    it("edits comments on a task, and on an entry, including one that is itself waiting", () => {
+    it("edits description on a task, and on an entry, including one that is itself waiting", () => {
       const page = load();
-      const row = {archiveId: "archive-0001", title: "Old", comments: "was", completedAt: iso(T0 - MIN)};
-      const edit = (target, comments, atMs) => page.makeQueuedAction({kind: "EDIT", ...target, title: "t", fields: {comments}, now: atMs});
+      const row = {archiveId: "archive-0001", title: "Old", description: "was", completedAt: iso(T0 - MIN)};
+      const edit = (target, description, atMs) => page.makeQueuedAction({kind: "EDIT", ...target, title: "t", fields: {description}, now: atMs});
       const shown = page.withPendingActions(timerTasks(), [row], [edit({taskId: "c"}, "  new ", T0), edit({archiveId: "archive-0001"}, "", T0 + 1)]);
-      assert.equal(shown.tasks.find((t) => t.id === "c").comments, "new");
-      assert.equal("comments" in shown.completed[0], false);
+      assert.equal(shown.tasks.find((t) => t.id === "c").description, "new");
+      assert.equal("description" in shown.completed[0], false);
       const waiting = page.withPendingActions(timerTasks(), [], [
         page.makeQueuedAction({kind: "COMPLETE", taskId: "c", archiveId: "archive-0002", title: "C", now: T0}),
         edit({archiveId: "archive-0002"}, "done well", T0 + 1),
       ]);
-      assert.equal(waiting.completed[0].comments, "done well");
+      assert.equal(waiting.completed[0].description, "done well");
       assert.equal(waiting.completed[0].waitingRequestId !== undefined, true);
     });
     it("is the same whether the actions were all waiting or the first had been sent and the server's list holds its result", () => {
@@ -458,7 +478,7 @@ describe("action queue (public/index.html)", () => {
       const queue = [
         action(page, {requestId: "req-00001", taskId: "x"}),
         complete(page, "a", "archive-0001", T0, "req-00002"),
-        page.makeQueuedAction({kind: "EDIT", archiveId: "archive-0001", title: "a", fields: {comments: "hi"}, now: T0 + 1, requestId: "req-00003"}),
+        page.makeQueuedAction({kind: "EDIT", archiveId: "archive-0001", title: "a", fields: {description: "hi"}, now: T0 + 1, requestId: "req-00003"}),
         complete(page, "b", "archive-0002", T0 + 2, "req-00004"),
         reopen(page, "a", "archive-0001", T0 + 3, "req-00005"),
         action(page, {requestId: "req-00006", taskId: "c"}),
@@ -472,9 +492,9 @@ describe("action queue (public/index.html)", () => {
       const queue = [
         reopen(page, "a", "archive-0001", T0, "req-00001"),
         action(page, {requestId: "req-00002", taskId: "a"}),
-        page.makeQueuedAction({kind: "EDIT", taskId: "a", title: "a", fields: {comments: "hi"}, now: T0 + 1, requestId: "req-00003"}),
+        page.makeQueuedAction({kind: "EDIT", taskId: "a", title: "a", fields: {description: "hi"}, now: T0 + 1, requestId: "req-00003"}),
         complete(page, "a", "archive-0009", T0 + 2, "req-00004"),
-        page.makeQueuedAction({kind: "EDIT", archiveId: "archive-0009", title: "a", fields: {comments: "ok"}, now: T0 + 3, requestId: "req-00005"}),
+        page.makeQueuedAction({kind: "EDIT", archiveId: "archive-0009", title: "a", fields: {description: "ok"}, now: T0 + 3, requestId: "req-00005"}),
         action(page, {requestId: "req-00006", taskId: "b"}),
       ];
       const result = page.cancelActions(queue, "req-00001");
@@ -580,7 +600,7 @@ describe("action queue (public/index.html)", () => {
       assert.equal(page.actionLabel(action(page, {title: "Fix gate", fields: {action: "ABORT"}})), "Abort timer for “Fix gate”");
       assert.equal(page.actionLabel(page.makeQueuedAction({kind: "COMPLETE", taskId: "a", archiveId: "archive-0001", title: "Fix gate", now: T0})), "Complete “Fix gate”");
       assert.equal(page.actionLabel(page.makeQueuedAction({kind: "REOPEN", taskId: "a", archiveId: "archive-0001", title: "Fix gate", now: T0})), "Reopen “Fix gate”");
-      assert.equal(page.actionLabel(page.makeQueuedAction({kind: "EDIT", taskId: "a", title: "Fix gate", fields: {comments: "x"}, now: T0})), "Update comments on “Fix gate”");
+      assert.equal(page.actionLabel(page.makeQueuedAction({kind: "EDIT", taskId: "a", title: "Fix gate", fields: {description: "x"}, now: T0})), "Update description on “Fix gate”");
       assert.equal(page.actionLabel(undoAction(page, completedFixture().record, {title: "Fix gate"})), "Undo completing “Fix gate”");
       assert.equal(page.actionLabel(action(page, {title: ""})), "Start timer for task");
       assert.equal(page.actionLabel(null), "Change task");
@@ -630,7 +650,7 @@ describe("action queue (public/index.html)", () => {
       const page = load();
       let compared = 0;
       for (const recurrence of [undefined, {frequency: "WEEKLY", interval: 1}]) {
-        for (const extra of [{}, {locked: true}, {comments: "gate"}]) {
+        for (const extra of [{}, {locked: true}, {description: "gate"}]) {
           const {done, record} = completedFixture(extra, recurrence);
           const lists = [done.tasks, [...done.tasks, record.task], [], [task("q")]];
           for (const list of lists) {
@@ -717,7 +737,7 @@ describe("action queue (public/index.html)", () => {
       assert.equal(make({fields: {task: record.task, spawnedId: ""}}), null);
       assert.equal(make({fields: {task: record.task, spawnedId: "spawn-1"}}).fields.spawnedId, "spawn-1");
       assert.equal("spawnedId" in make({fields: {task: record.task, spawnedId: null}}).fields, false);
-      assert.equal(make({fields: {task: {...record.task, comments: "x".repeat(page.UNDO_TASK_MAX_CHARS)}}}), null, "an absurd task is refused");
+      assert.equal(make({fields: {task: {...record.task, description: "x".repeat(page.UNDO_TASK_MAX_CHARS)}}}), null, "an absurd task is refused");
     });
     it("keeps an UNDO through the stored queue", () => {
       const page = load();
@@ -784,9 +804,9 @@ describe("action queue (public/index.html)", () => {
     });
   });
   describe("reopen", () => {
-    const entryRow = (extra = {}) => ({id: "e", title: "Task e", status: "PENDING", priority: "LOW", estimatedMinutes: 10, tags: [], trackedSeconds: 90, comments: "was", completedAt: iso(T0 - 5 * MIN), archiveId: "archive-0001", completedCount: 1, recentSeconds: [90], ...extra});
+    const entryRow = (extra = {}) => ({id: "e", title: "Task e", status: "PENDING", priority: "LOW", estimatedMinutes: 10, tags: [], trackedSeconds: 90, description: "was", completedAt: iso(T0 - 5 * MIN), archiveId: "archive-0001", completedCount: 1, recentSeconds: [90], ...extra});
     const reopenAction = (page, over = {}) => page.makeQueuedAction({kind: "REOPEN", taskId: "e", archiveId: "archive-0001", title: "Task e", now: T0, requestId: "req-r0001", ...over});
-    const editAction = (page, comments, over = {}) => page.makeQueuedAction({kind: "EDIT", archiveId: "archive-0001", title: "Task e", fields: {comments}, now: T0 - MIN, requestId: "req-e0001", ...over});
+    const editAction = (page, description, over = {}) => page.makeQueuedAction({kind: "EDIT", archiveId: "archive-0001", title: "Task e", fields: {description}, now: T0 - MIN, requestId: "req-e0001", ...over});
 
     it("sends a reopen as the entry's id and its request id, and an entry's edit as updateCompletedTask's body", () => {
       const page = load();
@@ -794,13 +814,13 @@ describe("action queue (public/index.html)", () => {
       assert.deepEqual(body, {id: "archive-0001", requestId: "req-r0001"});
       assert.equal(normalizeArchiveId(body.id), body.id);
       assert.equal(normalizeRequestId(body.requestId), body.requestId);
-      assert.deepEqual(page.entryEditBody(editAction(page, "new")), {id: "archive-0001", updatedFields: {comments: "new"}});
-      assert.deepEqual(page.entryEditBody(editAction(page, null)), {id: "archive-0001", updatedFields: {comments: null}}, "cleared comments are sent as null");
+      assert.deepEqual(page.entryEditBody(editAction(page, "new")), {id: "archive-0001", updatedFields: {description: "new"}});
+      assert.deepEqual(page.entryEditBody(editAction(page, null)), {id: "archive-0001", updatedFields: {description: null}}, "cleared description are sent as null");
     });
     it("splits a form's changes into the ones that can be held and the names of the rest", () => {
       const page = load();
-      assert.deepEqual(page.splitHeldFields({comments: "x", trackedSeconds: 600, completedDate: "2026-10-27", completedTime: "09:00", travelKm: 3}), {held: {comments: "x"}, other: ["trackedSeconds", "completedDate", "completedTime", "travelKm"]});
-      assert.deepEqual(page.splitHeldFields({comments: null}), {held: {comments: null}, other: []});
+      assert.deepEqual(page.splitHeldFields({description: "x", trackedSeconds: 600, completedDate: "2026-10-27", completedTime: "09:00", travelKm: 3}), {held: {description: "x"}, other: ["trackedSeconds", "completedDate", "completedTime", "travelKm"]});
+      assert.deepEqual(page.splitHeldFields({description: null}), {held: {description: null}, other: []});
       for (const nothing of [{}, null, undefined, [], "x"]) assert.deepEqual(page.splitHeldFields(nothing), {held: {}, other: []});
     });
     it("names changed fields the way the owner knows them, each once", () => {
@@ -811,13 +831,13 @@ describe("action queue (public/index.html)", () => {
       assert.equal(page.fieldNamesText([]), "");
       assert.equal(page.fieldNamesText(undefined), "");
     });
-    it("shows an edit of an entry's comments and then its reopen as the task back with those comments, in order", () => {
+    it("shows an edit of an entry's description and then its reopen as the task back with those description, in order", () => {
       const page = load();
       const shown = page.withPendingActions(timerTasks(), [entryRow()], [editAction(page, "now"), reopenAction(page)]);
       assert.deepEqual(shown.completed, []);
       const back = shown.tasks[shown.tasks.length - 1];
       assert.equal(back.id, "e");
-      assert.equal(back.comments, "now");
+      assert.equal(back.description, "now");
       assert.equal(back.trackedSeconds, 90);
       assert.equal(back.completedCount, undefined, "its job history goes back to before the completion");
     });
@@ -845,7 +865,7 @@ describe("action queue (public/index.html)", () => {
     it("takes back a waiting completion: its entry and what was done to it go, and the task is as it was", () => {
       const page = load();
       const complete = page.makeQueuedAction({kind: "COMPLETE", taskId: "c", archiveId: "archive-0002", title: "Task c", now: T0, requestId: "req-c0001"});
-      const edit = page.makeQueuedAction({kind: "EDIT", archiveId: "archive-0002", title: "Task c", fields: {comments: "x"}, now: T0 + MIN, requestId: "req-e0002"});
+      const edit = page.makeQueuedAction({kind: "EDIT", archiveId: "archive-0002", title: "Task c", fields: {description: "x"}, now: T0 + MIN, requestId: "req-e0002"});
       const other = page.makeQueuedAction({kind: "TIMER", taskId: "d", title: "Task d", fields: {action: "START"}, now: T0 - MIN, requestId: "req-t0002"});
       const taken = page.takeBackCompletion([other, complete, edit], timerTasks(), [], "req-c0001");
       assert.deepEqual(taken.actions.map((a) => a.requestId), ["req-t0002"]);

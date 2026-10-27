@@ -26,7 +26,7 @@ function historyBefore(row) {
 //   row:        the archive document as stored (a Task plus completedAt and its history), without its archive id
 //   options:    {projectIds: ids of the current projects, makeId: () => a new task id}
 // The task comes back as a plain PENDING task at the end of the list, with everything the row holds: its title, priority,
-// due date, estimate, tags, materials, comments, snooze date and `addedAt`, its own id (a new one when that id is already on
+// due date, estimate, tags, materials, description, snooze date and `addedAt`, its own id (a new one when that id is already on
 // the list), and, above all, the time it accrued (`trackedSeconds`) and when it was first started (`firstStartedAt`). Its
 // timer is stopped and it is not the active task. Its calendar event was deleted at completion, so, unless it is pinned
 // (`locked`, whose event is on the personal calendar), its schedule fields are cleared and the next run books it again. It

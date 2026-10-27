@@ -14,8 +14,8 @@ const PROPOSAL_INSTRUCTIONS = `
       3 to 12 steps in the order they are done, each with a title, priority, estimatedMinutes and tags. This applies just as much
       when the input lists the stages itself ("strip the walls, tile, then paint"): those stages are the steps.
       When the input gives useful detail for a step (measurements, materials, grades, spacings, rules, warnings), also give that
-      step a comments field: short plain-text lines, at most 2000 characters, kept to what the input says, with no citation markers
-      such as [1, 2]. Leave comments out of a step the input says nothing specific about.
+      step a description field: short plain-text lines, at most 2000 characters, kept to what the input says, with no citation markers
+      such as [1, 2]. Leave description out of a step the input says nothing specific about.
       Still return the tasks as you normally would, reading the input as a single task or as the tasks it names.
       Never suggest a project for a single errand, for a list of unrelated errands, for a repeating task, for a change to
       existing tasks, or when the input already names or uses one of the Existing Projects. Leave projectProposal out when it is
@@ -60,7 +60,7 @@ function buildTaskPrompt({tasks, projects, input, today, proposals = false}) {
 // The prompt that suggests tags for a task the owner entered by hand without any. Pure: no I/O.
 //   title:     the task's title
 //   knownTags: tags already used on the list, so the model reuses the owner's vocabulary
-// The model sees only the title, never the task's comments or materials.
+// The model sees only the title, never the task's description or materials.
 function buildTagPrompt({title, knownTags = []}) {
   const known = [...new Set(knownTags.map(oneLine).filter(Boolean))].slice(0, 50);
   return `

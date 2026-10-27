@@ -198,7 +198,7 @@
     .pager { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center; margin: 10px 0; }
     .pager button { min-width: 36px; padding: 6px 10px; }
     .pager .pager-gap { color: var(--text-faint); }
-    .completed-comments { font-size: 12px; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 4px; }
+    .completed-description { font-size: 12px; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 4px; }
     .photo-note { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
     .photo-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
     .photo-thumb { padding: 0; border: none; background: var(--chip-bg); border-radius: 6px; line-height: 0; overflow: hidden; cursor: pointer; }
@@ -287,7 +287,7 @@
     .snooze-chip { background: var(--snooze-bg); color: var(--snooze-fg); font-weight: 600; }
     .snooze-choices, .batch-choices { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
     .snooze-choices button, .batch-choices button { flex: 1 1 auto; }
-    .task-comments { margin-top: 6px; font-size: 13px; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .task-description { margin-top: 6px; font-size: 13px; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     .active-task-box { margin-bottom: 14px; border: 2px solid var(--primary); border-radius: 8px; padding: 6px 6px 2px; }
     .active-task-box > .summary-label { margin: 2px 6px 0; }
     .active-task-box .task-item { border-bottom: none; }
@@ -437,8 +437,8 @@
       </div>
 
       <div class="form-group">
-        <label for="manualComments">Comments</label>
-        <textarea id="manualComments" rows="3" maxlength="2000" placeholder="Notes for yourself"></textarea>
+        <label for="manualDescription">Description</label>
+        <textarea id="manualDescription" rows="3" maxlength="2000" placeholder="Notes for yourself"></textarea>
       </div>
     </div>
   </div>
@@ -915,8 +915,8 @@
         </div>
 
         <div class="form-group">
-          <label for="editComments">Comments</label>
-          <textarea id="editComments" rows="3" maxlength="2000"></textarea>
+          <label for="editDescription">Description</label>
+          <textarea id="editDescription" rows="3" maxlength="2000"></textarea>
         </div>
       </details>
 
@@ -1032,8 +1032,8 @@
         </div>
 
         <div class="form-group">
-          <label for="ceComments">Comments</label>
-          <textarea id="ceComments" rows="3" maxlength="2000"></textarea>
+          <label for="ceDescription">Description</label>
+          <textarea id="ceDescription" rows="3" maxlength="2000"></textarea>
         </div>
       </details>
 
@@ -1980,8 +1980,8 @@
       } else if (form.projectId) Object.assign(manual, projectFields(form.projectId, form.projectOrder));
       const materials = materialsFields(form.materials || []);
       if (materials) manual.materials = materials;
-      const comments = String(form.comments || "").trim();
-      if (comments) manual.comments = comments;
+      const description = String(form.description || "").trim();
+      if (description) manual.description = description;
       const travelKm = parseTravelText(form.travelKm);
       if (typeof travelKm === "number" && travelKm > 0) manual.travelKm = travelKm;
       const phone = String(form.phone || "").trim();
@@ -2494,7 +2494,7 @@
         trackedMinutes: Number.isFinite(row.trackedSeconds) && row.trackedSeconds > 0 ? Math.round(row.trackedSeconds / 60) : 0,
         tags: (Array.isArray(row.tags) ? row.tags : []).join(", "),
         materials: completedMaterialLines(row).join("\n"),
-        comments: typeof row.comments === "string" ? row.comments : "",
+        description: typeof row.description === "string" ? row.description : "",
         travelKm: travelBoxText(row.travelKm),
         location: effectiveLocation(row, null, null) ? effectiveLocation(row, null, null).location : null,
         phone: typeof row.phone === "string" ? row.phone : "",
@@ -2520,8 +2520,8 @@
       if (materials.map(materialLine).join("\n") !== parseMaterialItems(before.materials).map(materialLine).join("\n")) {
         fields.materials = materials.length ? materials.map(m => (m.cost === undefined ? m.text : m)) : null;
       }
-      const comments = String(form.comments || "").trim();
-      if (comments !== before.comments.trim()) fields.comments = comments === "" ? null : comments;
+      const description = String(form.description || "").trim();
+      if (description !== before.description.trim()) fields.description = description === "" ? null : description;
       const travel = parseTravelText(form.travelKm);
       if (travel === undefined) return { error: INVALID_TRAVEL };
       if ((travel || null) !== (parseTravelText(before.travelKm) || null)) fields.travelKm = travel || null;
@@ -2542,14 +2542,14 @@
     // Completed tasks are listed this many to a page.
     const COMPLETED_PAGE_SIZE = 50;
     // Whether a completed task matches a search: every word of `query` (case-insensitive, any order, part of a word is
-    // enough) must appear somewhere in its title, tags, materials, comments, project name or its project's client name. Empty matches everything.
+    // enough) must appear somewhere in its title, tags, materials, description, project name or its project's client name. Empty matches everything.
     function matchesCompletedSearch(row, query, projectName) {
       // A job-number word is matched exactly (so 12 does not find 123); a bare hash restricts nothing.
       const { numbers, words: rest } = jobNumberWords(query);
       if (numbers.some(n => n !== row.jobNumber)) return false;
       if (rest.length === 0) return true;
       const text = (v) => (typeof v === "string" ? v : "");
-      const hay = [text(row.title), ...(Array.isArray(row.tags) ? row.tags : []).map(text), ...completedMaterialTexts(row), text(row.comments), text(projectName)].join("\n").toLowerCase();
+      const hay = [text(row.title), ...(Array.isArray(row.tags) ? row.tags : []).map(text), ...completedMaterialTexts(row), text(row.description), text(projectName)].join("\n").toLowerCase();
       return rest.every(w => hay.includes(w));
     }
     // One page of the completed tasks that match a search (the list is newest first and keeps that order). `page` is
@@ -2769,7 +2769,7 @@
           if (m && typeof m === "object" && typeof m.cost === "number") item.cost = m.cost;
           return item;
         }),
-        comments: typeof t.comments === "string" ? t.comments : "",
+        description: typeof t.description === "string" ? t.description : "",
         travelKm: travelBoxText(t.travelKm),
         phone: typeof t.phone === "string" ? t.phone : "",
         email: typeof t.email === "string" ? t.email : "",
@@ -3194,6 +3194,23 @@
       return err.name === "TypeError" && /failed to fetch|networkerror|load failed|network request failed|network connection was lost|internet connection appears to be offline/i.test(String(err.message || ""));
     }
 
+    // A task or History entry as the page now names it: a saved copy or a held action written when a task's text was still called
+    // `comments` has that text as its `description` (kept when it has one already) and no `comments`. Anything else is returned as it is,
+    // so a `comments` that is not text is never touched. Pure: the input is not modified.
+    function withDescriptionKey(item) {
+      if (!item || typeof item !== "object" || Array.isArray(item) || typeof item.comments !== "string") return item;
+      const { comments, ...rest } = item;
+      if (typeof rest.description === "string" && rest.description !== "") return rest;
+      return comments.trim() === "" ? rest : { ...rest, description: comments };
+    }
+    // The same for the `fields` of a held EDIT, where null (no text) is a value too.
+    function withDescriptionField(fields) {
+      if (!fields || typeof fields !== "object" || Array.isArray(fields) || !("comments" in fields)) return fields;
+      const { comments, ...rest } = fields;
+      if ("description" in rest) return rest;
+      return comments === null || typeof comments === "string" ? { ...rest, description: comments } : fields;
+    }
+
     // The saved copy of the task list, kept in localStorage under TASK_CACHE_KEY so the Queue can still show the last list the
     // server sent when the connection is down. It belongs to one signed-in account (`uid`) and is only ever read back for it.
     const TASK_CACHE_KEY = "taskhub-task-cache";
@@ -3206,7 +3223,7 @@
       try {
         const data = JSON.parse(text);
         if (!data || data.v !== 1 || data.uid !== uid || !Array.isArray(data.tasks) || !Number.isFinite(data.savedAt)) return null;
-        return { tasks: data.tasks.filter(t => t && typeof t === "object" && typeof t.id === "string"), savedAt: data.savedAt };
+        return { tasks: data.tasks.filter(t => t && typeof t === "object" && typeof t.id === "string").map(withDescriptionKey), savedAt: data.savedAt };
       } catch (e) { return null; }
     }
     // How long ago a copy was saved, in words: "just now", "5 minutes ago", "3 hours ago", "2 days ago".
@@ -3238,7 +3255,7 @@
       try {
         const data = JSON.parse(text);
         if (!data || data.v !== 1 || data.uid !== uid || !Array.isArray(data.rows) || !Number.isFinite(data.savedAt)) return null;
-        const rows = data.rows.filter(r => r && typeof r === "object").slice(0, COMPLETED_CACHE_ROWS);
+        const rows = data.rows.filter(r => r && typeof r === "object").slice(0, COMPLETED_CACHE_ROWS).map(withDescriptionKey);
         return { rows, savedAt: data.savedAt, limited: data.limited === true || data.rows.length > COMPLETED_CACHE_ROWS };
       } catch (e) { return null; }
     }
@@ -3250,9 +3267,9 @@
     // the fields in OFFLINE_COMPLETED_FIELDS (the ones a change made offline can be kept for) stay enabled.
     const COMPLETED_FORM_CONTROLS = {
       cePriority: "priority", ceTracked: "trackedMinutes", ceTags: "tags", ceProject: "projectId", ceMaterials: "materials", ceTravel: "travelKm",
-      ceLocation: "location", cePlaceSearchBtn: "location", ceLocationClearBtn: "location", cePhone: "phone", ceEmail: "email", ceComments: "comments", ceDate: "date", ceTime: "time"
+      ceLocation: "location", cePlaceSearchBtn: "location", ceLocationClearBtn: "location", cePhone: "phone", ceEmail: "email", ceDescription: "description", ceDate: "date", ceTime: "time"
     };
-    const OFFLINE_COMPLETED_FIELDS = ["comments"];
+    const OFFLINE_COMPLETED_FIELDS = ["description"];
     function completedFieldDisabled(field, offline) {
       return offline === true && !OFFLINE_COMPLETED_FIELDS.includes(field);
     }
@@ -3343,7 +3360,7 @@
     //   TIMER:    taskId, fields {action: "START"|"PAUSE"|"ABORT", capSeconds?} (capSeconds only with PAUSE)
     //   COMPLETE: taskId and archiveId, the id the page gave the History entry (the server uses it as the row's id)
     //   REOPEN:   archiveId (the entry) and taskId (the entry's own `id`, the task that comes back)
-    //   EDIT:     taskId (a queued task) or archiveId (an entry), fields {comments} (EDIT_FIELDS: the fields that can be held)
+    //   EDIT:     taskId (a queued task) or archiveId (an entry), fields {description} (EDIT_FIELDS: the fields that can be held)
     //   UNDO:     taskId and archiveId of a completion the server has (or may have), fields {task, spawnedId?}: the task as archived
     //             (completionRecord) and the id of the next occurrence the completion made, so the page can show it undone
     // `at` is when the change was made, in epoch milliseconds on the server's clock (the device's corrected by `clockOffsetFrom`),
@@ -3353,8 +3370,8 @@
     const ACTION_QUEUE_MAX = 50;
     const ACTION_KINDS = ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO"];
     const TIMER_ACTIONS = ["START", "PAUSE", "ABORT"];
-    const EDIT_FIELDS = ["comments"];
-    const MAX_COMMENTS_LENGTH = 2000;
+    const EDIT_FIELDS = ["description"];
+    const MAX_DESCRIPTION_LENGTH = 2000;
     const UNDO_TASK_MAX_CHARS = 20000; // the most an UNDO may carry of the task it puts back
 
     // A new id for a History entry made on the page: the server takes it as the id of the row (8 to 64 letters, digits, - and _).
@@ -3553,22 +3570,22 @@
       return { tasks: [...list, task], task, droppedRecurrence: Boolean(row.recurrence) };
     }
 
-    // A `comments` value as the server reads it (functions/comments.js): undefined for an unusable value, null for none (null or
+    // A `description` value as the server reads it (functions/description.js): undefined for an unusable value, null for none (null or
     // text empty once trimmed), else the text trimmed and cut to 2000 characters.
-    function normalizeComments(value) {
+    function normalizeDescription(value) {
       if (value === null) return null;
       if (typeof value !== "string") return undefined;
-      const text = value.trim().slice(0, MAX_COMMENTS_LENGTH).trim();
+      const text = value.trim().slice(0, MAX_DESCRIPTION_LENGTH).trim();
       return text === "" ? null : text;
     }
-    // A task or History entry with the held `fields` of an EDIT applied, as the server will apply them: a text sets `comments`,
+    // A task or History entry with the held `fields` of an EDIT applied, as the server will apply them: a text sets `description`,
     // null takes the key away.
     function applyEditFields(target, fields) {
       const next = { ...target };
-      if (fields && "comments" in fields) {
-        const comments = normalizeComments(fields.comments);
-        if (typeof comments === "string") next.comments = comments;
-        else if (comments === null) delete next.comments;
+      if (fields && "description" in fields) {
+        const description = normalizeDescription(fields.description);
+        if (typeof description === "string") next.description = description;
+        else if (description === null) delete next.description;
       }
       return next;
     }
@@ -3583,20 +3600,21 @@
         return action === "PAUSE" && Number.isInteger(cap) && cap >= 0 ? { action, capSeconds: cap } : null;
       }
       if (kind === "EDIT") {
+        fields = withDescriptionField(fields); // a change held before the rename
         if (!fields || typeof fields !== "object" || Array.isArray(fields)) return null;
         const keys = Object.keys(fields);
         if (keys.length === 0 || keys.some(k => !EDIT_FIELDS.includes(k))) return null;
         const out = {};
-        if ("comments" in fields) {
-          const comments = normalizeComments(fields.comments);
-          if (comments === undefined) return null;
-          out.comments = comments;
+        if ("description" in fields) {
+          const description = normalizeDescription(fields.description);
+          if (description === undefined) return null;
+          out.description = description;
         }
         return out;
       }
       if (kind === "UNDO") {
         if (!fields || typeof fields !== "object" || Array.isArray(fields)) return null;
-        const task = fields.task;
+        const task = withDescriptionKey(fields.task);
         if (!task || typeof task !== "object" || Array.isArray(task) || typeof task.id !== "string" || task.id === "" || typeof task.title !== "string") return null;
         let text;
         try { text = JSON.stringify(task); } catch (e) { return null; }
@@ -3824,7 +3842,7 @@
       return { actions: pause ? [...left, pause] : left, cancelled, pause };
     }
 
-    // What an action's card says it does: "Complete “Fix gate”", "Start timer for “Fix gate”", "Update comments on “Fix gate”".
+    // What an action's card says it does: "Complete “Fix gate”", "Start timer for “Fix gate”", "Update description on “Fix gate”".
     function actionLabel(action) {
       const task = quotedTitle(action && action.title) || " task";
       if (!action) return "Change" + task;
@@ -4357,7 +4375,7 @@
           newProjectName,
           projectOrder: document.getElementById("manualProjectOrder").value,
           materials: manualMaterials,
-          comments: document.getElementById("manualComments").value,
+          description: document.getElementById("manualDescription").value,
           travelKm: document.getElementById("manualTravel").value,
           phone: document.getElementById("manualPhone").value,
           email: document.getElementById("manualEmail").value,
@@ -4423,7 +4441,7 @@
     function openProposalModal(proposal, singleChanges, startNow) {
       pendingProposal = { proposal, singleChanges, startNow };
       document.getElementById("proposalName").textContent = proposal.name;
-      document.getElementById("proposalSteps").innerHTML = proposal.steps.map(step => `<li>${esc(proposalStepText(step))}${step.comments ? `<div class="proposal-note">${esc(step.comments)}</div>` : ""}</li>`).join("");
+      document.getElementById("proposalSteps").innerHTML = proposal.steps.map(step => `<li>${esc(proposalStepText(step))}${step.description ? `<div class="proposal-note">${esc(step.description)}</div>` : ""}</li>`).join("");
       setProposalBusy(false);
       document.getElementById("proposalModal").style.display = "flex";
       document.body.classList.add("modal-open");
@@ -4524,7 +4542,7 @@
       document.getElementById("manualNewMaterialText").value = "";
       document.getElementById("manualNewMaterialCost").value = "";
       renderManualMaterials();
-      document.getElementById("manualComments").value = v.comments;
+      document.getElementById("manualDescription").value = v.description;
       document.getElementById("manualTravel").value = v.travelKm;
       document.getElementById("manualPhone").value = v.phone;
       document.getElementById("manualEmail").value = v.email;
@@ -4533,7 +4551,7 @@
       document.getElementById("templateResults").hidden = true; // the form replaces the list
     }
 
-    // Repeats, project, materials, travel, location, phone, email and comments belong to one task, so they are cleared after each manual add
+    // Repeats, project, materials, travel, location, phone, email and description belong to one task, so they are cleared after each manual add
     function resetManualExtras() {
       copiedHistory = null;
       document.getElementById("manualRecurFreq").value = "NONE";
@@ -4543,7 +4561,7 @@
       document.getElementById("manualNewProject").value = "";
       updateProjectOrderField("manual");
       manualMaterials = [];
-      document.getElementById("manualComments").value = "";
+      document.getElementById("manualDescription").value = "";
       document.getElementById("manualTravel").value = "";
       document.getElementById("manualPhone").value = "";
       document.getElementById("manualEmail").value = "";
@@ -4842,7 +4860,7 @@
               ${snoozeChip(t)}
               ${t.locked ? `<span class="chip lock-chip" title="Pinned: its event was moved to your personal calendar, so Update now leaves it alone">🔒 Locked</span>` : ''}
             </div>
-            ${t.comments ? `<div class="task-comments">${esc(t.comments)}</div>` : ''}
+            ${t.description ? `<div class="task-description">${esc(t.description)}</div>` : ''}
           </div>
         </div>`;
     }
@@ -5194,7 +5212,7 @@
       const ownLocation = effectiveLocation(task, null, null);
       setLocationBox("edit", ownLocation ? ownLocation.location : null);
       refreshContact("edit");
-      document.getElementById("editComments").value = typeof task.comments === "string" ? task.comments : "";
+      document.getElementById("editDescription").value = typeof task.description === "string" ? task.description : "";
 
       showEditTimer();
       showPhotos(task.id, "taskId", "editPhotos");
@@ -5428,7 +5446,7 @@
       if (email === undefined) { askAlert(INVALID_EMAIL, { tone: "warning" }); return false; }
       const tags = tagsRaw.split(",").map(s => s.trim()).filter(Boolean);
       const recurrence = recurrenceFields(document.getElementById("editRecurFreq").value, document.getElementById("editRecurInterval").value);
-      const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence, materials: materialsFields(editMaterials), travelKm, phone: document.getElementById("editPhone").value.trim(), email, comments: document.getElementById("editComments").value };
+      const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence, materials: materialsFields(editMaterials), travelKm, phone: document.getElementById("editPhone").value.trim(), email, description: document.getElementById("editDescription").value };
       // A changed location is sent (null clears it); an untouched one is left out
       const location = locationFromBox(document.getElementById("editLocation").value, pickedLocation.edit);
       const editedTask = allTasks.find(t => t.id === taskId);
@@ -5907,7 +5925,7 @@
       const values = completedFormValues(row, appTimeZone);
       const offline = savedCompletedAt !== null; // the saved copy is on screen
       document.getElementById("ceExtraFields").open = false; // Extra fields start collapsed
-      if (offline) document.getElementById("ceExtraFields").open = true; // but Comments, the one field left to edit offline, is in them
+      if (offline) document.getElementById("ceExtraFields").open = true; // but Description, the one field left to edit offline, is in them
       document.getElementById("ceId").value = id;
       document.getElementById("ceTitle").textContent = row.title || "";
       showJobNumber("ceJobNumber", row.jobNumber);
@@ -5915,7 +5933,7 @@
       document.getElementById("ceTracked").value = values.trackedMinutes;
       document.getElementById("ceTags").value = values.tags;
       document.getElementById("ceMaterials").value = values.materials;
-      document.getElementById("ceComments").value = values.comments;
+      document.getElementById("ceDescription").value = values.description;
       document.getElementById("ceTravel").value = values.travelKm;
       setLocationBox("ce", values.location);
       document.getElementById("cePhone").value = values.phone;
@@ -5951,7 +5969,7 @@
         trackedMinutes: document.getElementById("ceTracked").value,
         tags: document.getElementById("ceTags").value,
         materials: document.getElementById("ceMaterials").value,
-        comments: document.getElementById("ceComments").value,
+        description: document.getElementById("ceDescription").value,
         travelKm: document.getElementById("ceTravel").value,
         location: locationFromBox(document.getElementById("ceLocation").value, pickedLocation.ce),
         phone: document.getElementById("cePhone").value,
@@ -6022,7 +6040,7 @@
         askAlert(failureText("Failed to reopen", err), { tone: "error" });
       }
     }
-    // Holds a reopen for later: a REOPEN action behind an EDIT of the entry's comments when the form changed them (the other fields
+    // Holds a reopen for later: a REOPEN action behind an EDIT of the entry's description when the form changed them (the other fields
     // need a connection, so they refuse). `behind` is true when it was queued only because other changes were waiting, so the
     // queue is sent now; after a connection failure it waits for a trigger. The entry leaves History and the task joins the end of
     // the Queue at once (withPendingActions); the form closes.
@@ -6257,7 +6275,7 @@
               ${when ? `<span class="chip">✅ ${esc(when)}</span>` : ''}
               ${t.waitingRequestId ? '<span class="chip">⏳ Waiting to send</span>' : ''}
             </div>
-            ${t.comments ? `<div class="completed-comments">${esc(t.comments)}</div>` : ''}
+            ${t.description ? `<div class="completed-description">${esc(t.description)}</div>` : ''}
           </div>
         </div>`;
     }

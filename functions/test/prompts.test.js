@@ -13,9 +13,9 @@ describe("prompts.js", () => {
     const projects = [{id: "p1", name: "Kitchen\n  reno"}, {id: "p2", name: "Garden"}];
     const prompt = (extra = {}) => buildTaskPrompt({tasks, projects, input: "tile the splashback, step 2 of Kitchen reno", today: "2026-10-22", ...extra});
 
-    it("never shows the model a task's comments", () => {
-      const withComments = tasks.map((t) => ({...t, comments: "Secret note about the ladder"}));
-      assert.doesNotMatch(prompt({tasks: withComments}), /Secret note|comments/);
+    it("never shows the model a task's description", () => {
+      const withDescription = tasks.map((t) => ({...t, description: "Secret note about the ladder"}));
+      assert.doesNotMatch(prompt({tasks: withDescription}), /Secret note|description/);
     });
 
     it("names today's date and quotes the input", () => {
@@ -51,13 +51,13 @@ describe("prompts.js", () => {
       assert.match(text, /Leave projectProposal out when it is\s+not clearly one multi-stage goal/);
       assert.match(text, /input lists the stages itself/);
     });
-    it("asks for per-step comments only where the input has detail, without citation markers", () => {
+    it("asks for per-step description only where the input has detail, without citation markers", () => {
       const text = prompt({proposals: true});
-      assert.match(text, /comments field/);
+      assert.match(text, /description field/);
       assert.match(text, /at most 2000 characters/);
       assert.match(text, /no citation markers/);
-      assert.match(text, /Leave comments out of a step the input says nothing specific about/);
-      assert.ok(!prompt().includes("comments field"));
+      assert.match(text, /Leave description out of a step the input says nothing specific about/);
+      assert.ok(!prompt().includes("description field"));
       assert.ok(text.startsWith(prompt().slice(0, 200)));
     });
     it("shows the rank as the place in the queue, 1..n, even when the stored ranks have gaps or run out of order", () => {

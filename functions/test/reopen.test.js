@@ -13,7 +13,7 @@ const queue = () => [
 const row = (extra = {}) => ({
   id: "t1", title: "Fit the vanity", priority: "HIGH", dueDate: "2026-10-30", estimatedMinutes: 60, tags: ["Indoor"], status: "PENDING",
   order: 2, trackedSeconds: 2700, firstStartedAt: "2026-10-20T09:00:00.000Z", addedAt: "2026-10-18T01:00:00.000Z",
-  comments: "Use the long screws", materials: [{id: "m1", text: "Screws", checked: true}],
+  description: "Use the long screws", materials: [{id: "m1", text: "Screws", checked: true}],
   completedAt: new Date("2026-10-22T03:00:00Z"), completedCount: 3, recentSeconds: [1800, 2400, 2700], ...extra,
 });
 
@@ -28,7 +28,7 @@ describe("reopen.js", () => {
       assert.equal(t.id, "t1");
       assert.equal(t.status, "PENDING");
       assert.equal(t.order, 5);
-      for (const key of ["title", "priority", "dueDate", "estimatedMinutes", "tags", "comments", "materials", "addedAt"]) assert.deepEqual(t[key], row()[key], key);
+      for (const key of ["title", "priority", "dueDate", "estimatedMinutes", "tags", "description", "materials", "addedAt"]) assert.deepEqual(t[key], row()[key], key);
     });
     it("keeps the accrued time and the first-started time, with the timer stopped and no active mark", () => {
       const t = reopenTask(queue(), row({timerStartedAt: "2026-10-22T02:00:00.000Z", active: true}), {makeId}).task;

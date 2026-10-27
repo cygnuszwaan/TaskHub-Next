@@ -8,7 +8,7 @@ const {renderJobSheetPdf} = require("../jobsheetPdf");
 const NZ = "Pacific/Auckland";
 const now = new Date("2026-10-24T02:00:00Z");
 const project = {id: "p1", name: "Whangaparāoa deck 🌿"};
-const rows = (n, extra = {}) => Array.from({length: n}, (_, i) => ({title: `Job ${i} Māori 🌿`, priority: "LOW", estimatedMinutes: 30, trackedSeconds: 600 + i, tags: ["Outdoor"], comments: i % 3 === 0 ? "Long comment. ".repeat(40) : undefined, completedAt: new Date(Date.parse("2026-10-12T00:00:00Z") + i * 3 * 3600e3), ...extra}));
+const rows = (n, extra = {}) => Array.from({length: n}, (_, i) => ({title: `Job ${i} Māori 🌿`, priority: "LOW", estimatedMinutes: 30, trackedSeconds: 600 + i, tags: ["Outdoor"], description: i % 3 === 0 ? "Long comment. ".repeat(40) : undefined, completedAt: new Date(Date.parse("2026-10-12T00:00:00Z") + i * 3 * 3600e3), ...extra}));
 const render = (request, r, p = project, hourlyRate) => renderJobSheetPdf(buildJobSheet({request, rows: r, project: p, timeZone: NZ, now, hourlyRate}));
 const pages = (pdf) => Number(/\/Type \/Pages[\s\S]*?\/Count (\d+)/.exec(pdf.toString("latin1"))[1]);
 
@@ -42,8 +42,8 @@ describe("jobsheetPdf.js", () => {
     assert.ok(pages(await render2({type: "PROJECT"}, rows(60), info)) >= 3);
     assert.equal(pages(await render2({type: "PROJECT"}, [], info)), 1);
   });
-  it("copes with an unusually long unbroken title and a very long comment", async () => {
-    const pdf = await render({type: "PROJECT"}, rows(3, {title: "W".repeat(300), comments: "word ".repeat(2000)}));
+  it("copes with an unusually long unbroken title and a very long description", async () => {
+    const pdf = await render({type: "PROJECT"}, rows(3, {title: "W".repeat(300), description: "word ".repeat(2000)}));
     assert.ok(pages(pdf) >= 2);
   });
   describe("invoice figures", () => {
@@ -69,7 +69,7 @@ describe("jobsheetPdf.js", () => {
       assert.ok(pages(await render({type: "PROJECT"}, costed(60), project, 85)) >= 3);
       assert.equal(pages(await render({type: "PROJECT"}, [], project, 85)), 1);
     });
-    it("renders contractor information with a rate and long comments together", async () => {
+    it("renders contractor information with a rate and long description together", async () => {
       const sheet = buildJobSheet({request: {type: "PROJECT"}, rows: costed(10), project, timeZone: NZ, now, contractorInfo: "A Builder\nPh 021 000 000\nGST 12-345-678", hourlyRate: 85});
       assert.ok(pages(await renderJobSheetPdf(sheet)) >= 1);
     });

@@ -16,10 +16,44 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
+    return {withDescriptionKey, withDescriptionField, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
 }
 
 describe("public/index.html helpers", () => {
+  describe("names from before the rename", () => {
+    it("withDescriptionKey moves a text comments to the description, keeping a description it already has", () => {
+      const {withDescriptionKey} = load();
+      assert.deepEqual(withDescriptionKey({id: "a", comments: "Note"}), {id: "a", description: "Note"});
+      assert.deepEqual(withDescriptionKey({id: "a", comments: "Old", description: "New"}), {id: "a", description: "New"});
+      assert.deepEqual(withDescriptionKey({id: "a", comments: "   "}), {id: "a"});
+      assert.deepEqual(withDescriptionKey({id: "a", comments: "Old", description: ""}), {id: "a", description: "Old"});
+    });
+    it("withDescriptionKey leaves anything else as it is, comments that are not text included", () => {
+      const {withDescriptionKey} = load();
+      const list = {id: "a", comments: [{id: "c1", at: 1, text: "x"}]};
+      for (const item of [list, {id: "a"}, {id: "a", description: "d"}, null, undefined, 5, "x", [1]]) assert.equal(withDescriptionKey(item), item);
+    });
+    it("withDescriptionKey does not modify its input", () => {
+      const {withDescriptionKey} = load();
+      const item = {id: "a", comments: "Note"};
+      withDescriptionKey(item);
+      assert.deepEqual(item, {id: "a", comments: "Note"});
+    });
+    it("withDescriptionField renames the key of a held edit, null included, and drops it when description is there", () => {
+      const {withDescriptionField} = load();
+      assert.deepEqual(withDescriptionField({comments: "x"}), {description: "x"});
+      assert.deepEqual(withDescriptionField({comments: null}), {description: null});
+      assert.deepEqual(withDescriptionField({comments: "old", description: "new"}), {description: "new"});
+      const unusable = {comments: 5};
+      assert.equal(withDescriptionField(unusable), unusable);
+      for (const fields of [{description: "x"}, {}, null, undefined, []]) assert.equal(withDescriptionField(fields), fields);
+    });
+    it("reads a saved completed list from before the rename the same way", () => {
+      const {parseCompletedCache} = load();
+      const text = JSON.stringify({v: 1, uid: "u1", savedAt: 5, limited: false, rows: [{archiveId: "r1", comments: "Washer replaced"}, {archiveId: "r2", description: "Kept"}]});
+      assert.deepEqual(parseCompletedCache(text, "u1").rows, [{archiveId: "r1", description: "Washer replaced"}, {archiveId: "r2", description: "Kept"}]);
+    });
+  });
   describe("saved task list", () => {
     it("round-trips for the account that saved it and for no other", () => {
       const {serializeTaskCache, parseTaskCache} = load();
@@ -38,6 +72,11 @@ describe("public/index.html helpers", () => {
       const {parseTaskCache} = load();
       const text = JSON.stringify({v: 1, uid: "u1", savedAt: 5, tasks: [{id: "a"}, null, 3, {title: "no id"}]});
       assert.deepEqual(parseTaskCache(text, "u1").tasks, [{id: "a"}]);
+    });
+    it("reads a copy saved before the rename with its comments text as the description", () => {
+      const {parseTaskCache} = load();
+      const text = JSON.stringify({v: 1, uid: "u1", savedAt: 5, tasks: [{id: "a", comments: "Blue paint"}, {id: "b", comments: "Old", description: "New"}, {id: "c", description: "Kept"}]});
+      assert.deepEqual(parseTaskCache(text, "u1").tasks, [{id: "a", description: "Blue paint"}, {id: "b", description: "New"}, {id: "c", description: "Kept"}]);
     });
     it("says how old a copy is", () => {
       const {cacheAgeText, offlineNoteText} = load();
@@ -108,14 +147,14 @@ describe("public/index.html helpers", () => {
     });
     it("leaves only the fields that can be saved offline enabled in the entry's form", () => {
       const {COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled} = load();
-      assert.deepEqual(OFFLINE_COMPLETED_FIELDS, ["comments"]);
+      assert.deepEqual(OFFLINE_COMPLETED_FIELDS, ["description"]);
       for (const field of new Set(Object.values(COMPLETED_FORM_CONTROLS))) {
         assert.equal(completedFieldDisabled(field, false), false, `${field} online`);
         assert.equal(completedFieldDisabled(field, undefined), false, `${field} unknown`);
-        assert.equal(completedFieldDisabled(field, true), field !== "comments", `${field} offline`);
+        assert.equal(completedFieldDisabled(field, true), field !== "description", `${field} offline`);
       }
       const enabled = Object.entries(COMPLETED_FORM_CONTROLS).filter(([, field]) => !completedFieldDisabled(field, true)).map(([id]) => id);
-      assert.deepEqual(enabled, ["ceComments"]);
+      assert.deepEqual(enabled, ["ceDescription"]);
     });
     it("covers every control of the entry's form: each id exists on the page and each form field has a control", () => {
       const {COMPLETED_FORM_CONTROLS} = load();
@@ -513,8 +552,8 @@ describe("public/index.html helpers", () => {
       assert.doesNotMatch(html, /id="materialsDetails"/);
       assert.ok(html.indexOf(`id="editMaterials"`) > html.indexOf(`id="editModal"`));
     });
-    it("keeps Materials and Comments in a collapsed Extra fields section in both edit modals", () => {
-      for (const [details, fields, modal] of [["editExtraFields", ["editMaterials", "editComments"], "editModal"], ["ceExtraFields", ["ceMaterials", "ceComments"], "completedEditModal"]]) {
+    it("keeps Materials and Description in a collapsed Extra fields section in both edit modals", () => {
+      for (const [details, fields, modal] of [["editExtraFields", ["editMaterials", "editDescription"], "editModal"], ["ceExtraFields", ["ceMaterials", "ceDescription"], "completedEditModal"]]) {
         const start = at(`id="${details}"`);
         const end = at("</details>", start);
         assert.ok(start > at(`id="${modal}"`), `${details} is in ${modal}`);
@@ -988,8 +1027,8 @@ describe("public/index.html helpers", () => {
       has("editExtraFields", "editTravel");
       has("ceExtraFields", "ceTravel");
       assert.ok(html.indexOf("id=\"manualTravel\"") > html.indexOf("id=\"manualMaterials\""));
-      assert.ok(html.indexOf("id=\"manualTravel\"") < html.indexOf("id=\"manualComments\""));
-      assert.ok(html.indexOf("id=\"editTravel\"") > html.indexOf("id=\"editMaterials\"") && html.indexOf("id=\"editTravel\"") < html.indexOf("id=\"editComments\""));
+      assert.ok(html.indexOf("id=\"manualTravel\"") < html.indexOf("id=\"manualDescription\""));
+      assert.ok(html.indexOf("id=\"editTravel\"") > html.indexOf("id=\"editMaterials\"") && html.indexOf("id=\"editTravel\"") < html.indexOf("id=\"editDescription\""));
       const jobSheets = html.indexOf("<h3>Job Sheets</h3>");
       assert.ok(html.indexOf("id=\"travelRate\"") > jobSheets && html.indexOf("id=\"travelRate\"") > html.indexOf("id=\"hourlyRate\""));
     });
@@ -1595,15 +1634,15 @@ describe("public/index.html helpers", () => {
       assert.equal(manual.projectOrder, 3);
       assert.deepEqual(manual.materials.map((m) => [m.text, m.checked]), [["Paint", false], ["Brushes", true]]);
     });
-    it("adds trimmed comments only when there are some", () => {
-      assert.equal(load().manualTaskBody({...form, comments: "  Use the blue paint.\nAsk Sam. "}).manual.comments, "Use the blue paint.\nAsk Sam.");
-      for (const comments of ["", "   ", undefined]) assert.equal("comments" in load().manualTaskBody({...form, comments}).manual, false, JSON.stringify(comments));
+    it("adds trimmed description only when there are some", () => {
+      assert.equal(load().manualTaskBody({...form, description: "  Use the blue paint.\nAsk Sam. "}).manual.description, "Use the blue paint.\nAsk Sam.");
+      for (const description of ["", "   ", undefined]) assert.equal("description" in load().manualTaskBody({...form, description}).manual, false, JSON.stringify(description));
     });
-    it("gives a new task its comments through the server-side merge", () => {
+    it("gives a new task its description through the server-side merge", () => {
       const {manualTaskChange, mergeTaskChanges} = require("../tasks");
-      const body = load().manualTaskBody({...form, comments: " Hinge is loose "}).manual;
-      const merged = mergeTaskChanges([], [manualTaskChange(body)], () => "id1", [], {comments: true});
-      assert.equal(merged.tasks[0].comments, "Hinge is loose");
+      const body = load().manualTaskBody({...form, description: " Hinge is loose "}).manual;
+      const merged = mergeTaskChanges([], [manualTaskChange(body)], () => "id1", [], {description: true});
+      assert.equal(merged.tasks[0].description, "Hinge is loose");
     });
     it("sends a project without an order number as unordered", () => {
       const manual = load().manualTaskBody({...form, projectId: "p1", projectOrder: ""}).manual;
@@ -1843,12 +1882,12 @@ describe("public/index.html helpers", () => {
     });
     describe("completed task edit form", () => {
       const NZ = "Pacific/Auckland";
-      const row = {title: "Mow lawn", priority: "LOW", estimatedMinutes: 30, trackedSeconds: 125, tags: ["Garden", "Outdoor"], comments: "Front only", projectId: "p1", completedAt: "2026-10-17T20:30:00.000Z"};
+      const row = {title: "Mow lawn", priority: "LOW", estimatedMinutes: 30, trackedSeconds: 125, tags: ["Garden", "Outdoor"], description: "Front only", projectId: "p1", completedAt: "2026-10-17T20:30:00.000Z"};
       const same = (load_) => load_.completedFormValues(row, NZ);
 
       it("completedFormValues: starts the form from the row, with the time in minutes and the completion on the zone's clock", () => {
         const {completedFormValues} = load();
-        assert.deepEqual(completedFormValues(row, NZ), {priority: "LOW", trackedMinutes: 2, tags: "Garden, Outdoor", materials: "", comments: "Front only", travelKm: "", location: null, phone: "", email: "", projectId: "p1", date: "2026-10-18", time: "09:30"});
+        assert.deepEqual(completedFormValues(row, NZ), {priority: "LOW", trackedMinutes: 2, tags: "Garden, Outdoor", materials: "", description: "Front only", travelKm: "", location: null, phone: "", email: "", projectId: "p1", date: "2026-10-18", time: "09:30"});
       });
       it("reopenPrompt: names the task, says it returns with its tracked time and leaves History", () => {
         const {reopenPrompt} = load();
@@ -1878,7 +1917,7 @@ describe("public/index.html helpers", () => {
       it("completedFormValues: falls back for a row missing fields", () => {
         const {completedFormValues} = load();
         const v = completedFormValues({completedAt: "2026-10-17T20:30:00.000Z"}, NZ);
-        assert.deepEqual([v.priority, v.trackedMinutes, v.tags, v.comments, v.projectId], ["MEDIUM", 0, "", "", ""]);
+        assert.deepEqual([v.priority, v.trackedMinutes, v.tags, v.description, v.projectId], ["MEDIUM", 0, "", "", ""]);
       });
       it("completedChanges: has no estimate in the form and never sends one", () => {
         const api = load();
@@ -1892,12 +1931,12 @@ describe("public/index.html helpers", () => {
       });
       it("completedChanges: sends only what changed", () => {
         const api = load();
-        const form = {...same(api), priority: "HIGH", trackedMinutes: "90", tags: "Garden, Paid", projectId: "", date: "2026-10-19", time: "10:15", comments: "  Front and back  "};
-        assert.deepEqual(api.completedChanges(row, form, NZ), {fields: {priority: "HIGH", trackedSeconds: 5400, tags: ["Garden", "Paid"], comments: "Front and back", projectId: null, completedDate: "2026-10-19", completedTime: "10:15"}});
+        const form = {...same(api), priority: "HIGH", trackedMinutes: "90", tags: "Garden, Paid", projectId: "", date: "2026-10-19", time: "10:15", description: "  Front and back  "};
+        assert.deepEqual(api.completedChanges(row, form, NZ), {fields: {priority: "HIGH", trackedSeconds: 5400, tags: ["Garden", "Paid"], description: "Front and back", projectId: null, completedDate: "2026-10-19", completedTime: "10:15"}});
       });
-      it("completedChanges: clears the comments with empty text and the time with 0 or an empty box", () => {
+      it("completedChanges: clears the description with empty text and the time with 0 or an empty box", () => {
         const api = load();
-        assert.deepEqual(api.completedChanges(row, {...same(api), comments: "   "}, NZ), {fields: {comments: null}});
+        assert.deepEqual(api.completedChanges(row, {...same(api), description: "   "}, NZ), {fields: {description: null}});
         assert.deepEqual(api.completedChanges(row, {...same(api), trackedMinutes: "0"}, NZ), {fields: {trackedSeconds: 0}});
         assert.deepEqual(api.completedChanges(row, {...same(api), trackedMinutes: ""}, NZ), {fields: {trackedSeconds: 0}});
       });
@@ -1933,9 +1972,9 @@ describe("public/index.html helpers", () => {
     describe("completed list search and pages", () => {
       const rowsOf = (n) => Array.from({length: n}, (_, i) => ({archiveId: `a${i}`, title: `Job ${i}`}));
       const noProject = () => "";
-      it("matchesCompletedSearch: every word must appear in the title, tags, materials, comments or project, in any order and case", () => {
+      it("matchesCompletedSearch: every word must appear in the title, tags, materials, description or project, in any order and case", () => {
         const {matchesCompletedSearch: m} = load();
-        const row = {title: "Fit tap", tags: ["Plumbing"], materials: [{id: "a", text: "PTFE tape"}], comments: "Washer replaced", projectId: "p1"};
+        const row = {title: "Fit tap", tags: ["Plumbing"], materials: [{id: "a", text: "PTFE tape"}], description: "Washer replaced", projectId: "p1"};
         assert.equal(m(row, "", ""), true);
         assert.equal(m(row, "   ", ""), true);
         assert.equal(m(row, "TAP plumb", ""), true);
@@ -1972,7 +2011,7 @@ describe("public/index.html helpers", () => {
         const {matchesCompletedSearch: m} = load();
         assert.equal(m({}, "x", ""), false);
         assert.equal(m({}, "", ""), true);
-        assert.equal(m({title: "Mow", tags: [5, null, "Lawn"], materials: "junk", comments: 7}, "lawn", undefined), true);
+        assert.equal(m({title: "Mow", tags: [5, null, "Lawn"], materials: "junk", description: 7}, "lawn", undefined), true);
         assert.equal(m({title: "Mow"}, undefined, ""), true);
       });
       it("completedBrowse: pages the newest-first list 50 to a page, keeping its order", () => {
@@ -2239,8 +2278,8 @@ describe("public/index.html helpers", () => {
       assert.ok(queue.includes("id=\"sortBy\"") && queue.includes("id=\"sortDirBtn\""));
       assert.ok(html.includes("sortTasks(filtered, sortKey, sortDescending)"));
     });
-    it("labels the edit modal's comments box just Comments", () => {
-      assert.ok(html.includes("<label for=\"editComments\">Comments</label>"));
+    it("labels the edit modal's description box just Description", () => {
+      assert.ok(html.includes("<label for=\"editDescription\">Description</label>"));
     });
   });
 
@@ -2309,7 +2348,7 @@ describe("public/index.html helpers", () => {
 
   describe("copying a completed task", () => {
     const templates = [
-      {title: "Mow lawn", priority: "LOW", estimatedMinutes: 45, tags: ["Outdoor", "Garden"], recurrence: {frequency: "WEEKLY", interval: 2}, projectId: "p1", projectOrder: 2, materials: ["Petrol", "Oil"], comments: "Check the blade", travelKm: 18},
+      {title: "Mow lawn", priority: "LOW", estimatedMinutes: 45, tags: ["Outdoor", "Garden"], recurrence: {frequency: "WEEKLY", interval: 2}, projectId: "p1", projectOrder: 2, materials: ["Petrol", "Oil"], description: "Check the blade", travelKm: 18},
       {title: "Mow the verge", priority: "MEDIUM", estimatedMinutes: 20, tags: []},
       {title: "Pay rates", priority: "HIGH", estimatedMinutes: 10, tags: []},
     ];
@@ -2355,7 +2394,7 @@ describe("public/index.html helpers", () => {
     it("fills the form with the old details but no due date, and every material unchecked", () => {
       const {templateFormValues} = load();
       const v = templateFormValues(templates[0], ["p1"]);
-      assert.deepEqual(v, {title: "Mow lawn", priority: "LOW", estimatedMinutes: 45, tags: "Outdoor, Garden", dueDate: "", recurFreq: "WEEKLY", recurInterval: 2, projectId: "p1", projectOrder: 2, materials: [{id: "", text: "Petrol", checked: false}, {id: "", text: "Oil", checked: false}], comments: "Check the blade", phone: "", email: "", travelKm: "18", location: null, history: null});
+      assert.deepEqual(v, {title: "Mow lawn", priority: "LOW", estimatedMinutes: 45, tags: "Outdoor, Garden", dueDate: "", recurFreq: "WEEKLY", recurInterval: 2, projectId: "p1", projectOrder: 2, materials: [{id: "", text: "Petrol", checked: false}, {id: "", text: "Oil", checked: false}], description: "Check the blade", phone: "", email: "", travelKm: "18", location: null, history: null});
     });
     it("carries a template's location into the form values, dropping an unusable one", () => {
       const {templateFormValues} = load();
@@ -2395,7 +2434,7 @@ describe("public/index.html helpers", () => {
     });
     it("falls back to the form's defaults for a bare template", () => {
       const {templateFormValues} = load();
-      assert.deepEqual(templateFormValues({title: "x"}), {title: "x", priority: "MEDIUM", estimatedMinutes: 15, tags: "", dueDate: "", recurFreq: "NONE", recurInterval: 1, projectId: "", projectOrder: "", materials: [], comments: "", phone: "", email: "", travelKm: "", location: null, history: null});
+      assert.deepEqual(templateFormValues({title: "x"}), {title: "x", priority: "MEDIUM", estimatedMinutes: 15, tags: "", dueDate: "", recurFreq: "NONE", recurInterval: 1, projectId: "", projectOrder: "", materials: [], description: "", phone: "", email: "", travelKm: "", location: null, history: null});
     });
     it("posts startNow only when ticked", () => {
       const {addTaskExtras} = load();
@@ -4239,7 +4278,7 @@ describe("offline add queue display (page)", () => {
       assert.match(body("shownTasks"), /withPendingActions\(withoutTasks\(list, pendingRemovals\), replayEntries\(\), actionQueue\)\.tasks/);
       assert.match(body("fetchTasks"), /serverTasks = saved\.tasks;\s*allTasks = shownTasks\(saved\.tasks\);/);
     });
-    it("holds a reopen after a connection failure or behind waiting changes, with the entry's comments edit before it", () => {
+    it("holds a reopen after a connection failure or behind waiting changes, with the entry's description edit before it", () => {
       const reopen = body("reopenCompletedEntry");
       assert.match(reopen, /const requestId = newRequestId\(\);/);
       assert.match(reopen, /if \(hasPendingActions\(actionQueue\) \|\| actionDraining\) \{ queueReopen\(row, result\.fields, requestId, true\); return; \}/);

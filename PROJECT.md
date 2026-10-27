@@ -58,12 +58,11 @@ Each step fits in one turn. Do them in order unless told otherwise. Each step ad
 
 ### Description and comments
 
-Goal: today's free-text `comments` field becomes `description`, and `comments` becomes a new thing: timestamped entries added to any task in the Queue, a record of updates with a timeline that a job sheet can include. Design:
-- A comment is `{id, at, text}`: `id` made by the page, `at` the real-world time it was written (never the timer's), `text` one entry; a task and its archive row hold `comments` as an array in the order written, kept when the task is completed or reopened. A comment is added, never edited in place; whether one can be deleted is decided in step 2.
+Goal: a task's free text is its `description`; `comments` is a new thing: timestamped entries added to a task in the Queue or to a completed entry, a record of updates with a timeline that a job sheet can include. Design:
+- A comment is `{id, at, text}`: `id` made by the page, `at` the real-world time it was written (never the timer's), `text` one entry; a task and its archive row hold `comments` as an array in the order written, kept when the task is completed or reopened. A comment is added, never edited in place; it can be added to a completed entry as well as to a queued task, and any comment can be deleted.
 - First version: add a comment from a task's edit modal and show its timeline there, with the latest comment on the card. The Active task's shortcut button and collapsible timeline come later.
 
-1. Rename `comments` to `description`: stored field on tasks and archive rows (a backfill moves the old string, a stale page's old name is still accepted for a while), the AI prompt and search, exports, job sheets, the History form and the tests; online only.
-2. New comments, online: data model, an endpoint to add one to a Queue task, the edit modal's add box and timeline, the card line, History's entries, the job sheet's timeline and the exports.
+2. New comments, online: data model, endpoints to add one to a Queue task or a completed entry and to delete one, the edit modal's and the History form's add box and timeline (each comment with a delete control), the card line, History's entries, the job sheet's timeline and the exports. The old-name reading of a string `comments` as `description` (`readDescription`, `withDescriptionKey`, `withDescriptionField`) goes, since `comments` becomes a list.
 
 ### Offline changes
 
@@ -79,9 +78,9 @@ Goal: the changes made on site (Start, Pause, Abort, Complete, Reopen, descripti
 - Stays online-only: photos, Settings, Clients, project and template management, Update now, job sheets, exports, History's Stats and Project hours.
 
 Stage 1, the changes needed on site:
-3. Page, the edit modal: saving a queued task's modal offline queues an EDIT of the changed fields (description, title, priority, estimate, tags, due date, Repeats, travel, phone, email, location; a field that needs an id or an order only the server makes says it needs a connection and names the fields), and Snooze, which runs `rescheduleTask` after its send when the task has an event; the cards show the change at once. Replaces `EDIT_FIELDS`' `comments` only.
+3. Page, the edit modal: saving a queued task's modal offline queues an EDIT of the changed fields (description, title, priority, estimate, tags, due date, Repeats, travel, phone, email, location; a field that needs an id or an order only the server makes says it needs a connection and names the fields), and Snooze, which runs `rescheduleTask` after its send when the task has an event; the cards show the change at once. Extends `EDIT_FIELDS`, which holds `description` only.
 4. Page, the completed form: Save offline queues an EDIT of the entry's description and the plain fields the archive row can take (`updateCompletedTask`, or folded into the COMPLETE of a waiting one, which becomes openable).
-5. Page, comments: adding a comment offline queues COMMENT, shown on the card and in the timeline at once.
+5. Page, comments: adding a comment offline, to a queued task or a History entry, queues COMMENT, shown on the card and in the timeline at once.
 
 Stage 2, the rest of the Queue's changes, each the same machinery with its own replay and tests; a change that needs an id or an order only the server makes (a new project, Order number, a move to a task number) waits until the server has them:
 6. Delete: queued DELETE (the task hides at once, its photos are untouched until the send), Undo as above, calendar cleanup after the send.
@@ -91,7 +90,7 @@ The stretch goals below are unplanned.
 
 ## Open questions
 
-- Can a comment be added to a completed entry (a note after the job is done), and can a comment be deleted? Step 2 assumes neither until decided.
+- Should deleting a comment be held offline? Step 5 holds adding one; a deletion would be its own action kind carrying the comment's id, or stay online-only like photos.
 - Should Navigate follow the device's default maps app (the Navigate button)? A `geo:` link on Android or an Apple Maps link on iOS opens whatever app the device prefers, but shows the place rather than starting directions; the Google Maps link starts directions and opens in the app where it is installed. The plan uses the Google Maps link; change it if default-app behaviour matters more.
 - Is the project suggestion reliable? A large multi-step job once skipped the dialog and was added as plain tasks, then worked after the prompt was reworded to say that stages the input lists itself still count (a model run-to-run difference is not ruled out). If a multi-stage job is added with no dialog, run `npm run logs` in `functions/` and find the line `No project suggestion (…)`: its reason says which check dropped it (the model returned no `projectProposal`, the name is unusable, too few or too many steps, the name matches an existing project, or the input names an existing project). "The model returned no projectProposal" means the prompt (`PROPOSAL_INSTRUCTIONS` in `prompts.js`) needs tuning; any other reason points at that check in `checkProposal`. No such line means the add did not reach the suggestion code (a free-text add with `allowProposal`), so check the request. Remove this question once it has held up over normal use.
 - Does Google sign-in work in the installed Android window? The popup is tried first and the redirect fallback is in place, both untested there. If redirect sign-in fails on `taskhub-next.web.app`, set `authDomain` to the page's own host (that host's `/__/auth/handler` must then be an authorized redirect URI of the OAuth client).

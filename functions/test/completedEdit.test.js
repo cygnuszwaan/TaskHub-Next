@@ -6,7 +6,7 @@ const {MAX_TRACKED_SECONDS, MAX_ESTIMATE_MINUTES, MAX_TAGS, isArchiveId, applyCo
 
 const NZ = "Pacific/Auckland";
 const now = new Date("2026-10-24T02:00:00Z"); // Sat 24 Oct 2026, 15:00 NZ
-const row = {title: "Mow lawn", priority: "LOW", estimatedMinutes: 30, trackedSeconds: 1800, tags: ["Garden"], projectId: "p1", projectOrder: 2, comments: "Front only", completedCount: 4, recentSeconds: [1800], completedAt: new Date("2026-10-20T01:00:00Z")};
+const row = {title: "Mow lawn", priority: "LOW", estimatedMinutes: 30, trackedSeconds: 1800, tags: ["Garden"], projectId: "p1", projectOrder: 2, description: "Front only", completedCount: 4, recentSeconds: [1800], completedAt: new Date("2026-10-20T01:00:00Z")};
 const opts = {projectIds: ["p1", "p2"], timeZone: NZ, now};
 const edit = (fields, r = row, o = opts) => applyCompletedEdit(r, fields, o);
 const without = (r, ...keys) => {
@@ -55,22 +55,22 @@ describe("completedEdit.js", () => {
       assert.deepEqual(edit({tags: []}), {set: {tags: []}, remove: []});
     });
 
-    describe("comments", () => {
+    describe("description", () => {
       it("sets trimmed text", () => {
-        assert.deepEqual(edit({comments: "  Back lawn too  "}), {set: {comments: "Back lawn too"}, remove: []});
+        assert.deepEqual(edit({description: "  Back lawn too  "}), {set: {description: "Back lawn too"}, remove: []});
       });
       it("cuts text to 2000 characters", () => {
-        assert.equal(edit({comments: "x".repeat(2500)}).set.comments.length, 2000);
+        assert.equal(edit({description: "x".repeat(2500)}).set.description.length, 2000);
       });
-      it("removes the comments for null or empty text, when the row has some", () => {
-        for (const value of [null, "", "   "]) assert.deepEqual(edit({comments: value}), {set: {}, remove: ["comments"]}, String(value));
+      it("removes the description for null or empty text, when the row has some", () => {
+        for (const value of [null, "", "   "]) assert.deepEqual(edit({description: value}), {set: {}, remove: ["description"]}, String(value));
       });
-      it("has nothing to change when removing comments the row does not have", () => {
-        const bare = without(row, "comments");
-        assert.deepEqual(edit({comments: null}, bare), {error: "Nothing to change"});
+      it("has nothing to change when removing description the row does not have", () => {
+        const bare = without(row, "description");
+        assert.deepEqual(edit({description: null}, bare), {error: "Nothing to change"});
       });
       it("rejects anything that is not text", () => {
-        for (const value of [5, [], {}, true]) assert.deepEqual(edit({comments: value}), {error: "Comments must be text"}, JSON.stringify(value));
+        for (const value of [5, [], {}, true]) assert.deepEqual(edit({description: value}), {error: "Description must be text"}, JSON.stringify(value));
       });
     });
 

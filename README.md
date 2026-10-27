@@ -55,6 +55,16 @@ npm run migrate-client-addresses -- --apply
 
 A client with no location gets its old address as its location text (pick the address in the Clients form to add a map position); a client that already has a location keeps it and the dry run lists the address being dropped, so you can copy it elsewhere first. Safe to run again.
 
+**Moving stored comments to descriptions** (one-off, once, right after deploying the release that renamed the field)
+
+```
+cd functions
+npm run migrate-comments-to-description            (dry run: prints what it would do)
+npm run migrate-comments-to-description -- --apply
+```
+
+Every queued task, completed task and project template step with a comments text gets it as its description. A document that already has a different description keeps it and the dry run lists the comments being dropped. Safe to run again.
+
 **Weekly backup** (needs the Blaze plan; a Firestore export is billed like any other storage and reads)
 
 `weeklyBackup` starts a Firestore export of the whole database, photos included, every Sunday at 03:00 Auckland time into `gs://BUCKET/backups/<UTC time>/` and deletes all but the newest 4. Do this once, in Cloud Shell or any terminal signed in with `gcloud`:

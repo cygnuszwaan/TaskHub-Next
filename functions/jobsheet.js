@@ -133,7 +133,7 @@ function sheetEntry(row, timeZone, invoice, rate, travelRate) {
     estimated,
     money,
     materials: list(row.materials),
-    comments: text(row.comments),
+    description: text(row.description),
   };
 }
 
@@ -167,7 +167,7 @@ function byCompletion(a, b) {
 //   "3h 20m (3.33 h)"); `sections`: [{heading, totals, entries}] oldest first with entries oldest first, a TASK sheet one
 //   section without heading or totals, a WEEK sheet one section for the week, a PROJECT sheet one per week with work
 //   (heading the week's range, totals its figures); an entry is {title, started, completed, timeText, estimated,
-//   materials, comments, archiveId, jobNumber, travelText (the distance as "12.5 km", "" for none, shown whether or not it is billed)} (`jobNumber` the task's job number as plain digits, "" for a task that has none; `started`: when its timer was first started, "" when it never was; no priority or tags, the
+//   materials, description, archiveId, jobNumber, travelText (the distance as "12.5 km", "" for none, shown whether or not it is billed)} (`jobNumber` the task's job number as plain digits, "" for a task that has none; `started`: when its timer was first started, "" when it never was; no priority or tags, the
 //   sheet is client-facing); `truncated` is true when only the newest JOB_SHEET_MAX_ENTRIES entries are listed (the totals
 //   still cover everything read); `empty` is true when there is nothing to list.
 function buildJobSheet({request, rows, project, client, timeZone, now, contractorInfo, hourlyRate, travelRate}) {
