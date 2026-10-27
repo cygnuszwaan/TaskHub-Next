@@ -49,6 +49,7 @@ This file is the entry point to the project's documentation: the rules for worki
 | `docs/frontend-materials.md` | the Materials page and the Miscellaneous list |
 | `docs/frontend-settings.md` | the Settings page and its cards, Update now, the time zone |
 | `docs/offline.md` | the add queue, saved lists, the action queue, held completions, Undo offline |
+| `docs/offline-edits.md` | held edits of tasks and History entries, Reopen and comments offline |
 | `docs/stretch-goals.md` | unplanned ideas: archive scale, GST on invoices, a public multi-user version |
 
 A change usually touches several rows: a new endpoint touches an `endpoints-*.md`, `backend-modules.md` and the page file that calls it, and a changed stored field touches `data-model.md` as well.
@@ -70,10 +71,7 @@ Goal: the changes made on site (Start, Pause, Abort, Complete, Reopen, descripti
 - A completion's next occurrence (a repeating task) and its job number cannot be shown until the server has made them.
 - Stays online-only: photos, Settings, Clients, project and template management, Update now, job sheets, exports, History's Stats and Project hours.
 
-Stage 1, the changes needed on site:
-5. Page, comments: adding a comment offline, to a queued task or a History entry, queues COMMENT, shown on the card and in the timeline at once.
-
-Stage 2, the rest of the Queue's changes, each the same machinery with its own replay and tests; a change that needs an id or an order only the server makes (a new project, Order number, a move to a task number) waits until the server has them:
+The rest of the Queue's changes, each the same machinery with its own replay and tests; a change that needs an id or an order only the server makes (a new project, Order number, a move to a task number) waits until the server has them:
 6. Delete: queued DELETE (the task hides at once, its photos are untouched until the send), Undo as above, calendar cleanup after the send.
 7. Materials: checking off, editing a task's list, the Miscellaneous list (an add keeps its temporary id until the send, as today), Multi-Select actions that need no new project.
 
@@ -81,7 +79,7 @@ The stretch goals below are unplanned.
 
 ## Open questions
 
-- Should deleting a comment be held offline? Step 5 holds adding one; a deletion would be its own action kind carrying the comment's id, or stay online-only like photos.
+- Should deleting a comment be held offline? Adding one is held; a deletion would be its own action kind carrying the comment's id, or stay online-only like photos (it is online-only now).
 - Should Navigate follow the device's default maps app (the Navigate button)? A `geo:` link on Android or an Apple Maps link on iOS opens whatever app the device prefers, but shows the place rather than starting directions; the Google Maps link starts directions and opens in the app where it is installed. The plan uses the Google Maps link; change it if default-app behaviour matters more.
 - Is the project suggestion reliable? A large multi-step job once skipped the dialog and was added as plain tasks, then worked after the prompt was reworded to say that stages the input lists itself still count (a model run-to-run difference is not ruled out). If a multi-stage job is added with no dialog, run `npm run logs` in `functions/` and find the line `No project suggestion (…)`: its reason says which check dropped it (the model returned no `projectProposal`, the name is unusable, too few or too many steps, the name matches an existing project, or the input names an existing project). "The model returned no projectProposal" means the prompt (`PROPOSAL_INSTRUCTIONS` in `prompts.js`) needs tuning; any other reason points at that check in `checkProposal`. No such line means the add did not reach the suggestion code (a free-text add with `allowProposal`), so check the request. Remove this question once it has held up over normal use.
 - Does Google sign-in work in the installed Android window? The popup is tried first and the redirect fallback is in place, both untested there. If redirect sign-in fails on `taskhub-next.web.app`, set `authDomain` to the page's own host (that host's `/__/auth/handler` must then be an authorized redirect URI of the OAuth client).

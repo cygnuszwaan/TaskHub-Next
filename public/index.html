@@ -3284,7 +3284,7 @@
       ceLocation: "location", cePlaceSearchBtn: "placeSearch", ceLocationClearBtn: "location", cePhone: "phone", ceEmail: "email", ceDescription: "description", ceDate: "date", ceTime: "time",
       ceCommentText: "comments", ceCommentAdd: "comments", ceSheetBtn: "sheet", ceDeleteBtn: "delete"
     };
-    const OFFLINE_COMPLETED_FIELDS = ["priority", "trackedMinutes", "tags", "travelKm", "location", "phone", "email", "description"];
+    const OFFLINE_COMPLETED_FIELDS = ["priority", "trackedMinutes", "tags", "travelKm", "location", "phone", "email", "description", "comments"];
     function completedFieldDisabled(field, offline) {
       return offline === true && !OFFLINE_COMPLETED_FIELDS.includes(field);
     }
@@ -3376,6 +3376,8 @@
     //   COMPLETE: taskId and archiveId, the id the page gave the History entry (the server uses it as the row's id)
     //   REOPEN:   archiveId (the entry) and taskId (the entry's own `id`, the task that comes back)
     //   EDIT:     taskId (a queued task: fields from EDIT_FIELDS) or archiveId (an entry: ENTRY_EDIT_FIELDS), fields the changed ones, each\n    //             as the server will store it (checkEditFields)
+    //   COMMENT:  taskId (a queued task) or archiveId (an entry), fields {id, text}: the comment as the page wrote it (its own id, which makes a
+    //             repeat after a lost reply add nothing, and its text as normalizeCommentText keeps it); `at` is when it was written
     //   UNDO:     taskId and archiveId of a completion the server has (or may have), fields {task, spawnedId?}: the task as archived
     //             (completionRecord) and the id of the next occurrence the completion made, so the page can show it undone
     // `at` is when the change was made, in epoch milliseconds on the server's clock (the device's corrected by `clockOffsetFrom`),
@@ -3383,7 +3385,7 @@
     // what makes a second attempt a no-op on the server. Only PENDING actions change what the page shows (withPendingActions).
     const ACTION_QUEUE_KEY = "taskhub-action-queue";
     const ACTION_QUEUE_MAX = 50;
-    const ACTION_KINDS = ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO"];
+    const ACTION_KINDS = ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO", "COMMENT"];
     const TIMER_ACTIONS = ["START", "PAUSE", "ABORT"];
     const EDIT_FIELDS = ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "location", "snoozedUntil", "description"]; // what a queued task's EDIT holds
     const ENTRY_EDIT_FIELDS = ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "location", "description"]; // what a History entry's EDIT holds (the plain fields of the archive row; materials, the project and the completion time need the server)
@@ -3532,15 +3534,16 @@
       return { task: settleTimer(task, nowMs), archiveId: archiveId || null, spawnedId: spawnedId || null };
     }
     // The list with the removal on `record` undone (functions/tasks.js undoInList): {tasks, restored}, or null when the task is
-    // already on the list. The next occurrence it made leaves, and the task comes back at the end of the list with its own rank,
+    // already on the list (`archiveComments`, the comments the entry holds now, replace the task's own when given). The next occurrence it made leaves, and the task comes back at the end of the list with its own rank,
     // its timer stopped and any calendar slot gone.
-    function undoInList(tasks, record) {
+    function undoInList(tasks, record, archiveComments) {
       const task = record && record.task;
       if (!task || typeof task.id !== "string" || tasks.some(t => t.id === task.id)) return null;
       const rest = record.spawnedId ? tasks.filter(t => t.id !== record.spawnedId) : tasks;
-      const restored = { ...task };
+      let restored = { ...task };
       delete restored.timerStartedAt;
       delete restored.active;
+      if (Array.isArray(archiveComments)) restored = withCommentsList(restored, commentsOf({ comments: archiveComments })); // the comments the entry holds now
       if (!restored.locked) {
         delete restored.googleCalendarEventId;
         delete restored.scheduledStart;
@@ -3818,6 +3821,35 @@
     function commentIdFor(pending, text, makeId) {
       return pending && pending.text === text && typeof pending.id === "string" ? pending.id : makeId();
     }
+    // The most comments an item holds (functions/comments.js).
+    const MAX_COMMENTS = 200;
+    // `current` (an item's comments) with the comment {id, text, at} added as the server's addComment does (functions/comments.js): after the last
+    // comment written at or before its `at`; {comments, added: false} for an id already there; {error} for an unusable id, text or time or a full list.
+    function addCommentToList(current, comment) {
+      const list = commentsOf({ comments: current });
+      const given = comment && typeof comment === "object" ? comment : {};
+      if (typeof given.id !== "string" || !REQUEST_ID_PATTERN.test(given.id)) return { error: "A comment id must be 8 to 64 letters, digits, - or _" };
+      const text = normalizeCommentText(given.text);
+      if (text === null) return { error: "A comment needs some text" };
+      if (!Number.isSafeInteger(given.at) || given.at <= 0) return { error: "A comment needs the time it was written" };
+      if (list.some(c => c.id === given.id)) return { comments: list, added: false };
+      if (list.length >= MAX_COMMENTS) return { error: `A task can hold at most ${MAX_COMMENTS} comments` };
+      let index = list.length;
+      while (index > 0 && list[index - 1].at > given.at) index--;
+      return { comments: [...list.slice(0, index), { id: given.id, at: given.at, text }, ...list.slice(index)], added: true };
+    }
+    // What a held comment is sent to addComment as: its target, its own id and text, and when it was written.
+    function commentBody(action) {
+      return { ...addCommentBody(action.taskId ? "taskId" : "archiveId", action.taskId || action.archiveId, action.fields.id, action.fields.text), at: action.at };
+    }
+    // The ids of the comments with a PENDING COMMENT action: the timeline marks them as waiting and offers no delete for them.
+    function waitingCommentIds(actions) {
+      const ids = new Set();
+      for (const action of Array.isArray(actions) ? actions : []) {
+        if (action && action.kind === "COMMENT" && action.status === "PENDING" && action.fields && typeof action.fields.id === "string") ids.add(action.fields.id);
+      }
+      return ids;
+    }
 
     // One action's `fields` cleaned for its kind: an object, or null when unusable (see the model above).
     function cleanActionFields(kind, fields, forEntry) {
@@ -3831,6 +3863,11 @@
       if (kind === "EDIT") {
         const checked = checkEditFields(fields, forEntry ? ENTRY_EDIT_FIELDS : EDIT_FIELDS);
         return checked.bad.length > 0 ? null : checked.fields;
+      }
+      if (kind === "COMMENT") {
+        if (!fields || typeof fields !== "object" || Array.isArray(fields)) return null;
+        const text = normalizeCommentText(fields.text);
+        return typeof fields.id === "string" && REQUEST_ID_PATTERN.test(fields.id) && text !== null ? { id: fields.id, text } : null;
       }
       if (kind === "UNDO") {
         if (!fields || typeof fields !== "object" || Array.isArray(fields)) return null;
@@ -3925,7 +3962,7 @@
     // COMPLETE takes the task off the Queue and puts its entry in History in place by time, marked `waitingRequestId` (no next
     // occurrence of a repeating task: the server makes that); a REOPEN takes the entry out and adds the task at the end of the
     // Queue as reopenTask builds it (`options.projectIds`: the current projects, else the task keeps its project); an EDIT applies
-    // its fields to the task or entry; an UNDO is undoInList with the record it carries (`fields.task`, `fields.spawnedId`) and takes the
+    // its fields to the task or entry, a COMMENT adds its comment to it (addCommentToList); an UNDO is undoInList with the record it carries (`fields.task`, `fields.spawnedId`) and takes the
     // entry of its `archiveId` out of History, and does nothing when the task is already on the list, as the server does. Pure: the inputs are not modified. The lists passed in are the server's, never the result.
     function withPendingActions(tasks, completed, actions, options = {}) {
       let list = Array.isArray(tasks) ? tasks.slice() : [];
@@ -3953,10 +3990,16 @@
           list = result.tasks;
           done = done.filter(r => r !== row);
         } else if (action.kind === "UNDO") {
-          const undone = undoInList(list, { task: action.fields.task, spawnedId: action.fields.spawnedId });
+          const entry = done.find(r => r.archiveId === action.archiveId);
+          const undone = undoInList(list, { task: action.fields.task, spawnedId: action.fields.spawnedId }, entry ? commentsOf(entry) : undefined);
           if (!undone) continue;
           list = undone.tasks;
           done = done.filter(r => r.archiveId !== action.archiveId);
+        } else if (action.kind === "COMMENT") {
+          const comment = { id: action.fields.id, text: action.fields.text, at: action.at };
+          const added = (item) => { const result = addCommentToList(item.comments, comment); return result.error ? item : withCommentsList(item, result.comments); };
+          if (action.taskId) list = list.map(t => (t.id === action.taskId ? added(t) : t));
+          else done = done.map(r => (r.archiveId === action.archiveId ? added(r) : r));
         } else if (action.kind === "EDIT") {
           if (action.taskId) list = list.map(t => (t.id === action.taskId ? applyEditFields(t, action.fields) : t));
           else done = done.map(r => (r.archiveId === action.archiveId ? applyEditFields(r, action.fields, ENTRY_EDIT_FIELDS) : r));
@@ -4073,6 +4116,7 @@
       if (action.kind === "COMPLETE") return "Complete" + task;
       if (action.kind === "REOPEN") return "Reopen" + task;
       if (action.kind === "UNDO") return "Undo completing" + task;
+      if (action.kind === "COMMENT") return "Add comment to" + task;
       if (action.kind === "EDIT") return `Update ${fieldNamesText(Object.keys(action.fields || {})) || "details"} on` + task;
       return "Change" + task;
     }
@@ -6456,10 +6500,11 @@
     function renderCommentPanel(prefix) {
       const panel = COMMENT_PANELS[prefix];
       const timeline = commentTimeline(panel.item(panel.key()));
-      const off = prefix === "ce" && completedFieldDisabled("comments", completedFormLimited());
+      const off = prefix === "ce" && completedFieldDisabled("commentDelete", completedFormLimited()); // deleting needs a connection
+      const waiting = waitingCommentIds(actionQueue); // a held comment has nothing on the server to delete yet
       document.getElementById(prefix + "Comments").innerHTML = timeline.length === 0
         ? '<div class="photo-note">No comments yet.</div>'
-        : timeline.map(c => `<div class="comment-entry"><div class="comment-head"><span class="comment-when">${esc(c.when)}</span><button type="button" class="comment-delete" title="Delete comment" aria-label="Delete comment" data-comment-delete="${esc(c.id)}"${off ? " disabled" : ""}>\u2715</button></div><div class="comment-text">${esc(c.text)}</div></div>`).join("");
+        : timeline.map(c => `<div class="comment-entry"><div class="comment-head"><span class="comment-when">${esc(c.when)}</span>${waiting.has(c.id) ? '<span class="chip held-chip">\u23F3 Waiting to send</span>' : `<button type="button" class="comment-delete" title="Delete comment" aria-label="Delete comment" data-comment-delete="${esc(c.id)}"${off ? " disabled" : ""}>\u2715</button>`}</div><div class="comment-text">${esc(c.text)}</div></div>`).join("");
       const list = document.getElementById(prefix + "Comments");
       list.scrollTop = list.scrollHeight;
     }
@@ -6487,8 +6532,9 @@
       }
       if (COMMENT_PANELS[prefix].key() === key) renderCommentPanel(prefix);
     }
-    // Sends what is typed in the box as a new comment. True when there was nothing to send or it was added; false when it failed (the
-    // text stays in the box, and a retry reuses its id so a lost reply cannot add it twice).
+    // Sends what is typed in the box as a new comment. True when there was nothing to send or it was added or held for later; false when it
+    // failed (the text stays in the box, and a retry reuses its id so a lost reply cannot add it twice). A comment is held (holdComment) after
+    // a connection failure, behind changes already waiting, and for an entry whose completion has not been sent.
     async function postComment(prefix) {
       const panel = COMMENT_PANELS[prefix];
       const key = panel.key();
@@ -6500,10 +6546,15 @@
       document.getElementById(prefix + "CommentAdd").disabled = true;
       try {
         pendingComment[prefix] = { text, id: commentIdFor(pendingComment[prefix], text, newRequestId) };
+        const id = pendingComment[prefix].id;
+        const now = Date.now(); // when it was written, whenever it is sent
+        const item = panel.item(key);
+        loadActionQueue();
+        if ((prefix === "ce" && item && item.waitingRequestId) || hasPendingActions(actionQueue) || actionDraining) return holdComment(prefix, key, id, text, now, true);
         const res = await apiFetch(ADD_COMMENT_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(addCommentBody(panel.field, key, pendingComment[prefix].id, text))
+          body: JSON.stringify(addCommentBody(panel.field, key, id, text))
         });
         const data = await res.json();
         noteServerTime(data);
@@ -6512,12 +6563,38 @@
         applyCommentResult(prefix, key, data);
         return true;
       } catch (err) {
+        if (isNetworkError(err, navigator.onLine) && pendingComment[prefix]) return holdComment(prefix, key, pendingComment[prefix].id, text, Date.now(), false);
         askAlert(failureText("Failed to add the comment", err), { tone: "error" });
         return false;
       } finally {
         commentBusy = false;
         document.getElementById(prefix + "CommentAdd").disabled = prefix === "ce" && completedFieldDisabled("comments", completedFormLimited());
       }
+    }
+    // Holds a comment for later: a COMMENT action with the page's own comment id, shown on the card or entry and in the timeline at once
+    // (withPendingActions). `behind` is true when it was queued only because other changes were waiting, so the queue is sent now; after a
+    // connection failure it waits for a trigger. Returns true when kept; false (an alert says why, the text stays in the box) when not.
+    function holdComment(prefix, key, id, text, now, behind) {
+      const panel = COMMENT_PANELS[prefix];
+      loadActionQueue();
+      const refusal = actionQueueRefusal(actionQueue.length, actionQueueUsable);
+      if (refusal) { askAlert(refusal, { tone: "warning" }); return false; }
+      const item = panel.item(key);
+      const action = makeQueuedAction({ kind: "COMMENT", [panel.field]: key, title: item && item.title, fields: { id, text }, now, offset: clockOffsetMs });
+      if (!action || !saveActionQueue([...actionQueue, action])) { askAlert(actionQueueRefusal(0, false), { tone: "warning" }); return false; }
+      pendingComment[prefix] = null;
+      if (panel.key() === key) document.getElementById(prefix + "CommentText").value = "";
+      renderFilterBar();
+      renderAddQueue();
+      refreshShownTasks();
+      if (prefix === "ce") {
+        completedAll = shownCompleted();
+        completedRows = new Map(completedAll.filter(t => t.archiveId).map(t => [t.archiveId, t]));
+        renderCompletedRows();
+      }
+      if (panel.key() === key) renderCommentPanel(prefix);
+      if (behind && navigator.onLine) setTimeout(drainAllQueues, 0);
+      return true;
     }
     async function addCommentClick(prefix) {
       if (await postComment(prefix)) document.getElementById(prefix + "CommentText").focus();
@@ -8189,6 +8266,9 @@
         } else if (item.kind === "REOPEN") {
           url = REOPEN_COMPLETED_URL;
           body = reopenBody(item);
+        } else if (item.kind === "COMMENT") {
+          url = ADD_COMMENT_URL;
+          body = commentBody(item);
         } else if (item.kind === "EDIT" && item.archiveId) {
           url = UPDATE_COMPLETED_URL;
           body = entryEditBody(item);
@@ -8217,6 +8297,10 @@
         if (item.kind !== "TIMER") {
           renderFilterBar();
           refreshHistoryIfOpen();
+        }
+        if (item.kind === "COMMENT") { // the comment is on the server now: show it in an open form and patch the entry as the server has it
+          if (item.archiveId && Array.isArray(data.comments) && completedServer.some(r => r.archiveId === item.archiveId)) applyCommentResult("ce", item.archiveId, data);
+          else if (document.getElementById("editModal").style.display === "flex") renderCommentPanel("edit");
         }
         // A held snooze moves the task's calendar event once it is saved, as the online Snooze does
         if (item.kind === "EDIT" && item.taskId && item.fields && "snoozedUntil" in item.fields) {

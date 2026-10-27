@@ -14,6 +14,7 @@ const {normalizeTravelKm} = require("../travel");
 const {normalizePhone, normalizeEmail} = require("../contact");
 const {normalizeLocation} = require("../location");
 const {applyCompletedEdit} = require("../completedEdit");
+const {addComment: serverAddComment} = require("../comments");
 const {normalizeArchiveId, resolveActionTime} = require("../clientTime");
 const {normalizeRequestId} = require("../addRequests");
 
@@ -26,7 +27,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, ENTRY_EDIT_FIELDS, normalizeSnooze, normalizeTravelKm, normalizePhone, normalizeEmail, normalizeLocation, normalizeRecurrence, checkEditFields, taskEditChanges, serverOnlyEditChanges, taskEditBody, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, cleanEntryTags, MAX_TRACKED_SECONDS, MAX_ENTRY_TAGS, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt};
+    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, ENTRY_EDIT_FIELDS, normalizeSnooze, normalizeTravelKm, normalizePhone, normalizeEmail, normalizeLocation, normalizeRecurrence, checkEditFields, taskEditChanges, serverOnlyEditChanges, taskEditBody, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, addCommentToList, commentBody, waitingCommentIds, MAX_COMMENTS, normalizeCommentText, commentsOf, cleanEntryTags, MAX_TRACKED_SECONDS, MAX_ENTRY_TAGS, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt};
   `)();
 }
 
@@ -261,7 +262,7 @@ describe("action queue (public/index.html)", () => {
     });
     it("holds only the kinds stage 1 can replay and the fields it can apply", () => {
       const page = load();
-      assert.deepEqual(page.ACTION_KINDS, ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO"]);
+      assert.deepEqual(page.ACTION_KINDS, ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO", "COMMENT"]);
       assert.deepEqual(page.EDIT_FIELDS, ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "location", "snoozedUntil", "description"]);
       assert.deepEqual(page.ENTRY_EDIT_FIELDS, ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "location", "description"]);
     });
@@ -1067,6 +1068,86 @@ describe("action queue (public/index.html)", () => {
       assert.deepEqual(Object.keys(held.held), ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "location", "description"]);
       assert.deepEqual(held.other, ["materials", "projectId", "completedDate", "completedTime"]);
       assert.equal(page.fieldNamesText(held.other), "materials, project and completion time");
+    });
+  });
+  describe("holding a comment", () => {
+    const entry = (extra = {}) => ({id: "e", title: "Task e", status: "PENDING", priority: "LOW", estimatedMinutes: 10, tags: [], trackedSeconds: 90, completedAt: iso(T0 - 5 * MIN), archiveId: "archive-0001", completedCount: 1, recentSeconds: [90], ...extra});
+    const comment = (page, over = {}) => page.makeQueuedAction({kind: "COMMENT", taskId: "a", title: "Task a", fields: {id: "comment-0001", text: "  Called the client  "}, now: T0, requestId: "req-c0001", ...over});
+
+    it("holds a COMMENT of a task or an entry with the page's comment id and the trimmed text, and nothing else", () => {
+      const page = load();
+      const held = comment(page);
+      assert.deepEqual(held, {requestId: "req-c0001", kind: "COMMENT", taskId: "a", title: "Task a", fields: {id: "comment-0001", text: "Called the client"}, at: T0, status: "PENDING"});
+      const forEntry = comment(page, {taskId: undefined, archiveId: "archive-0001", requestId: "req-c0010"});
+      assert.equal(forEntry.archiveId, "archive-0001");
+      assert.equal(forEntry.taskId, undefined);
+      assert.equal(comment(page, {fields: {id: "comment-0001", text: "x".repeat(2500)}}).fields.text.length, 2000);
+      const bad = [{fields: undefined}, {fields: {}}, {fields: {id: "short", text: "x"}}, {fields: {id: "has space 1", text: "x"}}, {fields: {id: "comment-0001", text: "   "}}, {fields: {id: "comment-0001"}}, {fields: {id: 5, text: "x"}}, {fields: [1]}, {taskId: undefined}, {archiveId: "archive-0001"}];
+      for (const over of bad) assert.equal(comment(page, over), null, JSON.stringify(over));
+      assert.deepEqual(page.parseActionQueue(page.serializeActionQueue([held, forEntry])).map((a) => a.fields), [held.fields, forEntry.fields], "kept across a reload");
+    });
+    it("adds a comment to a list as the server's addComment does", () => {
+      const page = load();
+      const many = Array.from({length: 200}, (_, i) => ({id: `comment-${String(i).padStart(4, "0")}`, at: 1000 + i, text: "t"}));
+      const lists = [undefined, [], [{id: "comment-0001", at: 5000, text: "later"}], [{id: "comment-0001", at: 1000, text: "a"}, {id: "comment-0002", at: 3000, text: "b"}], many, "nope"];
+      const given = [
+        {id: "comment-0009", text: "  hi  ", at: 2000}, {id: "comment-0001", text: "again", at: 2000}, {id: "comment-0010", text: "x".repeat(2100), at: 9000},
+        {id: "comment-0011", text: "same time", at: 3000}, {id: "short", text: "x", at: 2000}, {id: "comment-0012", text: " ", at: 2000}, {id: "comment-0013", text: "x", at: 0},
+        {id: "comment-0014", text: "x", at: 1.5}, {id: "comment-0015", text: "x"}, null,
+      ];
+      for (const list of lists) {
+        for (const c of given) assert.deepEqual(page.addCommentToList(list, c), serverAddComment(list, c), JSON.stringify([list && list.length, c]));
+      }
+      assert.equal(page.MAX_COMMENTS, 200);
+    });
+    it("shows a held comment on its task and entry at once, in the order written, and leaves a refused one out", () => {
+      const page = load();
+      const old = {id: "comment-0000", at: T0 - 10 * MIN, text: "earlier"};
+      const tasks = [task("a", {comments: [old]}), task("b")];
+      const shown = page.withPendingActions(tasks, [entry()], [comment(page), comment(page, {taskId: undefined, archiveId: "archive-0001", requestId: "req-c0002", fields: {id: "comment-0002", text: "on the entry"}})]);
+      assert.deepEqual(shown.tasks[0].comments, [old, {id: "comment-0001", at: T0, text: "Called the client"}]);
+      assert.equal(shown.tasks[1].comments, undefined, "another task is untouched");
+      assert.deepEqual(shown.completed[0].comments, [{id: "comment-0002", at: T0, text: "on the entry"}]);
+      const failed = {...comment(page), status: "FAILED", error: "no"};
+      assert.deepEqual(page.withPendingActions(tasks, [], [failed]).tasks, tasks);
+      assert.equal(page.withPendingActions(tasks, [], [comment(page), comment(page, {requestId: "req-c0003"})]).tasks[0].comments.length, 2, "a repeat of the same comment id adds nothing");
+      assert.equal(page.withPendingActions([task("z")], [], [comment(page)]).tasks[0].comments, undefined, "a task that is not there is skipped");
+      assert.deepEqual([...page.waitingCommentIds([comment(page), failed, page.makeQueuedAction({kind: "TIMER", taskId: "a", title: "t", fields: {action: "START"}, now: T0})])], ["comment-0001"]);
+    });
+    it("puts a comment written on a waiting entry behind its COMPLETE, and it goes with that completion", () => {
+      const page = load();
+      const complete = page.makeQueuedAction({kind: "COMPLETE", taskId: "a", archiveId: "archive-0007", title: "Task a", now: T0, requestId: "req-c0004"});
+      const onEntry = page.makeQueuedAction({kind: "COMMENT", archiveId: "archive-0007", title: "Task a", fields: {id: "comment-0007", text: "done well"}, now: T0 + 1, requestId: "req-c0005"});
+      const shown = page.withPendingActions([task("a", {comments: [{id: "comment-0000", at: T0 - MIN, text: "before"}]})], [], [complete, onEntry]);
+      assert.deepEqual(shown.completed[0].comments.map((c) => c.text), ["before", "done well"], "the task's comments went to the entry");
+      const gone = page.cancelActions([complete, onEntry], "req-c0004");
+      assert.deepEqual(gone.cancelled.map((a) => a.requestId), ["req-c0004", "req-c0005"]);
+      assert.equal(page.blockedBy([{...complete, status: "FAILED", error: "no"}, onEntry], onEntry).requestId, "req-c0004");
+    });
+    it("brings a comment along when its entry is reopened and when a removal is undone", () => {
+      const page = load();
+      const onEntry = page.makeQueuedAction({kind: "COMMENT", archiveId: "archive-0001", title: "Task e", fields: {id: "comment-0003", text: "kept"}, now: T0, requestId: "req-c0006"});
+      const reopen = page.makeQueuedAction({kind: "REOPEN", taskId: "e", archiveId: "archive-0001", title: "Task e", now: T0 + 1, requestId: "req-c0007"});
+      const back = page.withPendingActions([], [entry()], [onEntry, reopen]);
+      assert.deepEqual(back.tasks[0].comments.map((c) => c.text), ["kept"]);
+      const onTask = comment(page, {taskId: "e", requestId: "req-c0008"});
+      assert.deepEqual(page.withPendingActions(back.tasks.map((t) => ({...t})), [], [onTask]).tasks[0].comments.map((c) => c.text), ["kept", "Called the client"], "a comment on the reopened task follows the reopen");
+      // Undo puts back the task with the comments its entry holds now, as the server's undoInList does
+      const removed = task("u", {comments: [{id: "comment-0020", at: 1000, text: "at removal"}]});
+      const record = {task: removed, spawnedId: null};
+      const held = [{id: "comment-0020", at: 1000, text: "at removal"}, {id: "comment-0021", at: 2000, text: "added after"}];
+      assert.deepEqual(page.undoInList([], record, held), serverUndoInList([], record, held));
+      assert.deepEqual(page.undoInList([], record, []), serverUndoInList([], record, []));
+      assert.deepEqual(page.undoInList([], record), serverUndoInList([], record));
+      const undo = page.makeQueuedAction({kind: "UNDO", taskId: "u", archiveId: "archive-0005", title: "u", fields: {task: removed}, now: T0, requestId: "req-c0009"});
+      const row = entry({id: "u", archiveId: "archive-0005", comments: held});
+      assert.deepEqual(page.withPendingActions([], [row], [undo]).tasks[0].comments, held);
+    });
+    it("sends a held comment to addComment with its own id and the time it was written, and names it on the card", () => {
+      const page = load();
+      assert.deepEqual(page.commentBody(comment(page)), {taskId: "a", id: "comment-0001", text: "Called the client", at: T0});
+      assert.deepEqual(page.commentBody(comment(page, {taskId: undefined, archiveId: "archive-0001"})), {archiveId: "archive-0001", id: "comment-0001", text: "Called the client", at: T0});
+      assert.equal(page.actionLabel(comment(page)), "Add comment to “Task a”");
     });
   });
 });
