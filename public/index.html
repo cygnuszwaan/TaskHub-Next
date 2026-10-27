@@ -504,6 +504,15 @@
           <div id="projectPlaceResults" class="place-results"></div>
           <p class="settings-note" id="projectLocationNote"></p>
         </div>
+        <div class="project-location" id="projectUrl" hidden>
+          <label for="projectUrlInput">Link</label>
+          <input type="url" id="projectUrlInput" maxlength="500" inputmode="url" autocapitalize="none" autocomplete="off" placeholder="e.g. example.com/job-info">
+          <div class="action-row" style="margin-top: 6px;">
+            <button type="button" id="projectUrlSaveBtn" class="btn-secondary">Save link</button>
+            <button type="button" id="projectUrlClearBtn" class="btn-secondary" hidden>Clear</button>
+          </div>
+          <p class="settings-note" id="projectUrlNote"></p>
+        </div>
         <div class="project-actions" id="projectTemplateAction"></div>
         <div class="template-block" id="templateBlock">
           <div class="template-title">Start from template</div>
@@ -730,6 +739,10 @@
     <div class="form-group" style="margin:10px 0 0;">
       <label for="clientEmail">Email</label>
       <input type="email" id="clientEmail" maxlength="100">
+    </div>
+    <div class="form-group" style="margin:10px 0 0;">
+      <label for="clientUrl">Link</label>
+      <input type="url" id="clientUrl" maxlength="500" inputmode="url" autocapitalize="none" autocomplete="off" placeholder="e.g. example.com/job-info">
     </div>
     <div class="form-group" style="margin:10px 0 0;">
       <label for="clientHourlyRate">Hourly rate</label>
@@ -1766,6 +1779,23 @@
       return project ? `${project.id}|${JSON.stringify(project.location || null)}` : "";
     }
 
+    // The Link row of the chosen project: `value` is the box's text (the project's own link, empty when it has none), `hasOwn` whether
+    // it has one (Clear shows only then) and `note` what is told under the box: that the link is set, or where an inherited one comes
+    // from ("From client: Smith Ltd · https://example.com/job").
+    function projectUrlView(project, client) {
+      const own = project && typeof project === "object" ? normalizeUrl(project.url) : null;
+      if (typeof own === "string") return { value: own, hasOwn: true, note: "🔗 Link set." };
+      const inherited = client && typeof client === "object" ? normalizeUrl(client.url) : null;
+      if (typeof inherited === "string") return { value: "", hasOwn: false, note: `From client: ${String(client.name || "").trim()} · ${inherited}` };
+      return { value: "", hasOwn: false, note: "No link yet. Add one to set it." };
+    }
+
+    // What the Link box currently shows is kept while this stays the same, so a redraw never wipes text being typed: the project and
+    // its own link.
+    function projectUrlKey(project) {
+      return project ? `${project.id}|${typeof project.url === "string" ? project.url : ""}` : "";
+    }
+
     // The own location a task form holds: `text` is the Location box and `picked` the place last picked into it ({name, latitude, longitude})
     // or null. Null for an empty box; the picked place (with its map position) while the text is still its name; else just the typed name.
     function locationFromBox(text, picked) {
@@ -1896,6 +1926,12 @@
       const t = String(text === undefined || text === null ? "" : text).trim();
       if (t === "") return null;
       return EMAIL_PATTERN.test(t) ? t : undefined;
+    }
+    const INVALID_URL = "A link must be an http or https address such as example.com/menu, or be empty.";
+    // A typed Link box: null when empty, the link as it would be saved (`https://` put in front of text with no scheme) when it is
+    // usable, undefined when not.
+    function parseUrlText(text) {
+      return normalizeUrl(text === undefined || text === null ? "" : text);
     }
     // The phone number as dialled: digits with a leading + kept, "" when there are no digits.
     function phoneDigits(phone) {
@@ -2230,7 +2266,7 @@
       const where = v.location && typeof v.location === "object" ? v.location : {};
       const placeName = text(where.name).trim();
       const coords = Number.isFinite(where.latitude) && Number.isFinite(where.longitude) ? { latitude: where.latitude, longitude: where.longitude } : {};
-      return { name: text(v.name).trim(), phone: text(v.phone), email: text(v.email), hourlyRate: rate, useWhatsApp: v.useWhatsApp === true, location: placeName ? { name: placeName, ...coords } : null };
+      return { name: text(v.name).trim(), phone: text(v.phone), email: text(v.email), hourlyRate: rate, useWhatsApp: v.useWhatsApp === true, location: placeName ? { name: placeName, ...coords } : null, url: text(v.url).trim() };
     }
     // The confirmation before deleting a client; `projects` is how many of the owner's projects belong to it.
     function deleteClientPrompt(name, projects) {
@@ -3772,6 +3808,27 @@
     function normalizeEmail(value) {
       const text = oneLineOrNull(value, 100);
       return typeof text === "string" && !EMAIL_PATTERN.test(text) ? undefined : text;
+    }
+    // A copy of `normalizeUrl` in functions/contact.js (a test keeps them equal): an http or https link of at most 500 characters, one
+    // line with no spaces; text with no scheme gets https:// put in front. undefined: unusable; null: none.
+    const MAX_URL_LENGTH = 500;
+    const OTHER_URL_SCHEMES = /^(javascript|data|vbscript|file|blob|about|mailto|tel|sms|ftp):/i;
+    function normalizeUrl(value) {
+      const typed = oneLineOrNull(value, MAX_URL_LENGTH);
+      if (typeof typed !== "string") return typed;
+      if (/\s/.test(typed)) return undefined;
+      let text = typed;
+      if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(text)) {
+        if (OTHER_URL_SCHEMES.test(text) || /^[a-z][a-z0-9+.-]*:(?!\d)/i.test(text)) return undefined;
+        text = `https://${text}`;
+      }
+      if (text.length > MAX_URL_LENGTH) return undefined;
+      try {
+        const url = new URL(text);
+        return (url.protocol === "http:" || url.protocol === "https:") && url.hostname !== "" ? text : undefined;
+      } catch (err) {
+        return undefined;
+      }
     }
     function normalizeLocation(value) {
       if (value === null) return null;
@@ -7489,6 +7546,7 @@
         bar.innerHTML = "<div class=\"project-list-empty\">No projects yet.</div>";
         actions.innerHTML = "";
         renderProjectLocation(null);
+        renderProjectUrl(null);
         document.getElementById("projectTemplateAction").innerHTML = "";
         return;
       }
@@ -7508,6 +7566,7 @@
         </div>
         <div class="project-row" data-id="${esc(chosen.id)}">${clientPickerHtml(chosen)}</div>` : "";
       renderProjectLocation(chosen);
+      renderProjectUrl(chosen);
       document.getElementById("projectTemplateAction").innerHTML = chosen ? `
         <div class="project-row" data-id="${esc(chosen.id)}">
           <button type="button" class="btn-secondary" data-action="saveTemplate">📋 Save as template</button>
@@ -7536,6 +7595,25 @@
       }
       document.getElementById("projectLocationNote").textContent = view.note;
       document.getElementById("projectLocationClearBtn").hidden = !view.hasOwn;
+    }
+
+    // The chosen project's Link row, with the same fixed markup. Its text is replaced only when the project or its own link changed
+    // (`projectUrlKey`); its note and Clear button follow every redraw, since an inherited link can change with the client.
+    let projectUrlShown = "";
+    function renderProjectUrl(chosen) {
+      document.getElementById("projectUrl").hidden = !chosen;
+      if (!chosen) {
+        projectUrlShown = "";
+        return;
+      }
+      const view = projectUrlView(chosen, allClients.find(c => c.id === chosen.clientId) || null);
+      const key = projectUrlKey(chosen);
+      if (key !== projectUrlShown) {
+        projectUrlShown = key;
+        document.getElementById("projectUrlInput").value = view.value;
+      }
+      document.getElementById("projectUrlNote").textContent = view.note;
+      document.getElementById("projectUrlClearBtn").hidden = !view.hasOwn;
     }
 
     // The Client line of the chosen project: a select of the clients (or a hint when there are none).
@@ -7638,6 +7716,19 @@
       return saveProject({ action: "SET_LOCATION", projectId, location }, location ? "Saved." : "Location cleared.");
     }
     document.getElementById("projectLocationClearBtn").addEventListener("click", () => setProjectLocation(selectedProjectFilter, null));
+    // Save link sends the typed link (an empty box takes the project's own link off, so it uses its client's); a bad link is a warning alert
+    // and nothing is sent. Clear empties the box and takes the link off.
+    async function setProjectUrl(projectId, text) {
+      if (projectId === null || !allProjects.some(p => p.id === projectId)) return false;
+      const url = parseUrlText(text);
+      if (url === undefined) { await askAlert(INVALID_URL, { tone: "warning" }); return false; }
+      return saveProject({ action: "SET_URL", projectId, url }, url ? "Saved." : "Link cleared.");
+    }
+    document.getElementById("projectUrlSaveBtn").addEventListener("click", () => setProjectUrl(selectedProjectFilter, document.getElementById("projectUrlInput").value));
+    document.getElementById("projectUrlClearBtn").addEventListener("click", () => setProjectUrl(selectedProjectFilter, null));
+    document.getElementById("projectUrlInput").addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); setProjectUrl(selectedProjectFilter, e.target.value); }
+    });
 
     // Project templates: saved from a project's queued tasks and started as a new project, through updateProjectTemplate.
     function renderTemplates() {
@@ -7782,6 +7873,7 @@
       document.getElementById("clientPhone").value = client ? client.phone || "" : "";
       document.getElementById("clientUseWhatsApp").checked = !!client && client.useWhatsApp === true;
       document.getElementById("clientEmail").value = client ? client.email || "" : "";
+      document.getElementById("clientUrl").value = client ? client.url || "" : "";
       document.getElementById("clientHourlyRate").value = client ? costBoxText(client.hourlyRate) : "";
       document.getElementById("saveClientBtn").textContent = client ? "Save client" : "Add client";
       document.getElementById("cancelClientBtn").hidden = !client;
@@ -7834,11 +7926,13 @@
         name: document.getElementById("clientName").value,
         phone: document.getElementById("clientPhone").value,
         email: document.getElementById("clientEmail").value,
+        url: document.getElementById("clientUrl").value,
         hourlyRate: document.getElementById("clientHourlyRate").value,
         useWhatsApp: document.getElementById("clientUseWhatsApp").checked,
         location: { name: document.getElementById("clientLocation").value, ...(clientCoords ? { latitude: clientCoords.latitude, longitude: clientCoords.longitude } : {}) }
       });
       if (!client.name) { setClientsStatus("Enter a name."); return; }
+      if (parseUrlText(client.url) === undefined) { askAlert(INVALID_URL, { tone: "warning" }); return; }
       const editing = editingClientId;
       const body = editing ? { action: "UPDATE", clientId: editing, client } : { action: "CREATE", client };
       if (await saveClientRequest(body, editing ? `Saved "${client.name}".` : `Added "${client.name}".`)) fillClientForm(null);

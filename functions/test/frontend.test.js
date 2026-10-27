@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
 const {moveToQueueNumber} = require("../tasks");
+const {normalizeUrl: serverNormalizeUrl} = require("../contact");
 
 // public/index.html has no build step, so its pure helpers sit between two marker comments. Load that block
 // the way the page does: as plain script text with its own top-level state.
@@ -16,7 +17,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX};`)();
+    return {MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -2795,9 +2796,9 @@ describe("public/index.html helpers", () => {
     });
     it("builds the form body, trimming the name only", () => {
       const {clientFormBody} = load();
-      assert.deepEqual(clientFormBody({name: "  Jo ", phone: " 1", email: "a@b.nz", hourlyRate: " 95.50 "}), {name: "Jo", phone: " 1", email: "a@b.nz", hourlyRate: "95.50", useWhatsApp: false, location: null});
-      assert.deepEqual(clientFormBody({name: "Jo", hourlyRate: null}), {name: "Jo", phone: "", email: "", hourlyRate: "", useWhatsApp: false, location: null});
-      assert.deepEqual(clientFormBody(undefined), {name: "", phone: "", email: "", hourlyRate: "", useWhatsApp: false, location: null});
+      assert.deepEqual(clientFormBody({name: "  Jo ", phone: " 1", email: "a@b.nz", hourlyRate: " 95.50 "}), {name: "Jo", phone: " 1", email: "a@b.nz", hourlyRate: "95.50", useWhatsApp: false, location: null, url: ""});
+      assert.deepEqual(clientFormBody({name: "Jo", hourlyRate: null}), {name: "Jo", phone: "", email: "", hourlyRate: "", useWhatsApp: false, location: null, url: ""});
+      assert.deepEqual(clientFormBody(undefined), {name: "", phone: "", email: "", hourlyRate: "", useWhatsApp: false, location: null, url: ""});
       assert.equal("address" in clientFormBody({name: "Jo", address: "1 Rd"}), false, "no address is sent");
       assert.equal(clientFormBody({name: "Jo", useWhatsApp: true}).useWhatsApp, true);
       assert.equal(clientFormBody({name: "Jo", useWhatsApp: "yes"}).useWhatsApp, false);
@@ -3286,11 +3287,11 @@ describe("public/index.html helpers", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(code, /(?<![\w.])alert\(/, "a native alert() is left");
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
-      assert.equal(calls.length, 62, "the sixty-two messages the page shows (thirteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and two why a Multi-Select change was not)");
+      assert.equal(calls.length, 64, "the sixty-four messages the page shows (thirteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and two why a Multi-Select change was not)");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 19, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
-      assert.equal(warnings.length, 41, "every validation message is a warning alert");
+      assert.equal(warnings.length, 43, "every validation message is a warning alert");
     });
     it("hides Cancel for an alert, shows it again for a question and focuses the button", () => {
       const fn = html.slice(html.indexOf("function openConfirm"), html.indexOf("function askConfirm"));
@@ -3886,6 +3887,59 @@ describe("Reorder mode", () => {
       assert.notEqual(projectLocationKey({...a, location: where("X")}), projectLocationKey({...a, location: where("Y")}));
       assert.notEqual(projectLocationKey({id: "p2"}), projectLocationKey({id: "p1"}));
       assert.equal(projectLocationKey(null), "");
+    });
+    it("reads a link as the server's normalizeUrl does", () => {
+      const page = load();
+      const samples = [null, undefined, "", "   ", "example.com", " example.com/menu ", "https://example.com/a?b=1#c", "http://example.com", "HTTPS://Example.com", "localhost:3000", "localhost:3000/x", "192.168.1.5:8080/status",
+        "javascript:alert(1)", "JavaScript:alert(1)", "data:text/html,hi", "mailto:a@b.co", "tel:021", "ftp://example.com", "file:///etc/passwd", "ex ample.com", "a b", "https://", "http:///x", "://x", "https://exa mple.com", "x".repeat(500), "x".repeat(501),
+        `https://example.com/${"a".repeat(480)}`, `https://example.com/${"a".repeat(490)}`, 5, {}, [], true];
+      for (const value of samples) assert.equal(page.normalizeUrl(value), serverNormalizeUrl(value), JSON.stringify(value));
+      assert.equal(page.MAX_URL_LENGTH, 500);
+    });
+    it("reads a typed Link box: none for empty, the saved form for a usable link, undefined for a bad one", () => {
+      const {parseUrlText} = load();
+      for (const empty of ["", "   ", null, undefined]) assert.equal(parseUrlText(empty), null, JSON.stringify(empty));
+      assert.equal(parseUrlText(" example.com/menu "), "https://example.com/menu");
+      assert.equal(parseUrlText("http://example.com/a"), "http://example.com/a");
+      for (const bad of ["javascript:alert(1)", "mailto:a@b.co", "two words.com", "x".repeat(501), "https://"]) assert.equal(parseUrlText(bad), undefined, bad);
+    });
+    it("tells what a bad link needs", () => {
+      const {INVALID_URL} = load();
+      assert.match(INVALID_URL, /http or https/);
+      assert.match(INVALID_URL, /empty/);
+    });
+    it("shows a project's own link, else its client's, else none", () => {
+      const {projectUrlView} = load();
+      const client = {id: "c1", name: " Smith Ltd ", url: "https://smith.example/jobs"};
+      assert.deepEqual(projectUrlView({id: "p1", name: "Reno", url: "https://reno.example/plan"}, client), {value: "https://reno.example/plan", hasOwn: true, note: "🔗 Link set."});
+      assert.deepEqual(projectUrlView({id: "p1", name: "Reno", clientId: "c1"}, client), {value: "", hasOwn: false, note: "From client: Smith Ltd · https://smith.example/jobs"});
+      assert.deepEqual(projectUrlView({id: "p1", name: "Reno"}, {id: "c1", name: "Smith Ltd"}), {value: "", hasOwn: false, note: "No link yet. Add one to set it."});
+      assert.deepEqual(projectUrlView({id: "p1", name: "Reno"}, null), {value: "", hasOwn: false, note: "No link yet. Add one to set it."});
+      assert.equal(projectUrlView({id: "p1", url: "javascript:alert(1)"}, {name: "C", url: "javascript:alert(1)"}).hasOwn, false, "an unusable stored link is not shown");
+      assert.equal(projectUrlView(null, null).note, "No link yet. Add one to set it.");
+    });
+    it("changes the key that decides when the Link box is rewritten only for another project or its own link", () => {
+      const {projectUrlKey} = load();
+      const a = {id: "p1", name: "Reno"};
+      assert.equal(projectUrlKey({...a, name: "Renamed", clientId: "c2", location: {name: "X"}}), projectUrlKey(a), "a rename, a client or a location change leaves typed text alone");
+      assert.notEqual(projectUrlKey({...a, url: "https://x.example"}), projectUrlKey(a));
+      assert.notEqual(projectUrlKey({...a, url: "https://x.example"}), projectUrlKey({...a, url: "https://y.example"}));
+      assert.notEqual(projectUrlKey({id: "p2"}), projectUrlKey({id: "p1"}));
+      assert.equal(projectUrlKey(null), "");
+    });
+    it("sends the client form's link as typed, empty for none", () => {
+      const {clientFormBody} = load();
+      assert.equal(clientFormBody({name: "Jo", url: "  example.com/job "}).url, "example.com/job");
+      for (const url of [undefined, null, "", "  ", 5]) assert.equal(clientFormBody({name: "Jo", url}).url, "", JSON.stringify(url));
+    });
+    it("has a Link box in the client form and a Link row under the chosen project's Location, each warning on a bad link", () => {
+      assert.match(html, /<input type="url" id="clientUrl" maxlength="500"/);
+      assert.match(html, /<div class="project-location" id="projectUrl" hidden>/);
+      assert.ok(html.indexOf("id=\"projectLocation\"") < html.indexOf("id=\"projectUrl\"") && html.indexOf("id=\"projectUrl\"") < html.indexOf("id=\"projectTemplateAction\""), "after Location, before Save as template");
+      assert.match(html, /if \(parseUrlText\(client\.url\) === undefined\) \{ askAlert\(INVALID_URL, \{ tone: "warning" \}\); return; \}/);
+      assert.match(html, /if \(url === undefined\) \{ await askAlert\(INVALID_URL, \{ tone: "warning" \}\); return false; \}/);
+      assert.match(html, /saveProject\(\{ action: "SET_URL", projectId, url \}/);
+      assert.match(html, /renderProjectUrl\(chosen\);/);
     });
     it("has a fixed Location row under the chosen project, bound once", () => {
       assert.match(html, /<div class="project-location" id="projectLocation" hidden>/);
