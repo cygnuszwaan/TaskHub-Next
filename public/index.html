@@ -85,8 +85,6 @@
     .sort-row select { flex: 1; min-width: 0; }
     .select-row { display: flex; gap: 6px; margin-top: 10px; }
     .select-row button { flex: 1; min-width: 0; box-sizing: border-box; height: 36px; padding-top: 0; padding-bottom: 0; line-height: 1.2; overflow: hidden; } /* a fixed height, so a fallback font's taller ✓ or ✕ cannot make the row grow */
-    .reorder-hint { margin-top: 8px; font-size: 13px; color: var(--text-muted); }
-    .reorder-hint[hidden] { display: none; }
     .swipe-row.shifting { transition: transform 0.15s ease; }
     .swipe-row.lifted { z-index: 4; transition: none; background: var(--surface); box-shadow: 0 8px 20px rgba(0,0,0,0.28), 0 0 0 2px var(--primary); cursor: grabbing; }
     .batch-status { font-size: 13px; margin-top: 8px; color: var(--text-strong); }
@@ -253,6 +251,10 @@
     .undo-note { position: sticky; bottom: 0; z-index: 50; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 44px; margin-top: 12px; padding: 0 12px env(safe-area-inset-bottom, 0px); font-size: 13px; color: var(--text-strong); text-align: center; background: var(--surface); border-top: 1px solid var(--header-border); box-shadow: 0 -2px 8px rgba(0,0,0,0.06); }
     .undo-note[hidden] { display: none; }
     body:has(#undoNote:not([hidden])) .batch-bar { bottom: calc(44px + env(safe-area-inset-bottom, 0px)); }
+    .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 60; box-sizing: border-box; width: max-content; max-width: min(90vw, 360px); padding: 10px 16px; border-radius: 20px; font-size: 14px; line-height: 1.35; text-align: center; color: var(--surface); background: var(--text-strong); box-shadow: 0 4px 14px rgba(0,0,0,0.28); transform: translateX(-50%); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.2s ease, visibility 0.2s ease; }
+    .toast.show { opacity: 1; visibility: visible; }
+    body:has(#undoNote:not([hidden])) .toast { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+    @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
     .undo-note button { background: transparent; color: var(--link); font-weight: 700; font-size: 13px; padding: 2px 6px; text-decoration: underline; }
     .modal-card h3 { margin-top: 0; margin-bottom: 16px; font-size: 18px; }
     .form-group { margin-bottom: 12px; }
@@ -580,7 +582,6 @@
       <div class="select-row">
         <button type="button" class="btn-secondary" id="selectModeBtn" aria-pressed="false">☑️ Select tasks</button>
       </div>
-      <div class="reorder-hint" id="reorderHint" role="status" hidden>Sort by Task number, ascending, to reorder cards.</div>
       <div class="batch-status" id="batchStatus" role="status"></div>
       <div id="taskList" style="margin-top: 15px;">Loading tasks...</div>
       <div class="batch-bar" id="batchBar" hidden>
@@ -847,6 +848,7 @@
     <span id="undoNoteText"></span>
     <button type="button" id="undoNoteBtn">Undo</button>
   </footer>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <div id="editModal" class="modal-overlay" onclick="closeModalOnOverlay(event)">
     <div class="modal-card">
@@ -1527,7 +1529,7 @@
     // Reordering on the Queue: a queued card held for LONG_PRESS_MS lifts and can be dragged to a new place while the list
     // is in the queue's own order (reorderAllowed); `reorderDrag` is the lifted card, see the Reorder block below.
     let reorderDrag = null;
-    let reorderHintTimer = null; // hides #reorderHint again after REORDER_HINT_MS
+    let toastTimer = null; // hides #toast again after TOAST_MS
     // Moves are shown at once and saved one after another in the background; the count is how many have not been answered yet.
     let reorderPending = 0;
     let reorderFailed = false; // a save failed while others were waiting: the list is read again from the server once none is
@@ -3640,7 +3642,8 @@
 
     // Reordering. A card dragged to a new place takes the task number of the card it lands on (what typing that number in
     // the edit form does), so it works on a filtered list too: hidden tasks keep their relative places.
-    const REORDER_HINT_MS = 4000; // how long #reorderHint stays after a hold that cannot lift a card
+    const TOAST_MS = 4000; // how long a toast stays
+    const REORDER_HINT_TEXT = "Sort by Task number, ascending, to reorder cards."; // the toast for a hold that cannot lift a card
     // Cards can be reordered only while the list is in the queue's own order: Sort by Task number, ascending.
     function reorderAllowed(key, descending) {
       return key === "number" && !descending;
@@ -5385,13 +5388,13 @@
       syncSortControls();
       sortSelect.addEventListener("change", () => {
         sortKey = normalizeSortKey(sortSelect.value);
-        hideReorderHint();
+        hideToast();
         renderTasks();
       });
       sortDirBtn.addEventListener("click", () => {
         sortDescending = !sortDescending;
         syncSortControls();
-        hideReorderHint();
+        hideToast();
         renderTasks();
       });
       document.getElementById("tagFilterBar").addEventListener("click", e => {
@@ -5456,7 +5459,7 @@
           pressStart = null;
           pressFired = true;
           swipe = null;
-          if (!reorderAllowed(sortKey, sortDescending)) return showReorderHint();
+          if (!reorderAllowed(sortKey, sortDescending)) return showToast(REORDER_HINT_TEXT);
           startReorderPress(press, item);
         }, LONG_PRESS_MS);
       };
@@ -5914,6 +5917,20 @@
       undoHandler = null;
       undoRemovalInfo = null;
       document.getElementById("undoNote").hidden = true;
+    }
+    // A toast: a short message in a bubble over the bottom of the page (above the Undo footnote while it shows) that takes no
+    // space in the layout and no taps, and goes after TOAST_MS or at hideToast. One slot: a new toast replaces the last.
+    function showToast(text) {
+      const el = document.getElementById("toast");
+      el.textContent = text;
+      el.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(hideToast, TOAST_MS);
+    }
+    function hideToast() {
+      clearTimeout(toastTimer);
+      toastTimer = null;
+      document.getElementById("toast").classList.remove("show");
     }
     async function undoRemoval() {
       const info = undoRemovalInfo; // a completion or delete the page can undo itself (its action is in the queue, or was sent)
@@ -7416,19 +7433,6 @@
       dir.textContent = sortDescending ? "↓ Descending" : "↑ Ascending";
       dir.setAttribute("aria-label", sortDescending ? "Descending order; tap for ascending" : "Ascending order; tap for descending");
     }
-    // The line under the Select row that says how to make reordering possible; it goes after REORDER_HINT_MS or at the next sort change.
-    function showReorderHint() {
-      const hint = document.getElementById("reorderHint");
-      hint.hidden = false;
-      clearTimeout(reorderHintTimer);
-      reorderHintTimer = setTimeout(hideReorderHint, REORDER_HINT_MS);
-    }
-    function hideReorderHint() {
-      clearTimeout(reorderHintTimer);
-      reorderHintTimer = null;
-      document.getElementById("reorderHint").hidden = true;
-    }
-
     // A queued card held for LONG_PRESS_MS (onTaskRowDown times the hold) lifts, for touch and mouse alike. The lifted card
     // follows the pointer, the cards it passes slide aside, and releasing sends the move (reorderTask). The page scrolls
     // itself when the pointer nears its top or bottom edge, and Escape or a cancelled touch drops the card where it was.
@@ -7568,7 +7572,7 @@
       btn.textContent = on ? "✕ Cancel selection" : "☑️ Select tasks";
       btn.setAttribute("aria-pressed", String(on));
       document.getElementById("batchBar").hidden = !on;
-      if (on) { setBatchStatus(""); hideReorderHint(); }
+      if (on) { setBatchStatus(""); hideToast(); }
       renderTasks();
     }
     function updateBatchBar() {

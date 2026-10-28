@@ -17,7 +17,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {pickerViewportBox, withNoneRow, clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagChipItems, projectClientNameById, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSearchText, filterClients, clientDeleteShown, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, clientFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, historyProjectChoices, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, DOUBLE_TAP_MS, tapKind, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HINT_MS, reorderAllowed, LONG_PRESS_MS, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
+    return {pickerViewportBox, withNoneRow, clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagChipItems, projectClientNameById, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSearchText, filterClients, clientDeleteShown, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, clientFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, historyProjectChoices, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, DOUBLE_TAP_MS, tapKind, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, TOAST_MS, REORDER_HINT_TEXT, reorderAllowed, LONG_PRESS_MS, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -372,7 +372,7 @@ describe("public/index.html helpers", () => {
       const down = html.slice(html.indexOf("const onTaskRowDown"), html.indexOf("const onTaskRowMove"));
       assert.ok(down.indexOf("if (active) return;") > 0 && down.indexOf("if (active) return;") < down.indexOf("pressTimer = setTimeout"), "the Active task starts no hold");
       assert.match(down, /\}, LONG_PRESS_MS\);/);
-      assert.match(down, /pressFired = true;\s*swipe = null;\s*if \(!reorderAllowed\(sortKey, sortDescending\)\) return showReorderHint\(\);\s*startReorderPress\(press, item\);/);
+      assert.match(down, /pressFired = true;\s*swipe = null;\s*if \(!reorderAllowed\(sortKey, sortDescending\)\) return showToast\(REORDER_HINT_TEXT\);\s*startReorderPress\(press, item\);/);
       assert.doesNotMatch(down, /toggleTimer/, "a hold no longer toggles the timer");
     });
     it("lets a finger that moves before the hold scroll or swipe, and makes the release of a hold do nothing", () => {
@@ -1034,7 +1034,7 @@ describe("public/index.html helpers", () => {
       assert.match(html, /showUndoNote\(kind, task\.title\)/);
       assert.match(html, /removeTask\(taskId, "COMPLETE"/);
       assert.match(html, /removeTask\(taskId, "DELETE"/);
-      assert.equal(/toast/i.test(html), false);
+      assert.doesNotMatch(html.slice(html.lastIndexOf("<", note), html.indexOf(">", note)), /toast/, "the footnote is not the toast");
       const {UNDO_WINDOW_MS, UNDO_NOTE_MS} = load();
       const server = fs.readFileSync(path.join(__dirname, "..", "tasks.js"), "utf8");
       assert.match(server, new RegExp(`UNDO_WINDOW_MS = ${UNDO_WINDOW_MS / 60000} \\* 60 \\* 1000`), "the page's window matches the server's");
@@ -3478,7 +3478,7 @@ describe("public/index.html helpers", () => {
     });
     it("orders the Queue card's parts: search, Tags, Projects, Sort by, Select tasks, then the list", () => {
       const at = (id) => html.indexOf(`id="${id}"`);
-      const order = ["taskSearch", "tagsDetails", "projectsDetails", "sortBy", "sortDirBtn", "selectModeBtn", "reorderHint", "batchStatus", "taskList"];
+      const order = ["taskSearch", "tagsDetails", "projectsDetails", "sortBy", "sortDirBtn", "selectModeBtn", "batchStatus", "taskList"];
       for (let i = 1; i < order.length; i++) assert.ok(at(order[i - 1]) > 0 && at(order[i]) > at(order[i - 1]), `${order[i]} comes after ${order[i - 1]}`);
       assert.ok(at("activeTaskBox") < at("taskSearch"), "the Active task box stays first");
       const projects = html.slice(at("projectsDetails"), at("sortBy"));
@@ -4691,27 +4691,36 @@ describe("Reordering", () => {
     assert.equal(reorderAllowed("scheduled", true), false);
     assert.equal(reorderAllowed(undefined, false), false);
   });
-  it("shows #reorderHint under the Select row instead of lifting when the sort forbids it, for four seconds", () => {
-    const {REORDER_HINT_MS} = load();
-    assert.equal(REORDER_HINT_MS, 4000);
-    assert.match(html, /<div class="reorder-hint" id="reorderHint" role="status" hidden>Sort by Task number, ascending, to reorder cards\.<\/div>/);
-    assert.ok(html.indexOf("id=\"selectModeBtn\"") < html.indexOf("id=\"reorderHint\"") && html.indexOf("id=\"reorderHint\"") < html.indexOf("id=\"taskList\""));
-    const show = html.slice(html.indexOf("function showReorderHint"), html.indexOf("function hideReorderHint"));
-    assert.match(show, /hint\.hidden = false;/);
-    assert.match(show, /clearTimeout\(reorderHintTimer\);\s*reorderHintTimer = setTimeout\(hideReorderHint, REORDER_HINT_MS\);/);
-    assert.match(html, /function hideReorderHint\(\) \{\s*clearTimeout\(reorderHintTimer\);\s*reorderHintTimer = null;\s*document\.getElementById\("reorderHint"\)\.hidden = true;/);
+  it("shows a toast instead of lifting when the sort forbids it, for four seconds, and keeps the layout still", () => {
+    const {TOAST_MS, REORDER_HINT_TEXT} = load();
+    assert.equal(TOAST_MS, 4000);
+    assert.equal(REORDER_HINT_TEXT, "Sort by Task number, ascending, to reorder cards.");
+    assert.doesNotMatch(html, /reorderHint|reorder-hint/, "no inline hint in the Queue card");
+    assert.match(html, /<div id="toast" class="toast" role="status" aria-live="polite"><\/div>/);
+    assert.ok(html.indexOf("id=\"toast\"") > html.indexOf("id=\"undoNote\"") && html.indexOf("id=\"toast\"") < html.indexOf("id=\"editModal\""), "a page-level element after the footnote, outside the Queue card");
+    const css = html.match(/\n\s*\.toast \{([^}]*)\}/)[1];
+    assert.match(css, /position: fixed;/, "it takes no space in the layout");
+    assert.match(css, /pointer-events: none;/, "it never takes a tap");
+    assert.match(css, /z-index: 60;/);
+    assert.match(css, /color: var\(--surface\); background: var\(--text-strong\);/, "themed for light and dark");
+    assert.match(html, /\.toast\.show \{ opacity: 1; visibility: visible; \}/);
+    assert.match(html, /body:has\(#undoNote:not\(\[hidden\]\)\) \.toast \{ bottom: calc\(64px/, "it floats above the Undo footnote");
+    const show = html.slice(html.indexOf("function showToast"), html.indexOf("function hideToast"));
+    assert.match(show, /el\.textContent = text;\s*el\.classList\.add\("show"\);/);
+    assert.match(show, /clearTimeout\(toastTimer\);\s*toastTimer = setTimeout\(hideToast, TOAST_MS\);/, "a new toast replaces the last and restarts the clock");
+    assert.match(html, /function hideToast\(\) \{\s*clearTimeout\(toastTimer\);\s*toastTimer = null;\s*document\.getElementById\("toast"\)\.classList\.remove\("show"\);/);
   });
-  it("hides the hint at the next sort change and when Multi-Select starts", () => {
-    assert.match(html, /sortKey = normalizeSortKey\(sortSelect\.value\);\s*hideReorderHint\(\);/);
-    assert.match(html, /sortDescending = !sortDescending;\s*syncSortControls\(\);\s*hideReorderHint\(\);/);
-    assert.match(html, /if \(on\) \{ setBatchStatus\(""\); hideReorderHint\(\); \}/);
+  it("hides the toast at the next sort change and when Multi-Select starts", () => {
+    assert.match(html, /sortKey = normalizeSortKey\(sortSelect\.value\);\s*hideToast\(\);/);
+    assert.match(html, /sortDescending = !sortDescending;\s*syncSortControls\(\);\s*hideToast\(\);/);
+    assert.match(html, /if \(on\) \{ setBatchStatus\(""\); hideToast\(\); \}/);
   });
   it("has no Reorder button, mode or grip, and leaves the sort controls enabled", () => {
     assert.doesNotMatch(html, /reorderModeBtn|reorderMode|setReorderMode|sortBeforeReorder|reorder-mark|\.reordering|"reordering"/);
-    const row = html.slice(html.indexOf("<div class=\"select-row\">"), html.indexOf("id=\"reorderHint\""));
+    const row = html.slice(html.indexOf("<div class=\"select-row\">"), html.indexOf("id=\"batchStatus\""));
     assert.match(row, /id="selectModeBtn"/);
     assert.doesNotMatch(row, /Reorder/);
-    const sync = html.slice(html.indexOf("function syncSortControls"), html.indexOf("function showReorderHint"));
+    const sync = html.slice(html.indexOf("function syncSortControls"), html.indexOf("function startReorderPress"));
     assert.doesNotMatch(sync, /disabled/);
     assert.match(html, /function setSelectMode\(on\) \{\s*selectMode = on;/);
   });
