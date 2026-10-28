@@ -2903,25 +2903,45 @@ describe("public/index.html helpers", () => {
       const render = html.slice(html.indexOf("function renderProjectHours("), html.indexOf("// Correcting or deleting a completed task"));
       assert.doesNotMatch(render, /<select|<option|onchange=/);
       assert.match(render, /id="historyProjectField" class="picker-field"[^>]*onclick="openHistoryProjectPicker\(\)"/);
-      assert.match(render, /openPicker\("hours", historyProjectId, selectHistoryProject, \{ opener: document\.getElementById\("historyProjectField"\), allowAdd: false \}\);/);
-      assert.doesNotMatch(render, /noneLabel/, "no None row");
-      assert.match(render, /function selectHistoryProject\(pick\) \{[\s\S]*historyProjectId = entry\.projectId;[\s\S]*field\.textContent = /);
+      assert.match(render, /openPicker\("hours", historyProjectId, selectHistoryProject, \{ opener: document\.getElementById\("historyProjectField"\), allowAdd: false, noneLabel: HISTORY_ANY_PROJECT \}\);/);
+      assert.match(html, /const HISTORY_ANY_PROJECT = "Any project";/);
+      assert.match(render, /<div class="summary-label" style="margin-top:0;">Project<\/div>/, "the label is Project, not Project hours");
+      assert.match(render, /function selectHistoryProject\(pick\) \{[\s\S]*historyProjectId = id;[\s\S]*field\.textContent = [\s\S]*completedPageNo = 1;\s*renderCompletedRows\(\);/);
       assert.match(html, /if \(kind === "hours"\) return \{ items: historyProjectChoices\(projectHoursEntries\), context: \{\} \};/);
       assert.doesNotMatch(html, /<select[^>]*id="historyProject"/);
     });
-    it("pickHistoryProject: keeps the current choice while it exists, else the project with the newest week", () => {
+    it("pickHistoryProject: keeps the current choice while it exists, else Any project (\"\"), and null with no project", () => {
       const {pickHistoryProject} = load();
-      const entries = [
-        {projectId: "a", weeks: [{weekStart: "2026-10-05"}]},
-        {projectId: "b", weeks: [{weekStart: "2026-10-19"}, {weekStart: "2026-10-12"}]},
-        {projectId: "c", weeks: [{weekStart: "2026-10-12"}]},
-      ];
+      const entries = [{projectId: "a"}, {projectId: "b"}, {projectId: "c"}];
       assert.equal(pickHistoryProject(entries, "c"), "c");
-      assert.equal(pickHistoryProject(entries, "gone"), "b");
-      assert.equal(pickHistoryProject(entries, null), "b");
-      assert.equal(pickHistoryProject([entries[0], entries[2]], null), "c");
+      assert.equal(pickHistoryProject(entries, "gone"), "");
+      assert.equal(pickHistoryProject(entries, null), "");
+      assert.equal(pickHistoryProject(entries, ""), "");
       assert.equal(pickHistoryProject([], "a"), null);
       assert.equal(pickHistoryProject(undefined, null), null);
+    });
+    it("filters the History list by the chosen project, which Any project turns off, and says so in the count line", () => {
+      const h = load();
+      const rows = [
+        {archiveId: "1", title: "Fence", projectId: "p1"}, {archiveId: "2", title: "Deck", projectId: "p2"},
+        {archiveId: "3", title: "Paint", projectId: "p1"}, {archiveId: "4", title: "Loose"},
+      ];
+      const ids = (b) => b.items.map((r) => r.archiveId);
+      assert.deepEqual(ids(h.completedBrowse(rows, "", 1, () => "", {projectId: "p1"})), ["1", "3"]);
+      assert.deepEqual(ids(h.completedBrowse(rows, "", 1, () => "", {projectId: ""})), ["1", "2", "3", "4"], "Any project");
+      assert.deepEqual(ids(h.completedBrowse(rows, "", 1, () => "")), ["1", "2", "3", "4"], "no filters");
+      assert.deepEqual(ids(h.completedBrowse(rows, "paint", 1, () => "", {projectId: "p1"})), ["3"], "the search and the filter combine");
+      assert.deepEqual(ids(h.completedBrowse(rows, "paint", 1, () => "", {projectId: "p2"})), []);
+      assert.deepEqual(ids(h.completedBrowse(rows, "", 1, () => "", {projectId: "gone"})), []);
+      const one = h.completedBrowse(rows, "", 1, () => "", {projectId: "p1"});
+      assert.equal(one.total, 2);
+      assert.equal(one.all, 4);
+      assert.equal(h.completedCountText(one, "", false, true), "Showing 1\u20132 of 2 matches (4 completed tasks).");
+      assert.equal(h.completedCountText(one, "", false), "Showing 1\u20132 of 2 completed tasks.");
+      const none = h.completedBrowse(rows, "", 1, () => "", {projectId: "gone"});
+      assert.equal(h.completedCountText(none, "", false, true), "No completed tasks match the filter.");
+      assert.equal(h.completedCountText(none, "x", false, true), "No completed tasks match the search and filter.");
+      assert.equal(h.completedCountText(none, "x", false, false), "No completed tasks match the search.");
     });
     it("parseTagList: trims and drops empty entries", () => {
       const {parseTagList} = load();

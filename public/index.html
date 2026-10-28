@@ -2503,7 +2503,7 @@
     };
     // What the picker modal lists, pure. `kind` is "project" or "client", `query` the search bar's text, `items` the stored projects or clients and
     // `context` what ranks and describes them: {clients, counts} for projects (`counts` is projectTaskCounts: queued tasks per project) and
-    // {projects} for clients (a client's use is its number of projects); kind "hours" (History's Project hours) takes items already shaped as {id, name, detail}
+    // {projects} for clients (a client's use is its number of projects); kind "hours" (History's Project filter) takes items already shaped as {id, name, detail}
     // in the order to show (newest week first) and lists them as they are, matching every word of the query in the name, with no Add row. Returns {rows, more, add}:
     // - `rows`: at most PICKER_MAX_ROWS of {id, name, detail}, the most used first and equal use in name order (case ignored); a project matches by
     //   filterProjects (its name or its client's name, the client's name as `detail`), a client when every word of the query is in its name; a
@@ -2897,16 +2897,11 @@
       const start = new Date(weekStart + "T00:00:00Z");
       return `${weekNameFmt.format(start)} – ${weekNameFmt.format(new Date(start.getTime() + 6 * 86400000))}`;
     }
-    // The project the History hours section shows: the current choice while it still exists, else the project with the most
-    // recent week of work (entries have `weeks` newest first), else null.
+    // The choice of the History Project section: the current project while it still exists, else "" (Any project, the starting choice), or null
+    // when no project has completed work (the section is not shown).
     function pickHistoryProject(entries, currentId) {
       if (!Array.isArray(entries) || entries.length === 0) return null;
-      if (currentId && entries.some((e) => e.projectId === currentId)) return currentId;
-      let best = entries[0];
-      for (const e of entries) {
-        if (e.weeks && e.weeks[0] && !(best.weeks && best.weeks[0] && best.weeks[0].weekStart >= e.weeks[0].weekStart)) best = e;
-      }
-      return best.projectId;
+      return currentId && entries.some((e) => e.projectId === currentId) ? currentId : "";
     }
     // The rows of the History project picker, pure: one {id, name, detail} per project with completed work, in the order given (newest week first),
     // the muted detail being the project's total hours.
@@ -3013,6 +3008,8 @@
       }
       return { fields };
     }
+    // The top row of the History Project picker, and the field's text while it is chosen.
+    const HISTORY_ANY_PROJECT = "Any project";
     // Completed tasks are listed this many to a page.
     const COMPLETED_PAGE_SIZE = 50;
     // Whether a completed task matches a search: every word of `query` (case-insensitive, any order, part of a word is
@@ -3029,11 +3026,13 @@
     // One page of the completed tasks that match a search (the list is newest first and keeps that order). `page` is
     // counted from 1 and clamped to the pages there are; `projectNameOf` gives a project's name for its id.
     // Returns {items, page, pages, total (the tasks matching), all (every task), from, to (1-based positions of the
-    // page's first and last task among the matches; 0 when none)}.
-    function completedBrowse(rows, query, page, projectNameOf, pageSize = COMPLETED_PAGE_SIZE) {
+    // page's first and last task among the matches; 0 when none). `filters` narrows the list beside the search: {projectId} keeps only that project's tasks
+    // ("" or none keeps all).
+    function completedBrowse(rows, query, page, projectNameOf, filters = {}, pageSize = COMPLETED_PAGE_SIZE) {
       const all = Array.isArray(rows) ? rows : [];
       const lookup = typeof projectNameOf === "function" ? projectNameOf : () => "";
-      const matches = all.filter(r => matchesCompletedSearch(r, query, r.projectId ? lookup(r.projectId) : ""));
+      const projectId = filters && typeof filters.projectId === "string" ? filters.projectId : "";
+      const matches = all.filter(r => (!projectId || r.projectId === projectId) && matchesCompletedSearch(r, query, r.projectId ? lookup(r.projectId) : ""));
       const pages = Math.max(1, Math.ceil(matches.length / pageSize));
       const current = Math.min(Math.max(1, Math.floor(Number(page)) || 1), pages);
       const start = (current - 1) * pageSize;
@@ -3057,14 +3056,16 @@
       return items;
     }
     // The line above the completed list: "Showing 51-100 of 312 completed tasks", "Showing 1-12 of 12 matches (312
-    // completed tasks)" or the no-match text; `limited` adds that older entries exist beyond those loaded.
-    function completedCountText(browse, query, limited) {
+    // completed tasks)" or the no-match text; `limited` adds that older entries exist beyond those loaded, and `filtered` that a filter (the
+    // History project) is on, counting like a search does.
+    function completedCountText(browse, query, limited, filtered = false) {
       const searching = String(query || "").trim() !== "";
+      const narrowed = searching || filtered === true;
       let text;
-      if (browse.total === 0) text = searching ? "No completed tasks match the search." : "No completed tasks.";
+      if (browse.total === 0) text = narrowed ? `No completed tasks match the ${searching && filtered === true ? "search and filter" : searching ? "search" : "filter"}.` : "No completed tasks.";
       else {
         const range = browse.from === browse.to ? `${browse.from}` : `${browse.from}\u2013${browse.to}`;
-        text = searching ? `Showing ${range} of ${browse.total} ${browse.total === 1 ? "match" : "matches"} (${browse.all} completed tasks)` : `Showing ${range} of ${browse.total} completed tasks`;
+        text = narrowed ? `Showing ${range} of ${browse.total} ${browse.total === 1 ? "match" : "matches"} (${browse.all} completed tasks)` : `Showing ${range} of ${browse.total} completed tasks`;
         text += ".";
       }
       return limited ? `${text} Only the newest ${browse.all} are loaded.` : text;
@@ -7741,7 +7742,14 @@
 
     // The History section for the hours of one project: its total, then every week (Monday to Sunday) it has work in, newest first.
     let projectHoursEntries = [];
+    let projectHoursTruncated = false;
+    // The History project choice: "" is Any project, else a project id; null before the first load. It filters the completed list only while the
+    // section is on screen (`historyProjectShown`: not from the saved copy, not with no project to choose).
     let historyProjectId = null;
+    let historyProjectShown = false;
+    function historyProjectFilter() {
+      return historyProjectShown && historyProjectId ? historyProjectId : "";
+    }
     function projectHoursBody(entry) {
       const rows = entry.weeks.map(w => `<div class="hours-row"><span>${esc(weekRangeText(w.weekStart))}</span><span>${esc(projectWeekText(w))}</span><button type="button" class="btn-secondary sheet-btn" title="Download a job sheet (PDF) for this week" onclick="downloadProjectSheet('${esc(w.weekStart)}', this)">📄</button></div>`).join("");
       const n = entry.count;
@@ -7749,30 +7757,40 @@
         <div class="summary-total"><button type="button" class="btn-secondary sheet-btn" title="Download a job sheet (PDF) for the whole project to date" onclick="downloadProjectSheet('', this)">📄 Job sheet, project to date</button></div>
         <div class="summary-label">Per week (Monday to Sunday)</div><div class="hours-weeks">${rows}</div>`;
     }
+    // What sits under the Project field: the chosen project's total and weeks, nothing for Any project.
+    function historyProjectPanel(entry) {
+      if (!entry) return "";
+      return projectHoursBody(entry) + (projectHoursTruncated ? `<div class="summary-total" style="color:var(--text-faint);">A project with a very large number of completed tasks shows only its newest ones.</div>` : "");
+    }
     function renderProjectHours(entries, truncated) {
       projectHoursEntries = Array.isArray(entries) ? entries : [];
+      projectHoursTruncated = truncated === true;
       historyProjectId = pickHistoryProject(projectHoursEntries, historyProjectId);
-      if (!historyProjectId) return "";
-      const entry = projectHoursEntries.find(e => e.projectId === historyProjectId);
+      historyProjectShown = historyProjectId !== null;
+      if (!historyProjectShown) return "";
+      const entry = projectHoursEntries.find(e => e.projectId === historyProjectId) || null;
       return `
         <div class="summary">
-          <div class="summary-label" style="margin-top:0;">Project hours</div>
-          <div class="picker-line" style="margin:4px 0;"><button type="button" id="historyProjectField" class="picker-field" aria-haspopup="dialog" aria-label="Project" onclick="openHistoryProjectPicker()">${esc(entry.name || "Untitled project")}</button></div>
-          <div id="projectHoursBody">${projectHoursBody(entry)}</div>
-          ${truncated ? `<div class="summary-total" style="color:var(--text-faint);">A project with a very large number of completed tasks shows only its newest ones.</div>` : ""}
+          <div class="summary-label" style="margin-top:0;">Project</div>
+          <div class="picker-line" style="margin:4px 0;"><button type="button" id="historyProjectField" class="picker-field" aria-haspopup="dialog" aria-label="Project" onclick="openHistoryProjectPicker()">${esc(entry ? entry.name || "Untitled project" : HISTORY_ANY_PROJECT)}</button></div>
+          <div id="projectHoursBody">${historyProjectPanel(entry)}</div>
         </div>`;
     }
-    // The picker modal for the section's project: only projects with completed work, no None or Add row; a pick calls selectHistoryProject.
+    // The picker modal for the section's project: only projects with completed work, "Any project" first, no Add row; a pick calls selectHistoryProject.
     function openHistoryProjectPicker() {
-      openPicker("hours", historyProjectId, selectHistoryProject, { opener: document.getElementById("historyProjectField"), allowAdd: false });
+      openPicker("hours", historyProjectId, selectHistoryProject, { opener: document.getElementById("historyProjectField"), allowAdd: false, noneLabel: HISTORY_ANY_PROJECT });
     }
+    // A pick of the picker: {id} of a project, or "" for Any project. Redraws the section and filters the completed list from its first page.
     function selectHistoryProject(pick) {
-      const entry = pick && projectHoursEntries.find(e => e.projectId === pick.id);
-      if (!entry) return;
-      historyProjectId = entry.projectId;
+      const id = pick && typeof pick.id === "string" ? pick.id : null;
+      const entry = id ? projectHoursEntries.find(e => e.projectId === id) : null;
+      if (id === null || (id && !entry)) return;
+      historyProjectId = id;
       const field = document.getElementById("historyProjectField");
-      if (field) field.textContent = entry.name || "Untitled project";
-      document.getElementById("projectHoursBody").innerHTML = projectHoursBody(entry);
+      if (field) field.textContent = entry ? entry.name || "Untitled project" : HISTORY_ANY_PROJECT;
+      document.getElementById("projectHoursBody").innerHTML = historyProjectPanel(entry);
+      completedPageNo = 1;
+      renderCompletedRows();
     }
 
     // Correcting or deleting a completed task: the entries listed by the last fetchCompleted, by archive id
@@ -8351,9 +8369,10 @@
     function renderCompletedRows() {
       const query = document.getElementById("completedSearch").value;
       const projectName = (id) => projectSearchText(id, allProjects, allClients);
-      const browse = completedBrowse(completedAll, query, completedPageNo, projectName);
+      const projectId = historyProjectFilter();
+      const browse = completedBrowse(completedAll, query, completedPageNo, projectName, { projectId });
       completedPageNo = browse.page;
-      document.getElementById("completedCount").textContent = completedCountText(browse, query, completedListLimited);
+      document.getElementById("completedCount").textContent = completedCountText(browse, query, completedListLimited, projectId !== "");
       document.getElementById("completedRows").innerHTML = browse.items.map(completedRowHtml).join("");
       const pager = pagerItems(browse.page, browse.pages).map(it => {
         if (it.kind === "gap") return '<span class="pager-gap">\u2026</span>';
@@ -8382,6 +8401,7 @@
       completedListLimited = saved.limited;
       completedRows = new Map(completedAll.filter(t => t.archiveId).map(t => [t.archiveId, t]));
       showSavedCompletedNote(saved.savedAt);
+      historyProjectShown = false; // no Project section here, so no project filter
       if (completedAll.length === 0) {
         browser.hidden = true;
         stats.hidden = true;
@@ -8408,6 +8428,7 @@
         completedServer = tasks;
         const shown = shownCompleted();
         if (shown.length === 0) {
+          historyProjectShown = false;
           completedAll = [];
           completedRows = new Map();
           browser.hidden = true;
@@ -8429,6 +8450,7 @@
         const saved = isNetworkError(err, navigator.onLine) ? readCompletedCache() : null;
         if (saved) { showCompletedCopy(saved); return; }
         showSavedCompletedNote(null);
+        historyProjectShown = false;
         browser.hidden = true;
         stats.hidden = true;
         list.innerHTML = "<p>Error loading completed tasks: " + esc(err.message) + "</p>";
@@ -9270,7 +9292,7 @@
       const name = jobSheetFilename({ kind: "TASK", name: row.title, date: zonedDateTime(row.completedAt, appTimeZone).date });
       downloadJobSheet({ archiveId }, name, btn);
     }
-    // The sheet of the project chosen in History project hours: one week (its Monday), or to date when `weekStart` is empty.
+    // The sheet of the project chosen in the History Project section: one week (its Monday), or to date when `weekStart` is empty.
     function downloadProjectSheet(weekStart, btn) {
       const entry = projectHoursEntries.find(e => e.projectId === historyProjectId);
       if (!entry) return;
