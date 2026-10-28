@@ -755,7 +755,7 @@ describe("public/index.html helpers", () => {
     it("puts add task and the Queue on the Queue page", () => {
       const tasks = at(`id="pageQueue"`);
       const end = at("</main>", tasks);
-      for (const id of ["taskInput", "queueCard", "tagsDetails", "projectsDetails", "taskList"]) {
+      for (const id of ["taskInput", "queueCard", "tagsDetails", "projectsSection", "queueProjectField", "taskList"]) {
         const i = at(`id="${id}"`);
         assert.ok(i > tasks && i < end, `${id} is on the Queue page`);
       }
@@ -969,28 +969,45 @@ describe("public/index.html helpers", () => {
         assert.ok(i > page && i < end, `${id} is on the Settings page`);
       }
     });
-    it("has no Projects card of its own: Projects is a collapsible section of the Queue, just below Tags, and both start collapsed", () => {
+    it("has no Projects card of its own: the Queue's Project field sits just below the collapsible Tags section, with the chosen project's actions under it", () => {
       const q = at(`id="queueCard"`);
       const tags = at(`<details class="filter-section" id="tagsDetails">`, q);
-      const projects = at(`<details class="filter-section" id="projectsDetails">`, q);
-      assert.ok(q < tags && closeOf(tags) < projects && closeOf(projects) < at(`id="taskList"`, q));
+      const projects = at(`<div class="project-section" id="projectsSection">`, q);
+      assert.ok(q < tags && closeOf(tags) < projects && projects < at(`id="taskList"`, q));
       assert.ok(at(`id="tagFilterBar"`, tags) < closeOf(tags));
-      for (const id of ["projectFilterBar", "projectActions", "newProjectName", "addProjectBtn", "projectsStatus"]) {
-        assert.ok(at(`id="${id}"`, projects) < closeOf(projects), `${id} sits in the Projects section`);
+      assert.ok(at(`id="queueProjectLabel"`, projects) < at(`id="queueProjectField"`, projects), "the label sits to the left of the field");
+      for (const id of ["queueProjectField", "projectActions", "projectsStatus"]) {
+        assert.ok(at(`id="${id}"`, projects) > projects && at(`id="${id}"`, projects) < at(`id="sortBy"`, q), `${id} sits in the Project section`);
       }
-      assert.equal(html.split(`id="projectsDetails"`).length, 2, "one Projects section only");
+      assert.equal(html.split(`id="projectsSection"`).length, 2, "one Project section only");
+      assert.doesNotMatch(html, /id="projectFilterBar"|id="newProjectName"|id="addProjectBtn"|id="projectsActive"|id="projectsDetails"/, "the old search, Add button and list are gone");
     });
-    it("puts the project search and add field above the Projects list, redrawing the list as you type", () => {
-      const projects = at(`id="projectsDetails"`);
-      assert.ok(at(`id="newProjectName"`, projects) < at(`id="projectFilterBar"`, projects));
-      assert.match(html, /getElementById\("newProjectName"\)\.addEventListener\("input", renderProjects\)/);
+    it("shows the Queue's project as a labelled picker button, \"Project\" to its left, disabled until the projects are loaded", () => {
+      const line = html.slice(at(`id="queueProjectLabel"`) - 120, at(`</button>`, at(`id="queueProjectField"`)));
+      assert.match(line, /<div class="picker-line">\s*<span class="picker-line-label" id="queueProjectLabel">Project<\/span>/);
+      assert.match(line, /<button type="button" id="queueProjectField" class="picker-field" aria-haspopup="dialog" aria-labelledby="queueProjectLabel queueProjectField" onclick="openQueueProjectPicker\(\)" disabled>All$/);
+      assert.match(html, /const QUEUE_ALL_PROJECTS = "All";/);
+      const render = html.slice(html.indexOf("function renderProjects()"), html.indexOf("// The chosen project's Location row"));
+      assert.match(render, /field\.textContent = chosen \? chosen\.name \|\| "Untitled project" : QUEUE_ALL_PROJECTS;\s*field\.disabled = false;/);
+      assert.doesNotMatch(render, /project-item|projectFilterBar/);
     });
-    it("gives Tags and Projects a heading each that can be collapsed, with the active filter shown in it", () => {
-      for (const [section, active] of [["tagsDetails", "tagsActive"], ["projectsDetails", "projectsActive"]]) {
-        const i = at(`id="${section}"`);
-        const summary = html.slice(at("<summary>", i), at("</summary>", i));
-        assert.ok(summary.includes(`id="${active}"`), `${section} heading shows ${active}`);
-      }
+    it("opens the Queue's picker with All first, no Add row and an Add button, and filters the Queue with the pick", () => {
+      const fn = html.slice(html.indexOf("function openQueueProjectPicker()"), html.indexOf("async function renameProject"));
+      assert.match(fn, /openPicker\("queue", selectedProjectFilter \|\| "", selectQueueProject, \{ opener: document\.getElementById\("queueProjectField"\), allowAdd: false, noneLabel: QUEUE_ALL_PROJECTS, noneDetail: String\(allTasks\.length\), onAdd: addProject \}\);/);
+      assert.match(fn, /setProjectFilter\(pick\.id === "" \? null : pick\.id\);/);
+      assert.match(html, /<button type="button" id="pickerAddBtn" onclick="addFromPicker\(\)" hidden>Add<\/button>/);
+      assert.ok(at(`id="pickerSearch"`) < at(`id="pickerAddBtn"`) && at(`id="pickerAddBtn"`) < at(`id="pickerList"`), "the Add button sits beside the search bar, above the list");
+    });
+    it("Add creates the project, chooses it and leaves the modal open with the search emptied", () => {
+      const add = html.slice(html.indexOf("async function addProject("), html.indexOf("function openQueueProjectPicker"));
+      assert.match(add, /saveProject\(\{ action: "CREATE", name: typed \}, `Added "\$\{typed\}"\.`, \(data\) => \{ created = data\.project \|\| null; \}\)/);
+      assert.match(add, /setProjectFilter\(created\.id\);\s*return created\.id;/);
+      assert.match(add, /return null;/, "a refusal returns null");
+      const fromPicker = html.slice(html.indexOf("async function addFromPicker()"), html.indexOf("const PROJECT_PREFIXES"));
+      assert.match(fromPicker, /const id = await state\.onAdd\(name\);\s*if \(id && pickerState === state\) \{\s*state\.current = id;\s*state\.active = 0;\s*search\.value = "";\s*renderPicker\(\);/);
+      assert.doesNotMatch(fromPicker, /closePicker|pickFromPicker/, "the modal stays open");
+      assert.match(html, /else if \(state\.onAdd\) addFromPicker\(\);/, "Enter with nothing to pick adds the typed name");
+      assert.match(html, /if \(pickerState && pickerState\.kind === "queue"\) document\.getElementById\("pickerStatus"\)\.textContent = text;/, "the result shows in the modal, over the page's own line");
     });
     it("adds a Project select and an Order number field, disabled until a project is chosen, to the edit modal", () => {
       const modal = at(`id="editModal"`);
@@ -1073,11 +1090,9 @@ describe("public/index.html helpers", () => {
       assert.match(server, new RegExp(`UNDO_WINDOW_MS = ${UNDO_WINDOW_MS / 60000} \\* 60 \\* 1000`), "the page's window matches the server's");
       assert.ok(UNDO_NOTE_MS < UNDO_WINDOW_MS && UNDO_NOTE_MS > 8000);
     });
-    it("starts the Tags and Projects sections collapsed", () => {
-      for (const id of ["tagsDetails", "projectsDetails"]) {
-        const i = at(`id="${id}"`);
-        assert.doesNotMatch(html.slice(html.lastIndexOf("<details", i), html.indexOf(">", i)), /\bopen\b/, `${id} is collapsed`);
-      }
+    it("starts the Tags section collapsed", () => {
+      const i = at(`id="tagsDetails"`);
+      assert.doesNotMatch(html.slice(html.lastIndexOf("<details", i), html.indexOf(">", i)), /\bopen\b/, "tagsDetails is collapsed");
     });
   });
 
@@ -1821,10 +1836,30 @@ describe("public/index.html helpers", () => {
       assert.equal(JSON.stringify([projects, clients]), copy);
     });
     it("words each kind's dialog", () => {
-      assert.deepEqual(Object.keys(load().PICKER_KINDS), ["project", "client", "hours"]);
+      assert.deepEqual(Object.keys(load().PICKER_KINDS), ["project", "client", "hours", "queue"]);
+      assert.equal(load().PICKER_KINDS.queue.title, "Projects");
+      assert.equal(load().PICKER_KINDS.queue.add("Deck"), "", "the Queue's modal has no Add row");
       assert.equal(load().PICKER_KINDS.project.title, "Choose a project");
       assert.equal(load().PICKER_KINDS.project.add("Deck"), "＋ Add “Deck” as a new project");
       assert.equal(load().PICKER_KINDS.client.add("Jo"), "＋ Add “Jo” as a new client");
+    });
+    it("lists the Queue's projects in the order given, uncapped, with the task count and client at the right and no Add row", () => {
+      const h = load();
+      const projects = [{id: "a", name: "Bathroom", clientId: "c1"}, {id: "b", name: "Deck"}, {id: "c", name: "Kitchen reno", clientId: "c2"}];
+      const clients = [{id: "c1", name: "Smith Ltd"}, {id: "c2", name: "Jones"}];
+      const counts = {a: 2, c: 11};
+      const view = h.pickerRows("queue", "", projects, {clients, counts});
+      assert.deepEqual(view.rows, [{id: "a", name: "Bathroom", detail: "2 · Smith Ltd"}, {id: "b", name: "Deck", detail: "0"}, {id: "c", name: "Kitchen reno", detail: "11 · Jones"}], "alphabetical as given, not the most used first");
+      assert.equal(view.more, false);
+      assert.equal(view.add, "");
+      assert.deepEqual(h.pickerRows("queue", "SMITH", projects, {clients, counts}).rows.map((r) => r.id), ["a"], "a client's name matches too");
+      assert.deepEqual(h.pickerRows("queue", "reno kit", projects, {clients, counts}).rows.map((r) => r.id), ["c"]);
+      assert.equal(h.pickerRows("queue", "Brand new", projects, {clients, counts}).add, "", "a name that matches nothing offers no Add row");
+      assert.deepEqual(h.pickerRows("queue", "x", undefined, undefined), {rows: [], more: false, add: ""});
+      const many = Array.from({length: 12}, (_, i) => ({id: `p${i}`, name: `Job ${i}`}));
+      assert.equal(h.pickerRows("queue", "", many, {}).rows.length, 12, "every project is listed");
+      assert.equal(h.pickerRows("queue", "", many, {}).more, false);
+      assert.deepEqual(projects, [{id: "a", name: "Bathroom", clientId: "c1"}, {id: "b", name: "Deck"}, {id: "c", name: "Kitchen reno", clientId: "c2"}], "the input is not modified");
     });
     it("lists History's projects as given, newest week first, matched by name, with the hours as the detail and no Add row", () => {
       const h = load();
@@ -1918,6 +1953,9 @@ describe("public/index.html helpers", () => {
       assert.equal(withNoneRow(rows, "No client", "  ")[0].name, "No client");
       assert.deepEqual(withNoneRow(rows, "No client", "a"), rows, "a search shows only matches");
       assert.deepEqual(withNoneRow(rows, "", ""), rows, "no label, no None row");
+      assert.deepEqual(withNoneRow(rows, "All", "", 7)[0], {id: "", name: "All", detail: "7"}, "the leading row can carry a detail");
+      assert.deepEqual(withNoneRow(rows, "All", "")[0], {id: "", name: "All", detail: ""});
+      assert.deepEqual(withNoneRow(rows, "All", "a", 7), rows, "a search drops it, detail or not");
       assert.deepEqual(pickerViewportBox({offsetTop: 0, height: 412.6}), {top: 0, height: 413});
       assert.deepEqual(pickerViewportBox({offsetTop: -3, height: 300}), {top: 0, height: 300});
       assert.equal(pickerViewportBox(null), null);
@@ -2580,7 +2618,7 @@ describe("public/index.html helpers", () => {
     it("closes the form when another project is chosen, the project goes or the clients are not loaded", () => {
       const sync = html.slice(html.indexOf("function syncProjectClientForm"), html.indexOf("// Add: creates the client"));
       assert.match(sync, /!chosen \|\| chosen\.id !== projectNewClientFor \|\| !clientsLoaded/);
-      const render = html.slice(html.indexOf("function renderProjects"), html.indexOf("const counts = projectTaskCounts"));
+      const render = html.slice(html.indexOf("function renderProjects"), html.indexOf("actions.innerHTML = chosen ?"));
       assert.ok(render.indexOf("syncProjectClientForm(chosen)") > 0 && render.indexOf("syncProjectClientForm(chosen)") < render.indexOf("allProjects.length === 0"), "also when there are no projects left");
     });
   });
@@ -2997,7 +3035,10 @@ describe("public/index.html helpers", () => {
       assert.match(render, /id="historyProjectField" class="picker-field"[^>]*onclick="openHistoryProjectPicker\(\)"/);
       assert.match(render, /openPicker\("hours", historyProjectId, selectHistoryProject, \{ opener: document\.getElementById\("historyProjectField"\), allowAdd: false, noneLabel: HISTORY_ALL_PROJECTS \}\);/);
       assert.match(html, /const HISTORY_ALL_PROJECTS = "All";/);
-      assert.match(render, /<div class="summary-label" style="margin-top:0;">Project<\/div>/, "the label is Project, not Project hours");
+      assert.match(render, /<span class="picker-line-label" id="historyProjectLabel">Project<\/span><button type="button" id="historyProjectField"/, "the label is Project (not all capitals, not Project hours), to the left of the field on its line");
+      assert.doesNotMatch(render, /<div class="summary-label"[^>]*>Project<\/div>/, "no label line above the field");
+      assert.match(html, /\.picker-line-label \{[^}]*flex: none;/, "the label keeps its width beside the growing field");
+      assert.doesNotMatch(html.slice(html.indexOf(".picker-line-label {"), html.indexOf("}", html.indexOf(".picker-line-label {"))), /text-transform/);
       assert.match(render, /function selectHistoryProject\(pick\) \{[\s\S]*historyProjectId = id;[\s\S]*field\.textContent = [\s\S]*completedPageNo = 1;\s*renderCompletedRows\(\);/);
       assert.match(html, /if \(kind === "hours"\) return \{ items: historyProjectChoices\(projectHoursEntries\), context: \{\} \};/);
       assert.doesNotMatch(html, /<select[^>]*id="historyProject"/);
@@ -3509,14 +3550,14 @@ describe("public/index.html helpers", () => {
       assert.ok(queue.includes("id=\"sortBy\"") && queue.includes("id=\"sortDirBtn\""));
       assert.ok(html.includes("sortTasks(filtered, sortKey, sortDescending)"));
     });
-    it("orders the Queue card's parts: Active task, Tags, Projects, Sort by, Select tasks, then the list", () => {
+    it("orders the Queue card's parts: Active task, Tags, Project, Sort by, Select tasks, then the list", () => {
       const at = (id) => html.indexOf(`id="${id}"`);
-      const order = ["activeTaskBox", "tagsDetails", "projectsDetails", "sortBy", "sortDirBtn", "selectModeBtn", "batchStatus", "taskList"];
+      const order = ["activeTaskBox", "tagsDetails", "projectsSection", "queueProjectField", "projectsStatus", "sortBy", "sortDirBtn", "selectModeBtn", "batchStatus", "taskList"];
       for (let i = 1; i < order.length; i++) assert.ok(at(order[i - 1]) > 0 && at(order[i]) > at(order[i - 1]), `${order[i]} comes after ${order[i - 1]}`);
-      const projects = html.slice(at("projectsDetails"), at("sortBy"));
-      assert.ok(projects.includes("</details>"), "the sort row sits after the Projects section closes");
-      const between = html.slice(html.lastIndexOf("</details>", at("sortBy")), at("taskList"));
-      assert.equal(between.includes("<details"), false, "nothing but the Sort and Select rows sits between Projects and the list");
+      const sortRow = html.lastIndexOf("<div class=\"sort-row\">", at("sortBy"));
+      assert.ok(sortRow > at("projectsStatus"), "the sort row sits after the Project section");
+      const between = html.slice(sortRow, at("taskList"));
+      assert.equal(between.includes("<details"), false, "nothing but the Sort and Select rows sits between Project and the list");
     });
     it("labels the edit modal's description box just Description", () => {
       assert.ok(html.includes("<label for=\"editDescription\">Description</label>"));
@@ -3938,7 +3979,7 @@ describe("public/index.html helpers", () => {
       assert.equal(h.startedText("Back deck", 5), "Started \"Back deck\" with 5 tasks.");
     });
     it("has the Start from template controls in the Projects section and Save as template on the chosen project", () => {
-      const section = html.slice(html.indexOf("id=\"projectsDetails\""), html.indexOf("id=\"taskList\""));
+      const section = html.slice(html.indexOf("id=\"projectsSection\""), html.indexOf("id=\"taskList\""));
       for (const id of ["templateSelect", "templateProjectName", "startTemplateBtn", "renameTemplateBtn", "deleteTemplateBtn", "templateEmpty"]) assert.match(section, new RegExp(`id="${id}"`));
       assert.match(html, /data-action="saveTemplate"/);
       assert.match(html, /endpoint\("getProjectTemplates"\)/);

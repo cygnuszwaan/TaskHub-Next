@@ -136,6 +136,13 @@
     .project-list-empty { padding: 10px 12px; font-size: 13px; color: var(--text-faint); }
     .picker-line { display: flex; gap: 6px; align-items: center; }
     .picker-line[hidden] { display: none; }
+    .picker-line-label { flex: none; font-size: 13px; font-weight: 600; color: var(--text-muted); }
+    .project-section { margin-top: 12px; }
+    .picker-search-row { display: flex; gap: 6px; align-items: center; }
+    .picker-search-row #pickerSearch { flex: 1; min-width: 0; }
+    .picker-search-row button[hidden] { display: none; }
+    #pickerStatus { margin-top: 8px; }
+    #pickerStatus:empty { display: none; }
     .picker-field { flex: 1; min-width: 0; min-height: 44px; box-sizing: border-box; text-align: left; white-space: normal; overflow-wrap: anywhere; padding: 10px 12px; font-size: 15px; font-weight: 500; background: var(--surface); color: var(--text); border: 1px solid var(--border-input); border-radius: 6px; }
     .picker-field:disabled { background: var(--surface); color: var(--text-faint); }
     .picker-toggle { min-height: 44px; }
@@ -517,13 +524,11 @@
         <summary>Tags <small id="tagsActive"></small></summary>
         <div class="tag-filter-bar" id="tagFilterBar"></div>
       </details>
-      <details class="filter-section" id="projectsDetails">
-        <summary>Projects <small id="projectsActive"></small></summary>
-        <div class="input-row project-add">
-          <input type="text" id="newProjectName" maxlength="100" placeholder="Search projects or clients, or type a new project name" aria-label="Search projects, or name a new project">
-          <button type="button" id="addProjectBtn">Add</button>
+      <div class="project-section" id="projectsSection">
+        <div class="picker-line">
+          <span class="picker-line-label" id="queueProjectLabel">Project</span>
+          <button type="button" id="queueProjectField" class="picker-field" aria-haspopup="dialog" aria-labelledby="queueProjectLabel queueProjectField" onclick="openQueueProjectPicker()" disabled>All</button>
         </div>
-        <div class="project-list" id="projectFilterBar"></div>
         <div class="project-actions" id="projectActions"></div>
         <div class="project-location" id="projectNewClient" hidden>
           <div id="projectClientFormMount"></div>
@@ -568,7 +573,7 @@
           </div>
         </div>
         <div id="projectsStatus" class="settings-status"></div>
-      </details>
+      </div>
       <div class="sort-row">
         <label for="sortBy">Sort by</label>
         <select id="sortBy" aria-label="Sort by"></select>
@@ -1249,8 +1254,12 @@
   <div id="pickerModal" class="modal-overlay" onclick="closePickerOnOverlay(event)">
     <div class="modal-card picker-card" role="dialog" aria-modal="true" aria-labelledby="pickerTitle">
       <h3 id="pickerTitle">Choose a project</h3>
-      <input type="text" id="pickerSearch" maxlength="100" autocomplete="off" autocapitalize="none" enterkeyhint="go" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="pickerList" aria-label="Search projects" placeholder="Search projects or clients" style="width: 100%;" oninput="pickerTyped()" onkeydown="pickerKeydown(event)">
+      <div class="picker-search-row">
+        <input type="text" id="pickerSearch" maxlength="100" autocomplete="off" autocapitalize="none" enterkeyhint="go" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="pickerList" aria-label="Search projects" placeholder="Search projects or clients" oninput="pickerTyped()" onkeydown="pickerKeydown(event)">
+        <button type="button" id="pickerAddBtn" onclick="addFromPicker()" hidden>Add</button>
+      </div>
       <div id="pickerList" class="project-list" role="listbox" aria-label="Projects" onclick="pickerListClick(event)"></div>
+      <div id="pickerStatus" class="settings-status" role="status" aria-live="polite"></div>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" onclick="closePicker()">Cancel</button>
       </div>
@@ -1522,6 +1531,7 @@
     let shownIds = new Set(); // the queued tasks the search and filters currently show
     let batchBusy = false; // true while a batch is being sent
     let selectedProjectFilter = null; // a project id, null = show all
+    const QUEUE_ALL_PROJECTS = "All"; // what the Queue's Project field shows with no project chosen, and its picker's first row
     let taskNumbers = new Map(); // task id -> task number, refreshed on every redraw of the list (queueNumbers)
     let sortKey = "scheduled"; // the Queue's "Sort by" choice (see SORT_OPTIONS)
     let sortDescending = false;
@@ -2504,12 +2514,15 @@
     const PICKER_KINDS = {
       project: { title: "Choose a project", search: "Search projects", placeholder: "Search projects or clients", list: "Projects", empty: "No projects yet.", noMatch: "No projects match.", add: (name) => `＋ Add “${name}” as a new project` },
       client: { title: "Choose a client", search: "Search clients", placeholder: "Search clients", list: "Clients", empty: "No clients yet.", noMatch: "No clients match.", add: (name) => `＋ Add “${name}” as a new client` },
-      hours: { title: "Choose a project", search: "Search projects", placeholder: "Search projects", list: "Projects", empty: "No projects yet.", noMatch: "No projects match.", add: () => "" }
+      hours: { title: "Choose a project", search: "Search projects", placeholder: "Search projects", list: "Projects", empty: "No projects yet.", noMatch: "No projects match.", add: () => "" },
+      queue: { title: "Projects", search: "Search projects, or name a new project", placeholder: "Search projects or clients, or type a new project name", list: "Projects", empty: "No projects yet.", noMatch: "No projects match the search.", add: () => "" }
     };
     // What the picker modal lists, pure. `kind` is "project" or "client", `query` the search bar's text, `items` the stored projects or clients and
     // `context` what ranks and describes them: {clients, counts} for projects (`counts` is projectTaskCounts: queued tasks per project) and
     // {projects} for clients (a client's use is its number of projects); kind "hours" (History's Project filter) takes items already shaped as {id, name, detail}
-    // in the order to show (newest week first) and lists them as they are, matching every word of the query in the name, with no Add row. Returns {rows, more, add}:
+    // in the order to show (newest week first) and lists them as they are, matching every word of the query in the name, with no Add row; kind "queue"
+    // (the Queue's Project filter) lists every project matching by filterProjects, in the order given (alphabetical), uncapped, the detail being its queued
+    // task count and its client's name ("2 · Smith Ltd"), with no Add row (the modal's own Add button makes a project). Returns {rows, more, add}:
     // - `rows`: at most PICKER_MAX_ROWS of {id, name, detail}, the most used first and equal use in name order (case ignored); a project matches by
     //   filterProjects (its name or its client's name, the client's name as `detail`), a client when every word of the query is in its name; a
     //   blank query keeps all of them, so the list needs nothing typed.
@@ -2522,6 +2535,14 @@
       const ctx = context && typeof context === "object" ? context : {};
       const text = typeof query === "string" ? query : "";
       const clients = Array.isArray(ctx.clients) ? ctx.clients : [];
+      if (kind === "queue") {
+        const counts = ctx.counts && typeof ctx.counts === "object" ? ctx.counts : {};
+        return {
+          rows: filterProjects(list, clients, text).map((p) => ({ id: p.id, name: String(p.name || ""), detail: [String(counts[p.id] || 0), projectClientName(p, clients)].filter(Boolean).join(" · ") })),
+          more: false,
+          add: ""
+        };
+      }
       if (kind === "hours") {
         const words = text.toLowerCase().split(/\s+/).filter(Boolean);
         const found = list.filter((item) => words.every((w) => String(item.name || "").toLowerCase().includes(w)));
@@ -2556,9 +2577,9 @@
       };
     }
 
-    // The leading None row of a picker given a `noneLabel`: {id: "", name: noneLabel} ahead of `rows` while the search is blank, else `rows` as they are.
-    function withNoneRow(rows, noneLabel, query) {
-      return noneLabel && !String(query || "").trim() ? [{ id: "", name: noneLabel, detail: "" }, ...rows] : rows;
+    // The leading None row of a picker given a `noneLabel`: {id: "", name: noneLabel, detail: noneDetail} ahead of `rows` while the search is blank, else `rows` as they are.
+    function withNoneRow(rows, noneLabel, query, noneDetail) {
+      return noneLabel && !String(query || "").trim() ? [{ id: "", name: noneLabel, detail: noneDetail ? String(noneDetail) : "" }, ...rows] : rows;
     }
     // Where the picker's overlay sits: the part of the screen the on-screen keyboard leaves, from `visualViewport` ({offsetTop, height}); null without it.
     function pickerViewportBox(vv) {
@@ -5398,12 +5419,6 @@
         setFilter(chip.hasAttribute("data-all") ? null : chip.dataset.tag);
       });
 
-      document.getElementById("projectFilterBar").addEventListener("click", e => {
-        const chip = e.target.closest(".project-item");
-        if (!chip) return;
-        setProjectFilter(chip.hasAttribute("data-all") ? null : chip.dataset.project);
-      });
-
       // Rows in the list and the active task box above the search box behave the same. Gestures: a double-tap starts or
       // pauses the timer, a single tap opens the editor once no second tap has followed within DOUBLE_TAP_MS (in
       // Multi-Select a queued card's tap acts at once). The active task answers anywhere inside its bordered box; every
@@ -6797,8 +6812,10 @@
     // The picker modal (#pickerModal): one list-and-search dialog for choosing a project (a client later), shown as a layer over whatever opened it.
     // openPicker(kind, current, onPick, options) takes the kind ("project" or "client"), the id now chosen (its row is marked), and onPick, called
     // after the modal has closed with {id} for a row or {name} for the Add row (a new project or client of that name). options: `opener`, the
-    // element to give the focus back to, and `allowAdd` (default true), false for a list that cannot make one. Back and Cancel close it unchosen.
-    let pickerState = null; // {kind, current, onPick, opener, allowAdd, rows, add, active} while it is open
+    // element to give the focus back to, `allowAdd` (default true), false for a list that cannot make one, `noneLabel` and `noneDetail` (the leading row's
+    // name and the muted text at its right), and `onAdd`, which shows an Add button beside the search bar: it runs with the typed name, keeps the modal
+    // open and returns the id of what it made (or null), which becomes the marked row. Back and Cancel close it unchosen.
+    let pickerState = null; // {kind, current, onPick, opener, allowAdd, none, noneDetail, onAdd, rows, add, active} while it is open
     function pickerSource(kind) {
       if (kind === "hours") return { items: historyProjectChoices(projectHoursEntries), context: {} };
       return kind === "client"
@@ -6814,7 +6831,9 @@
     function openPicker(kind, current, onPick, options = {}) {
       if (!PICKER_KINDS[kind]) return;
       const text = PICKER_KINDS[kind];
-      pickerState = { kind, current: current || "", onPick, opener: options.opener || null, allowAdd: options.allowAdd !== false, none: options.noneLabel || "", rows: [], add: "", active: 0 };
+      pickerState = { kind, current: current || "", onPick, opener: options.opener || null, allowAdd: options.allowAdd !== false, none: options.noneLabel || "", noneDetail: options.noneDetail || "", onAdd: typeof options.onAdd === "function" ? options.onAdd : null, rows: [], add: "", active: 0 };
+      document.getElementById("pickerAddBtn").hidden = !pickerState.onAdd;
+      document.getElementById("pickerStatus").textContent = "";
       document.getElementById("pickerTitle").textContent = options.title || text.title;
       const search = document.getElementById("pickerSearch");
       search.value = "";
@@ -6835,6 +6854,8 @@
       if (!state) return;
       pickerState = null;
       hideLayer("pickerModal");
+      document.getElementById("pickerAddBtn").hidden = true;
+      document.getElementById("pickerStatus").textContent = "";
       if (window.visualViewport) {
         window.visualViewport.removeEventListener("resize", fitPickerToViewport);
         window.visualViewport.removeEventListener("scroll", fitPickerToViewport);
@@ -6856,7 +6877,7 @@
       const query = document.getElementById("pickerSearch").value;
       const source = pickerSource(state.kind);
       const view = pickerRows(state.kind, query, source.items, source.context);
-      state.rows = withNoneRow(view.rows, state.none, query);
+      state.rows = withNoneRow(view.rows, state.none, query, state.noneDetail);
       state.add = state.allowAdd ? view.add : "";
       const options = state.rows.length + (state.add ? 1 : 0);
       state.active = options === 0 ? 0 : Math.min(Math.max(state.active, 0), options - 1);
@@ -6864,6 +6885,7 @@
       if (view.more) html += "<div class=\"project-list-empty\">Keep typing to narrow</div>";
       if (state.add) html += `<div class="project-item picker-row picker-add${state.rows.length === state.active ? " kb" : ""}" role="option" id="pickerOpt${state.rows.length}" aria-selected="false" data-add="1"><span class="project-item-name">${esc(text.add(state.add))}</span></div>`;
       if (options === 0) html = `<div class="project-list-empty">${esc(query.trim() ? text.noMatch : text.empty)}</div>`;
+      else if (view.rows.length === 0 && !state.add && !query.trim()) html += `<div class="project-list-empty">${esc(text.empty)}</div>`; // only the leading row: nothing to choose yet
       document.getElementById("pickerList").innerHTML = html;
       const search = document.getElementById("pickerSearch");
       if (options > 0) search.setAttribute("aria-activedescendant", `pickerOpt${state.active}`);
@@ -6871,6 +6893,7 @@
     }
     function pickerTyped() {
       if (pickerState) pickerState.active = 0; // a new search starts at its first option
+      document.getElementById("pickerStatus").textContent = ""; // the result of the last Add is no longer news
       renderPicker();
     }
     function pickFromPicker(pick) {
@@ -6910,7 +6933,33 @@
         e.preventDefault();
         const pick = pickerPickAt(state.active);
         if (pick) pickFromPicker(pick);
+        else if (state.onAdd) addFromPicker(); // nothing matches the typed name: Enter adds it, as the Add button does
       }
+    }
+    // The Add button beside the search bar (and Enter when nothing matches): hands the typed name to the picker's `onAdd`. A made project becomes
+    // the marked row, the search bar empties so the whole list shows, and the modal stays open; a refusal leaves the text as typed.
+    let pickerAdding = false;
+    async function addFromPicker() {
+      const state = pickerState;
+      if (!state || !state.onAdd || pickerAdding) return;
+      const search = document.getElementById("pickerSearch");
+      const name = search.value.trim();
+      if (!name) { search.focus({ preventScroll: true }); return; }
+      pickerAdding = true;
+      document.getElementById("pickerAddBtn").disabled = true;
+      try {
+        const id = await state.onAdd(name);
+        if (id && pickerState === state) {
+          state.current = id;
+          state.active = 0;
+          search.value = "";
+          renderPicker();
+        }
+      } finally {
+        pickerAdding = false;
+        document.getElementById("pickerAddBtn").disabled = false;
+      }
+      if (pickerState === state) search.focus({ preventScroll: true });
     }
 
     // The Project field of the add card ("manual"), the queued modal ("edit") and the completed form ("ce"): a hidden input (`${prefix}Project`: ""
@@ -7796,8 +7845,7 @@
       const entry = projectHoursEntries.find(e => e.projectId === historyProjectId) || null;
       return `
         <div class="summary">
-          <div class="summary-label" style="margin-top:0;">Project</div>
-          <div class="picker-line" style="margin:4px 0;"><button type="button" id="historyProjectField" class="picker-field" aria-haspopup="dialog" aria-label="Project" onclick="openHistoryProjectPicker()">${esc(entry ? entry.name || "Untitled project" : HISTORY_ALL_PROJECTS)}</button></div>
+          <div class="picker-line" style="margin:4px 0;"><span class="picker-line-label" id="historyProjectLabel">Project</span><button type="button" id="historyProjectField" class="picker-field" aria-haspopup="dialog" aria-labelledby="historyProjectLabel historyProjectField" onclick="openHistoryProjectPicker()">${esc(entry ? entry.name || "Untitled project" : HISTORY_ALL_PROJECTS)}</button></div>
           <div id="projectHoursBody">${historyProjectPanel(entry)}</div>
         </div>`;
     }
@@ -8517,36 +8565,30 @@
     // and for a delete the task list too (its members leave the project).
     function setProjectsStatus(text) {
       document.getElementById("projectsStatus").textContent = text;
+      if (pickerState && pickerState.kind === "queue") document.getElementById("pickerStatus").textContent = text; // the page's line is behind the modal
     }
 
-    // The project list (its rows filter the Queue like the tag chips do, narrowed by the text in the project field) and, for the chosen project, its Rename and Delete.
+    // The Queue's Project field (the chosen project's name, or All) and, for the chosen project, its actions under it. The list of projects filters the Queue
+    // through the picker modal (openQueueProjectPicker).
     function renderProjects() {
       if (!projectsLoaded) return;
       renderManualProjects();
       renderProjectFields(); // the buttons unlock once the list is known, and the names follow it
       // A filter on a project that no longer exists (deleted here or elsewhere) is dropped
       if (selectedProjectFilter !== null && !allProjects.some(p => p.id === selectedProjectFilter)) selectedProjectFilter = null;
-      const bar = document.getElementById("projectFilterBar");
       const actions = document.getElementById("projectActions");
       const chosen = allProjects.find(p => p.id === selectedProjectFilter) || null;
-      document.getElementById("projectsActive").textContent = chosen ? `· ${chosen.name}` : "";
+      const field = document.getElementById("queueProjectField");
+      field.textContent = chosen ? chosen.name || "Untitled project" : QUEUE_ALL_PROJECTS;
+      field.disabled = false;
       syncProjectClientForm(chosen);
       if (allProjects.length === 0) {
-        bar.innerHTML = "<div class=\"project-list-empty\">No projects yet.</div>";
         actions.innerHTML = "";
         renderProjectLocation(null);
         renderProjectUrl(null);
         document.getElementById("projectTemplateAction").innerHTML = "";
         return;
       }
-      const counts = projectTaskCounts(allTasks);
-      const shown = filterProjects(allProjects, allClients, document.getElementById("newProjectName").value);
-      bar.innerHTML = `<div class="project-item ${chosen ? "" : "active"}" data-all="1"><span class="project-item-name">All (${allTasks.length})</span></div>` +
-        shown.map(p => {
-          const client = projectClientName(p, allClients);
-          return `<div class="project-item ${chosen && chosen.id === p.id ? "active" : ""}" data-project="${esc(p.id)}"><span class="project-item-name">📁 ${esc(p.name)} (${esc(counts[p.id] || 0)})</span>${client ? `<span class="project-item-client">${esc(client)}</span>` : ""}</div>`;
-        }).join("") +
-        (shown.length === 0 ? "<div class=\"project-list-empty\">No projects match the search.</div>" : "");
       actions.innerHTML = chosen ? `
         <div class="project-row" data-id="${esc(chosen.id)}">
           <span class="project-name">${esc(chosen.name)}</span>
@@ -8686,8 +8728,9 @@
       }
     }
 
-    // Sends one updateProject request and shows the result; returns true when it was saved.
-    async function saveProject(body, doneText) {
+    // Sends one updateProject request and shows the result; returns true when it was saved. `onReply`, when given, is called with the server's reply
+    // after the lists have been taken from it and before they are drawn (CREATE's reply holds the new `project`).
+    async function saveProject(body, doneText, onReply) {
       setProjectsStatus("Saving...");
       try {
         const res = await apiFetch(UPDATE_PROJECT_URL, {
@@ -8699,6 +8742,7 @@
         allProjects = data.projects || allProjects;
         projectsLoaded = true;
         takeClients(data); // SET_CLIENT with a new client returns the list holding it
+        if (onReply) onReply(data);
         if (data.tasks) {
           setTasks(data.tasks);
           renderFilterBar();
@@ -8712,14 +8756,26 @@
       }
     }
 
-    async function addProject() {
-      const input = document.getElementById("newProjectName");
-      const name = input.value.trim();
-      if (!name) return;
-      if (await saveProject({ action: "CREATE", name }, `Added "${name}".`)) {
-        input.value = "";
-        renderProjects(); // the search text is gone, so the whole list shows again
-      }
+    // Creates a project and chooses it as the Queue's project filter, so its actions show under the field at once. Returns the new project's id,
+    // or null when nothing was made (a blank name, or the server refused: its reason is in the status line).
+    async function addProject(name) {
+      const typed = String(name || "").trim();
+      if (!typed) return null;
+      let created = null;
+      if (!await saveProject({ action: "CREATE", name: typed }, `Added "${typed}".`, (data) => { created = data.project || null; })) return null;
+      if (!created || !allProjects.some(p => p.id === created.id)) return null;
+      setProjectFilter(created.id);
+      return created.id;
+    }
+    // The Queue's Project field: the picker modal lists All and every project (its queued task count and client at the right) with an Add button.
+    function openQueueProjectPicker() {
+      if (!projectsLoaded) return;
+      openPicker("queue", selectedProjectFilter || "", selectQueueProject, { opener: document.getElementById("queueProjectField"), allowAdd: false, noneLabel: QUEUE_ALL_PROJECTS, noneDetail: String(allTasks.length), onAdd: addProject });
+    }
+    // A pick of that modal: {id} of a project, or "" for All. It closes the modal and filters the Queue.
+    function selectQueueProject(pick) {
+      if (!pick || typeof pick.id !== "string") return;
+      setProjectFilter(pick.id === "" ? null : pick.id);
     }
 
     async function renameProject(projectId) {
@@ -8737,11 +8793,6 @@
       await saveProject({ action: "DELETE", projectId }, `Deleted "${project.name}".`);
     }
 
-    document.getElementById("addProjectBtn").addEventListener("click", addProject);
-    document.getElementById("newProjectName").addEventListener("input", renderProjects);
-    document.getElementById("newProjectName").addEventListener("keydown", e => {
-      if (e.key === "Enter") { e.preventDefault(); addProject(); }
-    });
     document.getElementById("projectClientAddBtn").addEventListener("click", addClientToProject);
     document.getElementById("projectClientCancelBtn").addEventListener("click", () => { closeProjectClientForm(); renderProjects(); });
     for (const id of ["projectActions", "projectTemplateAction"]) {
