@@ -766,12 +766,18 @@
   </details>
   <details class="card settings-card">
     <summary><h3>Clients</h3></summary>
+    <div class="input-row project-add">
+      <input type="text" id="newClientName" maxlength="100" placeholder="Search clients or projects, or type a new client name" aria-label="Search clients, or name a new client">
+      <button type="button" id="addClientBtn">Add</button>
+    </div>
     <div id="clientList"></div>
-    <div id="clientFormMount" style="margin-top: 14px;"></div>
-    <!-- <p class="settings-note" style="margin:6px 0 0;">A project can belong to a client, chosen in the Projects section of the Queue page. Deleting a client leaves its projects in place.</p> -->
-    <div class="action-row" style="margin-top: 14px;">
-      <button type="button" id="saveClientBtn">Add client</button>
-      <button type="button" id="cancelClientBtn" class="btn-secondary" hidden>Cancel</button>
+    <div id="clientEdit" hidden>
+      <div id="clientFormMount" style="margin-top: 14px;"></div>
+      <!-- <p class="settings-note" style="margin:6px 0 0;">A project can belong to a client, chosen in the Projects section of the Queue page. Deleting a client leaves its projects in place.</p> -->
+      <div class="action-row" style="margin-top: 14px;">
+        <button type="button" id="saveClientBtn">Save client</button>
+        <button type="button" id="cancelClientBtn" class="btn-secondary">Cancel</button>
+      </div>
     </div>
     <div id="clientsStatus" class="settings-status"></div>
   </details>
@@ -2363,6 +2369,21 @@
       const words = String(query || "").toLowerCase().split(/\s+/).filter(Boolean);
       return (Array.isArray(projects) ? projects : []).filter(p => {
         const text = projectSearchText(p.id, projects, clients).toLowerCase();
+        return words.every(w => text.includes(w));
+      });
+    }
+    // The text the Clients card's search reads for a client: its name, location name, phone, email and the names of its projects, joined by spaces.
+    function clientSearchText(client, projects) {
+      const text = (v) => (typeof v === "string" ? v.trim() : "");
+      const c = client && typeof client === "object" ? client : {};
+      const own = (Array.isArray(projects) ? projects : []).filter(p => p && c.id && p.clientId === c.id).map(p => text(p.name));
+      return [text(c.name), text(c.location && c.location.name), text(c.phone), text(c.email), ...own].filter(Boolean).join(" ");
+    }
+    // The clients whose search text (clientSearchText) holds every word of `query` (case ignored); a blank query keeps all of them. Pure.
+    function filterClients(clients, projects, query) {
+      const words = String(query || "").toLowerCase().split(/\s+/).filter(Boolean);
+      return (Array.isArray(clients) ? clients : []).filter(c => {
+        const text = clientSearchText(c, projects).toLowerCase();
         return words.every(w => text.includes(w));
       });
     }
@@ -8751,11 +8772,15 @@
       document.getElementById("clientsStatus").textContent = text;
     }
 
+    // The list narrows live with the search field (filterClients: names, location, phone, email and project names); the edit form is not affected.
     function renderClients() {
       const box = document.getElementById("clientList");
+      const shown = filterClients(allClients, allProjects, document.getElementById("newClientName").value);
       box.innerHTML = !clientsLoaded ? "" : allClients.length === 0
         ? "<span style='color:var(--text-faint); font-size:13px;'>No clients yet.</span>"
-        : allClients.map(c => `
+        : shown.length === 0
+          ? "<span style='color:var(--text-faint); font-size:13px;'>No clients match the search.</span>"
+          : shown.map(c => `
           <div class="project-row" data-id="${esc(c.id)}">
             <span class="project-name"><strong>${esc(c.name)}</strong>${clientSummary(c) ? `<br><small style="color:var(--text-faint);">${esc(clientSummary(c))}</small>` : ""}</span>
             <button type="button" class="btn-secondary" data-action="edit">Edit</button>
@@ -8832,12 +8857,11 @@
       renderClientCoords(prefix);
     }
 
-    // The Clients card's form: fill it from a client (editing) or empty it (adding), and set the buttons to match.
+    // The Clients card's form: fill it from a client and show it (editing), or empty and hide it (null).
     function fillClientForm(client) {
       editingClientId = client ? client.id : null;
       fillClientFormBlock("client", client);
-      document.getElementById("saveClientBtn").textContent = client ? "Save client" : "Add client";
-      document.getElementById("cancelClientBtn").hidden = !client;
+      document.getElementById("clientEdit").hidden = !client;
     }
 
     // Everything that shows client names follows a change to the list.
@@ -8889,8 +8913,20 @@
       const warning = clientFormWarning(client);
       if (warning) { askAlert(warning, { tone: "warning" }); return; }
       const editing = editingClientId;
-      const body = editing ? { action: "UPDATE", clientId: editing, client } : { action: "CREATE", client };
-      if (await saveClientRequest(body, editing ? `Saved "${client.name}".` : `Added "${client.name}".`)) fillClientForm(null);
+      if (!editing) return; // the form shows only while a client is being edited
+      if (await saveClientRequest({ action: "UPDATE", clientId: editing, client }, `Saved "${client.name}".`)) fillClientForm(null);
+    }
+
+    // Add: the trimmed text of the search field becomes a new client's name (the server needs only a name). An empty field does nothing; a taken
+    // name shows the server's error in the status line; a success empties the field so the whole list shows again.
+    async function addClient() {
+      const input = document.getElementById("newClientName");
+      const name = input.value.trim();
+      if (!name) return;
+      if (await saveClientRequest({ action: "CREATE", client: clientFormBody({ name }) }, `Added "${name}".`)) {
+        input.value = "";
+        renderClients();
+      }
     }
 
     async function deleteClient(clientId) {
@@ -8901,6 +8937,11 @@
       if (await saveClientRequest({ action: "DELETE", clientId }, `Deleted "${client.name}".`) && editingClientId === clientId) fillClientForm(null);
     }
 
+    document.getElementById("addClientBtn").addEventListener("click", addClient);
+    document.getElementById("newClientName").addEventListener("input", renderClients);
+    document.getElementById("newClientName").addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); addClient(); }
+    });
     document.getElementById("saveClientBtn").addEventListener("click", saveClient);
     document.getElementById("cancelClientBtn").addEventListener("click", () => { fillClientForm(null); setClientsStatus(""); });
     document.getElementById("clientList").addEventListener("click", e => {
