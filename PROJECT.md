@@ -59,8 +59,7 @@ A change usually touches several rows: a new endpoint touches an `endpoints-*.md
 
 Each step fits in one turn, adds tests for any new pure logic and updates the `docs/` files it names. The steps are independent of each other.
 
-1. **Inline new client, Projects section** (`frontend-queue.md`).
-   - The Projects section's client picker (`clientPickerHtml`) gets "＋ New client…", which shows the same form with its own Add button sending `SET_CLIENT` with `newClient`, and the picker shows even when there are no clients yet (today it only says "No clients yet. Add one under Settings.").
+No steps are planned.
 
 Unplanned ideas are in `stretch-goals.md`.
 

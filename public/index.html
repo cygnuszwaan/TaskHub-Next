@@ -524,6 +524,13 @@
         </div>
         <div class="project-list" id="projectFilterBar"></div>
         <div class="project-actions" id="projectActions"></div>
+        <div class="project-location" id="projectNewClient" hidden>
+          <div id="projectClientFormMount"></div>
+          <div class="action-row" style="margin-top: 8px;">
+            <button type="button" id="projectClientAddBtn">Add client</button>
+            <button type="button" id="projectClientCancelBtn" class="btn-secondary">Cancel</button>
+          </div>
+        </div>
         <div class="project-location" id="projectLocation" hidden>
           <label for="projectLocationInput">Location</label>
           <input type="text" id="projectLocationInput" maxlength="200" autocomplete="off" placeholder="Search for an address">
@@ -2282,6 +2289,12 @@
       if (newClient && typeof newClient === "object" && !Array.isArray(newClient)) return { newClient };
       const id = typeof clientId === "string" ? clientId.trim() : "";
       return id && id !== NEW_CLIENT ? { newProjectClientId: id } : {};
+    }
+    // The updateProject body for the Projects section's Client select: `choice` is "" (No client: null takes the client off), a stored
+    // client's id, or NEW_CLIENT with `client`, the form's whole client, which the server creates and gives to the project.
+    function setClientBody(projectId, choice, client) {
+      if (choice === NEW_CLIENT) return { action: "SET_CLIENT", projectId, newClient: client };
+      return { action: "SET_CLIENT", projectId, clientId: choice || null };
     }
     const NEW_CLIENT_NAME_WARNING = "Enter a name for the new client, or choose another client.";
     // The warning for a new client's form that cannot be sent, "" when it can: a missing name, else a bad email, link or rate (clientFormWarning).
@@ -7879,6 +7892,7 @@
       const actions = document.getElementById("projectActions");
       const chosen = allProjects.find(p => p.id === selectedProjectFilter) || null;
       document.getElementById("projectsActive").textContent = chosen ? `· ${chosen.name}` : "";
+      syncProjectClientForm(chosen);
       if (allProjects.length === 0) {
         bar.innerHTML = "<div class=\"project-list-empty\">No projects yet.</div>";
         actions.innerHTML = "";
@@ -7953,16 +7967,55 @@
       document.getElementById("projectUrlClearBtn").hidden = !view.hasOwn;
     }
 
-    // The Client line of the chosen project: a select of the clients (or a hint when there are none).
+    // The Client line of the chosen project: a select of the clients, ending with "＋ New client…" (shown even with no clients yet). While that
+    // choice is open (`projectNewClientFor`) it stays selected and the client form shows under the project's actions.
     function clientPickerHtml(project) {
       if (!clientsLoaded) return "";
-      if (allClients.length === 0) return '<span class="project-name" style="color:var(--text-faint);">No clients yet. Add one under Settings.</span>';
+      const adding = projectNewClientFor === project.id;
       const own = allClients.some(c => c.id === project.clientId) ? project.clientId : "";
       return '<label class="project-name" for="projectClient">Client</label>' +
         '<select id="projectClient" data-action="client">' +
-        '<option value=""' + (own ? "" : " selected") + '>No client</option>' +
-        allClients.map(c => `<option value="${esc(c.id)}"${c.id === own ? " selected" : ""}>${esc(c.name)}</option>`).join("") +
+        '<option value=""' + (own || adding ? "" : " selected") + '>No client</option>' +
+        allClients.map(c => `<option value="${esc(c.id)}"${c.id === own && !adding ? " selected" : ""}>${esc(c.name)}</option>`).join("") +
+        `<option value="${NEW_CLIENT}"${adding ? " selected" : ""}>＋ New client…</option>` +
         "</select>";
+    }
+
+    // The client form of the Projects section (fixed markup, `#projectNewClient`, prefix `projectClient`, so a redraw never wipes typed text):
+    // open for one project at a time, closed and emptied when another project is chosen, the project goes, the clients are not loaded or a
+    // different Client choice is made.
+    let projectNewClientFor = null;
+    function closeProjectClientForm() {
+      projectNewClientFor = null;
+      fillClientFormBlock("projectClient", null);
+      document.getElementById("projectNewClient").hidden = true;
+    }
+    function syncProjectClientForm(chosen) {
+      if (projectNewClientFor !== null && (!chosen || chosen.id !== projectNewClientFor || !clientsLoaded)) closeProjectClientForm();
+      document.getElementById("projectNewClient").hidden = projectNewClientFor === null;
+    }
+    // Add: creates the client from the form and gives it to the project in one SET_CLIENT; a missing name or a bad field is a warning alert and
+    // nothing is sent; a server refusal (a taken name) is shown in the status line and leaves the form as typed.
+    async function addClientToProject() {
+      const projectId = projectNewClientFor;
+      if (projectId === null || !allProjects.some(p => p.id === projectId)) { closeProjectClientForm(); return; }
+      const client = readClientForm("projectClient");
+      const warning = newClientWarning(client);
+      if (warning) {
+        await askAlert(warning, { tone: "warning" });
+        if (!client.name) document.getElementById("projectClientName").focus();
+        return;
+      }
+      const button = document.getElementById("projectClientAddBtn");
+      button.disabled = true;
+      try {
+        if (await saveProject(setClientBody(projectId, NEW_CLIENT, client), `Added client "${client.name}".`) && projectNewClientFor === projectId) {
+          closeProjectClientForm();
+          renderProjects();
+        }
+      } finally {
+        button.disabled = false;
+      }
     }
 
     async function loadProjects() {
@@ -7989,6 +8042,7 @@
         const data = await res.json();
         allProjects = data.projects || allProjects;
         projectsLoaded = true;
+        takeClients(data); // SET_CLIENT with a new client returns the list holding it
         if (data.tasks) {
           setTasks(data.tasks);
           renderFilterBar();
@@ -8035,8 +8089,19 @@
     document.getElementById("projectActions").addEventListener("change", e => {
       const select = e.target.closest("select[data-action=client]");
       const row = select && select.closest(".project-row");
-      if (row) saveProject({ action: "SET_CLIENT", projectId: row.dataset.id, clientId: select.value || null }, "Saved.");
+      if (!row) return;
+      if (select.value === NEW_CLIENT) {
+        // Nothing is saved until the form's Add: the choice opens the form for this project
+        projectNewClientFor = row.dataset.id;
+        renderProjects();
+        document.getElementById("projectClientName").focus();
+        return;
+      }
+      if (projectNewClientFor !== null) closeProjectClientForm();
+      saveProject(setClientBody(row.dataset.id, select.value), "Saved.");
     });
+    document.getElementById("projectClientAddBtn").addEventListener("click", addClientToProject);
+    document.getElementById("projectClientCancelBtn").addEventListener("click", () => { closeProjectClientForm(); renderProjects(); });
     for (const id of ["projectActions", "projectTemplateAction"]) {
       document.getElementById(id).addEventListener("click", e => {
         const btn = e.target.closest("[data-action]");
@@ -8958,6 +9023,7 @@
     mountClientForm("client", "clientFormMount");
     mountClientForm("manualClient", "manualClientFormMount");
     mountClientForm("editClient", "editClientFormMount");
+    mountClientForm("projectClient", "projectClientFormMount");
     if (CONFIG.placesApiKey) {
       document.getElementById("projectPlaceSearchBtn").hidden = true;
       projectPlaces = makePlacesAutocomplete({ queryId: "projectLocationInput", resultsId: "projectPlaceResults", getBias: () => currentSettings && currentSettings.location ? currentSettings.location : null, getContext: () => selectedProjectFilter, onPick: (place, projectId) => setProjectLocation(projectId, placeLocation(place)) });
