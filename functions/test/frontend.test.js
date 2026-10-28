@@ -17,7 +17,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
+    return {MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -694,34 +694,55 @@ describe("public/index.html helpers", () => {
       assert.doesNotMatch(html, /id="materialsDetails"/);
       assert.ok(html.indexOf(`id="editMaterials"`) > html.indexOf(`id="editModal"`));
     });
-    it("keeps Materials in a collapsed Extra fields section and Description at the top level of both edit modals", () => {
-      for (const [details, inside, modal, prefix] of [["editExtraFields", ["editMaterials", "editTravel"], "editModal", "edit"], ["ceExtraFields", ["ceMaterials", "ceTravel"], "completedEditModal", "ce"]]) {
-        const start = at(`id="${details}"`);
-        const end = at("</details>", start);
-        assert.ok(start > at(`id="${modal}"`), `${details} is in ${modal}`);
-        assert.doesNotMatch(html.slice(start - 20, start + 40), /\sopen[\s>]/, `${details} starts collapsed`);
-        assert.match(html.slice(start, start + 120), /<summary>Extra fields<\/summary>/);
-        for (const id of inside) {
+    it("keeps Description, Tags and Project at the top level of both edit modals, above every section", () => {
+      for (const [modal, prefix] of [["editModal", "edit"], ["completedEditModal", "ce"]]) {
+        const first = at(`<details class="form-section"`, at(`id="${modal}"`));
+        for (const id of [`${prefix}Description`, `${prefix}Tags`, `${prefix}Project`]) {
           const i = at(`id="${id}"`);
-          assert.ok(i > start && i < end, `${id} is inside ${details}`);
+          assert.ok(i > at(`id="${modal}"`) && i < first, `${id} is above the sections`);
         }
-        const description = at(`id="${prefix}Description"`);
-        assert.ok(description > at(`id="${modal}"`) && description < start, `${prefix}Description is above the sections`);
-        assert.ok(description < at(`id="${prefix}Tags"`), `${prefix}Description comes before Tags`);
+        assert.ok(at(`id="${prefix}Description"`) < at(`id="${prefix}Tags"`), "Description comes before Tags");
       }
+    });
+    it("holds Phone, Email, Link and Location in Contact details, and Travel, Materials, Photos and Comments in Audit trail", () => {
+      for (const [prefix, modal] of [["edit", "editModal"], ["ce", "completedEditModal"]]) {
+        const contact = at(`<details class="form-section" id="${prefix}Contact">`);
+        const contactEnd = at("</details>", contact);
+        const audit = at(`<details class="form-section" id="${prefix}Audit">`);
+        const auditEnd = at("</details>", audit);
+        assert.ok(contact > at(`id="${modal}"`) && contactEnd < audit, "Contact details comes before Audit trail");
+        assert.match(html.slice(contact, contact + 120), /<summary>Contact details<\/summary>/);
+        assert.match(html.slice(audit, audit + 120), /<summary>Audit trail<\/summary>/);
+        const inOrder = (ids, from, to) => {
+          let last = from;
+          for (const id of ids) {
+            const i = at(`id="${id}"`);
+            assert.ok(i > last && i < to, `${id} is in its section, in order`);
+            last = i;
+          }
+        };
+        inOrder([`${prefix}Phone`, `${prefix}Email`, `${prefix}Url`, `${prefix}Location`], contact, contactEnd);
+        inOrder([`${prefix}Travel`, `${prefix}Materials`, `${prefix}Photos`, `${prefix}Comments`], audit, auditEnd);
+      }
+      assert.ok(at(`id="ceSheetBtn"`) > at(`id="ceComments"`) && at(`id="ceSheetBtn"`) < at("</details>", at(`id="ceAudit"`)), "the job sheet button ends the completed form's Audit trail");
+      assert.doesNotMatch(html.slice(at(`id="editModal"`), at(`id="photoInput"`)), /Sheet|job sheet/i, "the queued modal has no job sheet download");
+    });
+    it("has no Extra fields section left", () => {
+      assert.doesNotMatch(html, /ExtraFields|Extra fields/);
     });
     it("gives both edit modals one section style, every section closed each time a modal opens", () => {
       assert.doesNotMatch(html, /extra-fields/);
       assert.match(html, /\.form-section > summary \{/);
-      for (const [modal, ids] of [["editModal", ["editScheduling", "editExtraFields"]], ["completedEditModal", ["ceScheduling", "ceExtraFields"]]]) {
+      for (const [modal, ids] of [["editModal", ["editScheduling", "editContact", "editAudit"]], ["completedEditModal", ["ceScheduling", "ceContact", "ceAudit"]]]) {
         const start = at(`id="${modal}"`);
         const end = at("</div>\n  </div>\n", start);
         for (const id of ids) {
           const i = at(`<details class="form-section" id="${id}">`);
           assert.ok(i > start && i < end, `${id} is a form-section of ${modal}`);
+          assert.doesNotMatch(html.slice(i, i + 60), /\sopen[\s>]/, `${id} starts collapsed`);
         }
       }
-      const fn = html.slice(at("function closeFormSections"), at("// Shows a task's job number"));
+      const fn = html.slice(at("function closeFormSections"), at("function warnInSection"));
       assert.match(fn, /#\$\{modalId\} details\.form-section/);
       assert.match(fn, /section\.open = false/);
       assert.match(html, /closeFormSections\("editModal"\)/);
@@ -751,8 +772,19 @@ describe("public/index.html helpers", () => {
         }
       }
     });
-    it("opens Scheduling and Extra fields of the completed form while it works offline", () => {
-      assert.match(html, /if \(offline\) for \(const id of \["ceScheduling", "ceExtraFields"\]\) document\.getElementById\(id\)\.open = true;/);
+    it("opens, for the completed form working offline, the sections that hold a field left to edit", () => {
+      const {completedSectionsToOpen, COMPLETED_CONTROL_SECTIONS, COMPLETED_FORM_CONTROLS, completedFieldDisabled} = load();
+      assert.deepEqual([...completedSectionsToOpen(false)], [], "online, every section starts closed");
+      assert.deepEqual([...completedSectionsToOpen(undefined)], []);
+      assert.deepEqual([...completedSectionsToOpen(true)].sort(), ["ceAudit", "ceContact", "ceScheduling"], "offline, Priority and Time spent, the contact fields, Travel and comments stay editable");
+      for (const [control, section] of Object.entries(COMPLETED_CONTROL_SECTIONS)) {
+        assert.ok(control in COMPLETED_FORM_CONTROLS, `${control} is a control of the form`);
+        const el = html.indexOf(`id="${control}"`);
+        const start = html.indexOf(`id="${section}"`);
+        assert.ok(el > start && el < html.indexOf("</details>", start), `${control} sits in ${section}`);
+      }
+      assert.match(html, /for \(const id of completedSectionsToOpen\(offline\)\) openFormSection\(id\);/);
+      assert.equal(completedFieldDisabled("materials", true), true, "Materials is not editable offline");
     });
     it("sizes a material's cost box small inside forms so the row stays within the modal", () => {
       assert.match(html, /\.form-group \.cost-input[^{]*\{[^}]*width:\s*84px/);
@@ -1253,7 +1285,7 @@ describe("public/index.html helpers", () => {
     });
     it("warns about a bad link when adding or saving, and sends it with the save", () => {
       assert.match(html, /if \(manual && parseUrlText\(document\.getElementById\("manualUrl"\)\.value\) === undefined\) \{ askAlert\(INVALID_URL, \{ tone: "warning" \}\); return; \}/);
-      assert.match(html, /if \(url === undefined\) \{ askAlert\(INVALID_URL, \{ tone: "warning" \}\); return false; \}/);
+      assert.match(html, /if \(url === undefined\) \{ warnInSection\("editContact", INVALID_URL\); return false; \}/);
       assert.match(html, /phone: document\.getElementById\("editPhone"\)\.value\.trim\(\), email, url, description:/);
       assert.match(html, /url: document\.getElementById\("manualUrl"\)\.value,/);
       assert.match(html, /url: document\.getElementById\("ceUrl"\)\.value,/);
@@ -1287,17 +1319,17 @@ describe("public/index.html helpers", () => {
       assert.doesNotMatch(html, /ceEstimate|means none was tracked/);
       assert.match(html, /<label for="ceTracked">Time spent \(minutes\)<\/label>/);
     });
-    it("has Travel (km) boxes in the Extra fields of both edit modals, in the add form and a Travel rate in Job Sheets", () => {
+    it("has Travel (km) boxes in the Audit trail of both edit modals, in the add form and a Travel rate in Job Sheets", () => {
       const has = (details, id) => {
         const start = html.indexOf(`id="${details}"`);
         const i = html.indexOf(`id="${id}"`);
         assert.ok(start > 0 && i > start && i < html.indexOf("</details>", start), `${id} is in ${details}`);
       };
-      has("editExtraFields", "editTravel");
-      has("ceExtraFields", "ceTravel");
+      has("editAudit", "editTravel");
+      has("ceAudit", "ceTravel");
       assert.ok(html.indexOf("id=\"manualTravel\"") > html.indexOf("id=\"manualMaterials\""));
       assert.ok(html.indexOf("id=\"manualTravel\"") < html.indexOf("id=\"manualDescription\""));
-      assert.ok(html.indexOf("id=\"editTravel\"") > html.indexOf("id=\"editMaterials\"") && html.indexOf("id=\"editTravel\"") < html.indexOf("id=\"editLocation\""));
+      assert.ok(html.indexOf("id=\"editTravel\"") > html.indexOf("id=\"editAudit\"") && html.indexOf("id=\"editTravel\"") < html.indexOf("id=\"editMaterials\""), "Travel opens the Audit trail, before Materials");
       const jobSheets = html.indexOf("<h3>Job Sheets</h3>");
       assert.ok(html.indexOf("id=\"travelRate\"") > jobSheets && html.indexOf("id=\"travelRate\"") > html.indexOf("id=\"hourlyRate\""));
     });
@@ -1845,6 +1877,29 @@ describe("public/index.html helpers", () => {
       assert.equal("phone" in bare, false);
       assert.equal("email" in bare, false);
     });
+    it("names the section holding the field at fault in each completedChanges error", () => {
+      const {completedChanges, completedFormValues} = load();
+      const row = {title: "Fit tap", priority: "LOW", estimatedMinutes: 30, completedAt: "2026-10-20T01:00:00.000Z"};
+      const form = () => ({...completedFormValues(row, "Pacific/Auckland")});
+      const section = (change) => completedChanges(row, {...form(), ...change}, "Pacific/Auckland").section;
+      assert.equal(section({email: "nope"}), "ceContact");
+      assert.equal(section({url: "mailto:a@b.co"}), "ceContact");
+      assert.equal(section({travelKm: "far"}), "ceAudit");
+      assert.equal(section({trackedMinutes: "-5"}), "ceScheduling");
+      assert.equal(section({date: ""}), "ceScheduling");
+      assert.equal("section" in completedChanges(row, form(), "Pacific/Auckland"), false, "a good form has no section");
+    });
+    it("opens the section of the field at fault before each warning, in the queued form and the completed form", () => {
+      const edit = html.slice(html.indexOf("async function saveTaskEdits"), html.indexOf("async function snoozeFromModal"));
+      assert.match(edit, /warnInSection\("editAudit", `The cost of/);
+      assert.match(edit, /warnInSection\("editAudit", INVALID_TRAVEL\)/);
+      assert.match(edit, /warnInSection\("editContact", INVALID_EMAIL\)/);
+      assert.match(edit, /warnInSection\("editContact", INVALID_URL\)/);
+      for (const fn of ["async function saveCompletedEdit", "async function reopenCompletedEntry"]) {
+        const body = html.slice(html.indexOf(fn), html.indexOf(fn) + 700);
+        assert.match(body, /if \(result\.error\) \{ warnInSection\(result\.section, result\.error\); return; \}/, fn);
+      }
+    });
     it("completedChanges sends phone and email only when they differ, null to clear, and an error for a bad email", () => {
       const {completedChanges, completedFormValues} = load();
       const row = {title: "Fit tap", priority: "LOW", estimatedMinutes: 30, phone: "021 1", email: "a@b.co", completedAt: "2026-10-20T01:00:00.000Z"};
@@ -1864,8 +1919,8 @@ describe("public/index.html helpers", () => {
       assert.equal(v.email, "a@b.co");
       assert.equal(load().templateFormValues({title: "T"}).phone, "");
     });
-    it("puts Phone and Email inside both Extra fields sections and the buttons outside them, above", () => {
-      for (const [details, prefix] of [["editExtraFields", "edit"], ["ceExtraFields", "ce"]]) {
+    it("puts Phone and Email inside both Contact details sections and the buttons outside them, above", () => {
+      for (const [details, prefix] of [["editContact", "edit"], ["ceContact", "ce"]]) {
         const i = html.indexOf(`id="${details}"`);
         const close = html.indexOf("</details>", i);
         for (const id of [`${prefix}Phone`, `${prefix}Email`]) {
@@ -1873,7 +1928,7 @@ describe("public/index.html helpers", () => {
           assert.ok(at > i && at < close, `${id} is in ${details}`);
         }
         const buttons = html.indexOf(`id="${prefix}ContactActions"`);
-        assert.ok(buttons > 0 && buttons < i, `${prefix} buttons sit above Extra fields`);
+        assert.ok(buttons > 0 && buttons < i, `${prefix} buttons sit above Contact details`);
       }
       assert.ok(html.indexOf("id=\"manualPhone\"") > 0 && html.indexOf("id=\"manualEmail\"") > 0);
     });
@@ -3414,11 +3469,14 @@ describe("public/index.html helpers", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(code, /(?<![\w.])alert\(/, "a native alert() is left");
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
-      assert.equal(calls.length, 66, "the sixty-six messages the page shows (thirteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and two why a Multi-Select change was not)");
+      const inSection = code.match(/(?<!function )warnInSection\(/g) || [];
+      assert.equal(inSection.length, 6, "six validation warnings open the section holding the field at fault first (four in the queued form, two in the completed form)");
+      assert.equal(calls.length - 1 + inSection.length, 66, "the sixty-six messages the page shows (thirteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and two why a Multi-Select change was not); warnInSection's own askAlert call stands for its six");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 19, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
-      assert.equal(warnings.length, 45, "every validation message is a warning alert");
+      assert.equal(warnings.length - 1 + inSection.length, 45, "every validation message is a warning alert");
+      assert.match(code, /function warnInSection\(sectionId, text\) \{\s*openFormSection\(sectionId\);\s*return askAlert\(text, \{ tone: "warning" \}\);/);
     });
     it("hides Cancel for an alert, shows it again for a question and focuses the button", () => {
       const fn = html.slice(html.indexOf("function openConfirm"), html.indexOf("function askConfirm"));

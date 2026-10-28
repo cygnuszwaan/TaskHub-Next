@@ -912,34 +912,8 @@
         </div>
       </details>
 
-      <details class="form-section" id="editExtraFields">
-        <summary>Extra fields</summary>
-        <div class="form-group">
-          <label>Materials <small style="font-weight:normal; color:var(--text-faint);">(the task is not scheduled until all are checked)</small></label>
-          <div id="editMaterials"></div>
-          <div class="input-row" style="margin-top: 6px;">
-            <input type="text" id="newMaterialText" maxlength="100" placeholder="Add a material">
-            <input type="number" id="newMaterialCost" class="cost-input" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="Cost" aria-label="Cost of the new material">
-            <button type="button" class="btn-secondary" id="addMaterialBtn">Add</button>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="editTravel">Travel (km)</label>
-          <input type="number" id="editTravel" min="0" max="10000" step="0.1" inputmode="decimal" placeholder="e.g. 12.5" style="max-width: 160px;">
-        </div>
-
-        <div class="form-group">
-          <label for="editLocation">Location</label>
-          <input type="text" id="editLocation" maxlength="200" autocomplete="off" placeholder="Search for an address">
-          <div class="action-row" style="margin-top: 6px;">
-            <button type="button" id="editPlaceSearchBtn" class="btn-secondary">Find on map</button>
-            <button type="button" id="editLocationClearBtn" class="btn-secondary" hidden>Clear</button>
-          </div>
-          <div id="editPlaceResults" class="place-results"></div>
-          <p class="settings-note" id="editLocationNote"></p>
-        </div>
-
+      <details class="form-section" id="editContact">
+        <summary>Contact details</summary>
         <div class="form-group">
           <label for="editPhone">Phone <small style="font-weight:normal; color:var(--text-faint);">(empty uses the client's)</small></label>
           <input type="tel" id="editPhone" maxlength="40" oninput="refreshContact('edit')">
@@ -954,21 +928,50 @@
           <label for="editUrl">Link <small style="font-weight:normal; color:var(--text-faint);">(empty uses the project's or client's)</small></label>
           <input type="url" id="editUrl" maxlength="500" inputmode="url" autocapitalize="none" autocomplete="off" placeholder="e.g. example.com/menu" oninput="refreshContact('edit')">
         </div>
+
+        <div class="form-group">
+          <label for="editLocation">Location</label>
+          <input type="text" id="editLocation" maxlength="200" autocomplete="off" placeholder="Search for an address">
+          <div class="action-row" style="margin-top: 6px;">
+            <button type="button" id="editPlaceSearchBtn" class="btn-secondary">Find on map</button>
+            <button type="button" id="editLocationClearBtn" class="btn-secondary" hidden>Clear</button>
+          </div>
+          <div id="editPlaceResults" class="place-results"></div>
+          <p class="settings-note" id="editLocationNote"></p>
+        </div>
       </details>
 
-      <div class="form-group">
-        <label>Comments <small style="font-weight:normal; color:var(--text-faint);">(added at once, not on Save)</small></label>
-        <div id="editComments" class="comment-list"></div>
-        <div class="comment-add">
-          <textarea id="editCommentText" rows="2" maxlength="2000" placeholder="Add a comment"></textarea>
-          <button type="button" class="btn-secondary" id="editCommentAdd" onclick="addCommentClick('edit')">Add</button>
+      <details class="form-section" id="editAudit">
+        <summary>Audit trail</summary>
+        <div class="form-group">
+          <label for="editTravel">Travel (km)</label>
+          <input type="number" id="editTravel" min="0" max="10000" step="0.1" inputmode="decimal" placeholder="e.g. 12.5" style="max-width: 160px;">
         </div>
-      </div>
 
-      <div class="form-group">
-        <label>Photos <small style="font-weight:normal; color:var(--text-faint);">(added at once, not on Save)</small></label>
-        <div id="editPhotos"></div>
-      </div>
+        <div class="form-group">
+          <label>Materials <small style="font-weight:normal; color:var(--text-faint);">(the task is not scheduled until all are checked)</small></label>
+          <div id="editMaterials"></div>
+          <div class="input-row" style="margin-top: 6px;">
+            <input type="text" id="newMaterialText" maxlength="100" placeholder="Add a material">
+            <input type="number" id="newMaterialCost" class="cost-input" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="Cost" aria-label="Cost of the new material">
+            <button type="button" class="btn-secondary" id="addMaterialBtn">Add</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Photos <small style="font-weight:normal; color:var(--text-faint);">(added at once, not on Save)</small></label>
+          <div id="editPhotos"></div>
+        </div>
+
+        <div class="form-group">
+          <label>Comments <small style="font-weight:normal; color:var(--text-faint);">(added at once, not on Save)</small></label>
+          <div id="editComments" class="comment-list"></div>
+          <div class="comment-add">
+            <textarea id="editCommentText" rows="2" maxlength="2000" placeholder="Add a comment"></textarea>
+            <button type="button" class="btn-secondary" id="editCommentAdd" onclick="addCommentClick('edit')">Add</button>
+          </div>
+        </div>
+      </details>
 
       <div class="modal-extra-actions">
         <div class="timer-group">
@@ -1060,29 +1063,8 @@
         </div>
       </details>
 
-      <details class="form-section" id="ceExtraFields">
-        <summary>Extra fields</summary>
-        <div class="form-group">
-          <label for="ceMaterials">Materials <small style="font-weight:normal; color:var(--text-faint);">(one per line, for the job sheet; add <code>| 12.50</code> after a line for its cost)</small></label>
-          <textarea id="ceMaterials" rows="4"></textarea>
-        </div>
-
-        <div class="form-group">
-          <label for="ceTravel">Travel (km)</label>
-          <input type="number" id="ceTravel" min="0" max="10000" step="0.1" inputmode="decimal" placeholder="e.g. 12.5" style="max-width: 160px;">
-        </div>
-
-        <div class="form-group">
-          <label for="ceLocation">Location</label>
-          <input type="text" id="ceLocation" maxlength="200" autocomplete="off" placeholder="Search for an address">
-          <div class="action-row" style="margin-top: 6px;">
-            <button type="button" id="cePlaceSearchBtn" class="btn-secondary">Find on map</button>
-            <button type="button" id="ceLocationClearBtn" class="btn-secondary" hidden>Clear</button>
-          </div>
-          <div id="cePlaceResults" class="place-results"></div>
-          <p class="settings-note" id="ceLocationNote"></p>
-        </div>
-
+      <details class="form-section" id="ceContact">
+        <summary>Contact details</summary>
         <div class="form-group">
           <label for="cePhone">Phone <small style="font-weight:normal; color:var(--text-faint);">(empty uses the client's)</small></label>
           <input type="tel" id="cePhone" maxlength="40" oninput="refreshContact('ce')">
@@ -1097,26 +1079,50 @@
           <label for="ceUrl">Link <small style="font-weight:normal; color:var(--text-faint);">(empty uses the project's or client's)</small></label>
           <input type="url" id="ceUrl" maxlength="500" inputmode="url" autocapitalize="none" autocomplete="off" placeholder="e.g. example.com/menu" oninput="refreshContact('ce')">
         </div>
+
+        <div class="form-group">
+          <label for="ceLocation">Location</label>
+          <input type="text" id="ceLocation" maxlength="200" autocomplete="off" placeholder="Search for an address">
+          <div class="action-row" style="margin-top: 6px;">
+            <button type="button" id="cePlaceSearchBtn" class="btn-secondary">Find on map</button>
+            <button type="button" id="ceLocationClearBtn" class="btn-secondary" hidden>Clear</button>
+          </div>
+          <div id="cePlaceResults" class="place-results"></div>
+          <p class="settings-note" id="ceLocationNote"></p>
+        </div>
       </details>
 
-      <div class="form-group">
-        <label>Comments</label>
-        <div id="ceComments" class="comment-list"></div>
-        <div class="comment-add">
-          <textarea id="ceCommentText" rows="2" maxlength="2000" placeholder="Add a comment"></textarea>
-          <button type="button" class="btn-secondary" id="ceCommentAdd" onclick="addCommentClick('ce')">Add</button>
+      <details class="form-section" id="ceAudit">
+        <summary>Audit trail</summary>
+        <div class="form-group">
+          <label for="ceTravel">Travel (km)</label>
+          <input type="number" id="ceTravel" min="0" max="10000" step="0.1" inputmode="decimal" placeholder="e.g. 12.5" style="max-width: 160px;">
         </div>
-      </div>
 
-      <div class="form-group">
-        <label>Photos</label>
-        <div id="cePhotos"></div>
-      </div>
+        <div class="form-group">
+          <label for="ceMaterials">Materials <small style="font-weight:normal; color:var(--text-faint);">(one per line, for the job sheet; add <code>| 12.50</code> after a line for its cost)</small></label>
+          <textarea id="ceMaterials" rows="4"></textarea>
+        </div>
 
-      <div class="form-group">
-        <button type="button" class="btn-secondary" id="ceSheetBtn" onclick="downloadTaskSheet(document.getElementById('ceId').value, this)">📄 Download job sheet (PDF)</button>
-        <!-- <p class="settings-note">The sheet shows this entry as last saved.</p> -->
-      </div>
+        <div class="form-group">
+          <label>Photos</label>
+          <div id="cePhotos"></div>
+        </div>
+
+        <div class="form-group">
+          <label>Comments</label>
+          <div id="ceComments" class="comment-list"></div>
+          <div class="comment-add">
+            <textarea id="ceCommentText" rows="2" maxlength="2000" placeholder="Add a comment"></textarea>
+            <button type="button" class="btn-secondary" id="ceCommentAdd" onclick="addCommentClick('ce')">Add</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <button type="button" class="btn-secondary" id="ceSheetBtn" onclick="downloadTaskSheet(document.getElementById('ceId').value, this)">📄 Download job sheet (PDF)</button>
+          <!-- <p class="settings-note">The sheet shows this entry as last saved.</p> -->
+        </div>
+      </details>
 
       <!-- <p style="font-size: 12px; color: var(--text-faint); margin: 0;">Corrections change History and Project hours. They do not rewrite the history (count, average time) already carried by the task's next occurrence.</p> -->
 
@@ -2703,7 +2709,7 @@
       const fields = {};
       if (form.priority !== before.priority) fields.priority = form.priority;
       const tracked = String(form.trackedMinutes).trim() === "" ? 0 : Number(form.trackedMinutes);
-      if (!Number.isFinite(tracked) || tracked < 0) return { error: "Enter the time spent in minutes (0 or more)." };
+      if (!Number.isFinite(tracked) || tracked < 0) return { error: "Enter the time spent in minutes (0 or more).", section: "ceScheduling" };
       if (Math.round(tracked) !== before.trackedMinutes) fields.trackedSeconds = Math.round(tracked) * 60;
       const tags = parseTagList(form.tags);
       if (tags.join("\n") !== parseTagList(before.tags).join("\n")) fields.tags = tags;
@@ -2714,20 +2720,20 @@
       const description = String(form.description || "").trim();
       if (description !== before.description.trim()) fields.description = description === "" ? null : description;
       const travel = parseTravelText(form.travelKm);
-      if (travel === undefined) return { error: INVALID_TRAVEL };
+      if (travel === undefined) return { error: INVALID_TRAVEL, section: "ceAudit" };
       if ((travel || null) !== (parseTravelText(before.travelKm) || null)) fields.travelKm = travel || null;
       if ("location" in form && JSON.stringify(form.location || null) !== JSON.stringify(before.location)) fields.location = form.location || null;
       const phone = String(form.phone === undefined || form.phone === null ? "" : form.phone).trim();
       if (phone !== before.phone.trim()) fields.phone = phone === "" ? null : phone;
       const email = parseEmailText(form.email);
-      if (email === undefined) return { error: INVALID_EMAIL };
+      if (email === undefined) return { error: INVALID_EMAIL, section: "ceContact" };
       if ((email || "") !== before.email.trim()) fields.email = email;
       const url = parseUrlText(form.url);
-      if (url === undefined) return { error: INVALID_URL };
+      if (url === undefined) return { error: INVALID_URL, section: "ceContact" };
       if ((url || "") !== before.url.trim()) fields.url = url;
       if ((form.projectId || "") !== before.projectId) fields.projectId = form.projectId || null;
       if (form.date !== before.date || form.time !== before.time) {
-        if (!DATE_ONLY.test(form.date || "") || !/^\d{2}:\d{2}$/.test(form.time || "")) return { error: "Enter the date and time of completion." };
+        if (!DATE_ONLY.test(form.date || "") || !/^\d{2}:\d{2}$/.test(form.time || "")) return { error: "Enter the date and time of completion.", section: "ceScheduling" };
         fields.completedDate = form.date;
         fields.completedTime = form.time;
       }
@@ -3475,6 +3481,21 @@
     const OFFLINE_COMPLETED_FIELDS = ["priority", "trackedMinutes", "tags", "travelKm", "location", "phone", "email", "url", "description", "comments", "commentDelete"];
     function completedFieldDisabled(field, offline) {
       return offline === true && !OFFLINE_COMPLETED_FIELDS.includes(field);
+    }
+    // The section of the Edit Completed Task form that holds each control of COMPLETED_FORM_CONTROLS (the others sit at the top level or in the action rows)
+    const COMPLETED_CONTROL_SECTIONS = {
+      cePriority: "ceScheduling", ceTracked: "ceScheduling", ceDate: "ceScheduling", ceTime: "ceScheduling",
+      ceLocation: "ceContact", cePlaceSearchBtn: "ceContact", ceLocationClearBtn: "ceContact", cePhone: "ceContact", ceEmail: "ceContact", ceUrl: "ceContact",
+      ceTravel: "ceAudit", ceMaterials: "ceAudit", ceCommentText: "ceAudit", ceCommentAdd: "ceAudit", ceSheetBtn: "ceAudit"
+    };
+    // The sections to open when the form opens: while it works on the saved copy or an unsent completion (`offline`), those with a control that stays enabled; otherwise none
+    function completedSectionsToOpen(offline) {
+      if (offline !== true) return [];
+      const open = [];
+      for (const [controlId, sectionId] of Object.entries(COMPLETED_CONTROL_SECTIONS)) {
+        if (!completedFieldDisabled(COMPLETED_FORM_CONTROLS[controlId], offline) && !open.includes(sectionId)) open.push(sectionId);
+      }
+      return open;
     }
 
     // The reason shown for a failed add: the error's own text, cut to QUEUE_ERROR_MAX.
@@ -6071,6 +6092,14 @@
     function closeFormSections(modalId) {
       for (const section of document.querySelectorAll(`#${modalId} details.form-section`)) section.open = false;
     }
+    // Opens one section, so a field it holds is on screen; a warning about that field is shown after it (warnInSection).
+    function openFormSection(sectionId) {
+      document.getElementById(sectionId).open = true;
+    }
+    function warnInSection(sectionId, text) {
+      openFormSection(sectionId);
+      return askAlert(text, { tone: "warning" });
+    }
 
     // Shows a task's job number in a form's read-only line, or hides the line when it has none.
     function showJobNumber(elementId, value) {
@@ -6380,13 +6409,13 @@
       const dueDate = document.getElementById("editDueDate").value;
 
       const badCost = invalidMaterialCost(editMaterials);
-      if (badCost) { askAlert(`The cost of "${badCost}" is not an amount. Use a number such as 12.50, or leave it empty.`, { tone: "warning" }); return false; }
+      if (badCost) { warnInSection("editAudit", `The cost of "${badCost}" is not an amount. Use a number such as 12.50, or leave it empty.`); return false; }
       const travelKm = parseTravelText(document.getElementById("editTravel").value);
-      if (travelKm === undefined) { askAlert(INVALID_TRAVEL, { tone: "warning" }); return false; }
+      if (travelKm === undefined) { warnInSection("editAudit", INVALID_TRAVEL); return false; }
       const email = parseEmailText(document.getElementById("editEmail").value);
-      if (email === undefined) { askAlert(INVALID_EMAIL, { tone: "warning" }); return false; }
+      if (email === undefined) { warnInSection("editContact", INVALID_EMAIL); return false; }
       const url = parseUrlText(document.getElementById("editUrl").value);
-      if (url === undefined) { askAlert(INVALID_URL, { tone: "warning" }); return false; }
+      if (url === undefined) { warnInSection("editContact", INVALID_URL); return false; }
       const tags = tagsRaw.split(",").map(s => s.trim()).filter(Boolean);
       const recurrence = recurrenceFields(document.getElementById("editRecurFreq").value, document.getElementById("editRecurInterval").value);
       const updatedFields = { title, priority, estimatedMinutes, tags, dueDate, recurrence, materials: materialsFields(editMaterials), travelKm, phone: document.getElementById("editPhone").value.trim(), email, url, description: document.getElementById("editDescription").value };
@@ -6947,7 +6976,7 @@
       const values = completedFormValues(row, appTimeZone);
       const offline = savedCompletedAt !== null || !!row.waitingRequestId; // the saved copy is on screen, or the completion has not been sent
       closeFormSections("completedEditModal"); // every section starts closed
-      if (offline) for (const id of ["ceScheduling", "ceExtraFields"]) document.getElementById(id).open = true; // but Priority, Time spent, Travel, Location, Phone, Email and Link, fields left to edit offline, are in them
+      for (const id of completedSectionsToOpen(offline)) openFormSection(id); // offline, the sections that hold a field left to edit
       document.getElementById("ceId").value = id;
       resetCommentPanel("ce");
       document.getElementById("ceTitle").textContent = row.title || "";
@@ -7016,7 +7045,7 @@
       const row = completedRows.get(id);
       if (!row) return closeCompletedEditor();
       const result = readCompletedForm(row);
-      if (result.error) { askAlert(result.error, { tone: "warning" }); return; }
+      if (result.error) { warnInSection(result.section, result.error); return; }
       if (!(await postComment("ce"))) return; // a comment typed and not yet added goes with the save
       if (Object.keys(result.fields).length === 0) return closeCompletedEditor();
       // A completion that has not been sent has no row to edit yet, and changes already waiting go first: the save is kept behind
@@ -7076,7 +7105,7 @@
       const row = completedRows.get(id);
       if (!row) return closeCompletedEditor();
       const result = readCompletedForm(row);
-      if (result.error) { askAlert(result.error, { tone: "warning" }); return; }
+      if (result.error) { warnInSection(result.section, result.error); return; }
       if (!await askConfirm(reopenPrompt({ ...row, ...result.fields }), { tone: "info", confirmLabel: "Reopen" })) return;
       if (row.waitingRequestId) { takeBackWaitingCompletion(row); return; }
       if (!(await postComment("ce"))) return; // a comment typed and not yet added comes back with the task

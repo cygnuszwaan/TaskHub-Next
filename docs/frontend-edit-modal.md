@@ -6,14 +6,16 @@ The queued task's edit modal (`#editModal`, "Edit Task Details") and the complet
 
 - Both modals scroll inside themselves (`max-height: 90vh`, `overscroll-behavior: contain`) and lock the page behind them (`body.modal-open`) while open.
 - The top level holds, in order: the title (an input in the queued modal, read-only text in the completed form), a read-only job number line ("Job number 123", `jobNumberText`, hidden for a task with none), Description, Tags, the Project select, the contact buttons row and the Navigate row.
-- Below it are two collapsible sections, one style for both modals (`details.form-section`, a `summary` with a ▸ that turns when open). `closeFormSections` closes every section of a modal each time it opens; the completed form then opens Scheduling and Extra fields while the saved copy is on screen or the entry is an unsent completion, because their fields are editable offline.
+- Below it are three collapsible sections, one style for both modals (`details.form-section`, a `summary` with a ▸ that turns when open). `closeFormSections` closes every section of a modal each time it opens; only the completed form opens any itself, and only while the saved copy is on screen or the entry is an unsent completion: `completedSectionsToOpen` opens each section that holds a control still enabled (`COMPLETED_CONTROL_SECTIONS` names the section of each control; offline that is all three).
 
 | Section | Queued modal | Completed form |
 |---|---|---|
 | Scheduling (`#editScheduling`, `#ceScheduling`) | Task number with its Top button, Priority, Est. minutes, Due date with its Clear button, Repeats | Priority, Time spent (minutes), Completed date and time |
-| Extra fields (`#editExtraFields`, `#ceExtraFields`) | Materials, Travel (km), Location, Phone, Email, Link | the same, Materials as a textarea |
+| Contact details (`#editContact`, `#ceContact`) | Phone, Email, Link, Location | the same |
+| Audit trail (`#editAudit`, `#ceAudit`) | Travel (km), Materials, Photos, Comments | the same, Materials as a textarea, then the 📄 Download job sheet button (the queued modal has none) |
 
-- After the sections come Comments and Photos (both added at once, not on Save). The queued modal then has the timer and Snooze row and Complete, Delete, Cancel and Save; the completed form has the job sheet download and Delete, Reopen, Cancel and Save.
+- Photos and Comments are added at once, not on Save. The queued modal then has the timer and Snooze row and Complete, Delete, Cancel and Save; the completed form has Delete, Reopen, Cancel and Save.
+- A validation warning first opens the section holding the field at fault (`warnInSection`, which calls `openFormSection` and then `askAlert`): a bad material cost or travel distance opens Audit trail, a bad email or link Contact details. In the completed form `completedChanges` names that section in the `section` of its error (a bad time spent or completion date opens Scheduling) and Save and Reopen show it the same way.
 
 ## Fields
 

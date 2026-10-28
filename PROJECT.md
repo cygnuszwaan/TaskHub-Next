@@ -59,8 +59,7 @@ A change usually touches several rows: a new endpoint touches an `endpoints-*.md
 
 Each step fits in one turn. Do them in order unless told otherwise. Each step adds tests for any new pure logic.
 
-1. Edit modals, Contact details and Audit trail. A Contact details section holds Phone, Email, Link and Location; an Audit trail section holds Travel, Materials, Photos and Comments, plus the job sheet download in the completed form (the queued modal has none). Extra fields is removed. A validation alert (bad email, link, travel or material cost) first opens the section holding the field at fault, and the offline completed form opens the sections that hold editable fields. Update `frontend-edit-modal.md`, `frontend-history.md` and `offline.md`.
-2. Add card sections. The add card's manual fields use the same layout as the edit modal (Description, Tags, Project and the Scheduling, Contact details and Audit trail sections, every section closed each time the "Enter the details myself" box is ticked), with Materials, Travel and the rest where the modal has them. Update the "Adding tasks" paragraph of `frontend-tasks.md`.
+1. Add card sections. The add card's manual fields use the same layout as the edit modal (Description, Tags, Project and the Scheduling, Contact details and Audit trail sections, every section closed each time the "Enter the details myself" box is ticked), with Materials, Travel and the rest where the modal has them. Update the "Adding tasks" paragraph of `frontend-tasks.md`.
 
 Unplanned ideas are in `stretch-goals.md`.
 
