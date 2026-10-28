@@ -144,7 +144,10 @@
     .picker-field:disabled { background: var(--surface); color: var(--text-faint); }
     .picker-toggle { min-height: 44px; }
     .picker-toggle[hidden] { display: none; }
-    .picker-row { min-height: 44px; box-sizing: border-box; align-items: center; }
+    #pickerModal { align-items: flex-start; padding: 8px 0; box-sizing: border-box; }
+    .picker-card { display: flex; flex-direction: column; max-height: 100%; }
+    .picker-card .project-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+    .project-row .picker-field { padding: 10px 12px; font-size: 15px; }
     .picker-row.kb { background: var(--hover); }
     .picker-row.active.kb { background: var(--primary); }
     .picker-row.picker-add { color: var(--link); font-weight: 600; }
@@ -1229,8 +1232,11 @@
       </div>
       <div id="batchProjectPane" hidden>
         <div class="form-group">
-          <label for="batchProject">Project</label>
-          <select id="batchProject"></select>
+          <label id="batchProjectLabel">Project</label>
+          <input type="hidden" id="batchProject" value="">
+          <div class="picker-line">
+            <button type="button" id="batchProjectField" class="picker-field" aria-haspopup="dialog" aria-labelledby="batchProjectLabel batchProjectField" onclick="openBatchProjectPicker()">Choose a project…</button>
+          </div>
         </div>
         <div class="form-group" id="batchNewProjectBox" hidden>
           <label for="batchNewProject">New project name</label>
@@ -2550,6 +2556,20 @@
         more: ranked.length > PICKER_MAX_ROWS,
         add: typed && !taken ? typed : ""
       };
+    }
+
+    // The leading None row of a picker given a `noneLabel`: {id: "", name: noneLabel} ahead of `rows` while the search is blank, else `rows` as they are.
+    function withNoneRow(rows, noneLabel, query) {
+      return noneLabel && !String(query || "").trim() ? [{ id: "", name: noneLabel, detail: "" }, ...rows] : rows;
+    }
+    // Where the picker's overlay sits: the part of the screen the on-screen keyboard leaves, from `visualViewport` ({offsetTop, height}); null without it.
+    function pickerViewportBox(vv) {
+      if (!vv || !(vv.height > 0)) return null;
+      return { top: Math.max(0, Math.round(vv.offsetTop || 0)), height: Math.round(vv.height) };
+    }
+    // The Multi-Select Project button's text, pure: "Choose a project…" while none is chosen, else projectFieldView's text for a project's id or NEW_PROJECT.
+    function batchProjectFieldText(value, newName, projects) {
+      return value === "" ? "Choose a project…" : projectFieldView(value, newName, projects, "Unknown project").text;
     }
 
     // The Project field of the add card, the queued modal and the completed form, pure: `value` is the hidden input's value ("" for none, a project's
@@ -6723,10 +6743,16 @@
         ? { items: allClients, context: { projects: allProjects } }
         : { items: allProjects, context: { clients: allClients, counts: projectTaskCounts(allTasks) } };
     }
+    function fitPickerToViewport() {
+      const box = pickerViewportBox(window.visualViewport);
+      const overlay = document.getElementById("pickerModal");
+      overlay.style.top = box ? box.top + "px" : "";
+      overlay.style.height = box ? box.height + "px" : "";
+    }
     function openPicker(kind, current, onPick, options = {}) {
       if (!PICKER_KINDS[kind]) return;
       const text = PICKER_KINDS[kind];
-      pickerState = { kind, current: current || "", onPick, opener: options.opener || null, allowAdd: options.allowAdd !== false, rows: [], add: "", active: 0 };
+      pickerState = { kind, current: current || "", onPick, opener: options.opener || null, allowAdd: options.allowAdd !== false, none: options.noneLabel || "", rows: [], add: "", active: 0 };
       document.getElementById("pickerTitle").textContent = text.title;
       const search = document.getElementById("pickerSearch");
       search.value = "";
@@ -6735,6 +6761,11 @@
       document.getElementById("pickerList").setAttribute("aria-label", text.list);
       renderPicker();
       showLayer("pickerModal", closePicker);
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener("resize", fitPickerToViewport);
+        window.visualViewport.addEventListener("scroll", fitPickerToViewport);
+      }
+      fitPickerToViewport();
       search.focus({ preventScroll: true });
     }
     function closePicker() {
@@ -6742,6 +6773,13 @@
       if (!state) return;
       pickerState = null;
       hideLayer("pickerModal");
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", fitPickerToViewport);
+        window.visualViewport.removeEventListener("scroll", fitPickerToViewport);
+      }
+      const overlay = document.getElementById("pickerModal");
+      overlay.style.top = "";
+      overlay.style.height = "";
       if (state.opener && state.opener.isConnected && !state.opener.disabled) state.opener.focus({ preventScroll: true });
     }
     function closePickerOnOverlay(e) {
@@ -6756,7 +6794,7 @@
       const query = document.getElementById("pickerSearch").value;
       const source = pickerSource(state.kind);
       const view = pickerRows(state.kind, query, source.items, source.context);
-      state.rows = view.rows;
+      state.rows = withNoneRow(view.rows, state.none, query);
       state.add = state.allowAdd ? view.add : "";
       const options = state.rows.length + (state.add ? 1 : 0);
       state.active = options === 0 ? 0 : Math.min(Math.max(state.active, 0), options - 1);
@@ -7647,13 +7685,23 @@
       } else if (kind === "DUE") {
         document.getElementById("batchDueDate").value = "";
       } else {
-        const select = document.getElementById("batchProject");
-        select.replaceChildren(new Option("Choose a project…", ""), ...allProjects.map(p => new Option(p.name, p.id)), new Option("＋ New project…", NEW_PROJECT));
-        select.value = "";
-        document.getElementById("batchNewProject").value = "";
-        document.getElementById("batchNewProjectBox").hidden = true;
+        setBatchProject("");
       }
       showLayer("batchModal", closeBatchModal);
+    }
+    // The Multi-Select Project choice: a hidden input (`#batchProject`: "" for none yet, a project's id or NEW_PROJECT, whose name is in `#batchNewProject`)
+    // shown by a button (`#batchProjectField`) that opens the picker modal; the name box shows only for a new project.
+    function setBatchProject(value, newName = "") {
+      document.getElementById("batchProject").value = value;
+      document.getElementById("batchNewProject").value = value === NEW_PROJECT ? newName : "";
+      document.getElementById("batchNewProjectBox").hidden = value !== NEW_PROJECT;
+      document.getElementById("batchProjectField").textContent = batchProjectFieldText(value, newName, allProjects);
+    }
+    function openBatchProjectPicker() {
+      openPicker("project", document.getElementById("batchProject").value, (pick) => {
+        if (pick.name !== undefined) setBatchProject(NEW_PROJECT, pick.name);
+        else setBatchProject(pick.id);
+      }, { opener: document.getElementById("batchProjectField") });
     }
     function closeBatchModal() {
       hideLayer("batchModal");
@@ -7670,7 +7718,7 @@
     }
     function batchSetProject() {
       const choice = document.getElementById("batchProject").value;
-      if (!choice) return askAlert("Choose a project, or ＋ New project….", { tone: "warning" });
+      if (!choice) return askAlert("Choose a project, or add a new one.", { tone: "warning" });
       if (choice === NEW_PROJECT) {
         const name = document.getElementById("batchNewProject").value.trim();
         if (!name) { document.getElementById("batchNewProject").focus(); return askAlert("Enter a name for the new project.", { tone: "warning" }); }
@@ -8503,13 +8551,31 @@
     function clientPickerHtml(project) {
       if (!clientsLoaded) return "";
       const adding = projectNewClientFor === project.id;
+      const own = allClients.find(c => c.id === project.clientId);
+      const text = adding ? "New client" : own ? own.name : "No client";
+      return '<span class="project-name" id="projectClientLabel" style="flex: 0 0 auto;">Client</span>' +
+        `<button type="button" id="projectClient" class="picker-field" data-action="client" aria-haspopup="dialog" aria-labelledby="projectClientLabel projectClient">${esc(text)}</button>`;
+    }
+    // The Client button opens the picker modal: No client is the None row; a client is saved at once (SET_CLIENT); the Add row saves nothing
+    // but opens the client form for this project with the typed name (the form's Add saves it).
+    function pickProjectClient(projectId, opener) {
+      const project = allProjects.find(p => p.id === projectId);
+      if (!project || !clientsLoaded) return;
+      const adding = projectNewClientFor === projectId;
       const own = allClients.some(c => c.id === project.clientId) ? project.clientId : "";
-      return '<label class="project-name" for="projectClient">Client</label>' +
-        '<select id="projectClient" data-action="client">' +
-        '<option value=""' + (own || adding ? "" : " selected") + '>No client</option>' +
-        allClients.map(c => `<option value="${esc(c.id)}"${c.id === own && !adding ? " selected" : ""}>${esc(c.name)}</option>`).join("") +
-        `<option value="${NEW_CLIENT}"${adding ? " selected" : ""}>＋ New client…</option>` +
-        "</select>";
+      openPicker("client", adding ? NEW_CLIENT : own, (pick) => {
+        if (pick.name !== undefined) {
+          projectNewClientFor = projectId;
+          renderProjects();
+          const box = document.getElementById("projectClientName");
+          box.value = pick.name;
+          box.focus();
+          return;
+        }
+        if (!adding && pick.id === own) return;
+        if (projectNewClientFor !== null) closeProjectClientForm();
+        saveProject(setClientBody(projectId, pick.id), "Saved.");
+      }, { opener, noneLabel: "No client" });
     }
 
     // The client form of the Projects section (fixed markup, `#projectNewClient`, prefix `projectClient`, so a redraw never wipes typed text):
@@ -8617,20 +8683,6 @@
     document.getElementById("newProjectName").addEventListener("keydown", e => {
       if (e.key === "Enter") { e.preventDefault(); addProject(); }
     });
-    document.getElementById("projectActions").addEventListener("change", e => {
-      const select = e.target.closest("select[data-action=client]");
-      const row = select && select.closest(".project-row");
-      if (!row) return;
-      if (select.value === NEW_CLIENT) {
-        // Nothing is saved until the form's Add: the choice opens the form for this project
-        projectNewClientFor = row.dataset.id;
-        renderProjects();
-        document.getElementById("projectClientName").focus();
-        return;
-      }
-      if (projectNewClientFor !== null) closeProjectClientForm();
-      saveProject(setClientBody(row.dataset.id, select.value), "Saved.");
-    });
     document.getElementById("projectClientAddBtn").addEventListener("click", addClientToProject);
     document.getElementById("projectClientCancelBtn").addEventListener("click", () => { closeProjectClientForm(); renderProjects(); });
     for (const id of ["projectActions", "projectTemplateAction"]) {
@@ -8641,6 +8693,7 @@
         if (btn.dataset.action === "rename") renameProject(row.dataset.id);
         else if (btn.dataset.action === "delete") deleteProject(row.dataset.id);
         else if (btn.dataset.action === "saveTemplate") saveAsTemplate(row.dataset.id);
+        else if (btn.dataset.action === "client") pickProjectClient(row.dataset.id, btn);
       });
     }
     // Picking an address saves it as the project's own location at once; Clear takes it off, so the project inherits its client's again
@@ -9654,8 +9707,8 @@
       batchSetDue(date);
     });
     document.getElementById("batchDueClearBtn").addEventListener("click", () => batchSetDue(null));
-    document.getElementById("batchProject").addEventListener("change", e => {
-      document.getElementById("batchNewProjectBox").hidden = e.target.value !== NEW_PROJECT;
+    document.getElementById("batchNewProject").addEventListener("input", e => {
+      document.getElementById("batchProjectField").textContent = batchProjectFieldText(NEW_PROJECT, e.target.value, allProjects);
     });
     document.getElementById("batchProjectSetBtn").addEventListener("click", batchSetProject);
 
