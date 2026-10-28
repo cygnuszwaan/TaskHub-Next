@@ -1878,7 +1878,8 @@ describe("public/index.html helpers", () => {
     it("shows a project the page does not know as Unknown project, or Deleted project in the completed form", () => {
       const render = html.slice(at("function renderProjectField("), at("function renderProjectFields()"));
       assert.match(render, /prefix === "ce" \? "Deleted project" : "Unknown project"/);
-      assert.match(render, /getElementById\(`\$\{prefix\}ProjectOrder`\)\.hidden = !view\.inProject/);
+      assert.match(render, /const orderBox = document\.getElementById\(`\$\{prefix\}ProjectOrder`\);\s*[^\n]*\n\s*if \(orderBox\) orderBox\.hidden = !view\.inProject/);
+      assert.doesNotMatch(html, /id="ceProjectOrder"/, "the completed form has no Order number, so renderProjectField must tolerate its absence");
     });
     it("picks a row or the Add row by tap or Enter and gives the focus back on closing", () => {
       assert.match(html, /const pick = row\.dataset\.add \? pickerPickAt\(pickerState\.rows\.length\) : \{ id: row\.dataset\.id \};/);

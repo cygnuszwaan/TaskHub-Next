@@ -6847,7 +6847,8 @@
     function renderProjectField(prefix) {
       const view = projectFieldView(document.getElementById(`${prefix}Project`).value, (document.getElementById(`${prefix}NewProject`) || {}).value, allProjects, prefix === "ce" ? "Deleted project" : "Unknown project");
       document.getElementById(`${prefix}ProjectField`).textContent = view.text;
-      document.getElementById(`${prefix}ProjectOrder`).hidden = !view.inProject; // the Order number shows only inside a project
+      const orderBox = document.getElementById(`${prefix}ProjectOrder`); // the completed form has no Order number
+      if (orderBox) orderBox.hidden = !view.inProject; // the Order number shows only inside a project
       document.getElementById(`${prefix}ProjectField`).disabled = projectFieldLocked(prefix);
     }
     function renderProjectFields() {
