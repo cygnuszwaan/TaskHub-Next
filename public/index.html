@@ -109,6 +109,7 @@
     .add-queue-status { margin-top: 2px; font-size: 13px; color: var(--text-faint); overflow-wrap: anywhere; }
     .add-queue-card.failed .add-queue-status { color: var(--error); }
     .swipe-row .task-item.selected, .swipe-row .task-item.selected:hover { background: var(--flash); box-shadow: inset 0 0 0 2px var(--primary); }
+    .completed-card.selected, .completed-card.selected:hover { background: var(--flash); box-shadow: inset 0 0 0 2px var(--primary); }
     .batch-bar { position: sticky; bottom: 0; z-index: 5; margin-top: 12px; padding: 10px 0 4px; background: var(--surface); border-top: 1px solid var(--header-border); }
     .batch-bar[hidden] { display: none; }
     .batch-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 13px; font-weight: 600; color: var(--text-strong); }
@@ -594,10 +595,28 @@
         <div class="tag-filter-bar" id="completedTagFilterBar"></div>
       </details>
       <div id="completedProject"></div>
+      <div class="select-row">
+        <button type="button" class="btn-secondary" id="historySelectModeBtn" aria-pressed="false">☑️ Select tasks</button>
+      </div>
+      <div class="batch-status" id="historyBatchStatus" role="status"></div>
       <p class="settings-note" id="completedCount" style="margin:8px 0;"></p>
       <div class="pager" data-pager></div>
       <div id="completedRows"></div>
       <div class="pager" data-pager></div>
+      <div class="batch-bar" id="historyBatchBar" hidden>
+        <div class="batch-top">
+          <span id="historyBatchCount"></span>
+          <span class="batch-links">
+            <button type="button" class="btn-secondary" id="historyBatchAllBtn">All shown</button>
+            <button type="button" class="btn-secondary" id="historyBatchNoneBtn">None</button>
+          </span>
+        </div>
+        <div class="batch-actions">
+          <button type="button" data-history-batch="REOPEN">↩️ Reopen</button>
+          <button type="button" class="btn-danger" data-history-batch="DELETE">🗑️ Delete</button>
+          <button type="button" id="historyBatchProjectBtn" disabled>📁 Project</button>
+        </div>
+      </div>
     </div>
   </div>
   </main>
@@ -1534,6 +1553,11 @@
     let selectMode = false;
     let selectedIds = new Set();
     let shownIds = new Set(); // the queued tasks the search and filters currently show
+    // History Multi-Select (the same on the completed list; the selection is of archive ids): `historyShownKeys` is every selectable entry the search and filters show, on all pages.
+    let historySelectMode = false;
+    let historySelectedKeys = new Set();
+    let historyShownKeys = new Set();
+    let historyBatchBusy = false;
     let batchBusy = false; // true while a batch is being sent
     let selectedProjectFilter = null; // a project id, null = show all
     const QUEUE_ALL_PROJECTS = "All"; // what the Queue's Project field shows with no project chosen, and its picker's first row
@@ -3079,7 +3103,7 @@
       const current = Math.min(Math.max(1, Math.floor(Number(page)) || 1), pages);
       const start = (current - 1) * pageSize;
       const items = matches.slice(start, start + pageSize);
-      return { items, page: current, pages, total: matches.length, all: all.length, from: items.length ? start + 1 : 0, to: start + items.length };
+      return { items, matches, page: current, pages, total: matches.length, all: all.length, from: items.length ? start + 1 : 0, to: start + items.length };
     }
     // The links of a pager: Previous, page numbers and Next, as [{kind: "prev"|"next"|"page"|"gap", page, current,
     // disabled}]. Always the first and last page and two either side of the current one, a "gap" where more are skipped.
@@ -3506,8 +3530,9 @@
     }
     // Multi-Select (the Queue's batch mode): the selection and the texts around a batch.
     // The selection kept to tasks that are still in `tasks` (a Set of ids).
-    function pruneSelection(selected, tasks) {
-      const present = new Set((tasks || []).map(t => t.id));
+    // `key` names the field that identifies an item: `id` for queued tasks, `archiveId` for History entries.
+    function pruneSelection(selected, tasks, key = "id") {
+      const present = new Set((tasks || []).map(t => t[key]));
       return new Set([...(selected || [])].filter(id => present.has(id)));
     }
     // A copy of the selection with `id` added, or taken out when it was in.
@@ -3539,6 +3564,37 @@
       const verb = kind === "COMPLETE" ? "Completed" : "Deleted";
       if (failed === 0) return `${verb} ${taskCountText(total)}.`;
       return `${verb} ${total - failed} of ${taskCountText(total)}. ${failed} failed (${message}); ${failed === 1 ? "it is" : "they are"} still selected.`;
+    }
+    // History Multi-Select: an entry can be picked once the server has it. A completion still waiting to be sent cannot be deleted and is
+    // taken back rather than reopened, which its own form does, so a batch leaves it out.
+    function completedSelectable(entry) {
+      return !!entry && typeof entry.archiveId === "string" && entry.archiveId !== "" && !entry.waitingRequestId;
+    }
+    // The confirmation before a batch Reopen or Delete of History entries (`entries` as picked, in list order).
+    function historyBatchPrompt(kind, entries) {
+      const list = entries || [];
+      const lines = [];
+      if (kind === "REOPEN") {
+        lines.push(`Reopen ${taskCountText(list.length)}?`);
+        const tracked = list.filter(t => Number.isFinite(t.trackedSeconds) && t.trackedSeconds > 0).length;
+        lines.push(`${list.length === 1 ? "It returns" : "They return"} to the end of the queue${tracked > 0 ? " with any tracked time" : ""} and ${list.length === 1 ? "leaves" : "leave"} History and Project hours until ${list.length === 1 ? "it is" : "they are"} completed again.`);
+        const repeating = list.filter(t => t.recurrence).length;
+        if (repeating > 0) lines.push(`${repeating === 1 ? "1 repeats" : `${repeating} repeat`} and ${repeating === 1 ? "its next occurrence is" : "their next occurrences are"} already in the queue, so ${repeating === 1 ? "it comes" : "they come"} back without repeating.`);
+      } else {
+        lines.push(`Delete ${taskCountText(list.length)} from the completed tasks?`);
+        lines.push(`${list.length === 1 ? "It is" : "They are"} removed from History and Project hours for good and cannot be undone.`);
+      }
+      return lines.join("\n\n");
+    }
+    // The status line after a History batch; `held` counts the reopens kept for later (no connection), `message` is the last failure's text.
+    function historyBatchResultText(kind, total, failed, message, held = 0) {
+      const verb = kind === "REOPEN" ? "Reopened" : "Deleted";
+      const done = total - failed;
+      if (failed === 0) {
+        const text = `${verb} ${taskCountText(total)}.`;
+        return held > 0 ? `${text} ${held === 1 ? "1 is" : `${held} are`} waiting to be sent.` : text;
+      }
+      return `${verb} ${done} of ${taskCountText(total)}. ${failed} failed (${message}); ${failed === 1 ? "it is" : "they are"} still selected.`;
     }
     // The body posted to batchUpdateTasks.
     function batchBody(action, taskIds, extra) {
@@ -5370,6 +5426,8 @@
       });
       // Tapping a completed card opens its edit form (the job sheet and photos are in there)
       const openCompletedCard = e => {
+        const pick = e.target.closest("[data-completed-pick]"); // Multi-Select: a tap toggles, the form stays shut
+        if (pick) { toggleHistorySelected(pick.dataset.completedPick); return; }
         const card = e.target.closest("[data-completed-open]");
         if (card) openCompletedEditor(card.dataset.completedOpen);
       };
@@ -8081,30 +8139,27 @@
     // need a connection, so they refuse). `behind` is true when it was queued only because other changes were waiting, so the
     // queue is sent now; after a connection failure it waits for a trigger. The entry leaves History and the task joins the end of
     // the Queue at once (withPendingActions); the form closes.
-    function queueReopen(row, fields, requestId, behind) {
+    // Returns "" when kept, else why not (the text of the alert, which `quiet` leaves to the caller: a batch reports its own).
+    function queueReopen(row, fields, requestId, behind, quiet = false) {
+      const refuse = (text) => { if (!quiet) askAlert(text, { tone: "warning" }); return text; };
       const { held, other } = splitHeldFields(fields);
-      if (other.length > 0) {
-        askAlert(`Save the changes to ${fieldNamesText(other)} first (they need a connection), then reopen the task.`, { tone: "warning" });
-        return;
-      }
-      if (typeof row.id !== "string" || !row.id || !usableArchiveId(row.archiveId)) {
-        askAlert("This entry cannot be reopened without a connection.", { tone: "warning" });
-        return;
-      }
+      if (other.length > 0) return refuse(`Save the changes to ${fieldNamesText(other)} first (they need a connection), then reopen the task.`);
+      if (typeof row.id !== "string" || !row.id || !usableArchiveId(row.archiveId)) return refuse("This entry cannot be reopened without a connection.");
       loadActionQueue();
       const edited = Object.keys(held).length > 0;
       const refusal = actionQueueRefusal(actionQueue.length + (edited ? 1 : 0), actionQueueUsable);
-      if (refusal) { askAlert(refusal, { tone: "warning" }); return; }
+      if (refusal) return refuse(refusal);
       const now = Date.now();
       const items = [];
       if (edited) items.push(makeQueuedAction({ kind: "EDIT", archiveId: row.archiveId, title: row.title, fields: held, now, offset: clockOffsetMs }));
       items.push(makeQueuedAction({ kind: "REOPEN", taskId: row.id, archiveId: row.archiveId, title: row.title, now, offset: clockOffsetMs, requestId }));
-      if (items.some(item => !item) || !saveActionQueue([...actionQueue, ...items])) { askAlert(actionQueueRefusal(0, false), { tone: "warning" }); return; }
-      closeCompletedEditor();
+      if (items.some(item => !item) || !saveActionQueue([...actionQueue, ...items])) return refuse(actionQueueRefusal(0, false));
+      if (document.getElementById("completedEditModal").style.display === "flex") closeCompletedEditor(); // a batch has no form open
       renderFilterBar();
       renderAddQueue();
       refreshShownTasks();
       if (behind && navigator.onLine) setTimeout(drainAllQueues, 0);
+      return "";
     }
     // Reopening an entry whose completion has not been sent: the completion is taken back with what was done to its entry and the
     // task is as it was before (takeBackCompletion). Nothing reaches the server.
@@ -8139,6 +8194,131 @@
       } catch (err) {
         askAlert(failureText("Failed to delete", err), { tone: "error" });
       }
+    }
+
+    // History Multi-Select: the Queue's Multi-Select on the completed list (its state is declared with the Queue's). The selection survives search, tag, project and page changes.
+    // The selected entries in list order (newest first), shown or not.
+    function selectedHistoryEntries() {
+      return completedAll.filter(t => historySelectedKeys.has(t.archiveId));
+    }
+    function setHistoryBatchStatus(text) {
+      document.getElementById("historyBatchStatus").textContent = text || "";
+    }
+    function setHistorySelectMode(on) {
+      historySelectMode = on;
+      historySelectedKeys = new Set();
+      historyBatchBusy = false;
+      const btn = document.getElementById("historySelectModeBtn");
+      btn.textContent = on ? "✕ Cancel selection" : "☑️ Select tasks";
+      btn.setAttribute("aria-pressed", String(on));
+      document.getElementById("historyBatchBar").hidden = !on;
+      if (on) setHistoryBatchStatus("");
+      renderCompletedRows();
+    }
+    function updateHistoryBatchBar() {
+      if (!historySelectMode) return;
+      const hidden = [...historySelectedKeys].filter(key => !historyShownKeys.has(key)).length;
+      document.getElementById("historyBatchCount").textContent = batchCountText(historySelectedKeys.size, hidden);
+      for (const btn of document.querySelectorAll("#historyBatchBar [data-history-batch]")) btn.disabled = historyBatchBusy || historySelectedKeys.size === 0;
+      document.getElementById("historyBatchAllBtn").disabled = historyBatchBusy;
+      document.getElementById("historyBatchNoneBtn").disabled = historyBatchBusy;
+      document.getElementById("historyBatchProjectBtn").disabled = true; // wired to the picker in a later step
+    }
+    function toggleHistorySelected(key) {
+      if (!historySelectMode || historyBatchBusy || !historyShownKeys.has(key)) return;
+      historySelectedKeys = toggledSelection(historySelectedKeys, key);
+      const picked = historySelectedKeys.has(key);
+      const card = [...document.querySelectorAll("#completedRows [data-completed-pick]")].find(el => el.dataset.completedPick === key);
+      if (card) {
+        card.classList.toggle("selected", picked);
+        card.setAttribute("aria-checked", String(picked));
+      }
+      updateHistoryBatchBar();
+    }
+    function onHistoryBatchAction(kind) {
+      if (!historySelectMode || historyBatchBusy || historySelectedKeys.size === 0) return;
+      historyBatchRun(kind);
+    }
+    // Reopens one entry with no form, as the form's Reopen does for an entry with no edits: held (the queue is not empty, or the connection
+    // is down) or sent. Returns {held, message}; a message means it failed.
+    async function reopenEntryNow(row) {
+      const requestId = newRequestId(); // fixed before the attempt, so a send repeated after a lost reply changes nothing
+      loadActionQueue();
+      if (hasPendingActions(actionQueue) || actionDraining) {
+        const why = queueReopen(row, {}, requestId, true, true);
+        return why ? { held: false, message: why } : { held: true, message: "" };
+      }
+      try {
+        const res = await apiFetch(REOPEN_COMPLETED_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: row.archiveId, requestId })
+        });
+        const data = await res.json();
+        noteServerTime(data);
+        setTasks(data.tasks || allTasks);
+        templates = null; // the archive has one row fewer
+        renderFilterBar();
+        renderTasks();
+        return { held: false, message: "" };
+      } catch (err) {
+        if (!isNetworkError(err, navigator.onLine)) return { held: false, message: err.message };
+        const why = queueReopen(row, {}, requestId, false, true);
+        return why ? { held: false, message: why } : { held: true, message: "" };
+      }
+    }
+    // Deletes one entry: needs a connection. Returns the failure text, "" when done; `offline` is true when the call never reached the server.
+    async function deleteEntryNow(row) {
+      try {
+        await apiFetch(DELETE_COMPLETED_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: row.archiveId })
+        });
+        return { message: "", offline: false };
+      } catch (err) {
+        const offline = isNetworkError(err, navigator.onLine);
+        return { message: offline ? "no connection" : err.message, offline };
+      }
+    }
+    // Reopen or Delete every selected entry, shown or not, behind one confirmation and one call per entry in list order. An entry whose call
+    // fails stays selected. Delete needs a connection: without one nothing is asked, and once a call finds the connection gone the rest are not tried.
+    async function historyBatchRun(kind) {
+      const entries = selectedHistoryEntries();
+      if (entries.length === 0) return;
+      if (kind === "DELETE" && !navigator.onLine) {
+        await askAlert("Deleting completed tasks needs a connection. Try again when you are back online.", { tone: "warning" });
+        return;
+      }
+      const ok = await askConfirm(historyBatchPrompt(kind, entries), kind === "REOPEN" ? { tone: "info", confirmLabel: "Reopen" } : { tone: "danger", confirmLabel: "Delete" });
+      if (!ok || historyBatchBusy) return;
+      historyBatchBusy = true;
+      setHistoryBatchStatus("");
+      updateHistoryBatchBar();
+      const failedKeys = [];
+      let message = "";
+      let held = 0;
+      let offline = false;
+      try {
+        for (const row of entries) {
+          if (kind === "DELETE" && offline) { failedKeys.push(row.archiveId); continue; } // the connection is gone: not tried
+          const result = kind === "REOPEN" ? await reopenEntryNow(row) : await deleteEntryNow(row);
+          if (result.message) {
+            failedKeys.push(row.archiveId);
+            message = result.message;
+            if (result.offline) offline = true;
+          } else if (result.held) {
+            held++;
+          }
+        }
+      } finally {
+        historyBatchBusy = false;
+      }
+      templates = null;
+      historySelectedKeys = new Set(failedKeys);
+      if (failedKeys.length === 0) setHistorySelectMode(false);
+      setHistoryBatchStatus(historyBatchResultText(kind, entries.length, failedKeys.length, message, held));
+      await fetchCompleted(); // the lists as the server now has them, with what is waiting on top; the selection keeps what is still there
     }
 
     // Photos on tasks. The edit form of a completed task (keyed by archive id) and of a task in the queue (keyed by task id)
@@ -8465,8 +8645,17 @@
       const done = t.completedAt ? new Date(t.completedAt) : null;
       const when = done && !isNaN(done) ? formatInstant(done) : "";
       const open = !!t.archiveId; // an entry still waiting to be sent opens too, with only the fields that can be held (completedFormLimited)
+      if (historySelectMode) { // Multi-Select: a card takes taps to toggle, shows a blue outline when picked and never opens the form
+        const pick = completedSelectable(t);
+        const picked = pick && historySelectedKeys.has(t.archiveId);
+        return `
+        <div class="task-item${pick ? ' completed-card selecting' : ''}${picked ? ' selected' : ''}"${pick ? ` role="checkbox" aria-checked="${picked}" tabindex="0" data-completed-pick="${esc(t.archiveId)}"` : ''}>${completedCardBody(t, when)}</div>`;
+      }
       return `
-        <div class="task-item${open ? ' completed-card' : ''}"${open ? ` role="button" tabindex="0" title="Open to edit" data-completed-open="${esc(t.archiveId)}"` : ''}>
+        <div class="task-item${open ? ' completed-card' : ''}"${open ? ` role="button" tabindex="0" title="Open to edit" data-completed-open="${esc(t.archiveId)}"` : ''}>${completedCardBody(t, when)}</div>`;
+    }
+    function completedCardBody(t, when) {
+      return `
           <div style="flex:1;">
             <strong>${esc(t.title)}</strong>
             <div class="task-meta">
@@ -8478,8 +8667,7 @@
             </div>
             ${t.description ? `<div class="completed-description">${esc(t.description)}</div>` : ''}
             ${commentLineHtml(t, "completed-comment")}
-          </div>
-        </div>`;
+          </div>`;
     }
     // Draw the search box's page of the completed tasks, its count line and both pagers.
     // The History Tags section: hidden while no loaded completed task has a tag; the chosen tags show in its heading so a filter stays visible collapsed.
@@ -8506,6 +8694,8 @@
       renderCompletedTagBar();
       const browse = completedBrowse(completedAll, query, completedPageNo, clientName, { projectId, tags: completedTagFilters });
       completedPageNo = browse.page;
+      historySelectedKeys = pruneSelection(historySelectedKeys, completedAll.filter(completedSelectable), "archiveId"); // an entry that left History leaves the selection
+      historyShownKeys = new Set(browse.matches.filter(completedSelectable).map(t => t.archiveId)); // every page, as the Queue's shownIds is the whole filtered list
       document.getElementById("completedCount").textContent = completedCountText(browse, query, completedListLimited, projectId !== "" || completedTagFilters.length > 0);
       document.getElementById("completedRows").innerHTML = browse.items.map(completedRowHtml).join("");
       const pager = pagerItems(browse.page, browse.pages).map(it => {
@@ -8515,6 +8705,7 @@
         return `<button type="button" class="${it.current ? "" : "btn-secondary"}" data-page="${it.page}" aria-label="${esc(aria)}" ${it.disabled ? "disabled" : ""} ${it.current ? 'aria-current="page"' : ""}>${esc(label)}</button>`;
       }).join("");
       document.querySelectorAll("#completedBrowser [data-pager]").forEach(el => { el.innerHTML = pager; });
+      updateHistoryBatchBar();
     }
     // The time of the saved copy while it, and not the server's list, is what History shows; null otherwise.
     let savedCompletedAt = null;
@@ -9846,6 +10037,10 @@
     document.getElementById("unsnoozeBtn").addEventListener("click", () => snoozeTask(document.getElementById("snoozeTaskId").value, null));
 
     document.getElementById("selectModeBtn").addEventListener("click", () => setSelectMode(!selectMode));
+    document.getElementById("historySelectModeBtn").addEventListener("click", () => setHistorySelectMode(!historySelectMode));
+    document.getElementById("historyBatchAllBtn").addEventListener("click", () => { historySelectedKeys = new Set([...historySelectedKeys, ...historyShownKeys]); renderCompletedRows(); });
+    document.getElementById("historyBatchNoneBtn").addEventListener("click", () => { historySelectedKeys = new Set(); renderCompletedRows(); });
+    for (const btn of document.querySelectorAll("#historyBatchBar [data-history-batch]")) btn.addEventListener("click", () => onHistoryBatchAction(btn.dataset.historyBatch));
     document.getElementById("batchAllBtn").addEventListener("click", () => { selectedIds = new Set([...selectedIds, ...shownIds]); renderTasks(); });
     document.getElementById("batchNoneBtn").addEventListener("click", () => { selectedIds = new Set(); renderTasks(); });
     document.getElementById("batchBar").addEventListener("click", e => {
@@ -10070,6 +10265,7 @@
     }
     // History is read on every visit; while it is on screen a change to the queue (or a completion that has just been sent) reads it again.
     function refreshHistoryIfOpen() {
+      if (historyBatchBusy) return; // a History batch reads the list once, when it ends
       const page = document.querySelector('[data-page="history"]');
       if (page && !page.hidden) fetchCompleted();
     }

@@ -17,7 +17,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {pickerViewportBox, withNoneRow, clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagChipItems, projectClientNameById, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSearchText, filterClients, clientDeleteShown, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, clientFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, historyProjectChoices, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, DOUBLE_TAP_MS, tapKind, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, TOAST_MS, REORDER_HINT_TEXT, reorderAllowed, LONG_PRESS_MS, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
+    return {pickerViewportBox, withNoneRow, clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagChipItems, projectClientNameById, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSearchText, filterClients, clientDeleteShown, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, clientFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, historyProjectChoices, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, DOUBLE_TAP_MS, tapKind, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, TOAST_MS, REORDER_HINT_TEXT, reorderAllowed, LONG_PRESS_MS, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder, completedSelectable, historyBatchPrompt, historyBatchResultText};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -4047,6 +4047,95 @@ describe("public/index.html helpers", () => {
       assert.equal(history[1], queue[1]);
       assert.match(html, /\.filter-section \{ margin-top: 12px; \}/, "both Tags sections are .filter-section, so the gap under each is the Project line's top margin");
     });
+    it("pruneSelection: keys on another field when told to, `id` by default", () => {
+      const {pruneSelection} = load();
+      const rows = [{id: "t1", archiveId: "a1"}, {id: "t2", archiveId: "a2"}];
+      assert.deepEqual([...pruneSelection(new Set(["a1", "a9"]), rows, "archiveId")], ["a1"]);
+      assert.deepEqual([...pruneSelection(new Set(["t2", "a2"]), rows)], ["t2"]);
+    });
+    it("completedSelectable: an entry the server has, not one whose completion is still waiting", () => {
+      const {completedSelectable} = load();
+      assert.equal(completedSelectable({archiveId: "a1"}), true);
+      assert.equal(completedSelectable({archiveId: "a1", waitingRequestId: "r1"}), false);
+      for (const bad of [null, undefined, {}, {archiveId: ""}, {archiveId: 4}]) assert.equal(completedSelectable(bad), false, JSON.stringify(bad));
+    });
+    it("historyBatchPrompt: words the Reopen and Delete questions for one entry and for several", () => {
+      const {historyBatchPrompt} = load();
+      const two = [{title: "A", trackedSeconds: 600}, {title: "B", recurrence: {type: "WEEKLY"}}];
+      assert.equal(historyBatchPrompt("REOPEN", two), "Reopen 2 tasks?\n\nThey return to the end of the queue with any tracked time and leave History and Project hours until they are completed again.\n\n1 repeats and its next occurrence is already in the queue, so it comes back without repeating.");
+      assert.equal(historyBatchPrompt("REOPEN", [{title: "A"}]), "Reopen 1 task?\n\nIt returns to the end of the queue and leaves History and Project hours until it is completed again.");
+      assert.match(historyBatchPrompt("REOPEN", [{recurrence: "x"}, {recurrence: "y"}]), /2 repeat and their next occurrences are already in the queue, so they come back without repeating\.$/);
+      assert.equal(historyBatchPrompt("DELETE", two), "Delete 2 tasks from the completed tasks?\n\nThey are removed from History and Project hours for good and cannot be undone.");
+      assert.equal(historyBatchPrompt("DELETE", [{}]), "Delete 1 task from the completed tasks?\n\nIt is removed from History and Project hours for good and cannot be undone.");
+    });
+    it("historyBatchResultText: says what was done, what is waiting and what stays selected", () => {
+      const {historyBatchResultText} = load();
+      assert.equal(historyBatchResultText("REOPEN", 3, 0, ""), "Reopened 3 tasks.");
+      assert.equal(historyBatchResultText("REOPEN", 3, 0, "", 2), "Reopened 3 tasks. 2 are waiting to be sent.");
+      assert.equal(historyBatchResultText("REOPEN", 3, 0, "", 1), "Reopened 3 tasks. 1 is waiting to be sent.");
+      assert.equal(historyBatchResultText("DELETE", 1, 0, ""), "Deleted 1 task.");
+      assert.equal(historyBatchResultText("DELETE", 3, 1, "no connection"), "Deleted 2 of 3 tasks. 1 failed (no connection); it is still selected.");
+      assert.equal(historyBatchResultText("DELETE", 3, 2, "boom"), "Deleted 1 of 3 tasks. 2 failed (boom); they are still selected.");
+    });
+    it("completedBrowse: hands back every match, on all pages, for History's All shown", () => {
+      const {completedBrowse, COMPLETED_PAGE_SIZE} = load();
+      const rows = Array.from({length: COMPLETED_PAGE_SIZE + 5}, (_, i) => ({archiveId: `a${i}`, title: i % 2 ? "odd" : "even", tags: []}));
+      const page1 = completedBrowse(rows, "even", 1, () => "");
+      assert.equal(page1.matches.length, page1.total);
+      assert.ok(page1.matches.length > page1.items.length || page1.total <= COMPLETED_PAGE_SIZE);
+      assert.deepEqual(completedBrowse(rows, "", 2, () => "").matches.map((r) => r.archiveId), rows.map((r) => r.archiveId));
+    });
+    it("has a Select row and a sticky batch bar on the History page, laid out as the Queue's", () => {
+      const page = html.slice(html.indexOf("id=\"pageHistory\""), html.indexOf("</main>", html.indexOf("id=\"pageHistory\"")));
+      const order = ["completedProject", "historySelectModeBtn", "historyBatchStatus", "completedCount", "completedRows", "historyBatchBar"].map((id) => page.indexOf(`id="${id}"`));
+      assert.ok(order.every((i) => i > 0), "all are on the page");
+      assert.deepEqual([...order].sort((a, b) => a - b), order, "the Select row sits between the Project section and the count line, the bar after the list");
+      const bar = page.slice(page.indexOf("id=\"historyBatchBar\""));
+      assert.ok(page.includes("class=\"batch-bar\" id=\"historyBatchBar\" hidden"));
+      for (const id of ["historyBatchCount", "historyBatchAllBtn", "historyBatchNoneBtn", "historyBatchProjectBtn"]) assert.match(bar, new RegExp(`id="${id}"`));
+      assert.match(bar, /data-history-batch="REOPEN"/);
+      assert.match(bar, /data-history-batch="DELETE"/);
+      assert.match(bar, /id="historyBatchProjectBtn" disabled/, "Project is shown disabled");
+      assert.match(html, /document\.getElementById\("historyBatchProjectBtn"\)\.disabled = true;/, "and stays disabled whatever is selected");
+    });
+    it("makes completed cards toggle instead of opening the form while History is selecting, with the selection kept across search, filters and pages", () => {
+      const row = html.slice(html.indexOf("function completedRowHtml(t)"), html.indexOf("function completedCardBody"));
+      assert.match(row, /if \(historySelectMode\)[\s\S]*data-completed-pick="\$\{esc\(t\.archiveId\)\}"[\s\S]*return `/, "a pick attribute in place of the open one");
+      assert.doesNotMatch(row.slice(0, row.indexOf("return `", row.indexOf("historySelectMode") + 200)), /data-completed-open/, "no open attribute while selecting");
+      assert.match(row, /role="checkbox" aria-checked/);
+      assert.match(html, /const pick = e\.target\.closest\("\[data-completed-pick\]"\);[^\n]*\n\s*if \(pick\) \{ toggleHistorySelected\(pick\.dataset\.completedPick\); return; \}/);
+      const render = html.slice(html.indexOf("function renderCompletedRows()"), html.indexOf("// The time of the saved copy"));
+      assert.match(render, /historySelectedKeys = pruneSelection\(historySelectedKeys, completedAll\.filter\(completedSelectable\), "archiveId"\)/);
+      assert.match(render, /historyShownKeys = new Set\(browse\.matches\.filter\(completedSelectable\)/);
+      assert.match(render, /updateHistoryBatchBar\(\);\s*\}\s*$/);
+      const search = html.slice(html.indexOf("function setCompletedTagFilter"), html.indexOf("function renderCompletedRows"));
+      assert.doesNotMatch(search, /historySelectedKeys = new Set\(\)/, "a filter change keeps the selection");
+      assert.match(html, /\.completed-card\.selected, \.completed-card\.selected:hover \{ background: var\(--flash\); box-shadow: inset 0 0 0 2px var\(--primary\); \}/, "the blue outline");
+    });
+    it("runs a History batch behind one confirmation, one call per entry in list order, a failed entry staying selected", () => {
+      const run = html.slice(html.indexOf("async function historyBatchRun(kind)"), html.indexOf("// Photos on tasks."));
+      assert.match(run, /const entries = selectedHistoryEntries\(\);/);
+      assert.equal(run.split("askConfirm(").length, 2, "one confirmation for the batch");
+      assert.match(run, /kind === "DELETE" && !navigator\.onLine[\s\S]*needs a connection/, "Delete says it needs a connection");
+      assert.match(run, /for \(const row of entries\) \{[\s\S]*await reopenEntryNow\(row\) : await deleteEntryNow\(row\)/, "one call per entry, in order, one at a time");
+      assert.match(run, /historySelectedKeys = new Set\(failedKeys\);\s*if \(failedKeys\.length === 0\) setHistorySelectMode\(false\);/);
+      assert.match(run, /finally \{\s*historyBatchBusy = false;/);
+      const list = html.slice(html.indexOf("function selectedHistoryEntries()"), html.indexOf("function setHistoryBatchStatus"));
+      assert.match(list, /completedAll\.filter\(t => historySelectedKeys\.has\(t\.archiveId\)\)/, "shown or not");
+      const reopen = html.slice(html.indexOf("async function reopenEntryNow(row)"), html.indexOf("async function deleteEntryNow(row)"));
+      assert.match(reopen, /REOPEN_COMPLETED_URL[\s\S]*JSON\.stringify\(\{ id: row\.archiveId, requestId \}\)/);
+      assert.match(reopen, /hasPendingActions\(actionQueue\) \|\| actionDraining\) \{\s*const why = queueReopen\(row, \{\}, requestId, true, true\)/, "held behind waiting changes, as a single Reopen is");
+      assert.match(reopen, /isNetworkError\(err, navigator\.onLine\)[\s\S]*queueReopen\(row, \{\}, requestId, false, true\)/, "held on a connection failure");
+      assert.match(html.slice(html.indexOf("async function deleteEntryNow(row)"), html.indexOf("async function historyBatchRun")), /DELETE_COMPLETED_URL[\s\S]*JSON\.stringify\(\{ id: row\.archiveId \}\)/);
+      assert.match(html, /function refreshHistoryIfOpen\(\) \{\s*if \(historyBatchBusy\) return;/, "one read of the list at the end of a batch");
+    });
+    it("queueReopen: says why it kept nothing, and alerts only when not asked to be quiet", () => {
+      const fn = html.slice(html.indexOf("function queueReopen("), html.indexOf("// Reopening an entry whose completion has not been sent"));
+      assert.match(fn, /function queueReopen\(row, fields, requestId, behind, quiet = false\)/);
+      assert.match(fn, /if \(!quiet\) askAlert\(text, \{ tone: "warning" \}\); return text;/);
+      assert.match(fn, /style\.display === "flex"\) closeCompletedEditor\(\)/, "a batch has no form to close");
+      assert.match(fn, /return "";\s*\}\s*$/);
+    });
     it("declares every function in the page once, so one never replaces another of the same name", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       const names = [...code.matchAll(/(?:^|\s)(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/gm)].map((m) => m[1]);
@@ -4388,7 +4477,7 @@ describe("public/index.html helpers", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(code, /(?<![\w.])confirm\(/, "a native confirm() is left");
       const asks = code.match(/(?<!function )askConfirm\(/g) || [];
-      assert.equal(asks.length, 15, "the fifteen questions the page asks (one discards a waiting change, one deletes a comment)");
+      assert.equal(asks.length, 16, "the sixteen questions the page asks (one discards a waiting change, one deletes a comment, one confirms a History batch)");
     });
     it("marks the dialog up as a modal alert dialog above every other modal, with Cancel and a confirm button", () => {
       assert.match(html, /<div id="confirmModal" class="modal-overlay confirm-overlay"/);
@@ -4495,11 +4584,11 @@ describe("public/index.html helpers", () => {
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
       const inSection = code.match(/(?<!function )warnInSection\(/g) || [];
       assert.equal(inSection.length, 10, "ten validation warnings open the section holding the field at fault first (four in the add card, four in the queued form, two in the completed form)");
-      assert.equal(calls.length - 1 + inSection.length, 68, "the sixty-eight messages the page shows (fourteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and two why a Multi-Select change was not); warnInSection's own askAlert call stands for its ten");
+      assert.equal(calls.length - 1 + inSection.length, 66, "the sixty-six messages the page shows (fourteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and two why a Multi-Select change was not; queueReopen's four refusals share one call and a History batch Delete without a connection adds one); warnInSection's own askAlert call stands for its ten");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 19, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
-      assert.equal(warnings.length - 1 + inSection.length, 47, "every validation message is a warning alert");
+      assert.equal(warnings.length - 1 + inSection.length, 45, "every validation message is a warning alert (queueReopen's refusals are one call, a History batch Delete without a connection another)");
       assert.match(code, /function warnInSection\(sectionId, text\) \{\s*openFormSection\(sectionId\);\s*return askAlert\(text, \{ tone: "warning" \}\);/);
     });
     it("hides Cancel for an alert, shows it again for a question and focuses the button", () => {
@@ -5929,7 +6018,7 @@ describe("offline add queue display (page)", () => {
       const row = body("completedRowHtml");
       assert.match(row, /const open = !!t\.archiveId;/, "a waiting entry opens too");
       assert.match(row, /data-completed-open="\$\{esc\(t\.archiveId\)\}"/);
-      assert.match(row, /t\.waitingRequestId \? '<span class="chip">⏳ Waiting to send<\/span>' : ''/);
+      assert.match(body("completedCardBody"), /t\.waitingRequestId \? '<span class="chip">⏳ Waiting to send<\/span>' : ''/);
     });
     it("holds the History form's Save behind waiting changes or a waiting completion, and after a connection failure", () => {
       const save = body("saveCompletedEdit");
