@@ -17,7 +17,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {pickerViewportBox, withNoneRow, clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagChipItems, projectClientNameById, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSearchText, filterClients, clientDeleteShown, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, clientFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, historyProjectChoices, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
+    return {pickerViewportBox, withNoneRow, clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagChipItems, projectClientNameById, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSearchText, filterClients, clientDeleteShown, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, clientFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, historyProjectChoices, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, DOUBLE_TAP_MS, tapKind, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -337,11 +337,47 @@ describe("public/index.html helpers", () => {
       assert.equal(pressMoved(8, 8), true);
       assert.equal(pressMoved(undefined, undefined), false);
     });
-    it("has no double-tap gesture: a tap opens the editor at once and nothing completes by tapping", () => {
-      assert.doesNotMatch(html, /isDoubleTap|DOUBLE_TAP_MS|lastTap|tapTimer|cancelTap/);
+    it("tells a double-tap from a single tap: the same card again within the window, edges included", () => {
+      const {tapKind, DOUBLE_TAP_MS} = load();
+      assert.equal(DOUBLE_TAP_MS, 300);
+      const first = {id: "a", at: 10000};
+      assert.equal(tapKind(null, "a", 10000), "single");
+      assert.equal(tapKind(undefined, "a", 10000), "single");
+      assert.equal(tapKind(first, "a", 10000), "double", "no time between the taps");
+      assert.equal(tapKind(first, "a", 10000 + DOUBLE_TAP_MS - 1), "double");
+      assert.equal(tapKind(first, "a", 10000 + DOUBLE_TAP_MS), "double", "the window's far edge counts");
+      assert.equal(tapKind(first, "a", 10000 + DOUBLE_TAP_MS + 1), "single");
+      assert.equal(tapKind(first, "b", 10100), "single", "a tap on another card is a new single tap");
+      assert.equal(tapKind(first, "a", 9999), "single", "a clock that went back is not a double-tap");
+      assert.equal(tapKind(first, "a", undefined), "single");
+      assert.equal(tapKind({id: "a"}, "a", 10000), "single", "a previous tap with no time is not a double-tap");
+    });
+    it("opens the editor after the double-tap window, and a second tap on the card toggles the timer instead", () => {
       const click = html.slice(html.indexOf("const onTaskRowClick"), html.indexOf("for (const id of [\"taskList\""));
-      assert.match(click, /openEditModal\(item\.dataset\.id\);/);
-      assert.doesNotMatch(click, /completeTask|setTimeout/);
+      assert.match(click, /const kind = tapKind\(pendingTap, taskId, now\);\s*cancelPendingTap\(\);/);
+      assert.match(click, /if \(kind === "double"\) \{[\s\S]*navigator\.vibrate\(30\)[\s\S]*cardFlash = \{ taskId, at: now \};\s*applyFlash\(\);\s*toggleTimer\(taskId\);\s*return;\s*\}/);
+      assert.match(click, /pendingTap = \{ id: taskId, at: now, timer: setTimeout\(\(\) => \{ pendingTap = null; openEditModal\(taskId\); \}, DOUBLE_TAP_MS\) \};/);
+      assert.ok(click.indexOf("tapKind") < click.indexOf("openEditModal"), "the editor opens only from the timeout");
+      assert.equal(click.split("openEditModal(").length - 1, 1, "one way into the editor");
+      assert.match(html, /const cancelPendingTap = \(\) => \{ if \(pendingTap\) clearTimeout\(pendingTap\.timer\); pendingTap = null; \};/);
+      assert.doesNotMatch(click, /completeTask/, "nothing completes by tapping");
+    });
+    it("takes a Multi-Select tap at once with no wait and no double-tap", () => {
+      const click = html.slice(html.indexOf("const onTaskRowClick"), html.indexOf("for (const id of [\"taskList\""));
+      assert.ok(click.indexOf("return toggleSelected(item.dataset.id)") < click.indexOf("tapKind("), "the select branch returns before the tap logic");
+    });
+    it("has no long-press timer on a card any more", () => {
+      assert.doesNotMatch(html, /LONG_PRESS_MS|pressTimer|pressFired|cancelPress\b/);
+      const down = html.slice(html.indexOf("const onTaskRowDown"), html.indexOf("const onTaskRowMove"));
+      assert.doesNotMatch(down, /setTimeout|toggleTimer/);
+    });
+    it("keeps double-tap zoom and word selection off the cards", () => {
+      const rules = (selector) => [...html.matchAll(new RegExp(`\\n\\s*${selector.replace(".", "\\.")} \\{([^}]*)\\}`, "g"))].map((m) => m[1]).join(" ");
+      for (const selector of [".task-item", ".active-task-box"]) {
+        assert.match(rules(selector), /touch-action: manipulation/, selector);
+        assert.match(rules(selector), /user-select: none/, selector);
+      }
+      assert.match(html, /\.swipe-row \.task-item \{[^}]*touch-action: pan-y/);
     });
     it("shows a timer chip only once the timer has been started: play while running, pause otherwise", () => {
       const {timerChipIcon} = load();
@@ -3424,6 +3460,16 @@ describe("public/index.html helpers", () => {
       assert.ok(queue.includes("id=\"sortBy\"") && queue.includes("id=\"sortDirBtn\""));
       assert.ok(html.includes("sortTasks(filtered, sortKey, sortDescending)"));
     });
+    it("orders the Queue card's parts: search, Tags, Projects, Sort by, Select tasks, then the list", () => {
+      const at = (id) => html.indexOf(`id="${id}"`);
+      const order = ["taskSearch", "tagsDetails", "projectsDetails", "sortBy", "sortDirBtn", "reorderModeBtn", "selectModeBtn", "reorderHint", "batchStatus", "taskList"];
+      for (let i = 1; i < order.length; i++) assert.ok(at(order[i - 1]) > 0 && at(order[i]) > at(order[i - 1]), `${order[i]} comes after ${order[i - 1]}`);
+      assert.ok(at("activeTaskBox") < at("taskSearch"), "the Active task box stays first");
+      const projects = html.slice(at("projectsDetails"), at("sortBy"));
+      assert.ok(projects.includes("</details>"), "the sort row sits after the Projects section closes");
+      const between = html.slice(html.lastIndexOf("</details>", at("sortBy")), at("taskList"));
+      assert.equal(between.includes("<details"), false, "nothing but the Sort and Select rows sits between Projects and the list");
+    });
     it("labels the edit modal's description box just Description", () => {
       assert.ok(html.includes("<label for=\"editDescription\">Description</label>"));
     });
@@ -3467,7 +3513,7 @@ describe("public/index.html helpers", () => {
     });
     it("has no timer button on the task card, a timer button beside Snooze in the edit modal, and no Reschedule button", () => {
       assert.equal(html.includes("data-action=\"timer\""), false);
-      assert.match(html, /toggleTimer\(taskId\);\n {8}\}, LONG_PRESS_MS\)/);
+      assert.match(html, /applyFlash\(\);\s*toggleTimer\(taskId\);\s*return;/, "a double-tap on a card toggles the timer");
       const modal = html.slice(html.indexOf("modal-extra-actions\">"), html.indexOf("modal-actions\">"));
       assert.ok(modal.includes("id=\"editTimerBtn\"") && modal.includes("id=\"editElapsed\"") && modal.includes("snoozeFromModal"));
       assert.equal(html.includes("rescheduleFromModal"), false);
@@ -4067,7 +4113,7 @@ describe("public/index.html helpers", () => {
     it("makes a queued card take only taps while selecting, and never makes the Active task selectable", () => {
       const down = html.slice(html.indexOf("const onTaskRowDown"), html.indexOf("const onTaskRowMove"));
       assert.match(down, /if \(selectMode && !item\.closest\("#activeTaskBox"\)\) \{ swipe = null; return; \}/);
-      assert.ok(down.indexOf("selectMode") < down.indexOf("setTimeout"), "no long press while selecting");
+      assert.doesNotMatch(down, /setTimeout/, "no timed gesture while selecting");
       const click = html.slice(html.indexOf("const onTaskRowClick"), html.indexOf("for (const id of [\"taskList\""));
       assert.match(click, /selectMode && !item\.closest\("#activeTaskBox"\)\) return toggleSelected\(item\.dataset\.id\)/);
       assert.ok(click.indexOf("toggleSelected") < click.indexOf("openEditModal"));
@@ -4613,8 +4659,8 @@ describe("Reorder mode", () => {
     assert.match(reorderMessage("x".repeat(60), 2), /^Moved “x{39}…” to #2$/);
   });
   it("holds a touch long enough to tell it from a scroll, but starts a mouse drag at once", () => {
-    const {REORDER_HOLD_MS, REORDER_MOUSE_PX, LONG_PRESS_MS, PRESS_MOVE_PX} = load();
-    assert.ok(REORDER_HOLD_MS > 0 && REORDER_HOLD_MS < LONG_PRESS_MS);
+    const {REORDER_HOLD_MS, REORDER_MOUSE_PX, PRESS_MOVE_PX} = load();
+    assert.ok(REORDER_HOLD_MS > 0);
     assert.ok(REORDER_MOUSE_PX < PRESS_MOVE_PX);
   });
   it("shares a row with Select tasks and keeps the two modes apart", () => {

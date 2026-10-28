@@ -518,17 +518,6 @@
         <input type="search" id="taskSearch" class="search-box" placeholder="Search tasks, #job, @client" autocomplete="off" enterkeyhint="search" aria-label="Search tasks">
         <button type="button" class="btn-secondary" id="clearSearchBtn" hidden>Clear</button>
       </div>
-      <div class="sort-row">
-        <label for="sortBy">Sort by</label>
-        <select id="sortBy" aria-label="Sort by"></select>
-        <button type="button" class="btn-secondary" id="sortDirBtn"></button>
-      </div>
-      <div class="select-row">
-        <button type="button" class="btn-secondary" id="reorderModeBtn" aria-pressed="false">↕️ Reorder</button>
-        <button type="button" class="btn-secondary" id="selectModeBtn" aria-pressed="false">☑️ Select tasks</button>
-      </div>
-      <div class="reorder-hint" id="reorderHint" role="status" hidden>Sorted by task number. Press and hold a card, then drag it up or down. It takes the task number of the card it lands on.</div>
-      <div class="batch-status" id="batchStatus" role="status"></div>
       <details class="filter-section" id="tagsDetails">
         <summary>Tags <small id="tagsActive"></small></summary>
         <div class="tag-filter-bar" id="tagFilterBar"></div>
@@ -585,6 +574,17 @@
         </div>
         <div id="projectsStatus" class="settings-status"></div>
       </details>
+      <div class="sort-row">
+        <label for="sortBy">Sort by</label>
+        <select id="sortBy" aria-label="Sort by"></select>
+        <button type="button" class="btn-secondary" id="sortDirBtn"></button>
+      </div>
+      <div class="select-row">
+        <button type="button" class="btn-secondary" id="reorderModeBtn" aria-pressed="false">↕️ Reorder</button>
+        <button type="button" class="btn-secondary" id="selectModeBtn" aria-pressed="false">☑️ Select tasks</button>
+      </div>
+      <div class="reorder-hint" id="reorderHint" role="status" hidden>Sorted by task number. Press and hold a card, then drag it up or down. It takes the task number of the card it lands on.</div>
+      <div class="batch-status" id="batchStatus" role="status"></div>
       <div id="taskList" style="margin-top: 15px;">Loading tasks...</div>
       <div class="batch-bar" id="batchBar" hidden>
         <div class="batch-top">
@@ -3345,9 +3345,17 @@
       const match = /^data:[^,]*;base64,(.*)$/s.exec(String(url || ""));
       return match ? match[1] : "";
     }
-    // Task card gestures: a long press starts or pauses the timer and a tap opens the editor; swipes are below.
-    const LONG_PRESS_MS = 500;
+    // Task card gestures: a double-tap starts or pauses the timer and a single tap opens the editor, after waiting
+    // DOUBLE_TAP_MS to see whether a second tap follows; swipes are below.
+    const DOUBLE_TAP_MS = 300;
     const PRESS_MOVE_PX = 10;
+    // A tap on card `id` at `now` (ms): "double" when `previous` ({id, at}, the last tap) was on the same card at most
+    // DOUBLE_TAP_MS earlier, else "single". No previous tap, another card, or a clock that went back is a single.
+    function tapKind(previous, id, now) {
+      if (!previous || previous.id !== id) return "single";
+      const elapsed = Number(now) - Number(previous.at);
+      return elapsed >= 0 && elapsed <= DOUBLE_TAP_MS ? "double" : "single";
+    }
     // True when a finger has drifted far enough from where it went down that it is a scroll, not a press.
     function pressMoved(dx, dy) {
       return Math.hypot(Number(dx) || 0, Number(dy) || 0) > PRESS_MOVE_PX;
@@ -3359,7 +3367,7 @@
       const started = !isNaN(Date.parse(task.firstStartedAt)) || Number(task.trackedSeconds) > 0;
       return started ? "⏸️" : "";
     }
-    // A card flashes for FLASH_MS after a long press. `flash` is {taskId, at}; returns the milliseconds already played
+    // A card flashes for FLASH_MS after a double-tap. `flash` is {taskId, at}; returns the milliseconds already played
     // for that card at `now`, or null when it should not flash (so a redraw mid-flash carries the animation on).
     const FLASH_MS = 600;
     function flashElapsed(flash, taskId, now) {
@@ -5396,16 +5404,15 @@
         setProjectFilter(chip.hasAttribute("data-all") ? null : chip.dataset.project);
       });
 
-      // Rows in the list and the active task box above the search box behave the same. Gestures: long press starts or
-      // pauses the timer, a tap opens the editor. The active task answers anywhere inside its bordered box; every card
-      // also swipes: a queued card left deletes (after a confirmation) and right opens the snooze dialog, the Active task
-      // left aborts (after a confirmation) and right completes (after the usual confirmation).
-      let pressTimer = null;
-      let pressStart = null;
-      let pressFired = false; // a long press happened: the click that ends it must do nothing
+      // Rows in the list and the active task box above the search box behave the same. Gestures: a double-tap starts or
+      // pauses the timer, a single tap opens the editor once no second tap has followed within DOUBLE_TAP_MS (in
+      // Multi-Select a queued card's tap acts at once). The active task answers anywhere inside its bordered box; every
+      // card also swipes: a queued card left deletes (after a confirmation) and right opens the snooze dialog, the Active
+      // task left aborts (after a confirmation) and right completes (after the usual confirmation).
+      let pendingTap = null; // the last single tap, waiting for a second one: {id, at, timer}
       let swipe = null; // the drag in progress on a queued card: {item, row, id, x, y, dx, dy, dragging, pointerId}
       let swiped = false; // a swipe happened: the click that ends it must do nothing
-      const cancelPress = () => { if (pressTimer !== null) clearTimeout(pressTimer); pressTimer = null; pressStart = null; };
+      const cancelPendingTap = () => { if (pendingTap) clearTimeout(pendingTap.timer); pendingTap = null; };
       // The card a pointer event is about; anywhere in the active task box counts as that box's card
       const cardOf = e => {
         if (e.target.closest(".timer-warning")) return null; // its buttons are not part of the card
@@ -5427,25 +5434,12 @@
       const onTaskRowDown = e => {
         const item = cardOf(e);
         if (!item || (e.pointerType === "mouse" && e.button !== 0)) return;
-        pressFired = false;
         swiped = false;
         if (selectMode && !item.closest("#activeTaskBox")) { swipe = null; return; } // Multi-Select: a queued card only takes taps
         if (reorderMode && !item.closest("#activeTaskBox")) { swipe = null; startReorderPress(e, item); return; } // Reorder: a queued card is held, then dragged
-        cancelPress();
-        pressStart = { x: e.clientX, y: e.clientY };
         const taskId = item.dataset.id;
         const row = item.closest(".swipe-row");
         swipe = row ? { item, row, id: taskId, active: !!item.closest("#activeTaskBox"), x: e.clientX, y: e.clientY, dx: 0, dy: 0, dragging: false, pointerId: e.pointerId } : null;
-        pressTimer = setTimeout(() => {
-          pressTimer = null;
-          pressStart = null;
-          pressFired = true;
-          swipe = null;
-          if (navigator.vibrate) navigator.vibrate(30);
-          cardFlash = { taskId, at: Date.now() };
-          applyFlash();
-          toggleTimer(taskId);
-        }, LONG_PRESS_MS);
       };
       const onTaskRowMove = e => {
         if (swipe) {
@@ -5454,7 +5448,6 @@
           const dy = e.clientY - s.y;
           if (!s.dragging && isHorizontalDrag(dx, dy)) {
             s.dragging = true;
-            cancelPress();
             try { s.item.setPointerCapture(s.pointerId); } catch (err) { /* the drag still works without it */ }
             s.row.classList.add("swiping");
           }
@@ -5465,10 +5458,8 @@
             return;
           }
         }
-        if (pressStart && pressMoved(e.clientX - pressStart.x, e.clientY - pressStart.y)) cancelPress();
       };
       const onTaskRowUp = async e => {
-        cancelPress();
         const s = swipe;
         swipe = null;
         if (!s || !s.dragging) return;
@@ -5491,10 +5482,20 @@
         const item = cardOf(e);
         if (!item) return;
         if (swiped) { swiped = false; return; }
-        if (pressFired) { pressFired = false; return; }
         if (selectMode && !item.closest("#activeTaskBox")) return toggleSelected(item.dataset.id);
         if (reorderMode && !item.closest("#activeTaskBox")) return; // Reorder: a queued card takes no taps
-        openEditModal(item.dataset.id);
+        const taskId = item.dataset.id;
+        const now = Date.now();
+        const kind = tapKind(pendingTap, taskId, now);
+        cancelPendingTap(); // a second tap on the card cancels the editor; a tap on another card replaces the waiting one
+        if (kind === "double") {
+          if (navigator.vibrate) navigator.vibrate(30);
+          cardFlash = { taskId, at: now };
+          applyFlash();
+          toggleTimer(taskId);
+          return;
+        }
+        pendingTap = { id: taskId, at: now, timer: setTimeout(() => { pendingTap = null; openEditModal(taskId); }, DOUBLE_TAP_MS) };
       };
       document.addEventListener("keydown", e => { if (e.key === "Escape" && reorderDrag) endReorderDrag(false); });
       for (const id of ["taskList", "activeTaskBox"]) {
@@ -5502,12 +5503,11 @@
         box.addEventListener("pointerdown", onTaskRowDown);
         box.addEventListener("pointermove", onTaskRowMove);
         for (const type of ["pointerup", "pointercancel"]) box.addEventListener(type, onTaskRowUp);
-        box.addEventListener("pointerleave", cancelPress);
         box.addEventListener("pointermove", onReorderMove);
         for (const type of ["pointerup", "pointercancel"]) box.addEventListener(type, onReorderUp);
         box.addEventListener("touchmove", onReorderTouchMove, { passive: false });
         box.addEventListener("click", onTaskRowClick);
-        box.addEventListener("contextmenu", e => { if (cardOf(e)) e.preventDefault(); }); // no menu after a long press
+        box.addEventListener("contextmenu", e => { if (cardOf(e)) e.preventDefault(); }); // no menu on a held card
       }
 
       // The materials lists of the edit modal and of the add form share their behaviour
@@ -6166,7 +6166,7 @@
       activeTicker = null;
     }
 
-    // The card that was just long-pressed flashes; a redraw during the flash (the timer call redraws the list) picks it up again
+    // The card that was just double-tapped flashes; a redraw during the flash (the timer call redraws the list) picks it up again
     let cardFlash = null;
     function applyFlash() {
       if (!cardFlash) return;
