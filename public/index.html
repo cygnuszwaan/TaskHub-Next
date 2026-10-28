@@ -399,10 +399,13 @@
         </div>
         <button type="button" id="manualProjectToggle" class="btn-secondary picker-toggle" style="margin-top: 6px;" onclick="toggleProjectField('manual')" disabled>Add to project</button>
         <input type="hidden" id="manualNewProject" value="">
-        <div id="manualNewProjectClient" style="margin-top: 6px;" hidden>
-          <select id="manualClientChoice" aria-label="Client of the new project" onchange="updateNewClientForm('manual')">
-            <option value="">No client</option>
-          </select>
+        <div id="manualNewProjectClient" style="margin-top: 10px;" hidden>
+          <label id="manualClientLabel">Client</label>
+          <input type="hidden" id="manualClientChoice" value="">
+          <div class="picker-line" id="manualClientRow" hidden>
+            <button type="button" id="manualClientField" class="picker-field" aria-haspopup="dialog" aria-labelledby="manualClientLabel manualClientField" onclick="openClientPicker('manual')">None</button>
+          </div>
+          <button type="button" id="manualClientToggle" class="btn-secondary picker-toggle" style="margin-top: 6px;" onclick="toggleClientField('manual')">Add to client</button>
           <div id="manualClientFormMount" style="margin-top: 8px;" hidden></div>
         </div>
       </div>
@@ -867,10 +870,13 @@
         </div>
         <button type="button" id="editProjectToggle" class="btn-secondary picker-toggle" style="margin-top: 6px;" onclick="toggleProjectField('edit')" disabled>Add to project</button>
         <input type="hidden" id="editNewProject" value="">
-        <div id="editNewProjectClient" style="margin-top: 6px;" hidden>
-          <select id="editClientChoice" aria-label="Client of the new project" onchange="updateNewClientForm('edit')">
-            <option value="">No client</option>
-          </select>
+        <div id="editNewProjectClient" style="margin-top: 10px;" hidden>
+          <label id="editClientLabel">Client</label>
+          <input type="hidden" id="editClientChoice" value="">
+          <div class="picker-line" id="editClientRow" hidden>
+            <button type="button" id="editClientField" class="picker-field" aria-haspopup="dialog" aria-labelledby="editClientLabel editClientField" onclick="openClientPicker('edit')">None</button>
+          </div>
+          <button type="button" id="editClientToggle" class="btn-secondary picker-toggle" style="margin-top: 6px;" onclick="toggleClientField('edit')">Add to client</button>
           <div id="editClientFormMount" style="margin-top: 8px;" hidden></div>
         </div>
       </div>
@@ -2383,10 +2389,13 @@
     // The Clients form block, one markup for every place that holds it (the Settings card, prefix "client"; the add card and the edit modal
     // for a new project's client). Every id starts with `prefix`: Name, Location, LocationNote, PlaceSearchBtn, ClearCoordsBtn, PlaceResults,
     // CoordsNote, Phone, UseWhatsApp, Email, Url and HourlyRate. The save buttons and the status line belong to the page that holds the block.
-    function clientFormHtml(prefix) {
+    // `options.nameRow` false hides the Name row (the add card and the edit modal take the name from the Client field's picker, which fills the
+    // Name box; the box stays so readClientForm reads it as it always has).
+    function clientFormHtml(prefix, options = {}) {
       const p = prefix;
+      const nameRow = !options || options.nameRow !== false;
       return `
-    <div class="form-group" style="margin:0;">
+    <div class="form-group" style="margin:0;"${nameRow ? "" : " hidden"}>
       <label for="${p}Name">Name</label>
       <input type="text" id="${p}Name" maxlength="100" placeholder="e.g. Jo Smith">
     </div>
@@ -2541,6 +2550,21 @@
       }
       const project = (Array.isArray(projects) ? projects : []).find((p) => p && p.id === v);
       return { text: project && typeof project.name === "string" ? project.name : missing, inProject: true, toggle: "Remove from project" };
+    }
+
+    // The Client field under a new project's name in the add card and the queued modal, pure: `value` is the hidden input's value ("" for none, a
+    // client's id or NEW_CLIENT), `newName` the name in the new client's form, `clients` the page's list. Returns {text, hasClient, toggle}: the
+    // field's text ("None", a name, "New client: Name" ("New client" with no name yet) or "Unknown client" for an id the list does not know),
+    // whether a client is chosen (the field shows only then) and the toggle button's label ("Add to client" while none, "Remove from client" while one).
+    function clientFieldView(value, newName, clients) {
+      const v = typeof value === "string" ? value : "";
+      if (v === "") return { text: "None", hasClient: false, toggle: "Add to client" };
+      if (v === NEW_CLIENT) {
+        const name = String(newName === undefined || newName === null ? "" : newName).replace(/\s+/g, " ").trim();
+        return { text: name ? `New client: ${name}` : "New client", hasClient: true, toggle: "Remove from client" };
+      }
+      const client = (Array.isArray(clients) ? clients : []).find((c) => c && c.id === v);
+      return { text: client && typeof client.name === "string" ? client.name : "Unknown client", hasClient: true, toggle: "Remove from client" };
     }
 
     // A search's words split into job numbers and plain words: a word of the form hash-then-digits is a job number (leading
@@ -6839,9 +6863,11 @@
       refreshContact(prefix); // the client, and so the inherited phone and email, follows the project
     }
 
-    // The Client choice under a new project's name (the add card, prefix "manual", and the edit modal, "edit"): its select (`${prefix}ClientChoice`:
-    // No client, the clients, "＋ New client…") shows only while "＋ New project…" is chosen and the clients are loaded, and "＋ New client…" shows the
-    // whole client form (the Clients form block, prefix `${prefix}Client`, mounted in `${prefix}ClientFormMount`). Leaving New project empties both.
+    // The Client choice under a new project's name (the add card, prefix "manual", and the edit modal, "edit"): a hidden input (`${prefix}ClientChoice`:
+    // "" for none, a client's id or NEW_CLIENT) holds it, a field button and a toggle show and change it through the picker modal (the Project
+    // field's way), and the whole choice shows only while a new project is chosen and the clients are loaded. NEW_CLIENT shows the client form
+    // (the Clients form block, prefix `${prefix}Client`, mounted in `${prefix}ClientFormMount`, its Name row hidden: the picker's Add row fills the
+    // Name box, and the field reads "New client: Name"). Leaving New project, or any other choice, empties the choice and the form.
     function syncNewProjectClient(prefix) {
       const box = document.getElementById(`${prefix}NewProjectClient`);
       if (!box) return;
@@ -6850,24 +6876,52 @@
       if (!open) document.getElementById(`${prefix}ClientChoice`).value = "";
       updateNewClientForm(prefix);
     }
-    // Shows the client form while "＋ New client…" is chosen; any other choice hides it and empties it.
+    // Shows the client form while NEW_CLIENT is chosen; any other choice hides it and empties it. Then redraws the field.
     function updateNewClientForm(prefix) {
       const mount = document.getElementById(`${prefix}ClientFormMount`);
       if (!mount) return;
       const show = document.getElementById(`${prefix}ClientChoice`).value === NEW_CLIENT;
       mount.hidden = !show;
       if (!show && document.getElementById(`${prefix}ClientName`)) fillClientFormBlock(`${prefix}Client`, null);
+      renderClientField(prefix);
     }
-    // Both selects follow the client list; a chosen client that is gone is dropped.
+    // Both Client fields follow the client list; a chosen client that is gone is dropped.
     function renderNewClientChoices() {
       for (const prefix of ["manual", "edit"]) {
-        const select = document.getElementById(`${prefix}ClientChoice`);
-        if (!select) continue;
-        const chosen = select.value;
-        select.replaceChildren(new Option("No client", ""), ...allClients.map(c => new Option(c.name, c.id)), new Option("＋ New client…", NEW_CLIENT));
-        select.value = chosen === NEW_CLIENT || allClients.some(c => c.id === chosen) ? chosen : "";
+        const choice = document.getElementById(`${prefix}ClientChoice`);
+        if (!choice) continue;
+        if (choice.value !== NEW_CLIENT && !allClients.some(c => c.id === choice.value)) choice.value = "";
         syncNewProjectClient(prefix);
       }
+    }
+    // Shows the hidden input's choice in the field button, the row and the toggle (clientFieldView).
+    function renderClientField(prefix) {
+      const choice = document.getElementById(`${prefix}ClientChoice`);
+      const field = document.getElementById(`${prefix}ClientField`);
+      if (!choice || !field) return;
+      const nameBox = document.getElementById(`${prefix}ClientName`);
+      const view = clientFieldView(choice.value, nameBox ? nameBox.value : "", allClients);
+      field.textContent = view.text;
+      document.getElementById(`${prefix}ClientRow`).hidden = !view.hasClient;
+      document.getElementById(`${prefix}ClientToggle`).textContent = view.toggle;
+    }
+    // Sets a form's client choice: "" for none, a client's id or NEW_CLIENT (with `newName`, the name the client will be made with, put in the
+    // form's Name box). Every place that assigns the choice calls this (or syncNewProjectClient's reset), never the hidden input's value.
+    function setClientField(prefix, value, { newName = "" } = {}) {
+      document.getElementById(`${prefix}ClientChoice`).value = value;
+      if (value === NEW_CLIENT) document.getElementById(`${prefix}ClientName`).value = newName;
+      updateNewClientForm(prefix);
+    }
+    // Opens the picker for a form's client; the focus goes back to `opener` (the field's button unless the toggle opened it) when it closes.
+    function openClientPicker(prefix, opener = document.getElementById(`${prefix}ClientField`)) {
+      openPicker("client", document.getElementById(`${prefix}ClientChoice`).value, (pick) => {
+        if (pick.name !== undefined) setClientField(prefix, NEW_CLIENT, { newName: pick.name });
+        else setClientField(prefix, pick.id);
+      }, { opener });
+    }
+    function toggleClientField(prefix) {
+      if (document.getElementById(`${prefix}ClientChoice`).value === "") openClientPicker(prefix, document.getElementById(`${prefix}ClientToggle`));
+      else setClientField(prefix, "");
     }
     // What the Client choice sends with a new project: {clientId, client} (the stored client's id, or the form's client; both empty for none), or
     // {warning, focusId} for a new client's form that cannot be sent (a missing name, a bad email, link or rate). Nothing while the choice is hidden.
@@ -8750,9 +8804,9 @@
     }
 
     // Puts the Clients form block in the element `containerId` and wires it: the address autocomplete with a Places key, else the
-    // Find on map search, and the Clear position button.
-    function mountClientForm(prefix, containerId) {
-      document.getElementById(containerId).innerHTML = clientFormHtml(prefix);
+    // Find on map search, and the Clear position button. `options` go to clientFormHtml (`nameRow: false` hides the Name row).
+    function mountClientForm(prefix, containerId, options) {
+      document.getElementById(containerId).innerHTML = clientFormHtml(prefix, options);
       const state = clientFormState(prefix);
       if (CONFIG.placesApiKey) {
         // With a Places key the Location field suggests street addresses as the owner types; picking one sets the text and the map position
@@ -9482,8 +9536,8 @@
       renderLocation();
     } });
     mountClientForm("client", "clientFormMount");
-    mountClientForm("manualClient", "manualClientFormMount");
-    mountClientForm("editClient", "editClientFormMount");
+    mountClientForm("manualClient", "manualClientFormMount", { nameRow: false });
+    mountClientForm("editClient", "editClientFormMount", { nameRow: false });
     mountClientForm("projectClient", "projectClientFormMount");
     if (CONFIG.placesApiKey) {
       document.getElementById("projectPlaceSearchBtn").hidden = true;

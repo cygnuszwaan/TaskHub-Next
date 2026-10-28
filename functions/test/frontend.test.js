@@ -17,7 +17,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
+    return {clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, clientFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -1758,6 +1758,29 @@ describe("public/index.html helpers", () => {
       assert.equal(projectFieldView("p1", "", undefined, "Unknown project").text, "Unknown project");
     });
   });
+  describe("clientFieldView", () => {
+    const clients = [{id: "c1", name: "Smith Ltd"}];
+    it("shows None and offers Add to client while no client is chosen", () => {
+      const {clientFieldView} = load();
+      for (const value of ["", undefined, null, 5]) assert.deepEqual(clientFieldView(value, "", clients), {text: "None", hasClient: false, toggle: "Add to client"});
+    });
+    it("shows a known client's name and offers Remove from client", () => {
+      assert.deepEqual(load().clientFieldView("c1", "", clients), {text: "Smith Ltd", hasClient: true, toggle: "Remove from client"});
+    });
+    it("shows New client: Name for the placeholder id, with the name's blanks collapsed", () => {
+      const {clientFieldView, NEW_CLIENT} = load();
+      assert.equal(clientFieldView(NEW_CLIENT, "  Jo   Smith ", clients).text, "New client: Jo Smith");
+      assert.equal(clientFieldView(NEW_CLIENT, "Jo", []).toggle, "Remove from client");
+      assert.equal(clientFieldView(NEW_CLIENT, undefined, clients).text, "New client", "no name yet");
+      assert.equal(clientFieldView(NEW_CLIENT, "   ", clients).text, "New client", "a blank name is no name");
+    });
+    it("shows Unknown client for an id the list does not know", () => {
+      const {clientFieldView} = load();
+      assert.deepEqual(clientFieldView("gone", "", clients), {text: "Unknown client", hasClient: true, toggle: "Remove from client"});
+      assert.equal(clientFieldView("c1", "", undefined).text, "Unknown client");
+      assert.equal(clientFieldView("c1", "", [null, {id: "c1"}]).text, "Unknown client", "a client with no name");
+    });
+  });
   describe("the project picker modal and the Project field", () => {
     const at = (needle, from = 0) => {
       const i = html.indexOf(needle, from);
@@ -2169,17 +2192,61 @@ describe("public/index.html helpers", () => {
       assert.match(serverOnlyAddText(["newProject"]), /^A new project can only be made with a connection, so nothing was added\./);
       assert.match(serverOnlyAddText(["newProject", "newClient"]), /^A new project and client can only be made/);
     });
-    it("the add card and the edit modal hold the Client choice and the client form", () => {
+    it("the add card and the edit modal hold the Client field, its toggle and the client form", () => {
       for (const prefix of ["manual", "edit"]) {
         assert.ok(html.includes(`id="${prefix}NewProjectClient"`), prefix);
-        assert.ok(html.includes(`id="${prefix}ClientChoice"`), prefix);
+        assert.ok(html.includes(`<input type="hidden" id="${prefix}ClientChoice" value="">`), `${prefix} hidden input`);
         assert.ok(html.includes(`id="${prefix}ClientFormMount"`), prefix);
-        assert.ok(html.includes(`onchange="updateNewClientForm('${prefix}')"`), prefix);
-        assert.ok(html.includes(`mountClientForm("${prefix}Client", "${prefix}ClientFormMount")`), prefix);
+        assert.match(html, new RegExp(`<button type="button" id="${prefix}ClientField" class="picker-field"[^>]*onclick="openClientPicker\\('${prefix}'\\)"[^>]*>None</button>`), `${prefix} field button`);
+        assert.match(html, new RegExp(`<button type="button" id="${prefix}ClientToggle"[^>]*onclick="toggleClientField\\('${prefix}'\\)"[^>]*>Add to client</button>`), `${prefix} toggle`);
+        assert.match(html, new RegExp(`id="${prefix}ClientRow" hidden`), `${prefix} field row starts hidden`);
+        assert.ok(html.includes(`mountClientForm("${prefix}Client", "${prefix}ClientFormMount", { nameRow: false })`), `${prefix}: the form's Name row is hidden`);
         const nameAt = html.indexOf(`id="${prefix}NewProject"`);
         assert.ok(nameAt > 0 && html.indexOf(`id="${prefix}NewProjectClient"`) > nameAt, `${prefix}: the client choice sits under the new project's name`);
+        assert.ok(html.indexOf(`id="${prefix}ClientField"`) < html.indexOf(`id="${prefix}ClientToggle"`) && html.indexOf(`id="${prefix}ClientToggle"`) < html.indexOf(`id="${prefix}ClientFormMount"`), `${prefix}: field, toggle, then the form`);
       }
-      assert.match(html, /new Option\("＋ New client…", NEW_CLIENT\)/);
+      assert.doesNotMatch(html, /<select id="(manual|edit)ClientChoice"/, "no select is left");
+      assert.doesNotMatch(html, /new Option\("＋ New client…", NEW_CLIENT\)/, "the select's options are gone");
+    });
+    it("the client form keeps its Name box but hides its row only where the picker names the client", () => {
+      const {clientFormHtml} = load();
+      const hiddenCount = (markup) => [...markup.matchAll(/ hidden>/g)].length; // the Clear position button is always hidden to start with
+      for (const markup of [clientFormHtml("client"), clientFormHtml("projectClient", {}), clientFormHtml("projectClient", null), clientFormHtml("projectClient", {nameRow: true})]) {
+        assert.equal(hiddenCount(markup), 1, "the Name row shows");
+        assert.match(markup, /<div class="form-group" style="margin:0;">\s*<label for="\w+Name">Name<\/label>/);
+      }
+      const hidden = clientFormHtml("editClient", {nameRow: false});
+      assert.match(hidden, /<div class="form-group" style="margin:0;" hidden>\s*<label for="editClientName">Name<\/label>\s*<input type="text" id="editClientName" maxlength="100"/);
+      assert.equal(hiddenCount(hidden), 2, "the Name row, and the Clear position button that was already hidden");
+      assert.equal([...hidden.matchAll(/id="([^"]+)"/g)].length, 12, "the same boxes either way");
+      assert.match(html, /function mountClientForm\(prefix, containerId, options\) \{\s*document\.getElementById\(containerId\)\.innerHTML = clientFormHtml\(prefix, options\);/);
+    });
+    it("the Client field follows the picker modal's client kind and the Project field's toggle", () => {
+      const open = html.slice(html.indexOf("function openClientPicker("), html.indexOf("function toggleClientField("));
+      assert.match(open, /openPicker\("client", document\.getElementById\(`\$\{prefix\}ClientChoice`\)\.value,/);
+      assert.match(open, /pick\.name !== undefined\) setClientField\(prefix, NEW_CLIENT, \{ newName: pick\.name \}\);\s*else setClientField\(prefix, pick\.id\);/);
+      assert.match(open, /\{ opener \}\);/, "the Add row stays on: a client can be made");
+      assert.doesNotMatch(open, /allowAdd/);
+      const toggle = html.slice(html.indexOf("function toggleClientField("), html.indexOf("// The place last picked"));
+      assert.match(toggle, /=== ""\) openClientPicker\(prefix, document\.getElementById\(`\$\{prefix\}ClientToggle`\)\);\s*else setClientField\(prefix, ""\);/);
+    });
+    it("the Add row's name goes in the form's Name box and the field reads it; any other choice empties the form", () => {
+      const set = html.slice(html.indexOf("function setClientField("), html.indexOf("// Opens the picker for a form's client"));
+      assert.match(set, /getElementById\(`\$\{prefix\}ClientChoice`\)\.value = value;/);
+      assert.match(set, /if \(value === NEW_CLIENT\) document\.getElementById\(`\$\{prefix\}ClientName`\)\.value = newName;\s*updateNewClientForm\(prefix\);/);
+      const render = html.slice(html.indexOf("function renderClientField("), html.indexOf("// Sets a form's client choice"));
+      assert.match(render, /clientFieldView\(choice\.value, nameBox \? nameBox\.value : "", allClients\)/);
+      assert.match(render, /ClientRow`\)\.hidden = !view\.hasClient/);
+      assert.match(render, /ClientToggle`\)\.textContent = view\.toggle/);
+      const update = html.slice(html.indexOf("function updateNewClientForm"), html.indexOf("function renderNewClientChoices"));
+      assert.match(update, /renderClientField\(prefix\)/);
+    });
+    it("assigns a form's client only through setClientField, apart from the two resets", () => {
+      const assigns = [...html.matchAll(/getElementById\(`\$\{prefix\}ClientChoice`\)\.value = [^;]+;/g)].map((m) => m[0]);
+      assert.deepEqual(assigns.sort(), ["getElementById(`${prefix}ClientChoice`).value = \"\";", "getElementById(`${prefix}ClientChoice`).value = value;"], "the reset under syncNewProjectClient and setClientField");
+      assert.doesNotMatch(html, /getElementById\("(manual|edit)ClientChoice"\)\.value = /);
+      const refresh = html.slice(html.indexOf("function renderNewClientChoices"), html.indexOf("function renderClientField"));
+      assert.match(refresh, /choice\.value !== NEW_CLIENT && !allClients\.some\(c => c\.id === choice\.value\)\) choice\.value = "";\s*syncNewProjectClient\(prefix\);/, "a client that is gone is dropped");
     });
     it("the client form's ids do not collide with the other boxes of either form", () => {
       const {clientFormHtml} = load();
@@ -2189,7 +2256,7 @@ describe("public/index.html helpers", () => {
       for (const id of [...ids, ...[...clientFormHtml("editClient").matchAll(/id="([^"]+)"/g)].map((m) => m[1])]) {
         assert.equal(html.split(`id="${id}"`).length - 1, 0, `${id} is only made by clientFormHtml`);
       }
-      for (const id of ["manualClientChoice", "manualClientFormMount", "editClientChoice", "editClientFormMount", "manualNewProjectClient", "editNewProjectClient"]) {
+      for (const id of ["manualClientChoice", "manualClientFormMount", "editClientChoice", "editClientFormMount", "manualNewProjectClient", "editNewProjectClient", "manualClientLabel", "editClientLabel", "manualClientRow", "editClientRow", "manualClientField", "editClientField", "manualClientToggle", "editClientToggle"]) {
         assert.equal(html.split(`id="${id}"`).length - 1, 1, id);
         assert.ok(![...ids].includes(id), id);
       }
@@ -5644,7 +5711,7 @@ describe("offline add queue display (page)", () => {
       assert.doesNotMatch(html, /<input[^>]* id="client(Name|Location|Phone|Email|Url|HourlyRate)"/, "the block's markup comes from clientFormHtml alone");
       assert.doesNotMatch(html, /\bclientCoords\b|\bclientPlaces\b/, "no single-form state is left");
       const mount = html.slice(html.indexOf("function mountClientForm"), html.indexOf("// The Clients card's form: fill it"));
-      assert.match(mount, /innerHTML = clientFormHtml\(prefix\)/);
+      assert.match(mount, /innerHTML = clientFormHtml\(prefix, options\)/);
       assert.match(mount, /getElementById\(`\$\{prefix\}ClearCoordsBtn`\)\.addEventListener/);
       assert.doesNotMatch(mount, /getElementById\("client/, "no id is written out in full");
       const handlers = html.slice(html.indexOf("const clientForms = {}"), html.indexOf("// The Clients card's form: fill it"));
