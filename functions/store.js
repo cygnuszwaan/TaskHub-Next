@@ -56,6 +56,8 @@ function diffTasks(before, after) {
 // Reads happen first, and only the tasks that changed are written, all in one transaction. The transaction may retry, so mutate must not perform side effects other than tx writes.
 // With `{withProjects: true}` the transaction also reads the `projects` collection and passes `{projects}` (sorted by name)
 // to mutate as a third argument, so a task can be checked against the projects that exist at commit time.
+// With `{withClients: true}` it also reads the `clients` collection and passes `{clients}` (sorted by name), so a client a task's new project
+// names is checked, or created by the same commit, against the clients that exist at commit time.
 // With `{withJobCounter: true}` it also reads the job number counter (`settings/jobCounter`) and passes `{jobCounter}`, the last number
 // issued (0 at the start); when the result carries a larger `jobCounter` it is stored in the same transaction (see jobNumber.js).
 // With `{withAddRequests: true}` it also reads the add request ids (`settings/addRequests`) and passes `{addRequests}`, the ids used so far (oldest first);
@@ -64,10 +66,11 @@ function makeTaskStore(db) {
   const collection = db.collection(COLLECTION);
   const fromSnapshot = (snap) => sortTasks(snap.docs.map((d) => ({...d.data(), id: d.id})));
 
-  async function updateTaskList(mutate, {withProjects = false, withJobCounter = false, withAddRequests = false} = {}) {
+  async function updateTaskList(mutate, {withProjects = false, withClients = false, withJobCounter = false, withAddRequests = false} = {}) {
     return db.runTransaction(async (tx) => {
       const before = fromSnapshot(await tx.get(collection));
       const projects = withProjects ? sortProjects((await tx.get(db.collection(PROJECTS_COLLECTION))).docs.map((d) => ({...d.data(), id: d.id}))) : undefined;
+      const clients = withClients ? sortClients((await tx.get(db.collection(CLIENTS_COLLECTION))).docs.map((d) => ({...d.data(), id: d.id}))) : undefined;
       const counterRef = withJobCounter ? db.doc(JOB_COUNTER_DOC) : null;
       const counterSnap = counterRef ? await tx.get(counterRef) : null;
       const jobCounter = counterSnap ? lastIssued(counterSnap.exists ? counterSnap.data() : undefined) : undefined;
@@ -75,7 +78,7 @@ function makeTaskStore(db) {
       const requestsSnap = requestsRef ? await tx.get(requestsRef) : null;
       const requestsData = requestsSnap && requestsSnap.exists ? requestsSnap.data() : undefined;
       const addRequests = requestsRef ? requestIdsOf(requestsData) : undefined;
-      const result = mutate(before, tx, {projects, jobCounter, addRequests});
+      const result = mutate(before, tx, {projects, clients, jobCounter, addRequests});
       // The counter only ever moves forward, in the same commit as the tasks that use the numbers
       if (counterRef && Number.isSafeInteger(result.jobCounter) && result.jobCounter > jobCounter) tx.set(counterRef, {last: result.jobCounter});
       // The id of an add is recorded in the commit that makes the add, so a second attempt finds it
@@ -101,8 +104,10 @@ function makeTaskStore(db) {
 //   getProjects()                -> all projects, sorted by name
 //   createProject(name, makeId)  -> {projects, project}, or {error} for an unusable or taken name (nothing is written then)
 //   renameProject(id, name)      -> {projects, project}, {notFound: true} or {error}; the project's other fields (its client) stay
-//   setProjectClient(id, clientId) -> {projects, project}, {notFound: true} (project) or {error} (client not stored); null or ""
-//                                   takes the client off. The client is checked in the same transaction.
+//   setProjectClient(id, clientId, newClient?, makeId?) -> {projects, project}, {notFound: true} (project) or {error} (client not stored); null or ""
+//                                   takes the client off. The client is checked in the same transaction. A `newClient` (the whole client) is
+//                                   created in that transaction and given to the project instead (it wins over `clientId`): the result then also
+//                                   holds `clients` and `client`, and nothing is written for an unusable client or a taken name.
 //   setProjectLocation(id, location) -> {projects, project}, {notFound: true} or {error}; null removes the project's own location
 //   setProjectUrl(id, url)       -> {projects, project}, {notFound: true} or {error}; null or blank text removes the project's own link
 //   deleteProject(id)            -> {projects, tasks} or {notFound: true}: in one transaction removes the project and
@@ -134,12 +139,13 @@ function makeProjectStore(db) {
     });
   }
 
-  async function setClientOf(projectId, clientId) {
+  async function setClientOf(projectId, clientId, newClient, makeId) {
     return db.runTransaction(async (tx) => {
       const projects = projectsFrom(await tx.get(projectsRef));
       const clients = sortClients((await tx.get(db.collection(CLIENTS_COLLECTION))).docs.map((d) => ({...d.data(), id: d.id})));
-      const result = setProjectClient(projects, clients, projectId, clientId);
+      const result = setProjectClient(projects, clients, projectId, clientId, newClient, makeId);
       if (result.project) tx.set(projectsRef.doc(projectId), result.project);
+      if (result.client && result.clients && !clients.some((c) => c.id === result.client.id)) tx.set(db.collection(CLIENTS_COLLECTION).doc(result.client.id), result.client);
       return result;
     });
   }

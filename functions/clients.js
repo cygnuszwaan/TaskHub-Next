@@ -106,12 +106,38 @@ function removeClientFromProjects(projects, clientId) {
   });
 }
 
+// The client a new project carries. `choice` is {clientId?, newClient?}: `newClient` (the whole client, as normalizeClientFields takes
+// it; null counts as absent) is added to `clients` and wins over `clientId`; otherwise `clientId` must name a stored client, and null,
+// "" or a missing value means no client. Returns {clients, client, clientId, created} (client and clientId null for none, `clients` the
+// list with a created client in it) or {error}: the fields' own error or a taken name for `newClient`, "Client not found" for an
+// unknown `clientId`. Pure: no I/O.
+function resolveProjectClient(clients, choice, makeId) {
+  const {clientId, newClient} = choice || {};
+  if (newClient !== undefined && newClient !== null) {
+    const added = addClient(clients, newClient, makeId);
+    if (added.error) return {error: added.error};
+    return {clients: added.clients, client: added.client, clientId: added.client.id, created: true};
+  }
+  if (clientId === undefined || clientId === null || clientId === "") return {clients, client: null, clientId: null, created: false};
+  const client = typeof clientId === "string" ? clients.find((c) => c.id === clientId) : undefined;
+  if (!client) return {error: "Client not found"};
+  return {clients, client, clientId, created: false};
+}
+
 // Give a project a client, or take it off (null or "" removes it). Returns {projects, project}, {notFound: true} for an
-// unknown project, or {error} for a client id that is not in `clients`.
-function setProjectClient(projects, clients, projectId, clientId) {
+// unknown project, or {error} for a client id that is not in `clients`. With `newClient` (the whole client; null counts as absent) the
+// client is created and given to the project instead, winning over `clientId`: the result then also holds `clients` (with it in) and
+// `client`, and `{error}` is the client's own error or a taken name.
+function setProjectClient(projects, clients, projectId, clientId, newClient, makeId) {
   const project = projects.find((p) => p.id === projectId);
   if (!project) return {notFound: true};
   const next = {...project};
+  if (newClient !== undefined && newClient !== null) {
+    const resolved = resolveProjectClient(clients, {newClient}, makeId);
+    if (resolved.error) return {error: resolved.error};
+    next.clientId = resolved.clientId;
+    return {projects: projects.map((p) => (p.id === projectId ? next : p)), project: next, clients: resolved.clients, client: resolved.client};
+  }
   if (clientId === null || clientId === "" || clientId === undefined) delete next.clientId;
   else if (typeof clientId === "string" && clients.some((c) => c.id === clientId)) next.clientId = clientId;
   else return {error: "Client not found"};
@@ -136,4 +162,4 @@ function clientHourlyRate(client, fallback) {
   return typeof own === "number" && Number.isFinite(own) && own >= 0 ? own : fallback;
 }
 
-module.exports = {clientHourlyRate, MAX_NAME_LENGTH, MAX_PHONE_LENGTH, MAX_EMAIL_LENGTH, normalizeClientFields, sortClients, addClient, updateClient, removeClientFromProjects, setProjectClient, clientLines};
+module.exports = {clientHourlyRate, MAX_NAME_LENGTH, MAX_PHONE_LENGTH, MAX_EMAIL_LENGTH, normalizeClientFields, sortClients, addClient, updateClient, removeClientFromProjects, resolveProjectClient, setProjectClient, clientLines};

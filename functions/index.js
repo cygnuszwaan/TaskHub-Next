@@ -16,10 +16,11 @@ const {planSchedule} = require("./planner");
 const {lunchWindows, padWindows} = require("./breaks");
 const {setTimerInList, pauseTimer} = require("./timer");
 const {withoutProjectFields, needsTagFill, cleanTags, newTaskIds, applyDirectUpdate, moveToQueueNumber, completeInList, removalRecord, isUndoable, undoInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
-const {withNewProject, addProject, normalizeProjectName} = require("./projects");
+const {withNewProject, addProjectWithClient, addProject, normalizeProjectName} = require("./projects");
+const {normalizeClientFields} = require("./clients");
 const {applyBatch, needsReschedule} = require("./batch");
 const {findDuplicateTasks} = require("./duplicates");
-const {PROJECTS_COLLECTION, ADD_REQUESTS_DOC, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore} = require("./store");
+const {PROJECTS_COLLECTION, CLIENTS_COLLECTION, ADD_REQUESTS_DOC, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore} = require("./store");
 const {startFromTemplate} = require("./projectTemplates");
 const {UNAVAILABLE, weatherUrl, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
@@ -572,6 +573,8 @@ exports.rescheduleTask = onRequest({
 // and `projects` as well; `apply: {changes}` merges the declined suggestion's `singleChanges` like any model output.
 // The model's own changes never carry a project or an order number (withoutProjectFields): that is the only way a
 // task joins a project here, apart from a manual entry.
+// A manual entry's `newProject` may carry a client: `newClient` (the whole client, created in the same commit; wins) or
+// `newProjectClientId` (a stored client, else 400 `Client not found`); the response then also holds `client` and `clients`.
 // A body may carry a `requestId` (8 to 64 letters, digits, `-` and `_`; 400 otherwise). On a manual, free-text or `apply` body the id is recorded
 // with the add, and a second body with the same id adds nothing and takes no job number: it responds {success, tasks, added: 0, updated: 0, skipped: 0, duplicate: true}.
 exports.addOrUpdateTask = onRequest({
@@ -611,6 +614,11 @@ exports.addOrUpdateTask = onRequest({
       // A project to create together with the task: refused up front when the name is unusable (a taken name is found in the commit)
       if (body.manual.newProject !== undefined && normalizeProjectName(body.manual.newProject).error) {
         return res.status(400).send({error: normalizeProjectName(body.manual.newProject).error.replace("name", "newProject")});
+      }
+      // The new project's new client: refused up front when a field is unusable (a taken name is found in the commit)
+      if (body.manual.newProject !== undefined && body.manual.newClient !== undefined && body.manual.newClient !== null) {
+        const checked = normalizeClientFields(body.manual.newClient);
+        if (checked.error) return res.status(400).send({error: checked.error});
       }
       if (needsTagFill(change)) {
         try {
@@ -659,14 +667,14 @@ exports.addOrUpdateTask = onRequest({
 
     // Merge into the list as it is now, not as it was when the model was asked. The projects are read in the same
     // transaction, so a task only joins a project that still exists at commit time.
-    const result = await updateTaskList((tasks, tx, {projects: stored, jobCounter, addRequests}) => {
+    const result = await updateTaskList((tasks, tx, {projects: stored, clients: storedClients, jobCounter, addRequests}) => {
       // An add already made under this requestId is not made again: nothing is written and no job number is taken
       if (isRepeatedRequest({ids: addRequests}, requestId)) return {current: tasks, duplicate: true, added: 0, updated: 0, skipped: 0};
       // A manual entry's new project is created in the same commit as the task, so nothing is left behind if the add fails
       let entry = changes;
       let created = null;
       if (body.manual !== undefined && body.manual.newProject !== undefined) {
-        created = withNewProject(stored, changes, body.manual.newProject, randomUUID);
+        created = withNewProject(stored, changes, body.manual.newProject, randomUUID, storedClients, {newProjectClientId: body.manual.newProjectClientId, newClient: body.manual.newClient});
         if (created.error) return {error: created.error, current: tasks};
         entry = created.changes;
         stored = created.projects;
@@ -679,8 +687,10 @@ exports.addOrUpdateTask = onRequest({
         if (firstNew) list = setTimerInList(list, firstNew, "START", Date.now()).tasks;
       }
       if (created && changed) tx.set(db.collection(PROJECTS_COLLECTION).doc(created.project.id), created.project);
-      return {...merged, tasks: changed ? list : null, current: changed ? list : tasks, project: changed && created ? created.project : null, projects: changed && created ? created.projects : null, addRequestId: changed ? requestId : null};
-    }, {withProjects: true, withJobCounter: true, withAddRequests: true});
+      if (created && changed && created.clientCreated) tx.set(db.collection(CLIENTS_COLLECTION).doc(created.client.id), created.client);
+      const carried = changed && created && created.client ? created : null;
+      return {...merged, tasks: changed ? list : null, current: changed ? list : tasks, project: changed && created ? created.project : null, projects: changed && created ? created.projects : null, client: carried ? carried.client : null, clients: carried ? carried.clients : null, addRequestId: changed ? requestId : null};
+    }, {withProjects: true, withClients: true, withJobCounter: true, withAddRequests: true});
     if (result.error) return res.status(400).send({error: result.error});
     // A request that adds this many tasks at once is unusual: leave a trace of how it came about
     if (result.added > 3) console.warn(`addOrUpdateTask added ${result.added} tasks (${body.manual !== undefined ? "manual" : body.apply !== undefined ? "apply" : "free text"}, ${changes.length} change(s), ${result.updated} updated, ${result.skipped} skipped)`);
@@ -693,6 +703,7 @@ exports.addOrUpdateTask = onRequest({
       skipped: result.skipped,
       ...(result.duplicate ? {duplicate: true} : {}),
       ...(result.project ? {project: result.project, projects: result.projects} : {}),
+      ...(result.client ? {client: result.client, clients: result.clients} : {}),
     });
   } catch (err) {
     console.error(err);
@@ -1061,6 +1072,8 @@ exports.deleteComment = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req,
 // An UPDATE's `snoozedUntil` (a YYYY-MM-DD date; null or "" removes it) keeps the task off the schedule before that day.
 // An UPDATE's `newProject` (a name) creates that project in the same transaction and puts the task in it (overriding `projectId`,
 // keeping `projectOrder`): 400 for an unusable or taken name with nothing saved; the response then also holds `project` and `projects`.
+// The new project may carry a client: `newClient` (the whole client, created in the same commit; wins) or `newProjectClientId` (a stored
+// client, else 400 `Client not found`); the response then also holds `client` and `clients`.
 exports.updateTaskDirect = onRequest({
   secrets: [{name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"}],
   cors: ALLOWED_ORIGINS,
@@ -1074,7 +1087,7 @@ exports.updateTaskDirect = onRequest({
     const photoRefs = action === "DELETE" && taskId ? (await PHOTOS.where("taskId", "==", taskId).get()).docs.map((d) => d.ref) : [];
 
     // The project list is read in the same transaction, so a task can only join a project that exists at commit time
-    const result = await updateTaskList((tasks, tx, {projects}) => {
+    const result = await updateTaskList((tasks, tx, {projects, clients}) => {
       if (action === "DELETE") {
         const removedTask = tasks.find((t) => t.id === taskId);
         if (!removedTask) return {current: tasks};
@@ -1089,25 +1102,26 @@ exports.updateTaskDirect = onRequest({
         let known = projects;
         let created = null;
         if (updatedFields && updatedFields.newProject !== undefined) {
-          created = addProject(known, updatedFields.newProject, randomUUID);
+          created = addProjectWithClient(known, clients, updatedFields.newProject, randomUUID, {newProjectClientId: updatedFields.newProjectClientId, newClient: updatedFields.newClient});
           if (created.error) return {error: created.error, current: tasks};
           known = created.projects;
           fields = {...updatedFields, projectId: created.project.id};
         }
         if (created) tx.set(db.collection(PROJECTS_COLLECTION).doc(created.project.id), created.project);
+        if (created && created.clientCreated) tx.set(db.collection(CLIENTS_COLLECTION).doc(created.client.id), created.client);
         let next = tasks.map((t) => (t.id === taskId ? applyDirectUpdate(t, fields, known.map((p) => p.id)) : t));
         // `queueNumber` moves the task to that place in the queue, the others closing up around it
         const moved = updatedFields && Number.isInteger(updatedFields.queueNumber) ? moveToQueueNumber(next, taskId, updatedFields.queueNumber) : null;
         if (moved) next = moved;
-        return {tasks: next, current: next, project: created ? created.project : null, projects: created ? created.projects : null};
+        return {tasks: next, current: next, project: created ? created.project : null, projects: created ? created.projects : null, client: created ? created.client : null, clients: created && created.client ? created.clients : null};
       }
       return {current: tasks};
-    }, {withProjects: true});
+    }, {withProjects: true, withClients: true});
     if (result.error) return res.status(400).send({error: result.error});
     // Calendar cleanup follows the commit; a locked task's personal-calendar event is never touched
     await removeTaskCalendarEvent(result.removedTask);
 
-    res.status(200).send({success: true, tasks: result.current, ...(result.project ? {project: result.project, projects: result.projects} : {}), serverTime: Date.now()});
+    res.status(200).send({success: true, tasks: result.current, ...(result.project ? {project: result.project, projects: result.projects} : {}), ...(result.client ? {client: result.client, clients: result.clients} : {}), serverTime: Date.now()});
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});
@@ -1451,7 +1465,7 @@ exports.getProjects = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, r
 }));
 
 // 11. Endpoint: Create / Rename / Delete a Project
-// Body: {action: "CREATE", name} | {action: "UPDATE", projectId, name} (rename) | {action: "SET_CLIENT", projectId, clientId} (null or "" takes the client off; 400 for an unknown client) | {action: "SET_LOCATION", projectId, location} (`{name, latitude?, longitude?}`; null removes the project's own location; 400 for a missing or unusable one) | {action: "SET_URL", projectId, url} (an http or https link; null or blank text removes the project's own link; 400 for a missing or unusable one) | {action: "DELETE", projectId}.
+// Body: {action: "CREATE", name} | {action: "UPDATE", projectId, name} (rename) | {action: "SET_CLIENT", projectId, clientId?, newClient?} (null or "" takes the client off; 400 for an unknown client; `newClient`, the whole client, is created in the same commit and given to the project instead, the response then also holding `client` and `clients`) | {action: "SET_LOCATION", projectId, location} (`{name, latitude?, longitude?}`; null removes the project's own location; 400 for a missing or unusable one) | {action: "SET_URL", projectId, url} (an http or https link; null or blank text removes the project's own link; 400 for a missing or unusable one) | {action: "DELETE", projectId}.
 // 400 with the reason for an unusable or taken name or an unknown action, 404 for an unknown projectId. DELETE also
 // takes its member tasks out of the project (the tasks stay) and returns the updated `tasks`. No calendar changes.
 exports.updateProject = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
@@ -1460,7 +1474,7 @@ exports.updateProject = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req,
     let result;
     if (action === "CREATE") result = await createProject(name, randomUUID);
     else if (action === "UPDATE") result = await renameProject(projectId, name);
-    else if (action === "SET_CLIENT") result = await setProjectClient(projectId, req.body.clientId);
+    else if (action === "SET_CLIENT") result = await setProjectClient(projectId, req.body.clientId, req.body.newClient, randomUUID);
     else if (action === "SET_LOCATION") result = await setProjectLocation(projectId, req.body.location);
     else if (action === "SET_URL") result = await setProjectUrl(projectId, req.body.url);
     else if (action === "DELETE") result = await deleteProject(projectId);

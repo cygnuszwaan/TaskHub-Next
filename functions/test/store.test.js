@@ -2,6 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
+const {withNewProject} = require("../projects");
 const {checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore} = require("../store");
 
 const task = (id, order, extra = {}) => ({id, title: `Task ${id}`, priority: "MEDIUM", dueDate: "", estimatedMinutes: 15, tags: [], status: "PENDING", order, ...extra});
@@ -409,6 +410,50 @@ describe("makeTaskStore: withProjects", () => {
   });
 });
 
+describe("makeTaskStore: withClients", () => {
+  const clients = {c2: {name: "beta"}, c1: {name: "Alpha"}};
+
+  it("passes the clients, sorted by name with their ids, in the third argument", async () => {
+    const db = fakeDb({a: task("a", 1)}, {}, clients);
+    let seen;
+    await makeTaskStore(db).updateTaskList((tasks, tx, extra) => {
+      seen = extra.clients;
+      return {};
+    }, {withClients: true});
+    assert.deepEqual(seen, [{id: "c1", name: "Alpha"}, {id: "c2", name: "beta"}]);
+  });
+  it("passes no clients unless asked", async () => {
+    const db = fakeDb({a: task("a", 1)}, {}, clients);
+    let seen = "unset";
+    await makeTaskStore(db).updateTaskList((tasks, tx, extra) => {
+      seen = extra.clients;
+      return {};
+    });
+    assert.equal(seen, undefined);
+  });
+  it("commits a new client, a new project and a task together, and nothing when the mutation errors", async () => {
+    const db = fakeDb({a: task("a", 1)}, {}, clients);
+    const store = makeTaskStore(db);
+    const made = await store.updateTaskList((tasks, tx, {projects, clients: stored}) => {
+      const r = withNewProject(projects, [{title: "n"}], "Deck", () => "new1", stored, {newClient: {name: "Jo"}});
+      tx.set(db.collection("projects").doc(r.project.id), r.project);
+      tx.set(db.collection("clients").doc(r.client.id), r.client);
+      return {tasks: [...tasks, task("t2", 2, {projectId: r.project.id})], client: r.client};
+    }, {withProjects: true, withClients: true});
+    assert.equal(made.client.id, "new1");
+    assert.deepEqual(db.data.clients.get("new1"), {id: "new1", name: "Jo", phone: "", email: ""});
+    assert.deepEqual(db.data.projects.get("new1"), {id: "new1", name: "Deck", clientId: "new1"});
+    assert.equal(db.data.tasks.has("t2"), true);
+    const before = db.log.length;
+    const refused = await store.updateTaskList((tasks, tx, {projects, clients: stored}) => {
+      const r = withNewProject(projects, [{title: "n"}], "Other", () => "new2", stored, {newClient: {name: "JO"}});
+      return {error: r.error, current: tasks};
+    }, {withProjects: true, withClients: true});
+    assert.match(refused.error, /already exists/);
+    assert.equal(db.log.length, before);
+  });
+});
+
 describe("makeTaskStore: withJobCounter", () => {
   it("passes the last number issued (0 at the start) and passes none unless asked", async () => {
     const db = fakeDb({a: task("a", 1)});
@@ -583,6 +628,31 @@ describe("clients in the stores", () => {
     assert.deepEqual(await store.setProjectClient("zzz", "c1"), {notFound: true});
     assert.deepEqual(await store.setProjectClient("p1", "zzz"), {error: "Client not found"});
     assert.deepEqual(db.log, []);
+  });
+  it("setProjectClient with newClient creates the client and gives it to the project in one transaction", async () => {
+    const db = seeded();
+    const r = await makeProjectStore(db).setProjectClient("p3", "c1", {name: " Jo  Bloggs ", phone: "021"}, () => "c9");
+    assert.deepEqual(r.client, {id: "c9", name: "Jo Bloggs", phone: "021", email: ""});
+    assert.deepEqual(r.clients.map((c) => c.id), ["c2", "c9", "c1"]);
+    assert.equal(r.project.clientId, "c9");
+    assert.equal(db.data.projects.get("p3").clientId, "c9");
+    assert.deepEqual(db.data.clients.get("c9"), r.client);
+    assert.deepEqual(db.log.sort(), ["set clients/c9", "set projects/p3"]);
+  });
+  it("setProjectClient with a bad or taken newClient, or an unknown project, writes nothing", async () => {
+    const db = seeded();
+    const store = makeProjectStore(db);
+    assert.match((await store.setProjectClient("p3", null, {name: "SMITH"}, () => "x")).error, /already exists/);
+    assert.match((await store.setProjectClient("p3", null, {name: "x", url: "ftp://bad"}, () => "x")).error, /url/);
+    assert.deepEqual(await store.setProjectClient("zzz", null, {name: "New"}, () => "x"), {notFound: true});
+    assert.deepEqual(db.log, []);
+    assert.equal("clientId" in db.data.projects.get("p3"), false);
+  });
+  it("setProjectClient without newClient writes no client and answers without clients", async () => {
+    const db = seeded();
+    const r = await makeProjectStore(db).setProjectClient("p3", "c2");
+    assert.equal("clients" in r, false);
+    assert.deepEqual(db.log, ["set projects/p3"]);
   });
   it("setProjectLocation stores or clears the project's own location and keeps its client", async () => {
     const db = seeded();

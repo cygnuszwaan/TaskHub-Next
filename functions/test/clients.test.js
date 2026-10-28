@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {MAX_NAME_LENGTH, MAX_PHONE_LENGTH, MAX_EMAIL_LENGTH, normalizeClientFields, sortClients, addClient, updateClient, removeClientFromProjects, setProjectClient, clientLines, clientHourlyRate} = require("../clients");
+const {MAX_NAME_LENGTH, MAX_PHONE_LENGTH, MAX_EMAIL_LENGTH, normalizeClientFields, sortClients, addClient, updateClient, removeClientFromProjects, resolveProjectClient, setProjectClient, clientLines, clientHourlyRate} = require("../clients");
 
 const list = [{id: "c1", name: "Smith Family", phone: "", email: ""}, {id: "c2", name: "acme Ltd", phone: "", email: ""}];
 
@@ -153,6 +153,55 @@ describe("clients.js", () => {
       assert.deepEqual(setProjectClient(projects, list, "zzz", "c1"), {notFound: true});
       assert.deepEqual(setProjectClient(projects, list, "p1", "zzz"), {error: "Client not found"});
       assert.deepEqual(setProjectClient(projects, list, "p1", 7), {error: "Client not found"});
+    });
+    it("setProjectClient with newClient creates the client, gives it to the project and wins over clientId", () => {
+      const r = setProjectClient(projects, list, "p2", "c1", {name: " Jo  Bloggs ", phone: "021"}, () => "c9");
+      assert.deepEqual(r.client, {id: "c9", name: "Jo Bloggs", phone: "021", email: ""});
+      assert.equal(r.project.clientId, "c9");
+      assert.deepEqual(r.clients.map((x) => x.id), ["c2", "c9", "c1"]);
+      assert.equal(r.projects.find((p) => p.id === "p2").clientId, "c9");
+      assert.equal(list.length, 2);
+      assert.equal(projects[1].clientId, undefined);
+    });
+    it("setProjectClient treats a null newClient as absent and reports a bad or taken newClient", () => {
+      assert.equal(setProjectClient(projects, list, "p2", "c1", null, () => "x").project.clientId, "c1");
+      assert.equal("clients" in setProjectClient(projects, list, "p2", "c1", undefined, () => "x"), false);
+      assert.match(setProjectClient(projects, list, "p2", "c1", {name: "SMITH family"}, () => "x").error, /already exists/);
+      assert.match(setProjectClient(projects, list, "p2", "c1", {name: "x", email: "bad"}, () => "x").error, /not a valid/);
+      assert.match(setProjectClient(projects, list, "p2", null, "text", () => "x").error, /must be an object/);
+      assert.deepEqual(setProjectClient(projects, list, "zzz", null, {name: "New"}, () => "x"), {notFound: true});
+    });
+  });
+
+  describe("resolveProjectClient", () => {
+    const makeId = () => "c9";
+    it("means no client for a missing, null or empty choice", () => {
+      for (const choice of [undefined, {}, {clientId: null}, {clientId: ""}, {newClient: null}]) {
+        assert.deepEqual(resolveProjectClient(list, choice, makeId), {clients: list, client: null, clientId: null, created: false});
+      }
+    });
+    it("finds a stored client by id", () => {
+      const r = resolveProjectClient(list, {clientId: "c2"}, makeId);
+      assert.deepEqual([r.client, r.clientId, r.created, r.clients], [list[1], "c2", false, list]);
+    });
+    it("refuses an id that is not stored or not text", () => {
+      for (const clientId of ["zzz", 7, {}, true]) assert.deepEqual(resolveProjectClient(list, {clientId}, makeId), {error: "Client not found"});
+    });
+    it("creates a new client with every field the form takes, and it wins over an id", () => {
+      const fields = {name: "Jo Bloggs", phone: "021", email: "jo@x.nz", hourlyRate: "55", useWhatsApp: true, location: {name: "Orewa", latitude: -36.6, longitude: 174.7}, url: "jo.example.nz"};
+      const r = resolveProjectClient(list, {clientId: "c1", newClient: fields}, makeId);
+      assert.equal(r.created, true);
+      assert.equal(r.clientId, "c9");
+      assert.deepEqual(r.client, {id: "c9", name: "Jo Bloggs", phone: "021", email: "jo@x.nz", hourlyRate: 55, useWhatsApp: true, location: {name: "Orewa", latitude: -36.6, longitude: 174.7}, url: "https://jo.example.nz"});
+      assert.deepEqual(r.clients.map((x) => x.id), ["c2", "c9", "c1"]);
+      assert.equal(list.length, 2);
+    });
+    it("refuses a taken name and an unusable field, ignoring a valid id", () => {
+      assert.match(resolveProjectClient(list, {clientId: "c1", newClient: {name: "ACME ltd"}}, makeId).error, /already exists/);
+      assert.match(resolveProjectClient(list, {newClient: {name: ""}}, makeId).error, /non-empty/);
+      assert.match(resolveProjectClient(list, {newClient: {name: "x", hourlyRate: "lots"}}, makeId).error, /hourlyRate/);
+      assert.match(resolveProjectClient(list, {newClient: {name: "x", useWhatsApp: "yes"}}, makeId).error, /useWhatsApp/);
+      assert.match(resolveProjectClient(list, {newClient: [1]}, makeId).error, /must be an object/);
     });
   });
 

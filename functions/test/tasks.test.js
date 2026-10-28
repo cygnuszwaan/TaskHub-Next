@@ -231,6 +231,13 @@ describe("tasks.js", () => {
       assert.equal(out.projectId, "p9");
       assert.equal(out.projectOrder, 2);
     });
+    it("never stores a new project's client choice on the task", () => {
+      const out = applyDirectUpdate(base, {title: "A2", newProject: "Deck", newProjectClientId: "c1", newClient: {name: "Jo"}, projectId: "p9"}, ["p9"]);
+      assert.equal("newProjectClientId" in out, false);
+      assert.equal("newClient" in out, false);
+      assert.equal(out.title, "A2");
+      assert.equal(out.projectId, "p9");
+    });
     it("never changes addedAt through an edit", () => {
       const task = {...base, addedAt: "2026-01-01T00:00:00.000Z"};
       assert.equal(applyDirectUpdate(task, {addedAt: "2030-01-01T00:00:00.000Z", title: "A2"}).addedAt, "2026-01-01T00:00:00.000Z");
