@@ -17,7 +17,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {pickerViewportBox, withNoneRow, clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagChipItems, projectClientNameById, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSearchText, filterClients, clientDeleteShown, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, clientFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, historyProjectChoices, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, DOUBLE_TAP_MS, tapKind, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, TOAST_MS, REORDER_HINT_TEXT, reorderAllowed, LONG_PRESS_MS, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
+    return {pickerViewportBox, withNoneRow, clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagChipItems, projectClientNameById, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSearchText, filterClients, clientDeleteShown, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, clientFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, historyProjectChoices, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, DOUBLE_TAP_MS, tapKind, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, TOAST_MS, REORDER_HINT_TEXT, reorderAllowed, LONG_PRESS_MS, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -693,9 +693,9 @@ describe("public/index.html helpers", () => {
       assert.match(close, /hideLayer\("editModal"\)/);
       assert.match(html, /lock: \(locked\) => document\.body\.classList\.toggle\("modal-open", locked\)/);
     });
-    it("has no heading on the add card: \"Add New Task\" is the empty text field's placeholder, and the manual-entry checkbox has no explanation in brackets", () => {
+    it("has no heading on the add card: the placeholder of the one add-and-search field names what it does, and the manual-entry checkbox has no explanation in brackets", () => {
       assert.doesNotMatch(html, /<h3[^>]*>Add New Task<\/h3>/);
-      assert.match(html.slice(html.indexOf(`id="taskInput"`) - 30, html.indexOf(">", html.indexOf(`id="taskInput"`))), /placeholder="Add New Task"/);
+      assert.match(html.slice(html.indexOf(`id="taskInput"`) - 30, html.indexOf(">", html.indexOf(`id="taskInput"`))), /placeholder="Add or search tasks, #job, @client"/);
       assert.doesNotMatch(html, /Add \/ Modify Task/);
       const box = html.indexOf(`id="manualToggle"`);
       const label = html.slice(html.indexOf(">", box) + 1, html.indexOf("</label>", box)).trim();
@@ -991,23 +991,40 @@ describe("public/index.html helpers", () => {
       assert.ok(q < at(`id="tagFilterBar"`, q) && at(`id="tagFilterBar"`, q) < at(`id="taskList"`, q));
       assert.ok(at(`id="taskList"`, q) < at("</main>", q));
     });
-    it("puts a live search box at the top of the Queue (below the active task), above Tags, redrawing the list as you type", () => {
+    it("uses the add field as the Queue's search box: one box, no second search row in the Queue card, redrawing the list as you type", () => {
       const q = at(`id="queueCard"`);
-      const search = at(`id="taskSearch"`, q);
-      assert.ok(search > q && search < at(`id="tagsDetails"`, q));
-      assert.match(html.slice(html.lastIndexOf("<input", search), html.indexOf(">", search)), /type="search"[^>]*placeholder="Search tasks, #job, @client"/);
-      const input = html.slice(html.indexOf(`getElementById("taskSearch").addEventListener("input"`), html.indexOf(`getElementById("clearSearchBtn").addEventListener("click"`));
+      const queueCard = html.slice(q, at(`id="taskList"`, q));
+      assert.equal(queueCard.includes(`id="taskSearch"`), false);
+      assert.equal(queueCard.includes(`class="search-row"`), false);
+      const add = html.slice(html.lastIndexOf("<input", at(`id="taskInput"`)), html.indexOf(">", at(`id="taskInput"`)));
+      assert.match(add, /type="text"[^>]*placeholder="Add or search tasks, #job, @client"/);
+      const input = html.slice(html.indexOf(`getElementById("taskInput").addEventListener("input", () => {`), html.indexOf(`getElementById("clearSearchBtn").addEventListener("click"`));
       assert.match(input, /renderTasks\(\)/);
-      assert.match(html, /filterTasks\(rest, selectedTagFilters, selectedProjectFilter, document\.getElementById\("taskSearch"\)\.value, t => projectClientNameById\(t\.projectId, allProjects, allClients\)\)/);
+      assert.match(html, /filterTasks\(rest, selectedTagFilters, selectedProjectFilter, document\.getElementById\("taskInput"\)\.value, t => projectClientNameById\(t\.projectId, allProjects, allClients\)\)/);
       assert.match(html, /id="completedSearch" class="search-box" placeholder="Search completed, #job, @client"/);
       assert.match(html, /completedBrowse\(completedAll, query, completedPageNo, clientName, /);
     });
-    it("shows a Clear button beside the search box only while it holds text", () => {
-      const row = html.slice(at(`class="search-row"`), at("</div>", at(`class="search-row"`)));
-      assert.ok(row.indexOf(`id="taskSearch"`) < row.indexOf(`id="clearSearchBtn"`));
+    it("shows a Clear button between the add field and Add only while the field holds text, and a reset or copied template keeps it in step", () => {
+      const row = html.slice(at(`<div class="input-row">`), at(`id="addBtn"`));
+      assert.ok(row.indexOf(`id="taskInput"`) < row.indexOf(`id="clearSearchBtn"`));
       assert.match(row, /id="clearSearchBtn"[^>]*\bhidden\b[^>]*>Clear</);
-      assert.match(html, /clearSearchBtn"\)\.hidden = document\.getElementById\("taskSearch"\)\.value === ""/);
-      assert.match(html, /\.search-row button\[hidden\]\s*\{\s*display:\s*none/);
+      assert.match(html, /clearSearchBtn"\)\.hidden = document\.getElementById\("taskInput"\)\.value === ""/);
+      assert.match(html, /\.input-row button\[hidden\]\s*\{\s*display:\s*none/);
+      const reset = html.slice(at("function resetAddForm"), at("function resetAddForm") + 500);
+      assert.match(reset, /clearSearchBtn"\)\.hidden = true/);
+      assert.match(reset, /renderTasks\(\)/);
+      const use = html.slice(at("function useTemplate"), at("// Task number, Repeats, project"));
+      assert.match(use, /clearSearchBtn"\)\.hidden = false/);
+      assert.match(use, /renderTasks\(\)/);
+    });
+    it("lists past tasks in the compact picker format: title only, no second line", () => {
+      const fn = html.slice(at("function renderTemplateResults"), at("async function searchTemplates"));
+      assert.match(fn, /class="project-list"/);
+      assert.match(fn, /class="project-item template-option"/);
+      assert.match(fn, /project-item-name/);
+      assert.equal(/<small>|templateMeta/.test(fn), false);
+      assert.match(html, /const TEMPLATE_MAX_ROWS = 8;/);
+      assert.match(html, /function templateMatches\(templates, query, limit = TEMPLATE_MAX_ROWS\)/);
     });
     it("lists the tag chips alphabetically", () => {
       const bar = html.slice(html.indexOf("function renderFilterBar"), html.indexOf("function setFilter"));
@@ -3476,11 +3493,10 @@ describe("public/index.html helpers", () => {
       assert.ok(queue.includes("id=\"sortBy\"") && queue.includes("id=\"sortDirBtn\""));
       assert.ok(html.includes("sortTasks(filtered, sortKey, sortDescending)"));
     });
-    it("orders the Queue card's parts: search, Tags, Projects, Sort by, Select tasks, then the list", () => {
+    it("orders the Queue card's parts: Active task, Tags, Projects, Sort by, Select tasks, then the list", () => {
       const at = (id) => html.indexOf(`id="${id}"`);
-      const order = ["taskSearch", "tagsDetails", "projectsDetails", "sortBy", "sortDirBtn", "selectModeBtn", "batchStatus", "taskList"];
+      const order = ["activeTaskBox", "tagsDetails", "projectsDetails", "sortBy", "sortDirBtn", "selectModeBtn", "batchStatus", "taskList"];
       for (let i = 1; i < order.length; i++) assert.ok(at(order[i - 1]) > 0 && at(order[i]) > at(order[i - 1]), `${order[i]} comes after ${order[i - 1]}`);
-      assert.ok(at("activeTaskBox") < at("taskSearch"), "the Active task box stays first");
       const projects = html.slice(at("projectsDetails"), at("sortBy"));
       assert.ok(projects.includes("</details>"), "the sort row sits after the Projects section closes");
       const between = html.slice(html.lastIndexOf("</details>", at("sortBy")), at("taskList"));
@@ -3546,10 +3562,10 @@ describe("public/index.html helpers", () => {
       assert.equal(activeTaskOf([plain]), null);
       assert.equal(activeTaskOf([]), null);
     });
-    it("puts the active task in a box above the search row of the Queue card", () => {
+    it("puts the active task in a box at the top of the Queue card, above the Tags section", () => {
       const queue = html.slice(html.indexOf("id=\"queueCard\""), html.indexOf("id=\"taskList\""));
       assert.ok(queue.indexOf("id=\"activeTaskBox\"") > 0);
-      assert.ok(queue.indexOf("id=\"activeTaskBox\"") < queue.indexOf("id=\"taskSearch\""));
+      assert.ok(queue.indexOf("id=\"activeTaskBox\"") < queue.indexOf("id=\"tagsDetails\""));
       assert.ok(html.includes("activeTaskOf(allTasks)"));
     });
   });
@@ -3593,11 +3609,10 @@ describe("public/index.html helpers", () => {
       const {templateMatches} = load();
       assert.equal(templateMatches(templates, "mow", 1).length, 1);
     });
-    it("describes a template on one line, leaving out an empty tag list", () => {
-      const {templateMeta} = load();
-      assert.equal(templateMeta(templates[0]), "LOW · 45 min · Outdoor, Garden");
-      assert.equal(templateMeta(templates[2]), "HIGH · 10 min");
-      assert.equal(templateMeta({}), "MEDIUM · 15 min");
+    it("shows at most 8 rows by default", () => {
+      const {templateMatches} = load();
+      const many = Array.from({length: 12}, (_, i) => ({title: `Mow ${i}`, completedCount: 1}));
+      assert.equal(templateMatches(many, "mow").length, 8);
     });
     it("fills the form with the old details but no due date, and every material unchecked", () => {
       const {templateFormValues} = load();
