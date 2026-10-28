@@ -17,7 +17,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {pickerViewportBox, withNoneRow, clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagChipItems, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSearchText, filterClients, clientDeleteShown, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, clientFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, historyProjectChoices, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
+    return {pickerViewportBox, withNoneRow, clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagChipItems, projectClientNameById, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSearchText, filterClients, clientDeleteShown, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, clientFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, historyProjectChoices, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -86,11 +86,11 @@ describe("public/index.html helpers", () => {
       assert.equal(commentIdFor({text: "Hi", id: "comment-new1"}, "Hi", make), "comment-new1");
       assert.equal(commentIdFor({text: "Hi", id: "comment-new1"}, "Changed", make), "comment-new2");
     });
-    it("History search finds a comment's text", () => {
+    it("History search reads only the title, not a comment's text", () => {
       const {matchesCompletedSearch} = load();
       const row = {title: "Fit tap", comments: [c(1, 1761500000000, "Valve seized")], completedAt: "2026-10-20T01:00:00.000Z"};
-      assert.equal(matchesCompletedSearch(row, "seized", ""), true);
-      assert.equal(matchesCompletedSearch(row, "gasket", ""), false);
+      assert.equal(matchesCompletedSearch(row, "tap", ""), true);
+      assert.equal(matchesCompletedSearch(row, "seized", ""), false);
     });
     it("keeps adding and deleting a comment on while the saved copy of History is shown (both are held)", () => {
       const {COMPLETED_FORM_CONTROLS, completedFieldDisabled} = load();
@@ -943,10 +943,12 @@ describe("public/index.html helpers", () => {
       const q = at(`id="queueCard"`);
       const search = at(`id="taskSearch"`, q);
       assert.ok(search > q && search < at(`id="tagsDetails"`, q));
-      assert.match(html.slice(html.lastIndexOf("<input", search), html.indexOf(">", search)), /type="search"[^>]*placeholder="Search tasks"/);
+      assert.match(html.slice(html.lastIndexOf("<input", search), html.indexOf(">", search)), /type="search"[^>]*placeholder="Search tasks, #job, @client"/);
       const input = html.slice(html.indexOf(`getElementById("taskSearch").addEventListener("input"`), html.indexOf(`getElementById("clearSearchBtn").addEventListener("click"`));
       assert.match(input, /renderTasks\(\)/);
-      assert.match(html, /filterTasks\(rest, selectedTagFilters, selectedProjectFilter, document\.getElementById\("taskSearch"\)\.value\)/);
+      assert.match(html, /filterTasks\(rest, selectedTagFilters, selectedProjectFilter, document\.getElementById\("taskSearch"\)\.value, t => projectClientNameById\(t\.projectId, allProjects, allClients\)\)/);
+      assert.match(html, /id="completedSearch" class="search-box" placeholder="Search completed, #job, @client"/);
+      assert.match(html, /completedBrowse\(completedAll, query, completedPageNo, clientName, /);
     });
     it("shows a Clear button beside the search box only while it holds text", () => {
       const row = html.slice(at(`class="search-row"`), at("</div>", at(`class="search-row"`)));
@@ -1513,10 +1515,15 @@ describe("public/index.html helpers", () => {
   describe("job number search words", () => {
     it("splits hash-and-digits words from plain words, ignoring leading zeros and a bare hash", () => {
       const {jobNumberWords} = load();
-      assert.deepEqual(jobNumberWords("#123 Fit tap #0007 #"), {numbers: [123, 7], words: ["fit", "tap"]});
-      assert.deepEqual(jobNumberWords(""), {numbers: [], words: []});
-      assert.deepEqual(jobNumberWords(undefined), {numbers: [], words: []});
-      assert.deepEqual(jobNumberWords("#5a a#5"), {numbers: [], words: ["#5a", "a#5"]});
+      assert.deepEqual(jobNumberWords("#123 Fit tap #0007 #"), {numbers: [123, 7], clients: [], words: ["fit", "tap"]});
+      assert.deepEqual(jobNumberWords(""), {numbers: [], clients: [], words: []});
+      assert.deepEqual(jobNumberWords(undefined), {numbers: [], clients: [], words: []});
+      assert.deepEqual(jobNumberWords("#5a a#5"), {numbers: [], clients: [], words: ["#5a", "a#5"]});
+    });
+    it("takes at-then-text words as client words, dropping a bare at sign and leaving a mid-word one as text", () => {
+      const {jobNumberWords} = load();
+      assert.deepEqual(jobNumberWords("@Smith fit @ltd @ #12"), {numbers: [12], clients: ["smith", "ltd"], words: ["fit"]});
+      assert.deepEqual(jobNumberWords("jo@x.nz @@a"), {numbers: [], clients: ["@a"], words: ["jo@x.nz"]});
     });
     it("matchesSearch: a job number word finds that task only, alone or with title words", () => {
       const {matchesSearch: m} = load();
@@ -3094,17 +3101,31 @@ describe("public/index.html helpers", () => {
     describe("completed list search and pages", () => {
       const rowsOf = (n) => Array.from({length: n}, (_, i) => ({archiveId: `a${i}`, title: `Job ${i}`}));
       const noProject = () => "";
-      it("matchesCompletedSearch: every word must appear in the title, tags, materials, description or project, in any order and case", () => {
+      it("matchesCompletedSearch: every word must appear in the title, in any order and case, and nothing else is read", () => {
         const {matchesCompletedSearch: m} = load();
-        const row = {title: "Fit tap", tags: ["Plumbing"], materials: [{id: "a", text: "PTFE tape"}], description: "Washer replaced", projectId: "p1"};
+        const row = {title: "Fit tap", tags: ["Plumbing"], materials: [{id: "a", text: "PTFE tape"}], description: "Washer replaced", comments: [{id: "c", at: 1, text: "Seized"}], projectId: "p1"};
         assert.equal(m(row, "", ""), true);
         assert.equal(m(row, "   ", ""), true);
-        assert.equal(m(row, "TAP plumb", ""), true);
-        assert.equal(m(row, "ptfe", ""), true);
-        assert.equal(m(row, "washer fit", ""), true);
-        assert.equal(m(row, "kitchen", "Kitchen reno"), true);
-        assert.equal(m(row, "kitchen", ""), false);
-        assert.equal(m(row, "tap bathroom", "Kitchen reno"), false);
+        assert.equal(m(row, "TAP fit", ""), true);
+        assert.equal(m(row, "fi ta", ""), true);
+        assert.equal(m(row, "tap bathroom", ""), false);
+        for (const other of ["plumb", "ptfe", "washer", "seized", "kitchen"]) assert.equal(m(row, other, "Kitchen reno"), false, `${other} is not in the title`);
+      });
+      it("matchesCompletedSearch: @word finds the client's name, any case and part of a word, every @ word must be in it, and no client never matches", () => {
+        const {matchesCompletedSearch: m} = load();
+        const row = {title: "Fit tap", jobNumber: 123, projectId: "p1"};
+        assert.equal(m(row, "@smith", "Jo Smith"), true);
+        assert.equal(m(row, "@SMI", "Jo Smith"), true);
+        assert.equal(m(row, "@jo @smith", "Jo Smith"), true);
+        assert.equal(m(row, "@jo @ltd", "Jo Smith"), false);
+        assert.equal(m(row, "@smith", ""), false);
+        assert.equal(m(row, "@smith", undefined), false);
+        assert.equal(m({title: "Fit tap"}, "@smith", ""), false);
+        assert.equal(m(row, "@", ""), true, "a bare @ restricts nothing");
+        assert.equal(m(row, "tap @smith #123", "Jo Smith"), true);
+        assert.equal(m(row, "tap @smith #124", "Jo Smith"), false);
+        assert.equal(m(row, "basin @smith", "Jo Smith"), false);
+        assert.equal(m(row, "smith", "Jo Smith"), false, "a plain word is read in the title only");
       });
       it("matchesCompletedSearch: #123 finds job number 123 exactly, alone or with other words", () => {
         const {matchesCompletedSearch: m} = load();
@@ -3116,7 +3137,7 @@ describe("public/index.html helpers", () => {
         assert.equal(m(row, "#124", ""), false);
         assert.equal(m(row, "#123 tap", ""), true);
         assert.equal(m(row, "#123 basin", ""), false);
-        assert.equal(m(row, "#123 kitchen", "Kitchen reno"), true);
+        assert.equal(m(row, "#123 @kitchen", "Kitchen reno"), true);
         assert.equal(m({title: "Fit tap"}, "#123", ""), false);
         assert.equal(m({title: "Fit tap", jobNumber: "123"}, "#123", ""), false);
         assert.equal(m(row, "#", ""), true);
@@ -3133,7 +3154,8 @@ describe("public/index.html helpers", () => {
         const {matchesCompletedSearch: m} = load();
         assert.equal(m({}, "x", ""), false);
         assert.equal(m({}, "", ""), true);
-        assert.equal(m({title: "Mow", tags: [5, null, "Lawn"], materials: "junk", description: 7}, "lawn", undefined), true);
+        assert.equal(m({title: "Mow", tags: [5, null, "Lawn"], materials: "junk", description: 7}, "mow", undefined), true);
+        assert.equal(m({title: 5}, "5", ""), false);
         assert.equal(m({title: "Mow"}, undefined, ""), true);
       });
       it("completedBrowse: pages the newest-first list 50 to a page, keeping its order", () => {
@@ -3163,12 +3185,14 @@ describe("public/index.html helpers", () => {
         assert.deepEqual([none.items.length, none.page, none.pages, none.total, none.from, none.to], [0, 1, 1, 0, 0, 0]);
         assert.deepEqual([completedBrowse([], "", 1, noProject).total, completedBrowse(undefined, "", 1).total], [0, 0]);
       });
-      it("completedBrowse: matches a task's project by the name the page looks up", () => {
+      it("completedBrowse: matches an @ word against the client name the page looks up for the task's project", () => {
         const {completedBrowse} = load();
-        const rows = [{archiveId: "x", title: "Fit tap", projectId: "p1"}, {archiveId: "y", title: "Mow lawn"}];
-        const names = (id) => ({p1: "Kitchen reno"})[id];
-        assert.deepEqual(completedBrowse(rows, "kitchen", 1, names).items.map((r) => r.archiveId), ["x"]);
-        assert.deepEqual(completedBrowse(rows, "kitchen", 1).items, []);
+        const rows = [{archiveId: "x", title: "Fit tap", projectId: "p1"}, {archiveId: "y", title: "Mow lawn"}, {archiveId: "z", title: "Fit sink", projectId: "p2"}];
+        const names = (id) => ({p1: "Jo Smith"})[id];
+        assert.deepEqual(completedBrowse(rows, "@smith", 1, names).items.map((r) => r.archiveId), ["x"]);
+        assert.deepEqual(completedBrowse(rows, "fit @jo", 1, names).items.map((r) => r.archiveId), ["x"]);
+        assert.deepEqual(completedBrowse(rows, "@smith", 1).items, []);
+        assert.deepEqual(completedBrowse(rows, "smith", 1, names).items, [], "a plain word is not read in the client's name");
       });
       it("pagerItems: has no links for a single page", () => {
         const {pagerItems} = load();
@@ -3719,16 +3743,32 @@ describe("public/index.html helpers", () => {
       assert.equal(projectClientName(null, clients), "");
       assert.equal(projectClientName(projects[0], undefined), "");
     });
-    it("searches a project's name and its client's name", () => {
-      const {projectSearchText, matchesCompletedSearch, completedBrowse} = load();
+    it("names a project's client by the project's id, and still joins the two names for the Projects list's search", () => {
+      const {projectClientNameById, projectSearchText, matchesCompletedSearch, completedBrowse, filterTasks} = load();
+      assert.equal(projectClientNameById("p1", projects, clients), "Jo Smith");
+      assert.equal(projectClientNameById("p2", projects, clients), "");
+      assert.equal(projectClientNameById("p3", projects, clients), "");
+      assert.equal(projectClientNameById("zzz", projects, clients), "");
+      assert.equal(projectClientNameById(undefined, undefined, undefined), "");
       assert.equal(projectSearchText("p1", projects, clients), "Deck Jo Smith");
-      assert.equal(projectSearchText("p2", projects, clients), "Fence");
       assert.equal(projectSearchText("zzz", projects, clients), "");
-      assert.equal(matchesCompletedSearch({title: "Fit rail"}, "smith", projectSearchText("p1", projects, clients)), true);
-      assert.equal(matchesCompletedSearch({title: "Fit rail"}, "smith", projectSearchText("p2", projects, clients)), false);
+      assert.equal(matchesCompletedSearch({title: "Fit rail"}, "@smith", projectClientNameById("p1", projects, clients)), true);
+      assert.equal(matchesCompletedSearch({title: "Fit rail"}, "@smith", projectClientNameById("p2", projects, clients)), false);
       const rows = [{title: "A", projectId: "p1"}, {title: "B", projectId: "p2"}, {title: "C"}];
-      const found = completedBrowse(rows, "jo deck", 1, (id) => projectSearchText(id, projects, clients));
+      const found = completedBrowse(rows, "@jo", 1, (id) => projectClientNameById(id, projects, clients));
       assert.deepEqual(found.items.map((r) => r.title), ["A"]);
+      const tasks = [{title: "Fit rail", projectId: "p1"}, {title: "Fit gate", projectId: "p2"}, {title: "Fit shed"}];
+      const clientOf = (t) => projectClientNameById(t.projectId, projects, clients);
+      assert.deepEqual(filterTasks(tasks, [], null, "@smith", clientOf).map((t) => t.title), ["Fit rail"], "the Queue's @ search");
+      assert.deepEqual(filterTasks(tasks, [], null, "fit @smith", clientOf).map((t) => t.title), ["Fit rail"]);
+      assert.deepEqual(filterTasks(tasks, [], null, "gate @smith", clientOf).map((t) => t.title), []);
+      assert.deepEqual(filterTasks(tasks, [], null, "@smith").map((t) => t.title), [], "no lookup, no client match");
+      assert.deepEqual(filterTasks(tasks, [], "p1", "@jo", clientOf).map((t) => t.title), ["Fit rail"], "with the project filter");
+      let asked = 0;
+      filterTasks(tasks, [], null, "fit", (t) => {
+        asked++; return "";
+      });
+      assert.equal(asked, 0, "the client is only looked up when the search has an @");
     });
     it("sends the form's location only with a name, its coordinates only when both are numbers", () => {
       const {clientFormBody} = load();

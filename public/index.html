@@ -515,7 +515,7 @@
         </div>
       </div>
       <div class="search-row">
-        <input type="search" id="taskSearch" class="search-box" placeholder="Search tasks" autocomplete="off" enterkeyhint="search" aria-label="Search tasks">
+        <input type="search" id="taskSearch" class="search-box" placeholder="Search tasks, #job, @client" autocomplete="off" enterkeyhint="search" aria-label="Search tasks">
         <button type="button" class="btn-secondary" id="clearSearchBtn" hidden>Clear</button>
       </div>
       <div class="sort-row">
@@ -635,7 +635,7 @@
     <div id="completedList"></div>
     <div id="completedBrowser" hidden>
       <div class="search-row">
-        <input type="search" id="completedSearch" class="search-box" placeholder="Search completed tasks" autocomplete="off" enterkeyhint="search" aria-label="Search completed tasks">
+        <input type="search" id="completedSearch" class="search-box" placeholder="Search completed, #job, @client" autocomplete="off" enterkeyhint="search" aria-label="Search completed tasks">
         <button type="button" class="btn-secondary" id="clearCompletedSearchBtn" hidden>Clear</button>
       </div>
       <details class="filter-section" id="completedTagsDetails" hidden>
@@ -2348,7 +2348,11 @@
       const client = project && project.clientId ? (Array.isArray(clients) ? clients : []).find(c => c.id === project.clientId) : null;
       return client && typeof client.name === "string" ? client.name : "";
     }
-    // The text the completed-task search reads for a project id: its name and its client's name, "" for an unknown project.
+    // The client's name of the project with this id, "" for an unknown project or one with no client (what an @ word of a search is matched against).
+    function projectClientNameById(projectId, projects, clients) {
+      return projectClientName((Array.isArray(projects) ? projects : []).find(p => p && p.id === projectId), clients);
+    }
+    // A project's name and its client's name as one text, "" for an unknown project (what the Projects list's search reads).
     function projectSearchText(projectId, projects, clients) {
       const project = (Array.isArray(projects) ? projects : []).find(p => p.id === projectId);
       if (!project) return "";
@@ -2594,20 +2598,25 @@
       return { text: client && typeof client.name === "string" ? client.name : "Unknown client", hasClient: true, toggle: "Remove from client" };
     }
 
-    // A search's words split into job numbers and plain words: a word of the form hash-then-digits is a job number (leading
-    // zeros ignored), a bare hash is dropped, the rest are lower-cased text words. {numbers, words}.
+    // A search's words split into job numbers, client words and plain words: a word of the form hash-then-digits is a job number (leading
+    // zeros ignored), a word of the form at-then-text is a client word (the text after the at sign), a bare hash or at sign is dropped, the rest
+    // are lower-cased text words. {numbers, clients, words}.
     function jobNumberWords(query) {
       const all = String(query || "").toLowerCase().split(/\s+/).filter(Boolean);
       const isNumber = w => /^#\d+$/.test(w);
-      return { numbers: all.filter(isNumber).map(w => Number(w.slice(1))), words: all.filter(w => w !== "#" && !isNumber(w)) };
+      const isClient = w => /^@.+/.test(w);
+      return { numbers: all.filter(isNumber).map(w => Number(w.slice(1))), clients: all.filter(isClient).map(w => w.slice(1)), words: all.filter(w => w !== "#" && w !== "@" && !isNumber(w) && !isClient(w)) };
     }
     // Whether a task's title matches a search: every word of `query` (case-insensitive, any order, part of a word is
-    // enough) must appear in the title, and a job-number word (hash and digits) must equal the task's job number exactly. Tags and
+    // enough) must appear in the title, a job-number word (hash and digits) must equal the task's job number exactly, and a client word (at sign
+    // and text) must appear in `clientName`, the name of the task's project's client ("" with none, which no client word matches). Tags and
     // projects have their own filters. An empty query matches everything. `jobNumbers` false reads every word as text
-    // (the template search, whose entries have no job number).
-    function matchesSearch(task, query, jobNumbers = true) {
-      const { numbers, words } = jobNumbers ? jobNumberWords(query) : { numbers: [], words: String(query || "").toLowerCase().split(/\s+/).filter(Boolean) };
+    // (the template search, whose entries have no job number or client).
+    function matchesSearch(task, query, jobNumbers = true, clientName = "") {
+      const { numbers, clients, words } = jobNumbers ? jobNumberWords(query) : { numbers: [], clients: [], words: String(query || "").toLowerCase().split(/\s+/).filter(Boolean) };
       if (numbers.some(n => n !== task.jobNumber)) return false;
+      const client = typeof clientName === "string" ? clientName.toLowerCase() : "";
+      if (!clients.every(c => client.includes(c))) return false;
       if (words.length === 0) return true;
       const title = typeof task.title === "string" ? task.title.toLowerCase() : "";
       return words.every(w => title.includes(w));
@@ -2639,10 +2648,12 @@
 
     // The tasks the Queue shows: those carrying any of the chosen tags (OR; an empty list or null = any), belonging
     // to the chosen project (a project id, null = any) and whose title matches the search text (see matchesSearch).
-    // All three apply together. A single tag name is accepted as a list of one. Pure: the input is not modified.
-    function filterTasks(tasks, tags, projectId, query = "") {
+    // All three apply together. A single tag name is accepted as a list of one. `clientNameOf(task)` gives the name of a task's project's client,
+    // asked only when the search has an at sign. Pure: the input is not modified.
+    function filterTasks(tasks, tags, projectId, query = "", clientNameOf = null) {
       const wanted = tags === null || tags === undefined ? [] : Array.isArray(tags) ? tags : [tags];
-      return tasks.filter(t => (wanted.length === 0 || wanted.some(tag => (t.tags || []).includes(tag))) && (projectId === null || t.projectId === projectId) && matchesSearch(t, query));
+      const clientOf = typeof clientNameOf === "function" && String(query || "").includes("@") ? clientNameOf : () => "";
+      return tasks.filter(t => (wanted.length === 0 || wanted.some(tag => (t.tags || []).includes(tag))) && (projectId === null || t.projectId === projectId) && matchesSearch(t, query, true, clientOf(t)));
     }
 
     // The confirmation text for deleting a project with `count` member tasks.
@@ -3024,25 +3035,20 @@
     const HISTORY_ANY_PROJECT = "Any project";
     // Completed tasks are listed this many to a page.
     const COMPLETED_PAGE_SIZE = 50;
-    // Whether a completed task matches a search: every word of `query` (case-insensitive, any order, part of a word is
-    // enough) must appear somewhere in its title, tags, materials, description, comments, project name or its project's client name. Empty matches everything.
-    function matchesCompletedSearch(row, query, projectName) {
-      // A job-number word is matched exactly (so 12 does not find 123); a bare hash restricts nothing.
-      const { numbers, words: rest } = jobNumberWords(query);
-      if (numbers.some(n => n !== row.jobNumber)) return false;
-      if (rest.length === 0) return true;
-      const text = (v) => (typeof v === "string" ? v : "");
-      const hay = [text(row.title), ...(Array.isArray(row.tags) ? row.tags : []).map(text), ...completedMaterialTexts(row), text(row.description), ...commentsOf(row).map(c => c.text), text(projectName)].join("\n").toLowerCase();
-      return rest.every(w => hay.includes(w));
+    // Whether a completed task matches a search: the same as a queued task (`matchesSearch`): every word of `query` (case-insensitive, any order, part
+    // of a word is enough) must appear in its title, a job-number word (hash and digits) must equal its job number exactly and a client word (at sign and text) must
+    // appear in `clientName`, its project's client's name. Tags and the project have their own filters. Empty matches everything.
+    function matchesCompletedSearch(row, query, clientName) {
+      return matchesSearch(row, query, true, clientName);
     }
     // One page of the completed tasks that match a search (the list is newest first and keeps that order). `page` is
-    // counted from 1 and clamped to the pages there are; `projectNameOf` gives a project's name for its id.
+    // counted from 1 and clamped to the pages there are; `clientNameOf` gives the client's name of a project, for its id.
     // Returns {items, page, pages, total (the tasks matching), all (every task), from, to (1-based positions of the
     // page's first and last task among the matches; 0 when none). `filters` narrows the list beside the search: {projectId} keeps only that project's tasks
     // ("" or none keeps all) and {tags} only the tasks carrying any of those tags (OR; an empty list keeps all).
-    function completedBrowse(rows, query, page, projectNameOf, filters = {}, pageSize = COMPLETED_PAGE_SIZE) {
+    function completedBrowse(rows, query, page, clientNameOf, filters = {}, pageSize = COMPLETED_PAGE_SIZE) {
       const all = Array.isArray(rows) ? rows : [];
-      const lookup = typeof projectNameOf === "function" ? projectNameOf : () => "";
+      const lookup = typeof clientNameOf === "function" ? clientNameOf : () => "";
       const projectId = filters && typeof filters.projectId === "string" ? filters.projectId : "";
       const tags = filters && Array.isArray(filters.tags) ? filters.tags : [];
       const matches = all.filter(r => (!projectId || r.projectId === projectId) && (tags.length === 0 || tags.some(tag => (Array.isArray(r.tags) ? r.tags : []).includes(tag))) && matchesCompletedSearch(r, query, r.projectId ? lookup(r.projectId) : ""));
@@ -6228,7 +6234,7 @@
 
       const rest = allTasks.filter(t => t !== active);
       selectedIds = pruneSelection(selectedIds, rest);
-      let filtered = filterTasks(rest, selectedTagFilters, selectedProjectFilter, document.getElementById("taskSearch").value);
+      let filtered = filterTasks(rest, selectedTagFilters, selectedProjectFilter, document.getElementById("taskSearch").value, t => projectClientNameById(t.projectId, allProjects, allClients));
       shownIds = new Set(filtered.map(t => t.id));
       updateBatchBar();
 
@@ -8401,11 +8407,11 @@
     }
     function renderCompletedRows() {
       const query = document.getElementById("completedSearch").value;
-      const projectName = (id) => projectSearchText(id, allProjects, allClients);
+      const clientName = (id) => projectClientNameById(id, allProjects, allClients);
       const projectId = historyProjectFilter();
       completedTagFilters = pruneTagFilter(completedTagFilters, completedAll); // a tag no loaded task carries any more is dropped
       renderCompletedTagBar();
-      const browse = completedBrowse(completedAll, query, completedPageNo, projectName, { projectId, tags: completedTagFilters });
+      const browse = completedBrowse(completedAll, query, completedPageNo, clientName, { projectId, tags: completedTagFilters });
       completedPageNo = browse.page;
       document.getElementById("completedCount").textContent = completedCountText(browse, query, completedListLimited, projectId !== "" || completedTagFilters.length > 0);
       document.getElementById("completedRows").innerHTML = browse.items.map(completedRowHtml).join("");

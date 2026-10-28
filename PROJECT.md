@@ -59,7 +59,7 @@ A change usually touches several rows: a new endpoint touches an `endpoints-*.md
 
 Each step fits in one turn, adds tests for any new pure logic and updates the `docs/` files it names. The steps are independent unless one says it needs an earlier step.
 
-1. **`@` client search and a name-only History search.** A word of the form `@smith` searches the client: a task matches when its project's client's name contains `smith` (case ignored; a bare `@` ignored; every `@` word must be found in that name, so "Smith Ltd" is `@smith @ltd`; a task with no project or client never matches one; it combines with `#` and text words). `jobNumberWords` also returns the `@` words so both pages parse a search alike; `matchesSearch`/`filterTasks` (Queue) and `matchesCompletedSearch`/`completedBrowse` (History) take a client-name lookup built from `allProjects` and `allClients` (`projectClientName`); the Queue Projects section's own search field and the add card's template search (which reads `#` and `@` as text) are unchanged. In History, plain words then match only the title: tags, materials, description, comments and the project name are no longer searched (tags and project have their own filters, in History). Both search boxes' placeholders say `#job` and `@client` can be used. Tests: the `@` word in both searches, History's title-only match (replacing the test that finds a comment's text). Update `frontend-queue.md` and `frontend-history.md`.
+No steps are planned.
 
 Unplanned ideas are in `stretch-goals.md`.
 
