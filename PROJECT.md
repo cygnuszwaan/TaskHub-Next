@@ -43,7 +43,8 @@ This file is the entry point to the project's documentation: the rules for worki
 | `docs/endpoints-comments.md` | task and entry comments: the data, `addComment`, `deleteComment`, job sheet and CSV |
 | `docs/endpoints-admin.md` | scheduling runs, settings, notifications, duplicates, projects, clients, project templates, the Miscellaneous list |
 | `docs/frontend-shell.md` | the PWA and sharing, dark mode, service worker, API calls, sign-in, tabs, the page's dialogs |
-| `docs/frontend-tasks.md` | task cards, gestures, edit modals, timer, adding tasks, completing, deleting, Undo, Snooze |
+| `docs/frontend-tasks.md` | task cards, gestures, timer, adding tasks, completing, deleting, Undo, Snooze |
+| `docs/frontend-edit-modal.md` | the queued edit modal and the completed task form: sections, fields, contact and Navigate buttons, comments |
 | `docs/frontend-queue.md` | the Queue page, Active task box, search, sort, Multi-Select, Reorder, Tags and Projects |
 | `docs/frontend-history.md` | History, Stats, project hours, job sheets, completed entries and their photos |
 | `docs/frontend-materials.md` | the Materials page and the Miscellaneous list |
@@ -58,9 +59,8 @@ A change usually touches several rows: a new endpoint touches an `endpoints-*.md
 
 Each step fits in one turn. Do them in order unless told otherwise. Each step adds tests for any new pure logic.
 
-1. Edit modals, top level and Scheduling. Both edit modals share one collapsible section style (the `.extra-fields` details generalised), every section closed each time a modal opens. Description leaves Extra fields and joins the top level, which holds Title, the job number line, Description, Tags (on its own line once Task number leaves), Project with Order number, and the button rows (Call/Text/WhatsApp and Email, then Navigate and Link). A new Scheduling section holds, in the queued modal, Task number with its Top button, Priority, Est. minutes, Due date with its Clear button and Repeats, and in the completed form Priority, Time spent and the Completed date and time. Update `frontend-tasks.md`.
-2. Edit modals, Contact details and Audit trail. A Contact details section holds Phone, Email, Link and Location; an Audit trail section holds Travel, Materials, Photos and Comments, plus the job sheet download in the completed form (the queued modal has none). Extra fields is removed. A validation alert (bad email, link, travel or material cost) first opens the section holding the field at fault, and the offline completed form opens the sections that hold editable fields. Update `frontend-tasks.md`, `frontend-history.md` and `offline.md`.
-3. Add card sections. The add card's manual fields use the same layout as the edit modal (Description, Tags, Project and the Scheduling, Contact details and Audit trail sections, every section closed each time the "Enter the details myself" box is ticked), with Materials, Travel and the rest where the modal has them. Update the "Adding tasks" paragraph of `frontend-tasks.md`.
+1. Edit modals, Contact details and Audit trail. A Contact details section holds Phone, Email, Link and Location; an Audit trail section holds Travel, Materials, Photos and Comments, plus the job sheet download in the completed form (the queued modal has none). Extra fields is removed. A validation alert (bad email, link, travel or material cost) first opens the section holding the field at fault, and the offline completed form opens the sections that hold editable fields. Update `frontend-edit-modal.md`, `frontend-history.md` and `offline.md`.
+2. Add card sections. The add card's manual fields use the same layout as the edit modal (Description, Tags, Project and the Scheduling, Contact details and Audit trail sections, every section closed each time the "Enter the details myself" box is ticked), with Materials, Travel and the rest where the modal has them. Update the "Adding tasks" paragraph of `frontend-tasks.md`.
 
 Unplanned ideas are in `stretch-goals.md`.
 

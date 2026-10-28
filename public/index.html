@@ -176,12 +176,12 @@
     .form-group .material-row input[type="text"] { width: auto; flex: 1; min-width: 0; }
     .form-group .material-row input[type="number"], .form-group .cost-input { width: 84px; flex: none; }
     .form-group .material-row input[type="checkbox"] { margin-right: 0; }
-    .extra-fields { margin-bottom: 12px; }
-    .extra-fields > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-muted); list-style: none; display: flex; align-items: center; gap: 6px; -webkit-tap-highlight-color: transparent; }
-    .extra-fields > summary::-webkit-details-marker { display: none; }
-    .extra-fields > summary::before { content: "▸"; font-size: 14px; transition: transform 0.15s ease; }
-    .extra-fields[open] > summary::before { transform: rotate(90deg); }
-    .extra-fields[open] > summary { margin-bottom: 10px; }
+    .form-section { margin-bottom: 12px; }
+    .form-section > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-muted); list-style: none; display: flex; align-items: center; gap: 6px; -webkit-tap-highlight-color: transparent; }
+    .form-section > summary::-webkit-details-marker { display: none; }
+    .form-section > summary::before { content: "▸"; font-size: 14px; transition: transform 0.15s ease; }
+    .form-section[open] > summary::before { transform: rotate(90deg); }
+    .form-section[open] > summary { margin-bottom: 10px; }
     .field-pair { display: flex; gap: 10px; align-items: flex-start; }
     .field-pair > .form-group { margin-bottom: 12px; }
     .field-with-btn { display: flex; gap: 6px; }
@@ -835,57 +835,14 @@
       </div>
       <div id="editJobNumber" class="settings-note" style="margin: -6px 0 12px;" hidden></div>
 
-      <div style="display: flex; gap: 10px;">
-        <div class="form-group" style="flex: 1;">
-          <label>Priority</label>
-          <select id="editPriority">
-            <option value="HIGH">HIGH</option>
-            <option value="MEDIUM">MEDIUM</option>
-            <option value="LOW">LOW</option>
-          </select>
-        </div>
-        <div class="form-group" style="flex: 1;">
-          <label>Est. Minutes</label>
-          <input type="number" id="editDuration" min="5" step="5">
-        </div>
-      </div>
-
-      <div class="field-pair">
-        <div class="form-group" style="flex: 0 0 140px;">
-          <label for="editNumber">Task number</label>
-          <div class="field-with-btn">
-            <input type="number" id="editNumber" min="1" step="1" inputmode="numeric" style="min-width:0;" title="Place in the queue">
-            <button type="button" class="btn-secondary" title="Move to the top of the queue" onclick="document.getElementById('editNumber').value = 1">Top</button>
-          </div>
-        </div>
-        <div class="form-group" style="flex: 1; min-width: 0;">
-          <label for="editTags">Tags</label>
-          <input type="text" id="editTags" placeholder="e.g. Outdoor, Physical" title="Comma separated">
-        </div>
+      <div class="form-group">
+        <label for="editDescription">Description</label>
+        <textarea id="editDescription" rows="3" maxlength="2000"></textarea>
       </div>
 
       <div class="form-group">
-        <label>Due Date</label>
-        <div style="display: flex; gap: 6px;">
-          <input type="date" id="editDueDate" style="flex: 1;">
-          <button type="button" id="clearDueDateBtn" class="btn-secondary" title="Remove the due date" onclick="clearEditDueDate()">Clear</button>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>Repeats</label>
-        <div style="display: flex; gap: 6px; align-items: center;">
-          <select id="editRecurFreq" style="flex: 1;" onchange="updateRecurUnit()">
-            <option value="NONE">Does not repeat</option>
-            <option value="DAILY">Daily</option>
-            <option value="WEEKLY">Weekly</option>
-            <option value="MONTHLY">Monthly</option>
-            <option value="YEARLY">Yearly</option>
-          </select>
-          <span id="editRecurEvery">every</span>
-          <input type="number" id="editRecurInterval" min="1" max="365" step="1" value="1" style="width: 70px;">
-          <span id="editRecurUnit"></span>
-        </div>
+        <label for="editTags">Tags</label>
+        <input type="text" id="editTags" placeholder="e.g. Outdoor, Physical" title="Comma separated">
       </div>
 
       <div class="form-group">
@@ -899,13 +856,63 @@
         <input type="text" id="editNewProject" maxlength="100" placeholder="Name of the new project (created when you save)" style="margin-top: 6px;" hidden>
       </div>
 
+      <div class="contact-actions" id="editContactActions" hidden></div>
       <div class="contact-actions" id="editNavigateActions" hidden>
         <a id="editNavigate" class="contact-btn btn-secondary" href="#" target="_blank" rel="noopener noreferrer">🧭 Navigate</a>
         <a id="editLink" class="contact-btn btn-secondary" href="#" target="_blank" rel="noopener noreferrer" hidden>🔗 Link</a>
       </div>
-      <div class="contact-actions" id="editContactActions" hidden></div>
 
-      <details class="extra-fields" id="editExtraFields">
+      <details class="form-section" id="editScheduling">
+        <summary>Scheduling</summary>
+        <div class="form-group" style="max-width: 200px;">
+          <label for="editNumber">Task number</label>
+          <div class="field-with-btn">
+            <input type="number" id="editNumber" min="1" step="1" inputmode="numeric" style="min-width:0;" title="Place in the queue">
+            <button type="button" class="btn-secondary" title="Move to the top of the queue" onclick="document.getElementById('editNumber').value = 1">Top</button>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+          <div class="form-group" style="flex: 1;">
+            <label>Priority</label>
+            <select id="editPriority">
+              <option value="HIGH">HIGH</option>
+              <option value="MEDIUM">MEDIUM</option>
+              <option value="LOW">LOW</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label>Est. Minutes</label>
+            <input type="number" id="editDuration" min="5" step="5">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Due Date</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="date" id="editDueDate" style="flex: 1;">
+            <button type="button" id="clearDueDateBtn" class="btn-secondary" title="Remove the due date" onclick="clearEditDueDate()">Clear</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Repeats</label>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <select id="editRecurFreq" style="flex: 1;" onchange="updateRecurUnit()">
+              <option value="NONE">Does not repeat</option>
+              <option value="DAILY">Daily</option>
+              <option value="WEEKLY">Weekly</option>
+              <option value="MONTHLY">Monthly</option>
+              <option value="YEARLY">Yearly</option>
+            </select>
+            <span id="editRecurEvery">every</span>
+            <input type="number" id="editRecurInterval" min="1" max="365" step="1" value="1" style="width: 70px;">
+            <span id="editRecurUnit"></span>
+          </div>
+        </div>
+      </details>
+
+      <details class="form-section" id="editExtraFields">
         <summary>Extra fields</summary>
         <div class="form-group">
           <label>Materials <small style="font-weight:normal; color:var(--text-faint);">(the task is not scheduled until all are checked)</small></label>
@@ -946,11 +953,6 @@
         <div class="form-group">
           <label for="editUrl">Link <small style="font-weight:normal; color:var(--text-faint);">(empty uses the project's or client's)</small></label>
           <input type="url" id="editUrl" maxlength="500" inputmode="url" autocapitalize="none" autocomplete="off" placeholder="e.g. example.com/menu" oninput="refreshContact('edit')">
-        </div>
-
-        <div class="form-group">
-          <label for="editDescription">Description</label>
-          <textarea id="editDescription" rows="3" maxlength="2000"></textarea>
         </div>
       </details>
 
@@ -1011,19 +1013,9 @@
       </div>
       <div id="ceJobNumber" class="settings-note" style="margin: -6px 0 12px;" hidden></div>
 
-      <div style="display: flex; gap: 10px;">
-        <div class="form-group" style="flex: 1;">
-          <label>Priority</label>
-          <select id="cePriority">
-            <option value="HIGH">HIGH</option>
-            <option value="MEDIUM">MEDIUM</option>
-            <option value="LOW">LOW</option>
-          </select>
-        </div>
-        <div class="form-group" style="flex: 1;">
-          <label for="ceTracked">Time spent (minutes)</label>
-          <input type="number" id="ceTracked" min="0" step="1">
-        </div>
+      <div class="form-group">
+        <label for="ceDescription">Description</label>
+        <textarea id="ceDescription" rows="3" maxlength="2000"></textarea>
       </div>
 
       <div class="form-group">
@@ -1036,13 +1028,39 @@
         <select id="ceProject" style="width: 100%;" onchange="refreshContact('ce')"></select>
       </div>
 
+      <div class="contact-actions" id="ceContactActions" hidden></div>
       <div class="contact-actions" id="ceNavigateActions" hidden>
         <a id="ceNavigate" class="contact-btn btn-secondary" href="#" target="_blank" rel="noopener noreferrer">🧭 Navigate</a>
         <a id="ceLink" class="contact-btn btn-secondary" href="#" target="_blank" rel="noopener noreferrer" hidden>🔗 Link</a>
       </div>
-      <div class="contact-actions" id="ceContactActions" hidden></div>
 
-      <details class="extra-fields" id="ceExtraFields">
+      <details class="form-section" id="ceScheduling">
+        <summary>Scheduling</summary>
+        <div style="display: flex; gap: 10px;">
+          <div class="form-group" style="flex: 1;">
+            <label>Priority</label>
+            <select id="cePriority">
+              <option value="HIGH">HIGH</option>
+              <option value="MEDIUM">MEDIUM</option>
+              <option value="LOW">LOW</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label for="ceTracked">Time spent (minutes)</label>
+            <input type="number" id="ceTracked" min="0" step="1">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Completed</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="date" id="ceDate" style="flex: 1;">
+            <input type="time" id="ceTime" style="flex: 1;">
+          </div>
+        </div>
+      </details>
+
+      <details class="form-section" id="ceExtraFields">
         <summary>Extra fields</summary>
         <div class="form-group">
           <label for="ceMaterials">Materials <small style="font-weight:normal; color:var(--text-faint);">(one per line, for the job sheet; add <code>| 12.50</code> after a line for its cost)</small></label>
@@ -1079,20 +1097,7 @@
           <label for="ceUrl">Link <small style="font-weight:normal; color:var(--text-faint);">(empty uses the project's or client's)</small></label>
           <input type="url" id="ceUrl" maxlength="500" inputmode="url" autocapitalize="none" autocomplete="off" placeholder="e.g. example.com/menu" oninput="refreshContact('ce')">
         </div>
-
-        <div class="form-group">
-          <label for="ceDescription">Description</label>
-          <textarea id="ceDescription" rows="3" maxlength="2000"></textarea>
-        </div>
       </details>
-
-      <div class="form-group">
-        <label>Completed</label>
-        <div style="display: flex; gap: 6px;">
-          <input type="date" id="ceDate" style="flex: 1;">
-          <input type="time" id="ceTime" style="flex: 1;">
-        </div>
-      </div>
 
       <div class="form-group">
         <label>Comments</label>
@@ -6062,6 +6067,11 @@
       return "";
     }
 
+    // Closes every collapsible section (.form-section) of a modal, so each opening starts with them all closed.
+    function closeFormSections(modalId) {
+      for (const section of document.querySelectorAll(`#${modalId} details.form-section`)) section.open = false;
+    }
+
     // Shows a task's job number in a form's read-only line, or hides the line when it has none.
     function showJobNumber(elementId, value) {
       const el = document.getElementById(elementId);
@@ -6073,7 +6083,7 @@
       const task = allTasks.find(t => t.id === taskId);
       if (!task) return;
 
-      document.getElementById("editExtraFields").open = false; // Extra fields start collapsed
+      closeFormSections("editModal"); // every section starts closed
       document.getElementById("editTaskId").value = task.id;
       resetCommentPanel("edit");
       document.getElementById("editTitle").value = task.title || "";
@@ -6936,8 +6946,8 @@
       if (!row) return;
       const values = completedFormValues(row, appTimeZone);
       const offline = savedCompletedAt !== null || !!row.waitingRequestId; // the saved copy is on screen, or the completion has not been sent
-      document.getElementById("ceExtraFields").open = false; // Extra fields start collapsed
-      if (offline) document.getElementById("ceExtraFields").open = true; // but Description, Tags, Travel, Location, Phone, Email and Link, fields left to edit offline, are in them
+      closeFormSections("completedEditModal"); // every section starts closed
+      if (offline) for (const id of ["ceScheduling", "ceExtraFields"]) document.getElementById(id).open = true; // but Priority, Time spent, Travel, Location, Phone, Email and Link, fields left to edit offline, are in them
       document.getElementById("ceId").value = id;
       resetCommentPanel("ce");
       document.getElementById("ceTitle").textContent = row.title || "";

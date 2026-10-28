@@ -694,32 +694,77 @@ describe("public/index.html helpers", () => {
       assert.doesNotMatch(html, /id="materialsDetails"/);
       assert.ok(html.indexOf(`id="editMaterials"`) > html.indexOf(`id="editModal"`));
     });
-    it("keeps Materials and Description in a collapsed Extra fields section in both edit modals", () => {
-      for (const [details, fields, modal] of [["editExtraFields", ["editMaterials", "editDescription"], "editModal"], ["ceExtraFields", ["ceMaterials", "ceDescription"], "completedEditModal"]]) {
+    it("keeps Materials in a collapsed Extra fields section and Description at the top level of both edit modals", () => {
+      for (const [details, inside, modal, prefix] of [["editExtraFields", ["editMaterials", "editTravel"], "editModal", "edit"], ["ceExtraFields", ["ceMaterials", "ceTravel"], "completedEditModal", "ce"]]) {
         const start = at(`id="${details}"`);
         const end = at("</details>", start);
         assert.ok(start > at(`id="${modal}"`), `${details} is in ${modal}`);
         assert.doesNotMatch(html.slice(start - 20, start + 40), /\sopen[\s>]/, `${details} starts collapsed`);
         assert.match(html.slice(start, start + 120), /<summary>Extra fields<\/summary>/);
-        for (const id of fields) {
+        for (const id of inside) {
           const i = at(`id="${id}"`);
           assert.ok(i > start && i < end, `${id} is inside ${details}`);
         }
+        const description = at(`id="${prefix}Description"`);
+        assert.ok(description > at(`id="${modal}"`) && description < start, `${prefix}Description is above the sections`);
+        assert.ok(description < at(`id="${prefix}Tags"`), `${prefix}Description comes before Tags`);
       }
-      assert.match(html, /getElementById\("editExtraFields"\)\.open = false/);
-      assert.match(html, /getElementById\("ceExtraFields"\)\.open = false/);
+    });
+    it("gives both edit modals one section style, every section closed each time a modal opens", () => {
+      assert.doesNotMatch(html, /extra-fields/);
+      assert.match(html, /\.form-section > summary \{/);
+      for (const [modal, ids] of [["editModal", ["editScheduling", "editExtraFields"]], ["completedEditModal", ["ceScheduling", "ceExtraFields"]]]) {
+        const start = at(`id="${modal}"`);
+        const end = at("</div>\n  </div>\n", start);
+        for (const id of ids) {
+          const i = at(`<details class="form-section" id="${id}">`);
+          assert.ok(i > start && i < end, `${id} is a form-section of ${modal}`);
+        }
+      }
+      const fn = html.slice(at("function closeFormSections"), at("// Shows a task's job number"));
+      assert.match(fn, /#\$\{modalId\} details\.form-section/);
+      assert.match(fn, /section\.open = false/);
+      assert.match(html, /closeFormSections\("editModal"\)/);
+      assert.match(html, /closeFormSections\("completedEditModal"\)/);
+    });
+    it("holds the scheduling fields of each edit modal in a Scheduling section", () => {
+      const queued = [["editNumber", "Top"], "editPriority", "editDuration", "editDueDate", "clearDueDateBtn", "editRecurFreq", "editRecurInterval"].flat();
+      const sectionOf = (id) => {
+        const start = at(`id="${id}"`);
+        return [start, at("</details>", start)];
+      };
+      const [qs, qe] = sectionOf("editScheduling");
+      for (const id of queued.filter((x) => x !== "Top")) {
+        const i = at(`id="${id}"`);
+        assert.ok(i > qs && i < qe, `${id} is in the queued Scheduling section`);
+      }
+      assert.ok(at(">Top</button>", qs) < qe, "the Top button is in it");
+      const [cs, ce] = sectionOf("ceScheduling");
+      for (const id of ["cePriority", "ceTracked", "ceDate", "ceTime"]) {
+        const i = at(`id="${id}"`);
+        assert.ok(i > cs && i < ce, `${id} is in the completed Scheduling section`);
+      }
+      for (const [prefix, details] of [["edit", "editScheduling"], ["ce", "ceScheduling"]]) {
+        const open = at(`id="${details}"`);
+        for (const id of [`${prefix}Tags`, `${prefix}Project`, `${prefix}ContactActions`, `${prefix}NavigateActions`]) {
+          assert.ok(at(`id="${id}"`) < open, `${id} stays above Scheduling`);
+        }
+      }
+    });
+    it("opens Scheduling and Extra fields of the completed form while it works offline", () => {
+      assert.match(html, /if \(offline\) for \(const id of \["ceScheduling", "ceExtraFields"\]\) document\.getElementById\(id\)\.open = true;/);
     });
     it("sizes a material's cost box small inside forms so the row stays within the modal", () => {
       assert.match(html, /\.form-group \.cost-input[^{]*\{[^}]*width:\s*84px/);
       assert.match(html, /\.form-group \.material-row input\[type="number"\][^{]*\{[^}]*width:\s*84px/);
     });
-    it("puts the task number and tags fields on one line, with short labels", () => {
-      const pair = at(`class="field-pair"`);
-      assert.ok(pair > at(`id="editModal"`));
-      const num = at(`id="editNumber"`);
+    it("puts Tags on its own line at the top level and Task number in Scheduling, with short labels", () => {
+      const modal = at(`id="editModal"`);
       const tags = at(`id="editTags"`);
-      const next = at(`<label>Due Date</label>`);
-      assert.ok(pair < num && num < tags && tags < next);
+      const scheduling = at(`id="editScheduling"`);
+      const num = at(`id="editNumber"`);
+      assert.ok(modal < tags && tags < scheduling && scheduling < num);
+      assert.doesNotMatch(html.slice(modal, at(`id="editProject"`)), /field-pair/, "no row shares the Tags line");
       assert.match(html, /<label for="editNumber">Task number<\/label>/);
       assert.match(html, /<label for="editTags">Tags<\/label>/);
     });
@@ -1193,7 +1238,7 @@ describe("public/index.html helpers", () => {
       for (const prefix of ["edit", "ce"]) {
         assert.match(html, new RegExp(`<input type="url" id="${prefix}Url" maxlength="500"[^>]*oninput="refreshContact\\('${prefix}'\\)"`));
         assert.match(html, new RegExp(`<a id="${prefix}Link" class="contact-btn btn-secondary" href="#" target="_blank" rel="noopener noreferrer" hidden>🔗 Link</a>`));
-        assert.ok(html.indexOf(`id="${prefix}Navigate"`) < html.indexOf(`id="${prefix}Link"`) && html.indexOf(`id="${prefix}Link"`) < html.indexOf(`id="${prefix}ContactActions"`), "Link follows Navigate, before the contact buttons");
+        assert.ok(html.indexOf(`id="${prefix}ContactActions"`) < html.indexOf(`id="${prefix}Navigate"`) && html.indexOf(`id="${prefix}Navigate"`) < html.indexOf(`id="${prefix}Link"`), "Link follows Navigate, after the contact buttons");
       }
       assert.ok(html.indexOf("id=\"editEmail\"") < html.indexOf("id=\"editUrl\"") && html.indexOf("id=\"ceEmail\"") < html.indexOf("id=\"ceUrl\"") && html.indexOf("id=\"manualEmail\"") < html.indexOf("id=\"manualUrl\""), "after Email");
     });
@@ -1252,7 +1297,7 @@ describe("public/index.html helpers", () => {
       has("ceExtraFields", "ceTravel");
       assert.ok(html.indexOf("id=\"manualTravel\"") > html.indexOf("id=\"manualMaterials\""));
       assert.ok(html.indexOf("id=\"manualTravel\"") < html.indexOf("id=\"manualDescription\""));
-      assert.ok(html.indexOf("id=\"editTravel\"") > html.indexOf("id=\"editMaterials\"") && html.indexOf("id=\"editTravel\"") < html.indexOf("id=\"editDescription\""));
+      assert.ok(html.indexOf("id=\"editTravel\"") > html.indexOf("id=\"editMaterials\"") && html.indexOf("id=\"editTravel\"") < html.indexOf("id=\"editLocation\""));
       const jobSheets = html.indexOf("<h3>Job Sheets</h3>");
       assert.ok(html.indexOf("id=\"travelRate\"") > jobSheets && html.indexOf("id=\"travelRate\"") > html.indexOf("id=\"hourlyRate\""));
     });

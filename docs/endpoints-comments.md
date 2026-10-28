@@ -14,7 +14,7 @@ Comments are timestamped entries on a queued task or a completed entry: a record
 
 - Job sheet: each entry's `comments` (`[{when, text}]`, oldest first, `when` on the owner's clock) are drawn under its description, headed COMMENTS.
 - CSV export: the last column, "Comments", one line per comment as `2026-10-27 14:05 text` (owner's clock; the text's line breaks become spaces), empty for none. The JSON export carries `comments` as stored.
-- Page: see `docs/frontend-tasks.md` (edit modal, card line) and `docs/frontend-history.md` (History form and entries).
+- Page: see `docs/frontend-edit-modal.md` (edit modal), `docs/frontend-tasks.md` (card line) and `docs/frontend-history.md` (History form and entries).
 
 ## Moving older data
 
