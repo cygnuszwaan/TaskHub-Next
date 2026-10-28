@@ -4772,7 +4772,122 @@
       const found = (Array.isArray(serverItems) ? serverItems : []).find(i => i && String(i.text).toLowerCase() === text);
       return found ? found.id : null;
     }
+
+    // The Back button and open overlays. Every open modal or dialog is a "layer" and the browser history holds one entry per
+    // layer, so Back (Android's button or gesture) takes an entry away instead of leaving the page. The entries are anonymous
+    // counters: an entry's state is { taskhubLayers: depth }, the number of layer entries up to and including it, and the page's
+    // own entry has none (0). The page keeps the history's depth equal to the number of open layers (layerHistoryStep).
+    const LAYER_STATE_KEY = "taskhubLayers";
+    function layerStateOf(depth) {
+      return { [LAYER_STATE_KEY]: depth };
+    }
+    // The depth a history entry's state records: 0 for the page's own entry or any state this page did not make.
+    function layerDepthOf(state) {
+      const depth = state && typeof state === "object" ? state[LAYER_STATE_KEY] : 0;
+      return Number.isInteger(depth) && depth > 0 ? depth : 0;
+    }
+    // What the history needs for `layerCount` open layers when it is `historyDepth` deep: { push } entries to add or { back } entries to
+    // go back over (never both).
+    function layerHistoryStep(layerCount, historyDepth) {
+      if (historyDepth < layerCount) return { push: layerCount - historyDepth, back: 0 };
+      if (historyDepth > layerCount) return { push: 0, back: historyDepth - layerCount };
+      return { push: 0, back: 0 };
+    }
+    // What a popstate that landed on depth `newDepth` means while `layerCount` layers are open. `expected` is the depth the page's own
+    // history.go() was heading for (null when it made none): { ours: true } when that is where it landed, else the browser's Back (or
+    // a swipe) took away `dismiss` layers' entries.
+    function layerPopStep(layerCount, newDepth, expected) {
+      if (expected !== null && newDepth === expected) return { ours: true, dismiss: 0 };
+      return { ours: false, dismiss: Math.max(0, layerCount - newDepth) };
+    }
+    // The open layers and the history entries behind them. `env`: { history, setTimer, clearTimer, lock(bool) } (the page's history and timers;
+    // `lock` keeps the page from scrolling behind an overlay). open(id, onBack) and close(id) are called as the overlay is shown and
+    // hidden; popped(state) when the browser reports a popstate. History changes are made one timer tick after the layers change, so
+    // closing one overlay and opening another at once changes nothing, and while the stack's own history.go() is on its way its
+    // popstate is not taken for a Back press (a go() that never lands is given up after a second, the history then taken as matching the layers). Back reaches the topmost layer's
+    // `onBack`; one that leaves its layer open gets the history entry back at the next tick.
+    function createLayerStack(env) {
+      const layers = []; // { id, onBack }, bottom first
+      let historyDepth = layerDepthOf(env.history.state); // layer entries in the history above the page's own
+      let goExpected = null; // the depth the stack's own go() is heading for, while it is on its way
+      let goTimer = null;
+      let syncTimer = null;
+      function sync() {
+        if (goExpected !== null) return; // runs again when that go() lands
+        const step = layerHistoryStep(layers.length, historyDepth);
+        for (let i = 0; i < step.push; i++) env.history.pushState(layerStateOf(++historyDepth), "");
+        if (step.back > 0) {
+          goExpected = historyDepth - step.back;
+          env.clearTimer(goTimer);
+          goTimer = env.setTimer(() => {
+            goExpected = null;
+            historyDepth = layers.length; // it cannot be told otherwise: take the history as it should be and carry on
+            sync();
+          }, 1000);
+          env.history.go(-step.back);
+        }
+      }
+      function schedule() {
+        if (syncTimer !== null) return;
+        syncTimer = env.setTimer(() => {
+          syncTimer = null;
+          sync();
+        }, 0);
+      }
+      schedule(); // a reload that kept an old entry's state goes back to the page's own
+      return {
+        open(id, onBack) {
+          const shown = layers.find((layer) => layer.id === id);
+          if (shown) shown.onBack = onBack;
+          else layers.push({id, onBack});
+          env.lock(true);
+          schedule();
+        },
+        close(id) {
+          const at = layers.findIndex((layer) => layer.id === id);
+          if (at >= 0) layers.splice(at, 1);
+          env.lock(layers.length > 0); // stays locked while another overlay is open
+          schedule();
+        },
+        popped(state) {
+          const depth = layerDepthOf(state);
+          const step = layerPopStep(layers.length, depth, goExpected);
+          historyDepth = depth;
+          if (step.ours) {
+            goExpected = null;
+            env.clearTimer(goTimer);
+          }
+          for (let n = 0; n < step.dismiss && layers.length > 0; n++) {
+            const before = layers.length;
+            layers[before - 1].onBack();
+            if (layers.length >= before) break; // the layer stayed
+          }
+          schedule();
+        },
+        ids: () => layers.map((layer) => layer.id),
+      };
+    }
     // </pure-helpers>
+
+    // Layers: each open overlay (#editModal, #completedEditModal, #photoModal, #snoozeModal, #batchModal, #proposalModal, #confirmModal)
+    // is shown with showLayer(id, onBack) and hidden with hideLayer(id). `onBack` is what the Back button does to that layer, normally
+    // the same close the Cancel button runs; Back reaches the topmost layer only, and a layer that stays open (a close that refuses)
+    // keeps its history entry. The stack keeps the history one entry per layer (createLayerStack) and the page locked behind any overlay.
+    const layerStack = createLayerStack({
+      history,
+      setTimer: (fn, ms) => setTimeout(fn, ms),
+      clearTimer: (timer) => clearTimeout(timer),
+      lock: (locked) => document.body.classList.toggle("modal-open", locked)
+    });
+    function showLayer(id, onBack) {
+      document.getElementById(id).style.display = "flex";
+      layerStack.open(id, onBack);
+    }
+    function hideLayer(id) {
+      document.getElementById(id).style.display = "none";
+      layerStack.close(id);
+    }
+    window.addEventListener("popstate", e => layerStack.popped(e.state));
 
     // The page's own dialogs, in place of the browser's confirm(), prompt() and alert(). `askConfirm(text, { tone,
     // confirmLabel })` resolves true on the confirm button and false on Cancel, a tap outside the card or Escape. `askInput(
@@ -4782,7 +4897,7 @@
     // the text and tones). Each opens over any other modal and leaves that modal as it was. Asking a question while another
     // is open cancels the first, but an alert never cancels anything: it waits until the dialog in front of it is closed,
     // and alerts show one after another.
-    let confirmPending = null; // { resolve, opener, bodyWasLocked, input } while the dialog is open
+    let confirmPending = null; // { resolve, opener, input } while the dialog is open
     const alertQueue = []; // { text, options, resolve } of the alerts waiting their turn
     function settleConfirm(answer) {
       const pending = confirmPending;
@@ -4790,8 +4905,7 @@
       confirmPending = null;
       const field = document.getElementById("confirmInput");
       const result = pending.input ? (answer ? field.value.trim() : null) : answer;
-      document.getElementById("confirmModal").style.display = "none";
-      if (!pending.bodyWasLocked) document.body.classList.remove("modal-open");
+      hideLayer("confirmModal");
       if (pending.opener && pending.opener.isConnected && typeof pending.opener.focus === "function") pending.opener.focus({ preventScroll: true });
       pending.resolve(result);
       queueMicrotask(pumpAlerts); // after whatever the answer goes on to ask
@@ -4834,9 +4948,8 @@
       ok.className = `confirm-ok ${view.tone}`;
       ok.disabled = !!view.input && !field.value.trim();
       return new Promise(resolve => {
-        confirmPending = { resolve, opener: document.activeElement, bodyWasLocked: document.body.classList.contains("modal-open"), input: !!view.input };
-        document.getElementById("confirmModal").style.display = "flex";
-        document.body.classList.add("modal-open");
+        confirmPending = { resolve, opener: document.activeElement, input: !!view.input };
+        showLayer("confirmModal", () => settleConfirm(false));
         detail.scrollTop = 0;
         if (view.input) {
           field.focus({ preventScroll: true });
@@ -5349,15 +5462,13 @@
       document.getElementById("proposalName").textContent = proposal.name;
       document.getElementById("proposalSteps").innerHTML = proposal.steps.map(step => `<li>${esc(proposalStepText(step))}${step.description ? `<div class="proposal-note">${esc(step.description)}</div>` : ""}</li>`).join("");
       setProposalBusy(false);
-      document.getElementById("proposalModal").style.display = "flex";
-      document.body.classList.add("modal-open");
+      showLayer("proposalModal", closeProposalModal);
     }
 
     function closeProposalModal() {
       if (proposalBusy) return;
       pendingProposal = null;
-      document.getElementById("proposalModal").style.display = "none";
-      document.body.classList.remove("modal-open");
+      hideLayer("proposalModal");
     }
 
     function closeProposalOnOverlay(e) {
@@ -6325,8 +6436,7 @@
 
       showEditTimer();
       showPhotos(task.id, "taskId", "editPhotos");
-      document.getElementById("editModal").style.display = "flex";
-      document.body.classList.add("modal-open"); // the page behind must not scroll with the modal
+      showLayer("editModal", closeEditModal); // locks the page behind it, which must not scroll with the modal
     }
 
     // "🔁 Weekly" for an interval of 1, "🔁 Every 2 weeks" otherwise; nothing for a task that does not repeat
@@ -6560,8 +6670,7 @@
       photoPanels.delete(document.getElementById("editTaskId").value);
       clearCommentPanel("edit");
       document.getElementById("editPhotos").innerHTML = "";
-      document.getElementById("editModal").style.display = "none";
-      document.body.classList.remove("modal-open");
+      hideLayer("editModal");
     }
 
     function closeModalOnOverlay(e) {
@@ -6580,13 +6689,11 @@
       dateInput.min = addDaysTo(today, 1);
       dateInput.value = isSnoozedTask(task, today) ? task.snoozedUntil : "";
       document.getElementById("unsnoozeBtn").hidden = !isSnoozedTask(task, today);
-      document.getElementById("snoozeModal").style.display = "flex";
-      document.body.classList.add("modal-open");
+      showLayer("snoozeModal", closeSnoozeModal);
     }
 
     function closeSnoozeModal() {
-      document.getElementById("snoozeModal").style.display = "none";
-      document.body.classList.remove("modal-open");
+      hideLayer("snoozeModal");
     }
 
     function closeSnoozeOnOverlay(e) {
@@ -6713,8 +6820,7 @@
 
     // Brings the edit form back after it was closed for a save that could not be kept (its fields were left as typed).
     function reopenEditForm() {
-      document.getElementById("editModal").style.display = "flex";
-      document.body.classList.add("modal-open");
+      showLayer("editModal", closeEditModal);
       renderCommentPanel("edit");
       showEditTimer();
     }
@@ -7114,12 +7220,10 @@
         document.getElementById("batchNewProject").value = "";
         document.getElementById("batchNewProjectBox").hidden = true;
       }
-      document.getElementById("batchModal").style.display = "flex";
-      document.body.classList.add("modal-open");
+      showLayer("batchModal", closeBatchModal);
     }
     function closeBatchModal() {
-      document.getElementById("batchModal").style.display = "none";
-      document.body.classList.remove("modal-open");
+      hideLayer("batchModal");
       batchModalKind = null;
     }
     function closeBatchOnOverlay(e) {
@@ -7242,8 +7346,7 @@
       document.getElementById("ceTime").value = values.time;
       // With the saved copy on screen only the fields that can wait for a connection are enabled (completedFieldDisabled)
       for (const [controlId, field] of Object.entries(COMPLETED_FORM_CONTROLS)) document.getElementById(controlId).disabled = completedFieldDisabled(field, offline);
-      document.getElementById("completedEditModal").style.display = "flex";
-      document.body.classList.add("modal-open");
+      showLayer("completedEditModal", closeCompletedEditor);
       if (offline) document.getElementById("cePhotos").innerHTML = `<div class="photo-note">${row.waitingRequestId ? "Photos can be added once this completion has been sent." : "Photos need a connection."}</div>`;
       else showPhotos(id, "archiveId", "cePhotos");
     }
@@ -7257,8 +7360,7 @@
       photoPanels.delete(document.getElementById("ceId").value);
       clearCommentPanel("ce");
       document.getElementById("cePhotos").innerHTML = "";
-      document.getElementById("completedEditModal").style.display = "none";
-      document.body.classList.remove("modal-open");
+      hideLayer("completedEditModal");
     }
     function closeCompletedEditOnOverlay(e) {
       if (e.target.id === "completedEditModal") closeCompletedEditor();
@@ -7728,15 +7830,12 @@
       if (!photo) return;
       photoViewing = { key, id };
       document.getElementById("photoFull").src = `data:image/jpeg;base64,${photo.data}`;
-      document.getElementById("photoModal").style.display = "flex";
-      document.body.classList.add("modal-open");
+      showLayer("photoModal", closePhotoViewer);
     }
     function closePhotoViewer() {
       photoViewing = null;
-      document.getElementById("photoModal").style.display = "none";
+      hideLayer("photoModal"); // the page stays locked while the edit form is still open behind the viewer
       document.getElementById("photoFull").removeAttribute("src");
-      // The page stays locked while the edit form is still open behind the viewer
-      if (document.getElementById("completedEditModal").style.display !== "flex" && document.getElementById("editModal").style.display !== "flex") document.body.classList.remove("modal-open");
     }
     function closePhotoOnOverlay(e) {
       if (e.target.id === "photoModal") closePhotoViewer();

@@ -636,9 +636,10 @@ describe("public/index.html helpers", () => {
       assert.match(html, /\.modal-overlay\s*\{[^}]*overscroll-behavior:\s*contain/);
       assert.match(html, /body\.modal-open\s*\{[^}]*overflow:\s*hidden/);
       const open = html.slice(html.indexOf("function openEditModal"), html.indexOf("// \"🔁"));
-      assert.match(open, /style\.display = "flex";\s*document\.body\.classList\.add\("modal-open"\)/);
+      assert.match(open, /showLayer\("editModal", closeEditModal\)/);
       const close = html.slice(html.indexOf("function closeEditModal"), html.indexOf("function closeModalOnOverlay"));
-      assert.match(close, /classList\.remove\("modal-open"\)/);
+      assert.match(close, /hideLayer\("editModal"\)/);
+      assert.match(html, /lock: \(locked\) => document\.body\.classList\.toggle\("modal-open", locked\)/);
     });
     it("has no heading on the add card: \"Add New Task\" is the empty text field's placeholder, and the manual-entry checkbox has no explanation in brackets", () => {
       assert.doesNotMatch(html, /<h3[^>]*>Add New Task<\/h3>/);
@@ -3713,8 +3714,8 @@ describe("public/index.html helpers", () => {
       assert.match(dom, /e\.key === "Escape"[\s\S]*settleConfirm\(false\)/);
       assert.match(dom, /e\.target\.id === "confirmModal"\) settleConfirm\(false\)/);
       assert.match(dom, /function openConfirm\(text, options\) \{\s*settleConfirm\(false\);/);
-      assert.match(dom, /bodyWasLocked: document\.body\.classList\.contains\("modal-open"\)/);
-      assert.match(dom, /if \(!pending\.bodyWasLocked\) document\.body\.classList\.remove\("modal-open"\)/);
+      assert.match(dom, /showLayer\("confirmModal", \(\) => settleConfirm\(false\)\)/);
+      assert.match(dom, /hideLayer\("confirmModal"\)/); // the layer stack keeps the page locked while a modal is still open underneath
     });
     it("keeps the swipe card pulled aside until the question is answered, then lets it snap back", () => {
       const up = html.slice(html.indexOf("const onTaskRowUp"), html.indexOf("const onTaskRowClick"));

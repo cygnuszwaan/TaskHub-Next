@@ -4,7 +4,7 @@ The queued task's edit modal (`#editModal`, "Edit Task Details") and the complet
 
 ## Layout
 
-- Both modals scroll inside themselves (`max-height: 90vh`, `overscroll-behavior: contain`) and lock the page behind them (`body.modal-open`) while open.
+- Both modals scroll inside themselves (`max-height: 90vh`, `overscroll-behavior: contain`) and lock the page behind them while open; both are layers, so Android's Back closes one like its Cancel button (frontend-shell.md).
 - The top level holds, in order: the title (an input in the queued modal, read-only text in the completed form), a read-only job number line ("Job number 123", `jobNumberText`, hidden for a task with none), Description, Tags, the Project select, the contact buttons row and the Navigate row.
 - Below it are three collapsible sections, one style for both modals (`details.form-section`, a `summary` with a ▸ that turns when open). `closeFormSections` closes every section of a modal each time it opens; only the completed form opens any itself, and only while the saved copy is on screen or the entry is an unsent completion: `completedSectionsToOpen` opens each section that holds a control still enabled (`COMPLETED_CONTROL_SECTIONS` names the section of each control; offline that is all three).
 
