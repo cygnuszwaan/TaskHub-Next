@@ -108,7 +108,6 @@
     .add-queue-label { font-weight: 600; overflow-wrap: anywhere; }
     .add-queue-status { margin-top: 2px; font-size: 13px; color: var(--text-faint); overflow-wrap: anywhere; }
     .add-queue-card.failed .add-queue-status { color: var(--error); }
-    .select-mark { flex: none; font-size: 20px; line-height: 1.1; margin-right: 10px; color: var(--primary); }
     .swipe-row .task-item.selected, .swipe-row .task-item.selected:hover { background: var(--flash); box-shadow: inset 0 0 0 2px var(--primary); }
     .batch-bar { position: sticky; bottom: 0; z-index: 5; margin-top: 12px; padding: 10px 0 4px; background: var(--surface); border-top: 1px solid var(--header-border); }
     .batch-bar[hidden] { display: none; }
@@ -6156,11 +6155,10 @@
 
     // One task as a list row. The active task, shown above the search box, also carries its tracked time.
     function taskItemHtml(t, isActive = false) {
-      const picking = selectMode && !isActive; // Multi-Select: a queued card shows a tick box and takes taps to toggle
+      const picking = selectMode && !isActive; // Multi-Select: a queued card keeps its normal layout, shows a blue outline when picked, and takes taps to toggle
       const picked = picking && selectedIds.has(t.id);
       const classes = ["task-item", isActive ? "" : dueClass(t), picking ? "selecting" : "", picked ? "selected" : ""].filter(Boolean).join(" ");
       return `        <div class="${classes}" data-id="${esc(t.id)}"${picking ? ` role="checkbox" aria-checked="${picked}"` : ""}>
-          ${picking ? `<span class="select-mark" aria-hidden="true">${picked ? "☑" : "☐"}</span>` : ""}
           <div style="flex:1; min-width:0;">
             <strong>${esc(t.title)}</strong>
             <div class="task-meta">
@@ -7587,8 +7585,6 @@
       if (item) {
         item.classList.toggle("selected", picked);
         item.setAttribute("aria-checked", String(picked));
-        const mark = item.querySelector(".select-mark");
-        if (mark) mark.textContent = picked ? "☑" : "☐";
       }
       updateBatchBar();
     }

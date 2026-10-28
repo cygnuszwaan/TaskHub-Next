@@ -3562,6 +3562,12 @@ describe("public/index.html helpers", () => {
       assert.equal(activeTaskOf([plain]), null);
       assert.equal(activeTaskOf([]), null);
     });
+    it("marks a picked Multi-Select card with the blue outline alone, adding no tick box that would change the card's layout", () => {
+      assert.equal(html.includes("select-mark"), false);
+      assert.equal(/☐|☑(?!️)/.test(html.slice(html.indexOf("function taskItemHtml"), html.indexOf("function toggleSelected") + 600)), false);
+      assert.match(html, /\.swipe-row \.task-item\.selected[^{]*\{[^}]*box-shadow: inset 0 0 0 2px var\(--primary\)/);
+      assert.match(html, /role="checkbox" aria-checked="\$\{picked\}"/);
+    });
     it("puts the active task in a box at the top of the Queue card, above the Tags section", () => {
       const queue = html.slice(html.indexOf("id=\"queueCard\""), html.indexOf("id=\"taskList\""));
       assert.ok(queue.indexOf("id=\"activeTaskBox\"") > 0);
