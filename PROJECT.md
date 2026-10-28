@@ -59,9 +59,7 @@ A change usually touches several rows: a new endpoint touches an `endpoints-*.md
 
 Each step fits in one turn, adds tests for any new pure logic and updates the `docs/` files it names. The steps are independent unless one says it needs an earlier step.
 
-The UI unification pass makes every Project and Client selector look like the Queue's Projects filter (a search field above a compact bordered list of `.project-item` rows, `.project-list`) and gives Link fields the look of the other fields. The picker modal (`#pickerModal`) stays; its search field and list are what get matched, and it becomes the one dialog every Project and Client choice opens.
-
-1. **History Project hours selector.** Replace the native `<select id="historyProject">` with a picker field that opens the picker modal for projects, which adds the missing search. Only projects with completed work are offered (the current rules: all time, only current projects), with no Add row and no None row; the row order is the newest week first, as the select's is now, and the muted text at the row's right is the project's total hours instead of its client. The choice is kept across reloads of the list, and `selectHistoryProject` becomes the pick callback; the total, weeks and job-sheet buttons are unchanged. Finish with a consistency sweep by `grep` for any remaining native `<select>` on a project or client, and `type="url"` outside the shared rule. Update `frontend-history.md` and `frontend-shell.md`.
+No steps are planned.
 
 Unplanned ideas are in `stretch-goals.md`.
 

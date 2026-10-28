@@ -2498,11 +2498,13 @@
     // with nothing in it, the line for a search that matches nothing, and the Add row's text for the typed name.
     const PICKER_KINDS = {
       project: { title: "Choose a project", search: "Search projects", placeholder: "Search projects or clients", list: "Projects", empty: "No projects yet.", noMatch: "No projects match.", add: (name) => `＋ Add “${name}” as a new project` },
-      client: { title: "Choose a client", search: "Search clients", placeholder: "Search clients", list: "Clients", empty: "No clients yet.", noMatch: "No clients match.", add: (name) => `＋ Add “${name}” as a new client` }
+      client: { title: "Choose a client", search: "Search clients", placeholder: "Search clients", list: "Clients", empty: "No clients yet.", noMatch: "No clients match.", add: (name) => `＋ Add “${name}” as a new client` },
+      hours: { title: "Choose a project", search: "Search projects", placeholder: "Search projects", list: "Projects", empty: "No projects yet.", noMatch: "No projects match.", add: () => "" }
     };
     // What the picker modal lists, pure. `kind` is "project" or "client", `query` the search bar's text, `items` the stored projects or clients and
     // `context` what ranks and describes them: {clients, counts} for projects (`counts` is projectTaskCounts: queued tasks per project) and
-    // {projects} for clients (a client's use is its number of projects). Returns {rows, more, add}:
+    // {projects} for clients (a client's use is its number of projects); kind "hours" (History's Project hours) takes items already shaped as {id, name, detail}
+    // in the order to show (newest week first) and lists them as they are, matching every word of the query in the name, with no Add row. Returns {rows, more, add}:
     // - `rows`: at most PICKER_MAX_ROWS of {id, name, detail}, the most used first and equal use in name order (case ignored); a project matches by
     //   filterProjects (its name or its client's name, the client's name as `detail`), a client when every word of the query is in its name; a
     //   blank query keeps all of them, so the list needs nothing typed.
@@ -2515,6 +2517,15 @@
       const ctx = context && typeof context === "object" ? context : {};
       const text = typeof query === "string" ? query : "";
       const clients = Array.isArray(ctx.clients) ? ctx.clients : [];
+      if (kind === "hours") {
+        const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+        const found = list.filter((item) => words.every((w) => String(item.name || "").toLowerCase().includes(w)));
+        return {
+          rows: found.slice(0, PICKER_MAX_ROWS).map((item) => ({ id: item.id, name: String(item.name || ""), detail: String(item.detail || "") })),
+          more: found.length > PICKER_MAX_ROWS,
+          add: ""
+        };
+      }
       const used = {};
       let matched;
       if (kind === "client") {
@@ -2896,6 +2907,11 @@
         if (e.weeks && e.weeks[0] && !(best.weeks && best.weeks[0] && best.weeks[0].weekStart >= e.weeks[0].weekStart)) best = e;
       }
       return best.projectId;
+    }
+    // The rows of the History project picker, pure: one {id, name, detail} per project with completed work, in the order given (newest week first),
+    // the muted detail being the project's total hours.
+    function historyProjectChoices(entries) {
+      return (Array.isArray(entries) ? entries : []).filter((e) => e && typeof e === "object").map((e) => ({ id: e.projectId, name: e.name || "Untitled project", detail: hoursText(e.minutes, e.estimatedMinutes) }));
     }
     // A comma separated tag field as a list: trimmed, empty entries dropped.
     function parseTagList(text) {
@@ -6721,6 +6737,7 @@
     // element to give the focus back to, and `allowAdd` (default true), false for a list that cannot make one. Back and Cancel close it unchosen.
     let pickerState = null; // {kind, current, onPick, opener, allowAdd, rows, add, active} while it is open
     function pickerSource(kind) {
+      if (kind === "hours") return { items: historyProjectChoices(projectHoursEntries), context: {} };
       return kind === "client"
         ? { items: allClients, context: { projects: allProjects } }
         : { items: allProjects, context: { clients: allClients, counts: projectTaskCounts(allTasks) } };
@@ -7736,20 +7753,25 @@
       projectHoursEntries = Array.isArray(entries) ? entries : [];
       historyProjectId = pickHistoryProject(projectHoursEntries, historyProjectId);
       if (!historyProjectId) return "";
-      const options = projectHoursEntries.map(e => `<option value="${esc(e.projectId)}"${e.projectId === historyProjectId ? " selected" : ""}>📁 ${esc(e.name || "Untitled project")}</option>`).join("");
       const entry = projectHoursEntries.find(e => e.projectId === historyProjectId);
       return `
         <div class="summary">
           <div class="summary-label" style="margin-top:0;">Project hours</div>
-          <select id="historyProject" aria-label="Project" style="width:100%; margin:4px 0;" onchange="selectHistoryProject(this.value)">${options}</select>
+          <div class="picker-line" style="margin:4px 0;"><button type="button" id="historyProjectField" class="picker-field" aria-haspopup="dialog" aria-label="Project" onclick="openHistoryProjectPicker()">${esc(entry.name || "Untitled project")}</button></div>
           <div id="projectHoursBody">${projectHoursBody(entry)}</div>
           ${truncated ? `<div class="summary-total" style="color:var(--text-faint);">A project with a very large number of completed tasks shows only its newest ones.</div>` : ""}
         </div>`;
     }
-    function selectHistoryProject(id) {
-      const entry = projectHoursEntries.find(e => e.projectId === id);
+    // The picker modal for the section's project: only projects with completed work, no None or Add row; a pick calls selectHistoryProject.
+    function openHistoryProjectPicker() {
+      openPicker("hours", historyProjectId, selectHistoryProject, { opener: document.getElementById("historyProjectField"), allowAdd: false });
+    }
+    function selectHistoryProject(pick) {
+      const entry = pick && projectHoursEntries.find(e => e.projectId === pick.id);
       if (!entry) return;
-      historyProjectId = id;
+      historyProjectId = entry.projectId;
+      const field = document.getElementById("historyProjectField");
+      if (field) field.textContent = entry.name || "Untitled project";
       document.getElementById("projectHoursBody").innerHTML = projectHoursBody(entry);
     }
 
