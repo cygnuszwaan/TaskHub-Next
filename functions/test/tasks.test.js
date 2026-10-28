@@ -712,6 +712,33 @@ describe("manualTaskChange", () => {
     assert.deepEqual(merged.tasks[1], {id: "new1", title: "Mow lawn", priority: "MEDIUM", dueDate: "", estimatedMinutes: 15, tags: ["Outdoor"], status: "PENDING", order: 2});
     assert.equal(merged.tasks[0].id, "t1");
   });
+  describe("queueNumber", () => {
+    const three = () => existingTasks();
+    const place = (queueNumber) => mergeTaskChanges(three(), [manualTaskChange({title: "N", queueNumber})], makeIdGenerator());
+    const titles = (merged) => merged.tasks.map((t) => t.title).join("");
+    it("becomes the change's rank, and nothing else of the client's rank counts", () => {
+      assert.equal(manualTaskChange({title: "T", queueNumber: 2}).order, 2);
+      assert.equal(manualTaskChange({title: "T", queueNumber: 2, order: 9}).order, 2);
+      assert.equal("order" in manualTaskChange({title: "T", order: 9}), false);
+    });
+    it("is ignored when it is not a whole number from 1", () => {
+      for (const bad of [0, -1, 1.5, "2", null, NaN, Infinity, {}, []]) assert.equal("order" in manualTaskChange({title: "T", queueNumber: bad}), false, String(bad));
+    });
+    it("places the new task at the top, in the middle, at the end and past the end, renumbering the rest", () => {
+      assert.equal(titles(place(1)), "NABC");
+      assert.equal(titles(place(2)), "ANBC");
+      assert.equal(titles(place(4)), "ABCN");
+      assert.equal(titles(place(99)), "ABCN");
+      assert.deepEqual(place(1).tasks.map((t) => t.order), [1, 2, 3, 4]);
+    });
+    it("leaves an entry with no number at the end, as before", () => {
+      assert.equal(titles(place(undefined)), "ABCN");
+    });
+    it("works on an empty list", () => {
+      const merged = mergeTaskChanges([], [manualTaskChange({title: "N", queueNumber: 5})], makeIdGenerator());
+      assert.deepEqual(merged.tasks.map((t) => [t.title, t.order]), [["N", 1]]);
+    });
+  });
   it("keeps the entered priority, due date and estimate", () => {
     const merged = mergeTaskChanges([], [manualTaskChange({title: "Pay rates", priority: "HIGH", dueDate: "2026-11-01", estimatedMinutes: 10, tags: []})], makeIdGenerator());
     assert.deepEqual(merged.tasks, [{id: "new1", title: "Pay rates", priority: "HIGH", dueDate: "2026-11-01", estimatedMinutes: 10, tags: [], status: "PENDING", order: 1}]);

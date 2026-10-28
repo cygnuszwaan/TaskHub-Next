@@ -156,13 +156,14 @@ function changeProjectFields(change, projectIds) {
 }
 
 // The new-task change for a task entered by hand, in the shape mergeTaskChanges takes. Pure: no I/O.
-//   manual: {title, priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?, description?, travelKm?, phone?, email?, url?, location?}
+//   manual: {title, priority?, dueDate?, estimatedMinutes?, tags?, recurrence?, projectId?, projectOrder?, materials?, description?, travelKm?, phone?, email?, url?, location?, queueNumber?}
 //           from the entry form
 // Returns null without a usable title. The fields are validated by the same rules as the model's (see cleanFields,
 // changeProjectFields), so an unusable priority, date, estimate, tag list, recurrence or project falls back to the
 // new-task default; a field the form did not send is left out of the change. `materials`, `description`, `travelKm`, `phone`, `email`, `url` and `location` are passed on as
 // sent and are only applied when mergeTaskChanges is told to (the model's changes never set them). There is no id (a manual
-// entry is always a new task) and no rank (it goes last).
+// entry is always a new task). The only rank is `queueNumber`, a whole number from 1 that becomes the change's `order`: the task is
+// placed at that place in the queue (mergeTaskChanges clamps it to the end); an absent or unusable one leaves no rank, so it goes last.
 function manualTaskChange(manual) {
   if (!manual || typeof manual !== "object" || Array.isArray(manual)) return null;
   if (typeof manual.title !== "string" || !manual.title.trim()) return null;
@@ -171,6 +172,7 @@ function manualTaskChange(manual) {
     if (manual[key] !== undefined) change[key] = manual[key];
   }
   if (manual.description !== undefined) change.description = manual.description;
+  if (Number.isInteger(manual.queueNumber) && manual.queueNumber >= 1) change.order = manual.queueNumber;
   return change;
 }
 

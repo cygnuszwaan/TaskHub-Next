@@ -10,7 +10,7 @@ The queued task's edit modal (`#editModal`, "Edit Task Details") and the complet
 
 | Section | Queued modal | Completed form |
 |---|---|---|
-| Scheduling (`#editScheduling`, `#ceScheduling`) | Task number with its Top button, Priority, Est. minutes, Due date with its Clear button, Repeats | Priority, Time spent (minutes), Completed date and time |
+| Scheduling (`#editScheduling`, `#ceScheduling`) | Task number with its Top and Bottom buttons, Priority, Est. minutes, Due date with its Clear button, Repeats | Priority, Time spent (minutes), Completed date and time |
 | Contact details (`#editContact`, `#ceContact`) | Phone, Email, Link, Location | the same |
 | Audit trail (`#editAudit`, `#ceAudit`) | Travel (km), Materials, Photos, Comments | the same, Materials as a textarea, then the 📄 Download job sheet button (the queued modal has none) |
 
@@ -20,7 +20,7 @@ The queued task's edit modal (`#editModal`, "Edit Task Details") and the complet
 
 ## Fields
 
-- Task number (`#editNumber`, with a Top button that types 1): sends `queueNumber` only when changed (`queueNumberChange`, clamped to the list length).
+- Task number (`#editNumber`, with Top and Bottom buttons that type 1 and the list length, `fillTaskNumber`; the box and both buttons fill the row): sends `queueNumber` only when changed (`queueNumberChange`, clamped to the list length).
 - Due date: its Clear button empties it; saving then stores an empty `dueDate`. Repeats (frequency, plus an interval when it repeats) is saved as `recurrence`, null for "Does not repeat".
 - Project select and Order number field (disabled and emptied without a project; empty means unordered) are saved as `projectId` and `projectOrder`, but only once `getProjects` has answered, so a failed load never strips a task's project; a project the page does not know stays selectable as "Unknown project". Once `getProjects` has answered, the queued modal's select ends with "＋ New project…" (`NEW_PROJECT`), which shows a name field (`#editNewProject`) and keeps the Order number field enabled; Save then sends the name as `newProject` (an empty name is a warning alert, nothing is sent) and the server creates the project in the same commit as the edit (a 400 for an unusable or taken name saves nothing), the response's `projects` replacing the page's list.
 - Description (`#editDescription`, `#ceDescription`, up to 2000 characters): saved as `description`, empty removes it.

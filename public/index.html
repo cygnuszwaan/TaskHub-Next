@@ -185,6 +185,7 @@
     .field-pair { display: flex; gap: 10px; align-items: flex-start; }
     .field-pair > .form-group { margin-bottom: 12px; }
     .field-with-btn { display: flex; gap: 6px; }
+    .field-with-btn > input { flex: 1; min-width: 0; }
     .shopping-add { padding-top: 0; }
     .material-group { padding: 8px 0; border-bottom: 1px solid var(--divider); }
     .material-group-title { font-weight: 600; font-size: 14px; cursor: pointer; }
@@ -387,6 +388,14 @@
       </div>
       <details class="form-section" id="manualScheduling">
         <summary>Scheduling</summary>
+        <div class="form-group">
+          <label for="manualNumber">Task number <small style="font-weight:normal; color:var(--text-faint);">(empty adds it at the end)</small></label>
+          <div class="field-with-btn">
+            <input type="number" id="manualNumber" min="1" step="1" inputmode="numeric" title="Place in the queue">
+            <button type="button" class="btn-secondary" title="Add at the top of the queue" onclick="fillTaskNumber('manual', 'top')">Top</button>
+            <button type="button" class="btn-secondary" title="Add at the bottom of the queue" onclick="fillTaskNumber('manual', 'bottom')">Bottom</button>
+          </div>
+        </div>
         <div style="display: flex; gap: 10px;">
           <div class="form-group" style="flex: 1;">
             <label for="manualPriority">Priority</label>
@@ -872,11 +881,12 @@
 
       <details class="form-section" id="editScheduling">
         <summary>Scheduling</summary>
-        <div class="form-group" style="max-width: 200px;">
+        <div class="form-group">
           <label for="editNumber">Task number</label>
           <div class="field-with-btn">
-            <input type="number" id="editNumber" min="1" step="1" inputmode="numeric" style="min-width:0;" title="Place in the queue">
-            <button type="button" class="btn-secondary" title="Move to the top of the queue" onclick="document.getElementById('editNumber').value = 1">Top</button>
+            <input type="number" id="editNumber" min="1" step="1" inputmode="numeric" title="Place in the queue">
+            <button type="button" class="btn-secondary" title="Move to the top of the queue" onclick="fillTaskNumber('edit', 'top')">Top</button>
+            <button type="button" class="btn-secondary" title="Move to the bottom of the queue" onclick="fillTaskNumber('edit', 'bottom')">Bottom</button>
           </div>
         </div>
 
@@ -2098,6 +2108,8 @@
       };
       const recurrence = recurrenceFields(form.recurFreq, form.recurInterval);
       if (recurrence) manual.recurrence = recurrence;
+      const queueNumber = addQueueNumber(form.queueNumber);
+      if (queueNumber !== null) manual.queueNumber = queueNumber;
       const newProject = String(form.newProjectName || "").trim();
       if (newProject) {
         // A project to create with the task: the server makes it in the same commit and gives the task its id
@@ -2508,6 +2520,18 @@
     }
     // The Task number field of the edit form as the `queueNumber` to send: a whole number from 1 to `count` that
     // differs from the task's current one, else null (nothing to move).
+    // The place in the queue the add card asks for: a whole number from 1, or null when the box is empty or unusable (the task then
+    // goes last). The server clamps a number past the end. Pure.
+    function addQueueNumber(value) {
+      const text = String(value === undefined || value === null ? "" : value).trim();
+      const n = Number(text);
+      return text !== "" && Number.isInteger(n) && n >= 1 ? n : null;
+    }
+    // What the Bottom button types into a Task number box: the last place in a queue of `count` tasks, or the place after the last
+    // when `adding` a task that is not in the queue yet (never below 1). Pure.
+    function bottomTaskNumber(count, adding) {
+      return Math.max(1, (Number.isInteger(count) && count > 0 ? count : 0) + (adding ? 1 : 0));
+    }
     function queueNumberChange(value, current, count) {
       const n = Number(String(value).trim());
       if (String(value).trim() === "" || !Number.isInteger(n) || n < 1) return null;
@@ -5115,6 +5139,7 @@
           estimatedMinutes: document.getElementById("manualMinutes").value,
           tags: document.getElementById("manualTags").value,
           dueDate: document.getElementById("manualDue").value,
+          queueNumber: document.getElementById("manualNumber").value,
           recurFreq: document.getElementById("manualRecurFreq").value,
           recurInterval: document.getElementById("manualRecurInterval").value,
           // Without the project list the form cannot offer a project, so it sends none
@@ -5300,9 +5325,10 @@
       document.getElementById("templateResults").hidden = true; // the form replaces the list
     }
 
-    // Repeats, project, materials, travel, location, phone, email, link and description belong to one task, so they are cleared after each manual add
+    // Task number, Repeats, project, materials, travel, location, phone, email, link and description belong to one task, so they are cleared after each manual add
     function resetManualExtras() {
       copiedHistory = null;
+      document.getElementById("manualNumber").value = "";
       document.getElementById("manualRecurFreq").value = "NONE";
       document.getElementById("manualRecurInterval").value = 1;
       updateRecurUnit("manual");
@@ -6266,6 +6292,11 @@
       const task = prefix === "edit" ? allTasks.find(t => t.id === document.getElementById("editTaskId").value) : prefix === "ce" ? completedRows.get(document.getElementById("ceId").value) : null;
       actions.innerHTML = contactLinks(effective, task).map(l => `<a class="contact-btn btn-secondary" href="${esc(l.href)}"${l.external ? ' target="_blank" rel="noopener noreferrer"' : ""}>${l.label}</a>`).join("");
       actions.hidden = actions.innerHTML === "";
+    }
+
+    // The Top and Bottom buttons of a Task number box (`prefix` "edit" or "manual"): the add card's Bottom is the place after the last task.
+    function fillTaskNumber(prefix, position) {
+      document.getElementById(`${prefix}Number`).value = position === "top" ? 1 : bottomTaskNumber(allTasks.length, prefix === "manual");
     }
 
     function clearEditDueDate() {
