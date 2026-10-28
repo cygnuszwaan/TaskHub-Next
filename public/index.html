@@ -65,8 +65,8 @@
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 680px; margin: 0 auto 20px; padding: 0 15px; background: var(--bg); color: var(--text); }
     .card { background: var(--surface); padding: 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 16px; }
     .input-row { display: flex; gap: 8px; }
-    input[type="text"], input[type="search"], input[type="number"], input[type="date"], input[type="time"], input[type="tel"], input[type="email"], select { padding: 10px 12px; font-size: 15px; border: 1px solid var(--border-input); border-radius: 6px; box-sizing: border-box; }
-    input[type="text"] { flex: 1; min-width: 0; }
+    input[type="text"], input[type="search"], input[type="number"], input[type="date"], input[type="time"], input[type="tel"], input[type="email"], input[type="url"], select { padding: 10px 12px; font-size: 15px; border: 1px solid var(--border-input); border-radius: 6px; box-sizing: border-box; }
+    input[type="text"], input[type="url"] { flex: 1; min-width: 0; }
     textarea { padding: 10px 12px; font-size: 15px; font-family: inherit; border: 1px solid var(--border-input); border-radius: 6px; box-sizing: border-box; resize: vertical; background: var(--surface); color: var(--text); }
     button { padding: 10px 14px; font-size: 14px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; white-space: nowrap; }
     button:disabled { background: var(--primary-disabled); }
@@ -144,12 +144,10 @@
     .picker-field:disabled { background: var(--surface); color: var(--text-faint); }
     .picker-toggle { min-height: 44px; }
     .picker-toggle[hidden] { display: none; }
-    .picker-card .picker-list { margin: 10px 0 0; border: 1px solid var(--divider); border-radius: 6px; overflow: hidden; }
     .picker-row { min-height: 44px; box-sizing: border-box; align-items: center; }
     .picker-row.kb { background: var(--hover); }
     .picker-row.active.kb { background: var(--primary); }
     .picker-row.picker-add { color: var(--link); font-weight: 600; }
-    .picker-note { padding: 10px 12px; font-size: 13px; color: var(--text-faint); }
     .settings-card > summary { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; -webkit-tap-highlight-color: transparent; }
     .settings-card > summary::-webkit-details-marker { display: none; }
     .settings-card > summary::after { content: "▸"; color: var(--text-muted); font-size: 16px; transition: transform 0.15s ease; }
@@ -770,7 +768,7 @@
       <input type="text" id="newClientName" maxlength="100" placeholder="Search clients or projects, or type a new client name" aria-label="Search clients, or name a new client">
       <button type="button" id="addClientBtn">Add</button>
     </div>
-    <div id="clientList"></div>
+    <div id="clientList" class="project-list" hidden></div>
     <div id="clientEdit" hidden>
       <div id="clientFormMount" style="margin-top: 14px;"></div>
       <!-- <p class="settings-note" style="margin:6px 0 0;">A project can belong to a client, chosen in the Projects section of the Queue page. Deleting a client leaves its projects in place.</p> -->
@@ -778,6 +776,7 @@
         <button type="button" id="saveClientBtn">Save client</button>
         <button type="button" id="cancelClientBtn" class="btn-secondary">Cancel</button>
       </div>
+      <button type="button" id="deleteClientBtn" class="btn-danger" style="margin-top: 10px; width: 100%;" hidden>Delete client</button>
     </div>
     <div id="clientsStatus" class="settings-status"></div>
   </details>
@@ -1264,7 +1263,7 @@
     <div class="modal-card picker-card" role="dialog" aria-modal="true" aria-labelledby="pickerTitle">
       <h3 id="pickerTitle">Choose a project</h3>
       <input type="text" id="pickerSearch" maxlength="100" autocomplete="off" autocapitalize="none" enterkeyhint="go" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="pickerList" aria-label="Search projects" placeholder="Search projects or clients" style="width: 100%;" oninput="pickerTyped()" onkeydown="pickerKeydown(event)">
-      <div id="pickerList" class="picker-list" role="listbox" aria-label="Projects" onclick="pickerListClick(event)"></div>
+      <div id="pickerList" class="project-list" role="listbox" aria-label="Projects" onclick="pickerListClick(event)"></div>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" onclick="closePicker()">Cancel</button>
       </div>
@@ -2387,13 +2386,9 @@
         return words.every(w => text.includes(w));
       });
     }
-    // One line under a client's name in the Clients list: location (with a 📍), phone, "WhatsApp" when it uses it, email and own hourly rate that exist.
-    function clientSummary(client) {
-      const text = (v) => (typeof v === "string" ? v.trim() : "");
-      const rate = client && typeof client.hourlyRate === "number" && Number.isFinite(client.hourlyRate) && client.hourlyRate >= 0 ? "$" + client.hourlyRate.toFixed(2) + "/h" : "";
-      const whatsApp = client && client.useWhatsApp === true ? "WhatsApp" : "";
-      const place = text(client && client.location && client.location.name);
-      return [place ? `📍 ${place}` : "", text(client && client.phone), whatsApp, text(client && client.email), rate].filter(Boolean).join(" · ");
+    // Whether the Clients form shows its Delete client button: only while an existing client is being edited, never for a new one.
+    function clientDeleteShown(editingId, clients) {
+      return !!editingId && (Array.isArray(clients) ? clients : []).some(c => c && c.id === editingId);
     }
     // The updateClient `client` object for the Clients form's fields; `hourlyRate` is the box as typed (trimmed), "" for none, which
     // the server reads as the global rate.
@@ -6766,9 +6761,9 @@
       const options = state.rows.length + (state.add ? 1 : 0);
       state.active = options === 0 ? 0 : Math.min(Math.max(state.active, 0), options - 1);
       let html = state.rows.map((row, i) => `<div class="project-item picker-row${row.id === state.current ? " active" : ""}${i === state.active ? " kb" : ""}" role="option" id="pickerOpt${i}" aria-selected="${row.id === state.current}" data-id="${esc(row.id)}"><span class="project-item-name">${esc(row.name)}</span>${row.detail ? `<span class="project-item-client">${esc(row.detail)}</span>` : ""}</div>`).join("");
-      if (view.more) html += "<div class=\"picker-note\">Keep typing to narrow</div>";
+      if (view.more) html += "<div class=\"project-list-empty\">Keep typing to narrow</div>";
       if (state.add) html += `<div class="project-item picker-row picker-add${state.rows.length === state.active ? " kb" : ""}" role="option" id="pickerOpt${state.rows.length}" aria-selected="false" data-add="1"><span class="project-item-name">${esc(text.add(state.add))}</span></div>`;
-      if (options === 0) html = `<div class="picker-note">${esc(query.trim() ? text.noMatch : text.empty)}</div>`;
+      if (options === 0) html = `<div class="project-list-empty">${esc(query.trim() ? text.noMatch : text.empty)}</div>`;
       document.getElementById("pickerList").innerHTML = html;
       const search = document.getElementById("pickerSearch");
       if (options > 0) search.setAttribute("aria-activedescendant", `pickerOpt${state.active}`);
@@ -8775,17 +8770,14 @@
     // The list narrows live with the search field (filterClients: names, location, phone, email and project names); the edit form is not affected.
     function renderClients() {
       const box = document.getElementById("clientList");
+      box.hidden = !clientsLoaded;
       const shown = filterClients(allClients, allProjects, document.getElementById("newClientName").value);
       box.innerHTML = !clientsLoaded ? "" : allClients.length === 0
-        ? "<span style='color:var(--text-faint); font-size:13px;'>No clients yet.</span>"
+        ? "<div class=\"project-list-empty\">No clients yet.</div>"
         : shown.length === 0
-          ? "<span style='color:var(--text-faint); font-size:13px;'>No clients match the search.</span>"
-          : shown.map(c => `
-          <div class="project-row" data-id="${esc(c.id)}">
-            <span class="project-name"><strong>${esc(c.name)}</strong>${clientSummary(c) ? `<br><small style="color:var(--text-faint);">${esc(clientSummary(c))}</small>` : ""}</span>
-            <button type="button" class="btn-secondary" data-action="edit">Edit</button>
-            <button type="button" class="btn-danger" data-action="delete">Delete</button>
-          </div>`).join("");
+          ? "<div class=\"project-list-empty\">No clients match the search.</div>"
+          : shown.map(c => `<div class="project-item${c.id === editingClientId ? " active" : ""}" data-id="${esc(c.id)}" role="button" tabindex="0"><span class="project-item-name">${esc(c.name)}</span></div>`).join("");
+      document.getElementById("deleteClientBtn").hidden = !clientDeleteShown(editingClientId, allClients);
     }
 
     // Each Clients form block (see clientFormHtml) keeps its own map position (`coords`: {latitude, longitude}, plus `label`, the place it was
@@ -8863,6 +8855,7 @@
       editingClientId = client ? client.id : null;
       fillClientFormBlock("client", client || draft);
       document.getElementById("clientEdit").hidden = !client && !draft;
+      renderClients(); // marks the row being edited and shows or hides Delete client
     }
 
     // Everything that shows client names follows a change to the list.
@@ -8954,15 +8947,19 @@
     });
     document.getElementById("saveClientBtn").addEventListener("click", saveClient);
     document.getElementById("cancelClientBtn").addEventListener("click", () => { fillClientForm(null); setClientsStatus(""); });
-    document.getElementById("clientList").addEventListener("click", e => {
-      const btn = e.target.closest("[data-action]");
-      const row = btn && btn.closest(".project-row");
+    function openClientRow(row) {
+      const client = row && allClients.find(c => c.id === row.dataset.id);
+      if (client) { fillClientForm(client); setClientsStatus(""); document.getElementById("clientName").focus(); }
+    }
+    document.getElementById("clientList").addEventListener("click", e => openClientRow(e.target.closest(".project-item")));
+    document.getElementById("clientList").addEventListener("keydown", e => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const row = e.target.closest(".project-item");
       if (!row) return;
-      if (btn.dataset.action === "edit") {
-        const client = allClients.find(c => c.id === row.dataset.id);
-        if (client) { fillClientForm(client); document.getElementById("clientName").focus(); }
-      } else if (btn.dataset.action === "delete") deleteClient(row.dataset.id);
+      e.preventDefault();
+      openClientRow(row);
     });
+    document.getElementById("deleteClientBtn").addEventListener("click", () => { if (editingClientId) deleteClient(editingClientId); });
 
     // Settings: location (with place search), time zone and the automatic schedule.
     let currentSettings = null; // as last read from the server; null until they load
