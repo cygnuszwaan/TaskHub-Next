@@ -412,7 +412,10 @@
         </div>
         <div class="form-group">
           <label for="manualDue">Due Date (optional)</label>
-          <input type="date" id="manualDue">
+          <div style="display: flex; gap: 6px;">
+            <input type="date" id="manualDue" style="flex: 1;">
+            <button type="button" id="clearManualDueBtn" class="btn-secondary" title="Remove the due date" onclick="clearManualDueDate()">Clear</button>
+          </div>
         </div>
         <div class="form-group">
           <label>Repeats</label>
@@ -3012,6 +3015,19 @@
       };
     }
 
+    // The add card's sections to open for a copied completed task (`values` from templateFormValues), in page order: the ones holding a
+    // value the owner could not otherwise see. Scheduling counts only Repeats, since priority and estimate always have a value and the
+    // due date is not copied; the top-level fields (title, tags, project, description) are always on screen. Pure.
+    function manualSectionsToOpen(values) {
+      const v = values && typeof values === "object" ? values : {};
+      const filled = (x) => typeof x === "string" && x.trim() !== "";
+      const open = [];
+      if (typeof v.recurFreq === "string" && v.recurFreq !== "NONE" && v.recurFreq !== "") open.push("manualScheduling");
+      if ([v.phone, v.email, v.url].some(filled) || (v.location && typeof v.location === "object" && filled(v.location.name))) open.push("manualContact");
+      if (filled(v.travelKm) || (Array.isArray(v.materials) && v.materials.length > 0)) open.push("manualAudit");
+      return open;
+    }
+
     // What submitTask posts besides the entry itself: `startNow` when the box is ticked
     function addTaskExtras({ startNow }) {
       return startNow ? { startNow: true } : {};
@@ -5322,6 +5338,7 @@
       document.getElementById("manualUrl").value = v.url;
       setLocationBox("manual", v.location);
       refreshContact("manual");
+      for (const id of manualSectionsToOpen(v)) openFormSection(id); // showManualFields closed them all: open those holding a copied value
       document.getElementById("templateResults").hidden = true; // the form replaces the list
     }
 
@@ -6301,6 +6318,10 @@
 
     function clearEditDueDate() {
       document.getElementById("editDueDate").value = "";
+    }
+
+    function clearManualDueDate() {
+      document.getElementById("manualDue").value = "";
     }
 
     // The timer button and elapsed time in the edit modal, from the task as it is on the list now. While the timer
