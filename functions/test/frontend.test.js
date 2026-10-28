@@ -600,7 +600,7 @@ describe("public/index.html helpers", () => {
   describe("layout", () => {
     it("has a manual-entry checkbox and fields in the add card, and gap, day and lunch fields in Settings", () => {
       const add = html.indexOf(`id="taskInput"`);
-      const queue = html.indexOf(`id="queueCard"`);
+      const queue = html.indexOf(`id="offlineNote"`);
       for (const id of ["manualToggle", "manualFields", "manualPriority", "manualMinutes", "manualTags", "manualDue"]) {
         const i = html.indexOf(`id="${id}"`);
         assert.ok(i > add && i < queue, `${id} sits in the add card`);
@@ -660,7 +660,7 @@ describe("public/index.html helpers", () => {
     });
     it("lays the manual entry out like the edit modal: Description, Tags and Project, then Scheduling, Contact details and Audit trail", () => {
       const manual = html.indexOf(`id="manualFields"`);
-      const queue = html.indexOf(`id="queueCard"`);
+      const queue = html.indexOf(`id="offlineNote"`);
       const inOrder = (ids, from, to, what) => {
         let last = from;
         for (const id of ids) {
@@ -759,7 +759,8 @@ describe("public/index.html helpers", () => {
         const i = at(`id="${id}"`);
         assert.ok(i > tasks && i < end, `${id} is on the Queue page`);
       }
-      assert.ok(at(`id="taskInput"`) < at(`id="queueCard"`));
+      assert.ok(at(`id="queueCard"`) < at(`id="taskInput"`) && at(`id="taskInput"`) < at(`id="offlineNote"`), "the add field is in the Queue card, above the filters and the list");
+      assert.equal(html.slice(at(`id="pageQueue"`), end).split(`class="card"`).length, 2, "the Queue page has one card only");
       assert.ok(at(`id="pageHistory"`) > end, "the History page is not on the Queue page");
     });
     it("makes Materials a page, not a collapsible card", () => {
@@ -969,18 +970,48 @@ describe("public/index.html helpers", () => {
         assert.ok(i > page && i < end, `${id} is on the Settings page`);
       }
     });
-    it("has no Projects card of its own: the Queue's Project field sits just below the collapsible Tags section, with the chosen project's actions under it", () => {
+    it("has no Projects card of its own: the Queue's Project field sits just below the collapsible Tags section, its project actions in the modal's Manage section", () => {
       const q = at(`id="queueCard"`);
       const tags = at(`<details class="filter-section" id="tagsDetails">`, q);
       const projects = at(`<div class="project-section" id="projectsSection">`, q);
       assert.ok(q < tags && closeOf(tags) < projects && projects < at(`id="taskList"`, q));
       assert.ok(at(`id="tagFilterBar"`, tags) < closeOf(tags));
       assert.ok(at(`id="queueProjectLabel"`, projects) < at(`id="queueProjectField"`, projects), "the label sits to the left of the field");
-      for (const id of ["queueProjectField", "projectActions", "projectsStatus"]) {
+      for (const id of ["queueProjectField", "projectsStatus"]) {
         assert.ok(at(`id="${id}"`, projects) > projects && at(`id="${id}"`, projects) < at(`id="sortBy"`, q), `${id} sits in the Project section`);
       }
+      const page = html.slice(projects, at(`id="sortBy"`, q));
+      for (const id of ["projectActions", "projectNewClient", "projectLocation", "projectUrl", "projectTemplateAction"]) assert.ok(!page.includes(`id="${id}"`), `${id} is not under the field any more`);
       assert.equal(html.split(`id="projectsSection"`).length, 2, "one Project section only");
       assert.doesNotMatch(html, /id="projectFilterBar"|id="newProjectName"|id="addProjectBtn"|id="projectsActive"|id="projectsDetails"/, "the old search, Add button and list are gone");
+    });
+    it("holds the chosen project's actions in a collapsible Manage section of the Project modal, headed by its name, collapsed on every open", () => {
+      const modal = at(`id="pickerModal"`);
+      const manage = at(`<details class="filter-section" id="pickerManage" hidden>`, modal);
+      const end = closeOf(manage);
+      assert.ok(at(`id="pickerList"`, modal) < manage && at(`id="pickerStatus"`, modal) < manage && end < at(`onclick="closePicker()"`, modal), "below the list, above Cancel");
+      assert.match(html.slice(manage, at("</summary>", manage)), /Manage <small id="pickerManageName">/);
+      for (const id of ["projectActions", "projectNewClient", "projectLocation", "projectUrl", "projectTemplateAction"]) {
+        const i = at(`id="${id}"`, manage);
+        assert.ok(i > manage && i < end, `${id} is in Manage`);
+      }
+      const fn = html.slice(html.indexOf("function renderPickerManage()"), html.indexOf("function pickerTyped()"));
+      assert.match(fn, /pickerState\.kind === "queue" \? allProjects\.find\(p => p\.id === selectedProjectFilter\) \|\| null : null/, "shown for a chosen project only, never for All, and only while the Queue's modal is in front");
+      assert.match(fn, /hidden = !chosen/);
+      assert.match(fn, /`· \$\{chosen\.name\}`/);
+      assert.match(html, /if \(kind === "queue" && !over\) document\.getElementById\("pickerManage"\)\.open = false;/, "collapsed on every open");
+      assert.match(html, /document\.getElementById\("pickerManage"\)\.open = false; \/\/ the new project's Manage starts collapsed too/);
+      const render = html.slice(html.indexOf("function renderProjects()"), html.indexOf("// The chosen project's Location row"));
+      assert.match(render, /if \(pickerState && pickerState\.kind === "queue"\) renderPicker\(\);/, "a rename or client change redraws the rows and the heading");
+    });
+    it("lets a picker open over the Project modal and returns to it as it was; Delete closes the modal", () => {
+      const open = html.slice(html.indexOf("function openPicker("), html.indexOf("function closePickerOnOverlay"));
+      assert.match(open, /const over = pickerState !== null;\s*if \(over\) pickerParents\.push\(\{ state: pickerState, search: search\.value \}\);/);
+      assert.match(open, /if \(!over\) \{\s*showLayer\("pickerModal", closePicker\);/, "one layer, shown once");
+      assert.match(open, /const parent = pickerParents\.pop\(\) \|\| null;\s*if \(parent\) \{[^}]*pickerState = parent\.state;\s*applyPicker\(parent\.state, parent\.search\);\s*renderPicker\(\);/);
+      assert.ok(open.indexOf("pickerParents.pop()") < open.indexOf("hideLayer(\"pickerModal\")"), "the modal is hidden only when no picker is left underneath");
+      const del = html.slice(html.indexOf("async function deleteProject("), html.indexOf("// Picking an address saves it"));
+      assert.match(del, /await saveProject\(\{ action: "DELETE", projectId \}, `Deleted "\$\{project\.name\}"\.`\) && pickerState && pickerState\.kind === "queue"\) closePicker\(\);/);
     });
     it("shows the Queue's project as a labelled picker button, \"Project\" to its left, disabled until the projects are loaded", () => {
       const line = html.slice(at(`id="queueProjectLabel"`) - 120, at(`</button>`, at(`id="queueProjectField"`)));
@@ -1017,10 +1048,10 @@ describe("public/index.html helpers", () => {
     it("no longer offers Plan My Week anywhere on the page", () => {
       assert.doesNotMatch(html, /Plan My Week/);
     });
-    it("has a Queue card with no heading of its own (no collapsible Queue), holding the filters and the list", () => {
+    it("has one Queue card with no heading of its own (no collapsible Queue), holding the add field, the filters and the list", () => {
       const q = at(`id="queueCard"`);
       assert.doesNotMatch(html, /queueDetails|Organized Queue|Tap to edit/);
-      assert.doesNotMatch(html.slice(q, at(`id="tagsDetails"`, q)), /<summary|<h3/);
+      assert.doesNotMatch(html.slice(at(`id="offlineNote"`, q), at(`id="tagsDetails"`, q)), /<summary|<h3/);
       assert.ok(q < at(`id="tagFilterBar"`, q) && at(`id="tagFilterBar"`, q) < at(`id="taskList"`, q));
       assert.ok(at(`id="taskList"`, q) < at("</main>", q));
     });

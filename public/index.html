@@ -138,11 +138,13 @@
     .picker-line[hidden] { display: none; }
     .picker-line-label { flex: none; font-size: 13px; font-weight: 600; color: var(--text-muted); }
     .project-section { margin-top: 12px; }
+    .add-section { margin-bottom: 12px; }
     .picker-search-row { display: flex; gap: 6px; align-items: center; }
     .picker-search-row #pickerSearch { flex: 1; min-width: 0; }
     .picker-search-row button[hidden] { display: none; }
     #pickerStatus { margin-top: 8px; }
     #pickerStatus:empty { display: none; }
+    #pickerManage { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
     .picker-field { flex: 1; min-width: 0; min-height: 44px; box-sizing: border-box; text-align: left; white-space: normal; overflow-wrap: anywhere; padding: 10px 12px; font-size: 15px; font-weight: 500; background: var(--surface); color: var(--text); border: 1px solid var(--border-input); border-radius: 6px; }
     .picker-field:disabled { background: var(--surface); color: var(--text-faint); }
     .picker-toggle { min-height: 44px; }
@@ -377,7 +379,8 @@
   </header>
 
   <main id="pageQueue" data-page="queue">
-  <div class="card">
+  <div class="card" id="queueCard">
+    <div class="add-section">
     <div class="input-row">
       <input type="text" id="taskInput" class="search-box" placeholder="Add or search tasks, #job, @client" autocomplete="off" aria-label="Add a task, or search tasks and past tasks">
       <button type="button" class="btn-secondary" id="clearSearchBtn" hidden>Clear</button>
@@ -504,9 +507,7 @@
         </div>
       </details>
     </div>
-  </div>
-
-  <div class="card" id="queueCard">
+    </div>
       <div class="offline-note" id="offlineNote" aria-live="polite" hidden><span id="offlineNoteText"></span> <button type="button" id="offlineRetryBtn">Retry</button></div>
       <div class="add-queue" id="addQueueBox" aria-live="polite" hidden></div>
       <div class="active-task-box" id="activeTaskBox" hidden>
@@ -529,34 +530,6 @@
           <span class="picker-line-label" id="queueProjectLabel">Project</span>
           <button type="button" id="queueProjectField" class="picker-field" aria-haspopup="dialog" aria-labelledby="queueProjectLabel queueProjectField" onclick="openQueueProjectPicker()" disabled>All</button>
         </div>
-        <div class="project-actions" id="projectActions"></div>
-        <div class="project-location" id="projectNewClient" hidden>
-          <div id="projectClientFormMount"></div>
-          <div class="action-row" style="margin-top: 8px;">
-            <button type="button" id="projectClientAddBtn">Add client</button>
-            <button type="button" id="projectClientCancelBtn" class="btn-secondary">Cancel</button>
-          </div>
-        </div>
-        <div class="project-location" id="projectLocation" hidden>
-          <label for="projectLocationInput">Location</label>
-          <input type="text" id="projectLocationInput" maxlength="200" autocomplete="off" placeholder="Search for an address">
-          <div class="action-row" style="margin-top: 6px;">
-            <button type="button" id="projectPlaceSearchBtn" class="btn-secondary">Find on map</button>
-            <button type="button" id="projectLocationClearBtn" class="btn-secondary" hidden>Clear</button>
-          </div>
-          <div id="projectPlaceResults" class="place-results"></div>
-          <p class="settings-note" id="projectLocationNote"></p>
-        </div>
-        <div class="project-location" id="projectUrl" hidden>
-          <label for="projectUrlInput">Link</label>
-          <input type="url" id="projectUrlInput" maxlength="500" inputmode="url" autocapitalize="none" autocomplete="off" placeholder="e.g. example.com/job-info">
-          <div class="action-row" style="margin-top: 6px;">
-            <button type="button" id="projectUrlSaveBtn" class="btn-secondary">Save link</button>
-            <button type="button" id="projectUrlClearBtn" class="btn-secondary" hidden>Clear</button>
-          </div>
-          <p class="settings-note" id="projectUrlNote"></p>
-        </div>
-        <div class="project-actions" id="projectTemplateAction"></div>
         <div class="template-block" id="templateBlock">
           <div class="template-title">Start from template</div>
           <div id="templateEmpty" class="settings-note" style="margin:0;">No templates yet. Choose a project above and tap Save as template.</div>
@@ -1260,6 +1233,37 @@
       </div>
       <div id="pickerList" class="project-list" role="listbox" aria-label="Projects" onclick="pickerListClick(event)"></div>
       <div id="pickerStatus" class="settings-status" role="status" aria-live="polite"></div>
+      <details class="filter-section" id="pickerManage" hidden>
+        <summary>Manage <small id="pickerManageName"></small></summary>
+          <div class="project-actions" id="projectActions"></div>
+          <div class="project-location" id="projectNewClient" hidden>
+            <div id="projectClientFormMount"></div>
+            <div class="action-row" style="margin-top: 8px;">
+              <button type="button" id="projectClientAddBtn">Add client</button>
+              <button type="button" id="projectClientCancelBtn" class="btn-secondary">Cancel</button>
+            </div>
+          </div>
+          <div class="project-location" id="projectLocation" hidden>
+            <label for="projectLocationInput">Location</label>
+            <input type="text" id="projectLocationInput" maxlength="200" autocomplete="off" placeholder="Search for an address">
+            <div class="action-row" style="margin-top: 6px;">
+              <button type="button" id="projectPlaceSearchBtn" class="btn-secondary">Find on map</button>
+              <button type="button" id="projectLocationClearBtn" class="btn-secondary" hidden>Clear</button>
+            </div>
+            <div id="projectPlaceResults" class="place-results"></div>
+            <p class="settings-note" id="projectLocationNote"></p>
+          </div>
+          <div class="project-location" id="projectUrl" hidden>
+            <label for="projectUrlInput">Link</label>
+            <input type="url" id="projectUrlInput" maxlength="500" inputmode="url" autocapitalize="none" autocomplete="off" placeholder="e.g. example.com/job-info">
+            <div class="action-row" style="margin-top: 6px;">
+              <button type="button" id="projectUrlSaveBtn" class="btn-secondary">Save link</button>
+              <button type="button" id="projectUrlClearBtn" class="btn-secondary" hidden>Clear</button>
+            </div>
+            <p class="settings-note" id="projectUrlNote"></p>
+          </div>
+          <div class="project-actions" id="projectTemplateAction"></div>
+      </details>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" onclick="closePicker()">Cancel</button>
       </div>
@@ -6828,23 +6832,36 @@
       overlay.style.top = box ? box.top + "px" : "";
       overlay.style.height = box ? box.height + "px" : "";
     }
-    function openPicker(kind, current, onPick, options = {}) {
-      if (!PICKER_KINDS[kind]) return;
-      const text = PICKER_KINDS[kind];
-      pickerState = { kind, current: current || "", onPick, opener: options.opener || null, allowAdd: options.allowAdd !== false, none: options.noneLabel || "", noneDetail: options.noneDetail || "", onAdd: typeof options.onAdd === "function" ? options.onAdd : null, rows: [], add: "", active: 0 };
-      document.getElementById("pickerAddBtn").hidden = !pickerState.onAdd;
+    // A picker opened while another is open (the client picker over the Queue's Project modal) takes the same dialog: the one underneath waits in
+    // `pickerParents` with its search text and comes back, as it was, when this one closes.
+    const pickerParents = []; // {state, search} of the pickers waiting underneath, the nearest last
+    // Words the dialog for `state`: its title, the search bar (with `searchText`), the list's label, the Add button and a clear status line.
+    function applyPicker(state, searchText) {
+      const text = PICKER_KINDS[state.kind];
+      document.getElementById("pickerAddBtn").hidden = !state.onAdd;
       document.getElementById("pickerStatus").textContent = "";
-      document.getElementById("pickerTitle").textContent = options.title || text.title;
+      document.getElementById("pickerTitle").textContent = state.title || text.title;
       const search = document.getElementById("pickerSearch");
-      search.value = "";
+      search.value = searchText;
       search.placeholder = text.placeholder;
       search.setAttribute("aria-label", text.search);
       document.getElementById("pickerList").setAttribute("aria-label", text.list);
+    }
+    function openPicker(kind, current, onPick, options = {}) {
+      if (!PICKER_KINDS[kind]) return;
+      const search = document.getElementById("pickerSearch");
+      const over = pickerState !== null;
+      if (over) pickerParents.push({ state: pickerState, search: search.value });
+      pickerState = { kind, current: current || "", onPick, opener: options.opener || null, allowAdd: options.allowAdd !== false, none: options.noneLabel || "", noneDetail: options.noneDetail || "", onAdd: typeof options.onAdd === "function" ? options.onAdd : null, title: options.title || "", rows: [], add: "", active: 0 };
+      applyPicker(pickerState, "");
+      if (kind === "queue" && !over) document.getElementById("pickerManage").open = false; // Manage starts collapsed on every open
       renderPicker();
-      showLayer("pickerModal", closePicker);
-      if (window.visualViewport) {
-        window.visualViewport.addEventListener("resize", fitPickerToViewport);
-        window.visualViewport.addEventListener("scroll", fitPickerToViewport);
+      if (!over) {
+        showLayer("pickerModal", closePicker);
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener("resize", fitPickerToViewport);
+          window.visualViewport.addEventListener("scroll", fitPickerToViewport);
+        }
       }
       fitPickerToViewport();
       search.focus({ preventScroll: true });
@@ -6852,10 +6869,19 @@
     function closePicker() {
       const state = pickerState;
       if (!state) return;
+      const parent = pickerParents.pop() || null;
+      if (parent) { // back to the picker underneath, which stays open as it was
+        pickerState = parent.state;
+        applyPicker(parent.state, parent.search);
+        renderPicker();
+        if (state.opener && state.opener.isConnected && !state.opener.disabled) state.opener.focus({ preventScroll: true });
+        return;
+      }
       pickerState = null;
       hideLayer("pickerModal");
       document.getElementById("pickerAddBtn").hidden = true;
       document.getElementById("pickerStatus").textContent = "";
+      document.getElementById("pickerManage").hidden = true;
       if (window.visualViewport) {
         window.visualViewport.removeEventListener("resize", fitPickerToViewport);
         window.visualViewport.removeEventListener("scroll", fitPickerToViewport);
@@ -6875,6 +6901,7 @@
       if (!state) return;
       const text = PICKER_KINDS[state.kind];
       const query = document.getElementById("pickerSearch").value;
+      renderPickerManage();
       const source = pickerSource(state.kind);
       const view = pickerRows(state.kind, query, source.items, source.context);
       state.rows = withNoneRow(view.rows, state.none, query, state.noneDetail);
@@ -6890,6 +6917,12 @@
       const search = document.getElementById("pickerSearch");
       if (options > 0) search.setAttribute("aria-activedescendant", `pickerOpt${state.active}`);
       else search.removeAttribute("aria-activedescendant");
+    }
+    // The Manage section of the Queue's Project modal: shown while that modal is the one in front and a project is chosen, headed by its name.
+    function renderPickerManage() {
+      const chosen = pickerState && pickerState.kind === "queue" ? allProjects.find(p => p.id === selectedProjectFilter) || null : null;
+      document.getElementById("pickerManage").hidden = !chosen;
+      document.getElementById("pickerManageName").textContent = chosen ? `· ${chosen.name}` : "";
     }
     function pickerTyped() {
       if (pickerState) pickerState.active = 0; // a new search starts at its first option
@@ -8581,6 +8614,7 @@
       const field = document.getElementById("queueProjectField");
       field.textContent = chosen ? chosen.name || "Untitled project" : QUEUE_ALL_PROJECTS;
       field.disabled = false;
+      if (pickerState && pickerState.kind === "queue") renderPicker(); // the modal's rows and its Manage heading follow a rename, a client or a count
       syncProjectClientForm(chosen);
       if (allProjects.length === 0) {
         actions.innerHTML = "";
@@ -8764,6 +8798,7 @@
       let created = null;
       if (!await saveProject({ action: "CREATE", name: typed }, `Added "${typed}".`, (data) => { created = data.project || null; })) return null;
       if (!created || !allProjects.some(p => p.id === created.id)) return null;
+      document.getElementById("pickerManage").open = false; // the new project's Manage starts collapsed too
       setProjectFilter(created.id);
       return created.id;
     }
@@ -8790,7 +8825,7 @@
       const project = allProjects.find(p => p.id === projectId);
       if (!project) return;
       if (!await askConfirm(deleteProjectPrompt(project.name, projectTaskCounts(allTasks)[projectId] || 0), { tone: "danger", confirmLabel: "Delete" })) return;
-      await saveProject({ action: "DELETE", projectId }, `Deleted "${project.name}".`);
+      if (await saveProject({ action: "DELETE", projectId }, `Deleted "${project.name}".`) && pickerState && pickerState.kind === "queue") closePicker();
     }
 
     document.getElementById("projectClientAddBtn").addEventListener("click", addClientToProject);
