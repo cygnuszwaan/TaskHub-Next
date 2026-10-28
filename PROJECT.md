@@ -57,7 +57,27 @@ A change usually touches several rows: a new endpoint touches an `endpoints-*.md
 
 ## Roadmap
 
-No step is planned. A new one fits in one turn, goes first in the list and adds tests for any new pure logic.
+Each step fits in one turn, adds tests for any new pure logic and updates the `docs/` files it names. Steps 1 and 2 are independent; step 4 needs step 3.
+
+1. **Task number on the add card, Bottom buttons, full-width row** (`frontend-tasks.md`, `frontend-edit-modal.md`, `endpoints-tasks.md`).
+   - Add card: a Task number box at the top of the Scheduling section (manual fields only), with Top (types 1) and Bottom (types the list length + 1) buttons. Empty keeps today's behaviour (the end of the list); the free-text add is unchanged.
+   - Server: `manualTaskChange` passes a `queueNumber` (a whole number; unusable ignored) on as the change's `order`, which `mergeTaskChanges` already places and clamps; `startNow` still starts that task. A held offline add carries the number and the server clamps it when sent.
+   - Edit modal: a Bottom button beside Top (types `allTasks.length`). Drop the row's `max-width: 200px` so the box and both buttons fill the row (`.field-with-btn > input { flex: 1 }`).
+   - Tests: manual body with and without `queueNumber` (`manualTaskBody`, `manualTaskChange`), placement at 1, middle and past the end.
+2. **Clear for the add card's due date, open sections for a copied task** (`frontend-tasks.md`).
+   - A Clear button beside `#manualDue` in the same row layout as the edit modal's, sharing `clearEditDueDate`'s approach.
+   - A pure `sectionsToOpen(values)`, like `completedSectionsToOpen`: `useTemplate` opens Contact details when Phone, Email, Link or Location has a value and Audit trail when Travel or Materials has one. Scheduling opens only for a Repeats value, since priority and estimate always have one. Tapping a past task still closes everything else.
+   - Tests for `sectionsToOpen`.
+3. **Inline new client, server** (`endpoints-tasks.md`, `endpoints-admin.md`, `data-model.md`, `backend-modules.md`).
+   - `updateTaskList` gets `withClients` (reads `clients`, passes `{clients}`), so a client is checked at commit time.
+   - A new project can carry a client: `newProjectClientId` (a stored client, else 400 `Client not found`) or `newClient` (a name, created in the same commit by `addClient`; 400 for an unusable or taken name; it wins over `newProjectClientId`). Accepted by `addOrUpdateTask` (`manual.newProject`) and `updateTaskDirect` (UPDATE `newProject`) by extending `addProject`/`withNewProject`; the project is stored with `clientId`. Responses then also hold `client` and `clients`.
+   - `updateProject` `SET_CLIENT` also accepts `newClient`.
+   - Nothing is saved on any 400. Tests for each path and for the nothing-saved cases.
+4. **Inline new client, page** (`frontend-tasks.md`, `frontend-edit-modal.md`, `frontend-queue.md`, `offline.md`).
+   - Under `#manualNewProject` and `#editNewProject`, a Client select (No client, the clients, "＋ New client…") shown only while "＋ New project…" is chosen and `clientsLoaded`; "＋ New client…" shows a name box. Add and Save send `newProjectClientId` or `newClient`, an empty client name is a warning alert, and the responses' `clients` replace `allClients`.
+   - The Projects section's client picker (`clientPickerHtml`) gets the same "＋ New client…" choice (sending `SET_CLIENT` with `newClient`) and shows even when there are no clients yet.
+   - `queuedBody` keeps the whole `manual` body, so a held add already carries `newProject` and will carry the client fields the same way; `offline.md` lists a new project from the add card as online-only, which the code does not enforce. Settle which is right (a held add with a taken client name fails as a FAILED card on replay) and correct whichever is wrong. The edit modal and Multi-Select do refuse offline (`serverOnlyEditChanges`, `holdBatch`).
+   - Tests for the body builders.
 
 Unplanned ideas are in `stretch-goals.md`.
 
