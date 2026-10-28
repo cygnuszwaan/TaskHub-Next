@@ -57,18 +57,14 @@ A change usually touches several rows: a new endpoint touches an `endpoints-*.md
 
 ## Roadmap
 
-Each step fits in one turn, adds tests for any new pure logic and updates the `docs/` files it names. Steps 2 and 3 need step 1.
+Each step fits in one turn, adds tests for any new pure logic and updates the `docs/` files it names. The steps are independent of each other.
 
-1. **Make the Clients form reusable, page** (`frontend-settings.md`).
-   - The Settings client form is wired to single ids and state (`clientName`, `clientLocation`, `clientCoords`, `clientPlaces`, the Find on map and Clear position buttons, `fillClientForm`, `saveClient`). Make one block of markup and one set of handlers driven by a prefix, as the task Location boxes already are (`pickedLocation`, `setLocationBox`), with the coordinates and the address autocomplete kept per prefix. The Settings card uses prefix `client` and behaves exactly as now.
-   - A pure `clientFormValues(prefix)` reading the block into `clientFormBody`'s input, and a pure check returning the warning for a bad link, email or hourly rate (`parseUrlText`, `parseEmailText`, `parseCostText`) so every user of the block validates the same way.
-   - Tests for the helpers and for the ids the block creates per prefix.
-2. **Inline new client, add card and edit modal** (`frontend-tasks.md`, `frontend-edit-modal.md`, `offline.md`).
-   - Under `#manualNewProject` and `#editNewProject`, a Client select (No client, the clients, "＋ New client…") shown only while "＋ New project…" is chosen and `clientsLoaded`. "＋ New client…" shows the whole client form (step 1's block, prefixes `manualClient` and `editClient`) beneath it. Add and Save send `newProjectClientId` or `newClient`; a missing name or an invalid field is a warning alert that adds or saves nothing, and the responses' `clients` replace `allClients` and refresh every client view (`refreshClientViews`).
+1. **Inline new client, add card and edit modal** (`frontend-tasks.md`, `frontend-edit-modal.md`, `offline.md`).
+   - Under `#manualNewProject` and `#editNewProject`, a Client select (No client, the clients, "＋ New client…") shown only while "＋ New project…" is chosen and `clientsLoaded`. "＋ New client…" shows the whole client form (the Clients form block, `clientFormHtml` and `mountClientForm` in `frontend-settings.md`, prefixes `manualClient` and `editClient`) beneath it. Add and Save send `newProjectClientId` or `newClient`; a missing name or an invalid field is a warning alert that adds or saves nothing, and the responses' `clients` replace `allClients` and refresh every client view (`refreshClientViews`).
    - The form is emptied with the rest of the add card after each add and whenever the project choice changes away from New project.
    - `queuedBody` keeps the whole `manual` body, so a held add already carries `newProject` and will carry `newClient` the same way; `offline.md` lists a new project from the add card as online-only, which the code does not enforce. Settle which is right (a held add with a taken client name fails as a FAILED card on replay) and correct whichever is wrong. The edit modal and Multi-Select do refuse offline (`serverOnlyEditChanges`, `holdBatch`), and the edit modal must refuse a `newClient` too.
    - Tests for the body builders and `serverOnlyEditChanges`.
-3. **Inline new client, Projects section** (`frontend-queue.md`).
+2. **Inline new client, Projects section** (`frontend-queue.md`).
    - The Projects section's client picker (`clientPickerHtml`) gets "＋ New client…", which shows the same form with its own Add button sending `SET_CLIENT` with `newClient`, and the picker shows even when there are no clients yet (today it only says "No clients yet. Add one under Settings.").
 
 Unplanned ideas are in `stretch-goals.md`.

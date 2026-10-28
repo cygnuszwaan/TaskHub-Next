@@ -17,7 +17,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
+    return {clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -3629,7 +3629,7 @@ describe("public/index.html helpers", () => {
       assert.equal((html.match(/function makePlaceSearch\(/g) || []).length, 1);
       assert.equal((html.match(/fetch\(geocodeUrl\(/g) || []).length, 1, "one geocoding call in the page");
       assert.match(html, /makePlaceSearch\(\{ queryId: "placeQuery", buttonId: "placeSearchBtn", resultsId: "placeResults", showZone: true/);
-      assert.match(html, /\} else \{[^}]*\n\s*makePlaceSearch\(\{ queryId: "clientLocation", buttonId: "clientPlaceSearchBtn", resultsId: "clientPlaceResults", showZone: false, queries: placeQueries, clearQuery: false/, "the Open-Meteo search stays as the Clients form's fallback when there is no Places key");
+      assert.match(html, /\} else \{[^}]*\n\s*makePlaceSearch\(\{ queryId: `\$\{prefix\}Location`, buttonId: `\$\{prefix\}PlaceSearchBtn`, resultsId: `\$\{prefix\}PlaceResults`, showZone: false, queries: placeQueries, clearQuery: false/, "the Open-Meteo search stays as the Clients form's fallback when there is no Places key");
       assert.doesNotMatch(html, /searchPlaces|clientPlaceQuery/);
       const shared = html.slice(html.indexOf("function makePlaceSearch("), html.indexOf("// Address autocomplete (Google Places)"));
       assert.match(shared, /await fetch\(geocodeUrl\(q\)\)/, "a plain fetch, never apiFetch: no Firebase token goes to the geocoder");
@@ -3637,15 +3637,16 @@ describe("public/index.html helpers", () => {
       assert.match(shared, /if \(clearQuery\) queryBox\.value = "";/);
     });
     it("searches with the Location text itself, keeps it as typed and shows what was found", () => {
-      const at = html.indexOf("makePlaceSearch({ queryId: \"clientLocation\"");
+      const at = html.indexOf("makePlaceSearch({ queryId: `${prefix}Location`");
       const pick = html.slice(at, html.indexOf("addEventListener(\"click\"", at + 100));
-      assert.match(pick, /clientCoords = \{ latitude: place\.latitude, longitude: place\.longitude, label: place\.name \};/);
-      assert.doesNotMatch(pick, /clientLocation"\)\.value/, "picking a place never rewrites the text");
-      const note = html.slice(html.indexOf("function renderClientCoords"), html.indexOf("// Fill the form from a client"));
-      assert.match(note, /Map position set: \$\{clientCoords\.label\}/);
+      assert.match(pick, /state\.coords = \{ latitude: place\.latitude, longitude: place\.longitude, label: place\.name \};/);
+      assert.doesNotMatch(pick, /Location`\)\.value/, "picking a place never rewrites the text");
+      const note = html.slice(html.indexOf("function renderClientCoords"), html.indexOf("// Fill a block from a client"));
+      assert.match(note, /Map position set: \$\{coords\.label\}/);
       assert.match(note, /Map position saved \(/);
       assert.match(note, /No map position yet\./);
       assert.doesNotMatch(html.slice(html.indexOf("async function saveClient()"), html.indexOf("async function deleteClient")), /label/, "the label is never sent");
+      assert.doesNotMatch(html.slice(html.indexOf("function clientFormValues"), html.indexOf("function clientFormFill")), /label/, "the label is never read into the form's values");
     });
     it("tells the owner which search found the places when it was not the typed text", () => {
       const shared = html.slice(html.indexOf("function makePlaceSearch("), html.indexOf("// Save a Blob as a file download."));
@@ -4066,7 +4067,7 @@ describe("Reorder mode", () => {
     it("has no Address box, Use address button or address text in the Clients form", () => {
       assert.doesNotMatch(html, /clientAddress|clientUseAddressBtn|addressAsLocation|addressText/);
       assert.doesNotMatch(html, /<label for="clientAddress"/);
-      assert.match(html, /<label for="clientLocation">Location<\/label>/);
+      assert.match(load().clientFormHtml("client"), /<label for="clientLocation">Location<\/label>/);
     });
     it("keeps effectiveLocation in the page equal to the one in functions/location.js", () => {
       const {effectiveLocation} = load();
@@ -4245,10 +4246,10 @@ describe("Reorder mode", () => {
       for (const url of [undefined, null, "", "  ", 5]) assert.equal(clientFormBody({name: "Jo", url}).url, "", JSON.stringify(url));
     });
     it("has a Link box in the client form and a Link row under the chosen project's Location, each warning on a bad link", () => {
-      assert.match(html, /<input type="url" id="clientUrl" maxlength="500"/);
+      assert.match(load().clientFormHtml("client"), /<input type="url" id="clientUrl" maxlength="500"/);
       assert.match(html, /<div class="project-location" id="projectUrl" hidden>/);
       assert.ok(html.indexOf("id=\"projectLocation\"") < html.indexOf("id=\"projectUrl\"") && html.indexOf("id=\"projectUrl\"") < html.indexOf("id=\"projectTemplateAction\""), "after Location, before Save as template");
-      assert.match(html, /if \(parseUrlText\(client\.url\) === undefined\) \{ askAlert\(INVALID_URL, \{ tone: "warning" \}\); return; \}/);
+      assert.match(html, /const warning = clientFormWarning\(client\);\s*if \(warning\) \{ askAlert\(warning, \{ tone: "warning" \}\); return; \}/);
       assert.match(html, /if \(url === undefined\) \{ await askAlert\(INVALID_URL, \{ tone: "warning" \}\); return false; \}/);
       assert.match(html, /saveProject\(\{ action: "SET_URL", projectId, url \}/);
       assert.match(html, /renderProjectUrl\(chosen\);/);
@@ -5134,6 +5135,130 @@ describe("offline add queue display (page)", () => {
       const manual = makeQueuedAdd({kind: "MANUAL", body: {manual: {title: "Fix gate"}, startNow: true, requestId: "req-000002"}, now: "", requestId: "req-000002"});
       assert.deepEqual(manual.body, {manual: {title: "Fix gate"}, requestId: "req-000002"});
       assert.match(newRequestId(), /^[A-Za-z0-9_-]{8,64}$/);
+    });
+  });
+  describe("the reusable Clients form block", () => {
+    const SUFFIXES = ["Name", "Location", "LocationNote", "PlaceSearchBtn", "ClearCoordsBtn", "PlaceResults", "CoordsNote", "Phone", "UseWhatsApp", "Email", "Url", "HourlyRate"];
+    const idsOf = (markup) => [...markup.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]);
+    const boxes = (values) => (id) => (id in values ? values[id] : null);
+
+    it("makes every id from its prefix, the same set for each, with none repeated", () => {
+      const {clientFormHtml} = load();
+      for (const prefix of ["client", "manualClient", "editClient"]) {
+        const ids = idsOf(clientFormHtml(prefix));
+        assert.deepEqual(ids, SUFFIXES.map((x) => prefix + x));
+        assert.equal(new Set(ids).size, ids.length);
+      }
+      const both = [...idsOf(clientFormHtml("manualClient")), ...idsOf(clientFormHtml("editClient"))];
+      assert.equal(new Set(both).size, both.length, "two blocks on one page never share an id");
+    });
+    it("keeps the Settings card's ids as they were with prefix client", () => {
+      const {clientFormHtml} = load();
+      const markup = clientFormHtml("client");
+      for (const id of ["clientName", "clientLocation", "clientLocationNote", "clientPlaceSearchBtn", "clientClearCoordsBtn", "clientPlaceResults", "clientCoordsNote", "clientPhone", "clientUseWhatsApp", "clientEmail", "clientUrl", "clientHourlyRate"]) {
+        assert.ok(markup.includes(` id="${id}"`), id);
+      }
+      for (const label of ["Name", "Location", "Phone", "Email", "Link", "Hourly rate"]) assert.match(markup, new RegExp(`<label[^>]*>${label}</label>`));
+      assert.match(markup, /<input type="checkbox" id="clientUseWhatsApp"> Use WhatsApp for calls and texts/);
+      assert.match(markup, /<label for="clientLocation">Location<\/label>/);
+      assert.match(markup, /<button type="button" id="clientClearCoordsBtn" class="btn-secondary" hidden>Clear position<\/button>/);
+    });
+    it("points every label at an input in the block, and has no save button or status line of its own", () => {
+      const {clientFormHtml} = load();
+      const markup = clientFormHtml("manualClient");
+      const ids = new Set(idsOf(markup));
+      for (const m of markup.matchAll(/<label for="([^"]+)"/g)) assert.ok(ids.has(m[1]), m[1]);
+      assert.doesNotMatch(markup, /Save client|Add client|Cancel|Status/);
+      assert.doesNotMatch(markup, /\$\{|undefined/);
+    });
+    it("reads the boxes into clientFormBody's input, the map position as two numbers only", () => {
+      const {clientFormValues, clientFormBody} = load();
+      const read = boxes({xName: {value: " Jo "}, xPhone: {value: "021"}, xEmail: {value: "jo@x.nz"}, xUrl: {value: "example.com"}, xHourlyRate: {value: " 95 "}, xUseWhatsApp: {checked: true}, xLocation: {value: "1 Beach Rd"}});
+      const values = clientFormValues("x", read, {latitude: -36.6, longitude: 174.7, label: "Orewa"});
+      assert.deepEqual(values, {name: " Jo ", phone: "021", email: "jo@x.nz", url: "example.com", hourlyRate: " 95 ", useWhatsApp: true, location: {name: "1 Beach Rd", latitude: -36.6, longitude: 174.7}});
+      assert.deepEqual(clientFormBody(values), {name: "Jo", phone: "021", email: "jo@x.nz", hourlyRate: "95", useWhatsApp: true, location: {name: "1 Beach Rd", latitude: -36.6, longitude: 174.7}, url: "example.com"});
+    });
+    it("reads an empty or partly missing block as empty boxes and ignores a position that is not two numbers", () => {
+      const {clientFormValues, clientFormBody} = load();
+      assert.deepEqual(clientFormBody(clientFormValues("x", boxes({}), null)), {name: "", phone: "", email: "", hourlyRate: "", useWhatsApp: false, location: null, url: ""});
+      const read = boxes({xLocation: {value: "Yard"}, xUseWhatsApp: {checked: "yes"}});
+      for (const coords of [null, undefined, {}, {latitude: -36.6}, {latitude: "x", longitude: 174.7}]) {
+        const values = clientFormValues("x", read, coords);
+        assert.deepEqual(values.location, {name: "Yard"});
+        assert.equal(values.useWhatsApp, false);
+      }
+    });
+    it("reads each prefix's own boxes", () => {
+      const {clientFormValues} = load();
+      const read = boxes({manualClientName: {value: "A"}, editClientName: {value: "B"}});
+      assert.equal(clientFormValues("manualClient", read, null).name, "A");
+      assert.equal(clientFormValues("editClient", read, null).name, "B");
+      assert.equal(clientFormValues("client", read, null).name, undefined);
+    });
+    it("fills the boxes from a stored client and empties them for none", () => {
+      const {clientFormFill} = load();
+      const client = {id: "c1", name: "Jo", phone: "021", email: "jo@x.nz", url: "https://x.nz", hourlyRate: 95, useWhatsApp: true, location: {name: "1 Beach Rd", latitude: -36.6, longitude: 174.7}};
+      assert.deepEqual(clientFormFill(client), {name: "Jo", phone: "021", email: "jo@x.nz", url: "https://x.nz", hourlyRate: "95.00", useWhatsApp: true, location: "1 Beach Rd", coords: {latitude: -36.6, longitude: 174.7}});
+      const empty = {name: "", phone: "", email: "", url: "", hourlyRate: "", useWhatsApp: false, location: "", coords: null};
+      for (const none of [null, undefined, {}]) assert.deepEqual(clientFormFill(none), empty);
+      assert.equal(clientFormFill({name: "Jo", hourlyRate: 0}).hourlyRate, "0.00", "a rate of 0 is shown");
+      assert.deepEqual(clientFormFill({name: "Jo", location: {name: "Yard"}}).coords, null);
+      assert.equal(clientFormFill({name: "Jo", location: {name: "Yard"}}).location, "Yard");
+      assert.equal(clientFormFill({name: "Jo", useWhatsApp: "yes"}).useWhatsApp, false);
+    });
+    it("fills and reads back to the same client body", () => {
+      const {clientFormFill, clientFormValues, clientFormBody} = load();
+      const client = {name: "Jo", phone: "021", email: "jo@x.nz", url: "https://x.nz", hourlyRate: 95, useWhatsApp: true, location: {name: "1 Beach Rd", latitude: -36.6, longitude: 174.7}};
+      const fill = clientFormFill(client);
+      const read = boxes({xName: {value: fill.name}, xPhone: {value: fill.phone}, xEmail: {value: fill.email}, xUrl: {value: fill.url}, xHourlyRate: {value: fill.hourlyRate}, xUseWhatsApp: {checked: fill.useWhatsApp}, xLocation: {value: fill.location}});
+      assert.deepEqual(clientFormBody(clientFormValues("x", read, fill.coords)), {...client, hourlyRate: "95.00"});
+    });
+    it("warns about a bad email, link or hourly rate, and about nothing else", () => {
+      const {clientFormWarning, clientFormBody, INVALID_EMAIL, INVALID_URL, INVALID_RATE} = load();
+      const body = (extra) => clientFormBody({name: "Jo", ...extra});
+      assert.equal(clientFormWarning(body({})), "");
+      assert.equal(clientFormWarning(body({email: "jo@x.nz", url: "example.com/job", hourlyRate: "85.50"})), "");
+      assert.equal(clientFormWarning(body({hourlyRate: "0"})), "", "0 is a real rate");
+      assert.equal(clientFormWarning(body({hourlyRate: "10000"})), "");
+      assert.equal(clientFormWarning(body({email: "not an email"})), INVALID_EMAIL);
+      assert.equal(clientFormWarning(body({url: "ftp://example.com"})), INVALID_URL);
+      for (const hourlyRate of ["abc", "-5", "85.555", "10000.01", "12345678", "1e3"]) assert.equal(clientFormWarning(body({hourlyRate})), INVALID_RATE, hourlyRate);
+      assert.equal(clientFormWarning(null), "");
+      assert.equal(clientFormWarning({}), "");
+    });
+    it("reports the first problem in form order when there are several", () => {
+      const {clientFormWarning, INVALID_EMAIL, INVALID_URL, INVALID_RATE} = load();
+      assert.equal(clientFormWarning({email: "bad", url: "ftp://x", hourlyRate: "abc"}), INVALID_EMAIL);
+      assert.equal(clientFormWarning({email: "", url: "ftp://x", hourlyRate: "abc"}), INVALID_URL);
+      assert.equal(clientFormWarning({email: "", url: "", hourlyRate: "abc"}), INVALID_RATE);
+    });
+    it("agrees with the server about which clients are usable", () => {
+      const {normalizeClientFields} = require("../clients");
+      const {clientFormWarning, clientFormBody} = load();
+      const cases = [{}, {email: "jo@x.nz"}, {email: "bad"}, {url: "example.com"}, {url: "ftp://x"}, {hourlyRate: "0"}, {hourlyRate: "95.5"}, {hourlyRate: "abc"}, {hourlyRate: "10001"}, {hourlyRate: "-1"}];
+      for (const extra of cases) {
+        const sent = clientFormBody({name: "Jo", ...extra});
+        assert.equal(clientFormWarning(sent) === "", normalizeClientFields(sent).error === undefined, JSON.stringify(extra));
+      }
+    });
+    it("is mounted once for the Settings card with prefix client, and keeps its state by prefix", () => {
+      assert.equal((html.match(/mountClientForm\("client", "clientFormMount"\)/g) || []).length, 1);
+      assert.match(html, /<div id="clientFormMount"[^>]*><\/div>/);
+      assert.doesNotMatch(html, /<input[^>]* id="client(Name|Location|Phone|Email|Url|HourlyRate)"/, "the block's markup comes from clientFormHtml alone");
+      assert.doesNotMatch(html, /\bclientCoords\b|\bclientPlaces\b/, "no single-form state is left");
+      const mount = html.slice(html.indexOf("function mountClientForm"), html.indexOf("// The Clients card's form: fill it"));
+      assert.match(mount, /innerHTML = clientFormHtml\(prefix\)/);
+      assert.match(mount, /getElementById\(`\$\{prefix\}ClearCoordsBtn`\)\.addEventListener/);
+      assert.doesNotMatch(mount, /getElementById\("client/, "no id is written out in full");
+      const handlers = html.slice(html.indexOf("const clientForms = {}"), html.indexOf("// The Clients card's form: fill it"));
+      assert.doesNotMatch(handlers, /getElementById\("client/, "every handler of the block takes its ids from the prefix");
+    });
+    it("shows and reads the Settings card's form through the prefix-driven functions", () => {
+      const fillCard = html.slice(html.indexOf("function fillClientForm(client)"), html.indexOf("// Everything that shows client names follows a change to the list."));
+      assert.match(fillCard, /fillClientFormBlock\("client", client\)/);
+      const save = html.slice(html.indexOf("async function saveClient()"), html.indexOf("async function deleteClient"));
+      assert.match(save, /const client = readClientForm\("client"\);/);
+      assert.match(html, /function readClientForm\(prefix\) \{\s*return clientFormBody\(clientFormValues\(prefix, id => document\.getElementById\(id\), clientFormState\(prefix\)\.coords\)\);/);
     });
   });
 });

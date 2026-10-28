@@ -737,41 +737,7 @@
   <details class="card settings-card">
     <summary><h3>Clients</h3></summary>
     <div id="clientList"></div>
-    <div class="form-group" style="margin:14px 0 0;">
-      <label for="clientName">Name</label>
-      <input type="text" id="clientName" maxlength="100" placeholder="e.g. Jo Smith">
-    </div>
-    <div class="form-group" style="margin:10px 0 0;">
-      <label for="clientLocation">Location</label>
-      <input type="text" id="clientLocation" maxlength="200" placeholder="e.g. 12 Beach Rd, Orewa">
-      <p class="settings-note" id="clientLocationNote">The client's address: printed on job sheets and used for navigation. Tap Find on map to give it a position, so nearby jobs can be grouped.</p>
-      <div class="action-row" style="margin-top: 6px;">
-        <button type="button" id="clientPlaceSearchBtn" class="btn-secondary">Find on map</button>
-        <button type="button" id="clientClearCoordsBtn" class="btn-secondary" hidden>Clear position</button>
-      </div>
-      <div id="clientPlaceResults" class="place-results"></div>
-      <p class="settings-note" id="clientCoordsNote"></p>
-    </div>
-    <div class="form-group" style="margin:10px 0 0;">
-      <label for="clientPhone">Phone</label>
-      <input type="tel" id="clientPhone" maxlength="40">
-    </div>
-    <div class="form-group" style="margin:10px 0 0;">
-      <label style="font-weight: normal;"><input type="checkbox" id="clientUseWhatsApp"> Use WhatsApp for calls and texts</label>
-      <p class="settings-note" style="margin:4px 0 0;">The Call and Text buttons become one WhatsApp button. Numbers starting with 0 are read as New Zealand numbers; start others with + and the country code.</p>
-    </div>
-    <div class="form-group" style="margin:10px 0 0;">
-      <label for="clientEmail">Email</label>
-      <input type="email" id="clientEmail" maxlength="100">
-    </div>
-    <div class="form-group" style="margin:10px 0 0;">
-      <label for="clientUrl">Link</label>
-      <input type="url" id="clientUrl" maxlength="500" inputmode="url" autocapitalize="none" autocomplete="off" placeholder="e.g. example.com/job-info">
-    </div>
-    <div class="form-group" style="margin:10px 0 0;">
-      <label for="clientHourlyRate">Hourly rate</label>
-      <input type="number" id="clientHourlyRate" min="0" max="10000" step="0.01" inputmode="decimal" placeholder="Default rate" style="max-width: 160px;">
-    </div>
+    <div id="clientFormMount" style="margin-top: 14px;"></div>
     <!-- <p class="settings-note" style="margin:6px 0 0;">A project can belong to a client, chosen in the Projects section of the Queue page. Deleting a client leaves its projects in place.</p> -->
     <div class="action-row" style="margin-top: 14px;">
       <button type="button" id="saveClientBtn">Add client</button>
@@ -2340,6 +2306,90 @@
       const placeName = text(where.name).trim();
       const coords = Number.isFinite(where.latitude) && Number.isFinite(where.longitude) ? { latitude: where.latitude, longitude: where.longitude } : {};
       return { name: text(v.name).trim(), phone: text(v.phone), email: text(v.email), hourlyRate: rate, useWhatsApp: v.useWhatsApp === true, location: placeName ? { name: placeName, ...coords } : null, url: text(v.url).trim() };
+    }
+    // The Clients form block, one markup for every place that holds it (the Settings card, prefix "client"; the add card and the edit modal
+    // for a new project's client). Every id starts with `prefix`: Name, Location, LocationNote, PlaceSearchBtn, ClearCoordsBtn, PlaceResults,
+    // CoordsNote, Phone, UseWhatsApp, Email, Url and HourlyRate. The save buttons and the status line belong to the page that holds the block.
+    function clientFormHtml(prefix) {
+      const p = prefix;
+      return `
+    <div class="form-group" style="margin:0;">
+      <label for="${p}Name">Name</label>
+      <input type="text" id="${p}Name" maxlength="100" placeholder="e.g. Jo Smith">
+    </div>
+    <div class="form-group" style="margin:10px 0 0;">
+      <label for="${p}Location">Location</label>
+      <input type="text" id="${p}Location" maxlength="200" placeholder="e.g. 12 Beach Rd, Orewa">
+      <p class="settings-note" id="${p}LocationNote">The client's address: printed on job sheets and used for navigation. Tap Find on map to give it a position, so nearby jobs can be grouped.</p>
+      <div class="action-row" style="margin-top: 6px;">
+        <button type="button" id="${p}PlaceSearchBtn" class="btn-secondary">Find on map</button>
+        <button type="button" id="${p}ClearCoordsBtn" class="btn-secondary" hidden>Clear position</button>
+      </div>
+      <div id="${p}PlaceResults" class="place-results"></div>
+      <p class="settings-note" id="${p}CoordsNote"></p>
+    </div>
+    <div class="form-group" style="margin:10px 0 0;">
+      <label for="${p}Phone">Phone</label>
+      <input type="tel" id="${p}Phone" maxlength="40">
+    </div>
+    <div class="form-group" style="margin:10px 0 0;">
+      <label style="font-weight: normal;"><input type="checkbox" id="${p}UseWhatsApp"> Use WhatsApp for calls and texts</label>
+      <p class="settings-note" style="margin:4px 0 0;">The Call and Text buttons become one WhatsApp button. Numbers starting with 0 are read as New Zealand numbers; start others with + and the country code.</p>
+    </div>
+    <div class="form-group" style="margin:10px 0 0;">
+      <label for="${p}Email">Email</label>
+      <input type="email" id="${p}Email" maxlength="100">
+    </div>
+    <div class="form-group" style="margin:10px 0 0;">
+      <label for="${p}Url">Link</label>
+      <input type="url" id="${p}Url" maxlength="500" inputmode="url" autocapitalize="none" autocomplete="off" placeholder="e.g. example.com/job-info">
+    </div>
+    <div class="form-group" style="margin:10px 0 0;">
+      <label for="${p}HourlyRate">Hourly rate</label>
+      <input type="number" id="${p}HourlyRate" min="0" max="10000" step="0.01" inputmode="decimal" placeholder="Default rate" style="max-width: 160px;">
+    </div>`;
+    }
+    // The block's boxes read into `clientFormBody`'s input. `read(id)` gives the element with that id ({value, checked}) or null; `coords` is the
+    // map position the block holds ({latitude, longitude, ...}, only the two numbers are used) or null.
+    function clientFormValues(prefix, read, coords) {
+      const box = suffix => read(prefix + suffix) || {};
+      const where = coords && Number.isFinite(coords.latitude) && Number.isFinite(coords.longitude) ? { latitude: coords.latitude, longitude: coords.longitude } : {};
+      return {
+        name: box("Name").value,
+        phone: box("Phone").value,
+        email: box("Email").value,
+        url: box("Url").value,
+        hourlyRate: box("HourlyRate").value,
+        useWhatsApp: box("UseWhatsApp").checked === true,
+        location: { name: box("Location").value, ...where }
+      };
+    }
+    // What the block's boxes hold for a stored client (null for an empty block): the text of each box, `useWhatsApp` as a boolean and `coords`,
+    // the client's map position or null. The inverse of clientFormValues.
+    function clientFormFill(client) {
+      const c = client || {};
+      const where = c.location && typeof c.location === "object" ? c.location : null;
+      return {
+        name: typeof c.name === "string" ? c.name : "",
+        phone: typeof c.phone === "string" ? c.phone : "",
+        email: typeof c.email === "string" ? c.email : "",
+        url: typeof c.url === "string" ? c.url : "",
+        hourlyRate: costBoxText(c.hourlyRate),
+        useWhatsApp: c.useWhatsApp === true,
+        location: where && typeof where.name === "string" ? where.name : "",
+        coords: where && Number.isFinite(where.latitude) && Number.isFinite(where.longitude) ? { latitude: where.latitude, longitude: where.longitude } : null
+      };
+    }
+    const INVALID_RATE = "Hourly rate must be an amount from 0 to 10000, such as 85.00, or empty.";
+    // The warning for a Clients form's email, link or hourly rate that cannot be sent, empty text when all three are usable. `client` is
+    // `clientFormBody`'s result. The same check for every place that holds the block.
+    function clientFormWarning(client) {
+      const c = client || {};
+      if (parseEmailText(c.email) === undefined) return INVALID_EMAIL;
+      if (parseUrlText(c.url) === undefined) return INVALID_URL;
+      const rate = parseCostText(c.hourlyRate);
+      if (rate === undefined || (rate !== null && rate > 10000)) return INVALID_RATE;
+      return "";
     }
     // The confirmation before deleting a client; `projects` is how many of the owner's projects belong to it.
     function deleteClientPrompt(name, projects) {
@@ -8020,35 +8070,79 @@
           </div>`).join("");
     }
 
-    // The map position the form holds for the location text ({latitude, longitude}, plus `label`, the place it was found as, until the
-    // form is reloaded), set by picking a place, null for none
-    let clientCoords = null;
-    let clientPlaces = null; // the Clients form's address autocomplete when a Places key is set, else null
-    function renderClientCoords() {
-      const note = document.getElementById("clientCoordsNote");
-      note.textContent = !clientCoords
+    // Each Clients form block (see clientFormHtml) keeps its own map position (`coords`: {latitude, longitude}, plus `label`, the place it was
+    // found as, until the block is reloaded; null for none) and its own address autocomplete (`places`, only when a Places key is set), by prefix.
+    const clientForms = {};
+    function clientFormState(prefix) {
+      if (!clientForms[prefix]) clientForms[prefix] = { coords: null, places: null };
+      return clientForms[prefix];
+    }
+    function renderClientCoords(prefix) {
+      const { coords } = clientFormState(prefix);
+      const note = document.getElementById(`${prefix}CoordsNote`);
+      note.textContent = !coords
         ? "No map position yet."
-        : clientCoords.label
-          ? `📍 Map position set: ${clientCoords.label}.`
-          : `📍 Map position saved (${clientCoords.latitude.toFixed(4)}, ${clientCoords.longitude.toFixed(4)}).`;
-      document.getElementById("clientClearCoordsBtn").hidden = !clientCoords;
+        : coords.label
+          ? `📍 Map position set: ${coords.label}.`
+          : `📍 Map position saved (${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}).`;
+      document.getElementById(`${prefix}ClearCoordsBtn`).hidden = !coords;
     }
 
-    // Fill the form from a client (editing) or empty it (adding), and set the buttons to match.
+    // Fill a block from a client, or empty it for null.
+    function fillClientFormBlock(prefix, client) {
+      const state = clientFormState(prefix);
+      const fill = clientFormFill(client);
+      document.getElementById(`${prefix}Location`).value = fill.location;
+      state.coords = fill.coords;
+      document.getElementById(`${prefix}PlaceResults`).textContent = "";
+      if (state.places) state.places.close();
+      renderClientCoords(prefix);
+      document.getElementById(`${prefix}Name`).value = fill.name;
+      document.getElementById(`${prefix}Phone`).value = fill.phone;
+      document.getElementById(`${prefix}UseWhatsApp`).checked = fill.useWhatsApp;
+      document.getElementById(`${prefix}Email`).value = fill.email;
+      document.getElementById(`${prefix}Url`).value = fill.url;
+      document.getElementById(`${prefix}HourlyRate`).value = fill.hourlyRate;
+    }
+
+    // The `client` object a block's boxes make for updateClient (see clientFormBody).
+    function readClientForm(prefix) {
+      return clientFormBody(clientFormValues(prefix, id => document.getElementById(id), clientFormState(prefix).coords));
+    }
+
+    // Puts the Clients form block in the element `containerId` and wires it: the address autocomplete with a Places key, else the
+    // Find on map search, and the Clear position button.
+    function mountClientForm(prefix, containerId) {
+      document.getElementById(containerId).innerHTML = clientFormHtml(prefix);
+      const state = clientFormState(prefix);
+      if (CONFIG.placesApiKey) {
+        // With a Places key the Location field suggests street addresses as the owner types; picking one sets the text and the map position
+        document.getElementById(`${prefix}PlaceSearchBtn`).hidden = true;
+        document.getElementById(`${prefix}LocationNote`).textContent = "The client's address: printed on job sheets and used for navigation. Start typing the street address and pick a suggestion: it also gives the job a map position, so nearby jobs can be grouped.";
+        state.places = makePlacesAutocomplete({ queryId: `${prefix}Location`, resultsId: `${prefix}PlaceResults`, getBias: () => currentSettings && currentSettings.location ? currentSettings.location : null, onPick: place => {
+          const fill = clientFillFromPlace(place);
+          document.getElementById(`${prefix}Location`).value = fill.locationText;
+          state.coords = fill.coords;
+          renderClientCoords(prefix);
+        } });
+      } else {
+        // The Location text is the search text; picking a place gives the client a map position and leaves the text as typed
+        makePlaceSearch({ queryId: `${prefix}Location`, buttonId: `${prefix}PlaceSearchBtn`, resultsId: `${prefix}PlaceResults`, showZone: false, queries: placeQueries, clearQuery: false, onPick: place => {
+          state.coords = { latitude: place.latitude, longitude: place.longitude, label: place.name };
+          renderClientCoords(prefix);
+        } });
+      }
+      document.getElementById(`${prefix}ClearCoordsBtn`).addEventListener("click", () => {
+        state.coords = null;
+        renderClientCoords(prefix);
+      });
+      renderClientCoords(prefix);
+    }
+
+    // The Clients card's form: fill it from a client (editing) or empty it (adding), and set the buttons to match.
     function fillClientForm(client) {
       editingClientId = client ? client.id : null;
-      const where = client && client.location ? client.location : null;
-      document.getElementById("clientLocation").value = where ? where.name : "";
-      clientCoords = where && Number.isFinite(where.latitude) && Number.isFinite(where.longitude) ? { latitude: where.latitude, longitude: where.longitude } : null;
-      document.getElementById("clientPlaceResults").textContent = "";
-      if (clientPlaces) clientPlaces.close();
-      renderClientCoords();
-      document.getElementById("clientName").value = client ? client.name : "";
-      document.getElementById("clientPhone").value = client ? client.phone || "" : "";
-      document.getElementById("clientUseWhatsApp").checked = !!client && client.useWhatsApp === true;
-      document.getElementById("clientEmail").value = client ? client.email || "" : "";
-      document.getElementById("clientUrl").value = client ? client.url || "" : "";
-      document.getElementById("clientHourlyRate").value = client ? costBoxText(client.hourlyRate) : "";
+      fillClientFormBlock("client", client);
       document.getElementById("saveClientBtn").textContent = client ? "Save client" : "Add client";
       document.getElementById("cancelClientBtn").hidden = !client;
     }
@@ -8096,17 +8190,10 @@
     }
 
     async function saveClient() {
-      const client = clientFormBody({
-        name: document.getElementById("clientName").value,
-        phone: document.getElementById("clientPhone").value,
-        email: document.getElementById("clientEmail").value,
-        url: document.getElementById("clientUrl").value,
-        hourlyRate: document.getElementById("clientHourlyRate").value,
-        useWhatsApp: document.getElementById("clientUseWhatsApp").checked,
-        location: { name: document.getElementById("clientLocation").value, ...(clientCoords ? { latitude: clientCoords.latitude, longitude: clientCoords.longitude } : {}) }
-      });
+      const client = readClientForm("client");
       if (!client.name) { setClientsStatus("Enter a name."); return; }
-      if (parseUrlText(client.url) === undefined) { askAlert(INVALID_URL, { tone: "warning" }); return; }
+      const warning = clientFormWarning(client);
+      if (warning) { askAlert(warning, { tone: "warning" }); return; }
       const editing = editingClientId;
       const body = editing ? { action: "UPDATE", clientId: editing, client } : { action: "CREATE", client };
       if (await saveClientRequest(body, editing ? `Saved "${client.name}".` : `Added "${client.name}".`)) fillClientForm(null);
@@ -8754,28 +8841,7 @@
       pendingLocation = place;
       renderLocation();
     } });
-    if (CONFIG.placesApiKey) {
-      // With a Places key the Location field suggests street addresses as the owner types; picking one sets the text and the map position
-      document.getElementById("clientPlaceSearchBtn").hidden = true;
-      document.getElementById("clientLocationNote").textContent = "The client's address: printed on job sheets and used for navigation. Start typing the street address and pick a suggestion: it also gives the job a map position, so nearby jobs can be grouped.";
-      clientPlaces = makePlacesAutocomplete({ queryId: "clientLocation", resultsId: "clientPlaceResults", getBias: () => currentSettings && currentSettings.location ? currentSettings.location : null, onPick: place => {
-        const fill = clientFillFromPlace(place);
-        document.getElementById("clientLocation").value = fill.locationText;
-        clientCoords = fill.coords;
-        renderClientCoords();
-      } });
-    } else {
-      // The Location text is the search text; picking a place gives the client a map position and leaves the text as typed
-      makePlaceSearch({ queryId: "clientLocation", buttonId: "clientPlaceSearchBtn", resultsId: "clientPlaceResults", showZone: false, queries: placeQueries, clearQuery: false, onPick: place => {
-        clientCoords = { latitude: place.latitude, longitude: place.longitude, label: place.name };
-        renderClientCoords();
-      } });
-    }
-    document.getElementById("clientClearCoordsBtn").addEventListener("click", () => {
-      clientCoords = null;
-      renderClientCoords();
-    });
-    renderClientCoords();
+    mountClientForm("client", "clientFormMount");
     if (CONFIG.placesApiKey) {
       document.getElementById("projectPlaceSearchBtn").hidden = true;
       projectPlaces = makePlacesAutocomplete({ queryId: "projectLocationInput", resultsId: "projectPlaceResults", getBias: () => currentSettings && currentSettings.location ? currentSettings.location : null, getContext: () => selectedProjectFilter, onPick: (place, projectId) => setProjectLocation(projectId, placeLocation(place)) });
