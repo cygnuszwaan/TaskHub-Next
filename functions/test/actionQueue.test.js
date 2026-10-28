@@ -1630,6 +1630,7 @@ describe("Multi-Select (BATCH) actions", () => {
       assert.notEqual(batch({action: "MOVE_TO_TOP", taskIds: Array.from({length: page.MAX_BATCH}, (_, i) => "t" + i)}), null);
       assert.equal(batch({action: "SET_PROJECT"}), null, "a project needs its id");
       assert.equal(batch({action: "SET_PROJECT", projectId: ""}), null);
+      assert.deepEqual(batch({action: "SET_PROJECT", projectId: null}).fields, {action: "SET_PROJECT", taskIds: ["b", "d"], projectId: null}, "null takes the tasks out of their project");
       assert.equal(batch({action: "SET_PROJECT", newProject: "Kitchen"}), null, "a new project needs the server");
       assert.equal(batch({action: "SET_DUE"}), null, "a due date change names its value");
       assert.equal(batch({action: "SET_DUE", dueDate: "2026-02-31"}), null);
@@ -1664,6 +1665,7 @@ describe("Multi-Select (BATCH) actions", () => {
     it("is sent as the body batchUpdateTasks takes", () => {
       assert.deepEqual(page.batchActionBody(top()), {action: "MOVE_TO_TOP", taskIds: ["b", "d"]});
       assert.deepEqual(page.batchActionBody(batch({action: "SET_PROJECT", projectId: "p1"})), {action: "SET_PROJECT", taskIds: ["b", "d"], projectId: "p1"});
+      assert.deepEqual(page.batchActionBody(batch({action: "SET_PROJECT", projectId: null})), {action: "SET_PROJECT", taskIds: ["b", "d"], projectId: null});
       assert.deepEqual(page.batchActionBody(batch({action: "SET_DUE", dueDate: ""})), {action: "SET_DUE", taskIds: ["b", "d"], dueDate: null});
       assert.deepEqual(page.batchActionBody(batch({action: "SNOOZE", snoozedUntil: "2026-11-09"})), {action: "SNOOZE", taskIds: ["b", "d"], snoozedUntil: "2026-11-09"});
     });
@@ -1681,6 +1683,7 @@ describe("Multi-Select (BATCH) actions", () => {
       ["MOVE_TO_TOP of tasks already first", {action: "MOVE_TO_TOP", taskIds: ["a"]}],
       ["SET_PROJECT to a new one (loses its order number)", {action: "SET_PROJECT", taskIds: ["a", "d"], projectId: "p2"}],
       ["SET_PROJECT to the same one (keeps its order number)", {action: "SET_PROJECT", taskIds: ["a", "c"], projectId: "p1"}],
+      ["SET_PROJECT to none (loses project and order number)", {action: "SET_PROJECT", taskIds: ["a", "c", "d"], projectId: null}],
       ["SET_DUE", {action: "SET_DUE", taskIds: ["b", "c"], dueDate: "2026-12-24"}],
       ["SET_DUE cleared", {action: "SET_DUE", taskIds: ["a", "b"], dueDate: null}],
       ["SNOOZE", {action: "SNOOZE", taskIds: ["a", "d"], snoozedUntil: "2026-11-30"}],
@@ -1754,6 +1757,7 @@ describe("Multi-Select (BATCH) actions", () => {
       assert.equal(page.actionLabel(top(["b"])), "Move 1 task to the top");
       assert.equal(page.actionLabel(batch({action: "SET_PROJECT", projectId: "p1"}, {title: "Kitchen reno"})), "Add 2 tasks to “Kitchen reno”");
       assert.equal(page.actionLabel(batch({action: "SET_PROJECT", projectId: "p1"})), "Add 2 tasks to a project");
+      assert.equal(page.actionLabel(batch({action: "SET_PROJECT", projectId: null})), "Take 2 tasks out of their project");
       assert.equal(page.actionLabel(batch({action: "SET_DUE", dueDate: "2026-11-09"})), "Set the due date of 2 tasks to 2026-11-09");
       assert.equal(page.actionLabel(batch({action: "SET_DUE", dueDate: ""})), "Clear the due date of 2 tasks");
       assert.equal(page.actionLabel(batch({action: "SNOOZE", snoozedUntil: "2026-11-09"})), "Snooze 2 tasks until 2026-11-09");

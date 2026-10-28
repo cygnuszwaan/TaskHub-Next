@@ -17,7 +17,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {batchProjectFieldText, pickerViewportBox, withNoneRow, clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSearchText, filterClients, clientDeleteShown, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, clientFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
+    return {pickerViewportBox, withNoneRow, clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSearchText, filterClients, clientDeleteShown, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, clientFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -629,7 +629,6 @@ describe("public/index.html helpers", () => {
       assert.match(html.slice(html.indexOf(`id="manualProjectOrder"`), html.indexOf(">", html.indexOf(`id="manualProjectOrder"`))), /disabled/);
       assert.match(html, /id="manualRecurFreq"[^>]*onchange="updateRecurUnit\('manual'\)"/);
       assert.match(html, /id="manualProjectField"[^>]*onclick="openProjectPicker\('manual'\)"/);
-      assert.match(html, /id="manualProjectToggle"[^>]*onclick="toggleProjectField\('manual'\)"/);
       assert.match(html, /id="manualRecurFreq"[\s\S]*?<option value="NONE">Does not repeat<\/option>/);
     });
     it("stops the page behind the edit modal from scrolling with it", () => {
@@ -1738,22 +1737,22 @@ describe("public/index.html helpers", () => {
   });
   describe("projectFieldView", () => {
     const projects = [{id: "p1", name: "Kitchen reno"}];
-    it("shows None and offers Add to project while no project is chosen", () => {
+    it("shows None while no project is chosen", () => {
       const {projectFieldView} = load();
-      for (const value of ["", undefined, null, 5]) assert.deepEqual(projectFieldView(value, "", projects, "Unknown project"), {text: "None", inProject: false, toggle: "Add to project"});
+      for (const value of ["", undefined, null, 5]) assert.deepEqual(projectFieldView(value, "", projects, "Unknown project"), {text: "None", inProject: false});
     });
-    it("shows a known project's name and offers Remove from project", () => {
-      assert.deepEqual(load().projectFieldView("p1", "", projects, "Unknown project"), {text: "Kitchen reno", inProject: true, toggle: "Remove from project"});
+    it("shows a known project's name", () => {
+      assert.deepEqual(load().projectFieldView("p1", "", projects, "Unknown project"), {text: "Kitchen reno", inProject: true});
     });
     it("shows New project: Name for the placeholder id, with the name's blanks collapsed", () => {
       const {projectFieldView, NEW_PROJECT} = load();
       assert.equal(projectFieldView(NEW_PROJECT, "  Deck   build ", projects, "Unknown project").text, "New project: Deck build");
-      assert.equal(projectFieldView(NEW_PROJECT, "Deck", [], "x").toggle, "Remove from project");
+      assert.equal(projectFieldView(NEW_PROJECT, "Deck", [], "x").inProject, true);
       assert.equal(projectFieldView(NEW_PROJECT, undefined, projects, "x").text, "New project", "no name yet");
     });
     it("shows the given label for a project the list does not know", () => {
       const {projectFieldView} = load();
-      assert.deepEqual(projectFieldView("gone", "", projects, "Unknown project"), {text: "Unknown project", inProject: true, toggle: "Remove from project"});
+      assert.deepEqual(projectFieldView("gone", "", projects, "Unknown project"), {text: "Unknown project", inProject: true});
       assert.equal(projectFieldView("gone", "", projects, "Deleted project").text, "Deleted project");
       assert.equal(projectFieldView("p1", "", undefined, "Unknown project").text, "Unknown project");
     });
@@ -1810,14 +1809,6 @@ describe("public/index.html helpers", () => {
       assert.equal(pickerViewportBox({height: 0}), null);
       assert.match(html, /#pickerModal \{ align-items: flex-start;/);
     });
-    it("shows the Multi-Select project on a button, naming a new project as typed", () => {
-      const {batchProjectFieldText, NEW_PROJECT} = load();
-      const projects = [{id: "p1", name: "Deck"}];
-      assert.equal(batchProjectFieldText("", "", projects), "Choose a project…");
-      assert.equal(batchProjectFieldText("p1", "", projects), "Deck");
-      assert.equal(batchProjectFieldText(NEW_PROJECT, " Fence  job ", projects), "New project: Fence job");
-      assert.equal(batchProjectFieldText(NEW_PROJECT, "", projects), "New project");
-    });
     it("styles Link boxes like the other fields and draws the picker's list like the Queue's", () => {
       assert.match(html, /input\[type="email"\], input\[type="url"\], select \{ padding: 10px 12px/);
       assert.match(html, /input\[type="text"\], input\[type="url"\] \{ flex: 1; min-width: 0; \}/);
@@ -1838,23 +1829,22 @@ describe("public/index.html helpers", () => {
       assert.match(html, /\.picker-field \{[^}]*min-height: 44px/);
       assert.match(html, /\.picker-toggle \{ min-height: 44px; \}/);
     });
-    it("keeps the hidden input, the field button, the toggle and the Order number in every form", () => {
+    it("keeps the hidden input, the field button and the Order number in every form, with no toggle", () => {
       for (const prefix of ["manual", "edit", "ce"]) {
         assert.ok(html.includes(`<input type="hidden" id="${prefix}Project" value="">`), `${prefix} hidden input`);
         assert.match(html, new RegExp(`<button type="button" id="${prefix}ProjectField" class="picker-field"[^>]*onclick="openProjectPicker\\('${prefix}'\\)"[^>]*disabled>None</button>`));
-        assert.match(html, new RegExp(`<button type="button" id="${prefix}ProjectToggle"[^>]*onclick="toggleProjectField\\('${prefix}'\\)"[^>]*disabled>Add to project</button>`));
-        assert.match(html, new RegExp(`id="${prefix}ProjectRow" hidden`), `${prefix} field row starts hidden`);
+        assert.doesNotMatch(html, new RegExp(`${prefix}ProjectToggle`), `${prefix} has no toggle`);
+        assert.match(html, new RegExp(`id="${prefix}ProjectRow">`), `${prefix} field row is always shown`);
         assert.equal(html.split(`id="${prefix}Project"`).length - 1, 1, `${prefix}Project is made once`);
       }
       for (const prefix of ["manual", "edit"]) {
         assert.ok(html.includes(`<input type="hidden" id="${prefix}NewProject" value="">`), `${prefix} new project name`);
-        assert.ok(at(`id="${prefix}ProjectOrder"`) > at(`id="${prefix}ProjectField"`) && at(`id="${prefix}ProjectOrder"`) < at(`id="${prefix}ProjectToggle"`), `${prefix} Order sits beside the field`);
+        assert.ok(at(`id="${prefix}ProjectOrder"`) > at(`id="${prefix}ProjectField"`) && at(`id="${prefix}ProjectOrder"`) < at(`id="${prefix}NewProject"`), `${prefix} Order sits beside the field`);
       }
       assert.doesNotMatch(html, /<select id="(manual|edit|ce)Project"/, "no select is left");
     });
     it("leaves the Add row out of the completed form's picker", () => {
-      assert.match(html, /\}, \{ opener, allowAdd: prefix !== "ce" \}\);/);
-      assert.match(html, /openProjectPicker\(prefix, document\.getElementById\(`\$\{prefix\}ProjectToggle`\)\)/, "the toggle gets the focus back, as the field row may be hidden");
+      assert.match(html, /\}, \{ opener: document\.getElementById\(`\$\{prefix\}ProjectField`\), allowAdd: prefix !== "ce", noneLabel: "None" \}\);/);
       const open = html.slice(at("function openPicker("), at("function closePicker()"));
       assert.match(open, /allowAdd: options\.allowAdd !== false/);
       const render = html.slice(at("function renderPicker()"), at("function pickerTyped()"));
@@ -1868,20 +1858,18 @@ describe("public/index.html helpers", () => {
       assert.match(setter, /updateProjectOrderField\(prefix\)/);
       for (const call of ["setProjectField(\"manual\", projectsLoaded ? v.projectId : \"\")", "setProjectField(\"manual\", \"\")", "setProjectField(\"edit\", task.projectId || \"\")", "setProjectField(\"ce\", values.projectId)"]) assert.ok(html.includes(call), call);
     });
-    it("clears the choice and the Order number for Remove from project and opens the picker for Add to project", () => {
-      const toggle = html.slice(at("function toggleProjectField("), at("// The order number applies only inside a project"));
-      assert.match(toggle, /if \(projectFieldLocked\(prefix\)\) return;/);
-      assert.match(toggle, /=== ""\) openProjectPicker\(prefix, document\.getElementById\(`\$\{prefix\}ProjectToggle`\)\);\s*else setProjectField\(prefix, ""\);/);
+    it("picks None in the picker to clear the choice and the Order number, with no Remove button", () => {
+      assert.doesNotMatch(html, /toggleProjectField|Remove from project|Add to project<\/button>/);
       const order = html.slice(at("function updateProjectOrderField("), at("// The Client choice under a new project's name"));
       assert.match(order, /if \(!inProject\) input\.value = "";/);
       assert.match(order, /renderProjectField\(prefix\);\s*syncNewProjectClient\(prefix\);\s*refreshContact\(prefix\);/);
     });
-    it("keeps both buttons disabled until getProjects has answered, the completed form's also with its saved copy on screen", () => {
+    it("keeps the button disabled until getProjects has answered, the completed form's also with its saved copy on screen", () => {
       const locked = html.slice(at("function projectFieldLocked("), at("// Shows the hidden input's choice"));
       assert.match(locked, /!projectsLoaded \|\| \(prefix === "ce" && completedFieldDisabled\("projectId", completedFormLimited\(\)\)\)/);
       assert.match(html, /function renderProjects\(\) \{\s*if \(!projectsLoaded\) return;\s*renderManualProjects\(\);\s*renderProjectFields\(\);/);
       const {COMPLETED_FORM_CONTROLS, completedFieldDisabled} = load();
-      for (const id of ["ceProject", "ceProjectField", "ceProjectToggle"]) {
+      for (const id of ["ceProject", "ceProjectField"]) {
         assert.equal(COMPLETED_FORM_CONTROLS[id], "projectId", id);
         assert.equal(completedFieldDisabled(COMPLETED_FORM_CONTROLS[id], true), true, `${id} needs a connection`);
         assert.equal(completedFieldDisabled(COMPLETED_FORM_CONTROLS[id], false), false, id);
@@ -1890,7 +1878,7 @@ describe("public/index.html helpers", () => {
     it("shows a project the page does not know as Unknown project, or Deleted project in the completed form", () => {
       const render = html.slice(at("function renderProjectField("), at("function renderProjectFields()"));
       assert.match(render, /prefix === "ce" \? "Deleted project" : "Unknown project"/);
-      assert.match(render, /getElementById\(`\$\{prefix\}ProjectRow`\)\.hidden = !view\.inProject/);
+      assert.match(render, /getElementById\(`\$\{prefix\}ProjectOrder`\)\.hidden = !view\.inProject/);
     });
     it("picks a row or the Add row by tap or Enter and gives the focus back on closing", () => {
       assert.match(html, /const pick = row\.dataset\.add \? pickerPickAt\(pickerState\.rows\.length\) : \{ id: row\.dataset\.id \};/);
@@ -3924,14 +3912,17 @@ describe("public/index.html helpers", () => {
       assert.match(batchSnoozeText(2, "2026-11-02", "boom"), /could not be moved yet \(boom\)/);
     });
     it("has a Select button, a bar with the six actions and a dialog for the three that need a choice", () => {
-      for (const id of ["selectModeBtn", "batchStatus", "batchBar", "batchCount", "batchAllBtn", "batchNoneBtn", "batchModal", "batchSnoozePane", "batchDuePane", "batchProjectPane", "batchProject", "batchNewProject", "batchProjectSetBtn", "batchDueClearBtn", "batchUnsnoozeBtn"]) assert.ok(html.includes(`id="${id}"`), id);
+      for (const id of ["selectModeBtn", "batchStatus", "batchBar", "batchCount", "batchAllBtn", "batchNoneBtn", "batchModal", "batchSnoozePane", "batchDuePane", "batchDueClearBtn", "batchUnsnoozeBtn"]) assert.ok(html.includes(`id="${id}"`), id);
       for (const action of ["COMPLETE", "DELETE", "SNOOZE", "TOP", "PROJECT", "DUE"]) assert.ok(html.includes(`data-batch="${action}"`), action);
       assert.ok(html.indexOf("id=\"selectModeBtn\"") > html.indexOf("id=\"sortDirBtn\""));
       assert.ok(html.indexOf("id=\"batchBar\"") > html.indexOf("id=\"taskList\""));
-      assert.match(html, /<input type="hidden" id="batchProject"/);
-      assert.match(html, /openPicker\("project", document\.getElementById\("batchProject"\)\.value/);
-      assert.doesNotMatch(html, /<select id="batchProject"/);
-      assert.match(html, /\{ newProject: name \}/);
+      assert.doesNotMatch(html, /batchProjectPane|batchProjectSetBtn|id="batchProject"|id="batchNewProject"/, "Project has no dialog of its own");
+      const pick = html.slice(html.indexOf("function pickBatchProject()"), html.indexOf("function closeBatchModal()"));
+      assert.match(pick, /openPicker\("project", "-", /);
+      assert.match(pick, /noneLabel: "None"/);
+      assert.match(pick, /projectId: null/);
+      assert.match(html, /if \(kind === "PROJECT"\) return pickBatchProject\(\);/);
+      assert.match(html, /\{ newProject: pick\.name \}/);
     });
     it("makes a queued card take only taps while selecting, and never makes the Active task selectable", () => {
       const down = html.slice(html.indexOf("const onTaskRowDown"), html.indexOf("const onTaskRowMove"));
@@ -4164,11 +4155,11 @@ describe("public/index.html helpers", () => {
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
       const inSection = code.match(/(?<!function )warnInSection\(/g) || [];
       assert.equal(inSection.length, 10, "ten validation warnings open the section holding the field at fault first (four in the add card, four in the queued form, two in the completed form)");
-      assert.equal(calls.length - 1 + inSection.length, 70, "the seventy messages the page shows (fourteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and two why a Multi-Select change was not); warnInSection's own askAlert call stands for its ten");
+      assert.equal(calls.length - 1 + inSection.length, 68, "the sixty-eight messages the page shows (fourteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and two why a Multi-Select change was not); warnInSection's own askAlert call stands for its ten");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 19, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
-      assert.equal(warnings.length - 1 + inSection.length, 49, "every validation message is a warning alert");
+      assert.equal(warnings.length - 1 + inSection.length, 47, "every validation message is a warning alert");
       assert.match(code, /function warnInSection\(sectionId, text\) \{\s*openFormSection\(sectionId\);\s*return askAlert\(text, \{ tone: "warning" \}\);/);
     });
     it("hides Cancel for an alert, shows it again for a question and focuses the button", () => {

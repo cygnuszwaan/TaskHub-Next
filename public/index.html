@@ -394,11 +394,10 @@
       <div class="form-group">
         <label id="manualProjectLabel">Project</label>
         <input type="hidden" id="manualProject" value="">
-        <div class="picker-line" id="manualProjectRow" hidden>
+        <div class="picker-line" id="manualProjectRow">
           <button type="button" id="manualProjectField" class="picker-field" aria-haspopup="dialog" aria-labelledby="manualProjectLabel manualProjectField" onclick="openProjectPicker('manual')" disabled>None</button>
           <input type="number" id="manualProjectOrder" min="1" max="999" step="1" placeholder="Order" title="Order number: lower numbers are scheduled first, empty means unordered" style="width: 90px;" disabled>
         </div>
-        <button type="button" id="manualProjectToggle" class="btn-secondary picker-toggle" style="margin-top: 6px;" onclick="toggleProjectField('manual')" disabled>Add to project</button>
         <input type="hidden" id="manualNewProject" value="">
         <div id="manualNewProjectClient" style="margin-top: 10px;" hidden>
           <label id="manualClientLabel">Client</label>
@@ -872,11 +871,10 @@
       <div class="form-group">
         <label id="editProjectLabel">Project</label>
         <input type="hidden" id="editProject" value="">
-        <div class="picker-line" id="editProjectRow" hidden>
+        <div class="picker-line" id="editProjectRow">
           <button type="button" id="editProjectField" class="picker-field" aria-haspopup="dialog" aria-labelledby="editProjectLabel editProjectField" onclick="openProjectPicker('edit')" disabled>None</button>
           <input type="number" id="editProjectOrder" min="1" max="999" step="1" placeholder="Order" title="Order number: lower numbers are scheduled first, empty means unordered" style="width: 90px;" disabled>
         </div>
-        <button type="button" id="editProjectToggle" class="btn-secondary picker-toggle" style="margin-top: 6px;" onclick="toggleProjectField('edit')" disabled>Add to project</button>
         <input type="hidden" id="editNewProject" value="">
         <div id="editNewProjectClient" style="margin-top: 10px;" hidden>
           <label id="editClientLabel">Client</label>
@@ -1063,10 +1061,9 @@
       <div class="form-group">
         <label id="ceProjectLabel">Project</label>
         <input type="hidden" id="ceProject" value="">
-        <div class="picker-line" id="ceProjectRow" hidden>
+        <div class="picker-line" id="ceProjectRow">
           <button type="button" id="ceProjectField" class="picker-field" aria-haspopup="dialog" aria-labelledby="ceProjectLabel ceProjectField" onclick="openProjectPicker('ce')" disabled>None</button>
         </div>
-        <button type="button" id="ceProjectToggle" class="btn-secondary picker-toggle" style="margin-top: 6px;" onclick="toggleProjectField('ce')" disabled>Add to project</button>
       </div>
 
       <div class="contact-actions" id="ceContactActions" hidden></div>
@@ -1229,21 +1226,6 @@
           </div>
         </div>
         <button type="button" class="btn-secondary" id="batchDueClearBtn">Clear their due dates</button>
-      </div>
-      <div id="batchProjectPane" hidden>
-        <div class="form-group">
-          <label id="batchProjectLabel">Project</label>
-          <input type="hidden" id="batchProject" value="">
-          <div class="picker-line">
-            <button type="button" id="batchProjectField" class="picker-field" aria-haspopup="dialog" aria-labelledby="batchProjectLabel batchProjectField" onclick="openBatchProjectPicker()">Choose a project…</button>
-          </div>
-        </div>
-        <div class="form-group" id="batchNewProjectBox" hidden>
-          <label for="batchNewProject">New project name</label>
-          <input type="text" id="batchNewProject" maxlength="100" placeholder="e.g. Kitchen reno">
-        </div>
-        <p class="settings-note">A task already in the chosen project keeps its order number; the others join it with none.</p>
-        <button type="button" id="batchProjectSetBtn">Add to project</button>
       </div>
       <div class="modal-actions">
         <span></span>
@@ -2567,25 +2549,19 @@
       if (!vv || !(vv.height > 0)) return null;
       return { top: Math.max(0, Math.round(vv.offsetTop || 0)), height: Math.round(vv.height) };
     }
-    // The Multi-Select Project button's text, pure: "Choose a project…" while none is chosen, else projectFieldView's text for a project's id or NEW_PROJECT.
-    function batchProjectFieldText(value, newName, projects) {
-      return value === "" ? "Choose a project…" : projectFieldView(value, newName, projects, "Unknown project").text;
-    }
-
     // The Project field of the add card, the queued modal and the completed form, pure: `value` is the hidden input's value ("" for none, a project's
     // id or NEW_PROJECT), `newName` the name kept for NEW_PROJECT, `projects` the page's list and `missing` what a project the list does not know is
-    // called ("Unknown project" in the add card and the queued modal, "Deleted project" in the completed form). Returns {text, inProject, toggle}:
+    // called ("Unknown project" in the add card and the queued modal, "Deleted project" in the completed form). Returns {text, inProject}:
     // the field's text ("None", a name, "New project: Name" ("New project" with no name yet) or `missing`), whether a project is chosen (the field shows only then) and the
-    // toggle button's label ("Add to project" while none, "Remove from project" while one).
     function projectFieldView(value, newName, projects, missing) {
       const v = typeof value === "string" ? value : "";
-      if (v === "") return { text: "None", inProject: false, toggle: "Add to project" };
+      if (v === "") return { text: "None", inProject: false };
       if (v === NEW_PROJECT) {
         const name = String(newName === undefined || newName === null ? "" : newName).replace(/\s+/g, " ").trim();
-        return { text: name ? `New project: ${name}` : "New project", inProject: true, toggle: "Remove from project" };
+        return { text: name ? `New project: ${name}` : "New project", inProject: true };
       }
       const project = (Array.isArray(projects) ? projects : []).find((p) => p && p.id === v);
-      return { text: project && typeof project.name === "string" ? project.name : missing, inProject: true, toggle: "Remove from project" };
+      return { text: project && typeof project.name === "string" ? project.name : missing, inProject: true };
     }
 
     // The Client field under a new project's name in the add card and the queued modal, pure: `value` is the hidden input's value ("" for none, a
@@ -3833,7 +3809,7 @@
     // is a completion still waiting to be sent, only
     // the fields in OFFLINE_COMPLETED_FIELDS (the ones a change made offline can be kept for, ENTRY_EDIT_FIELDS as the form names them) stay enabled.
     const COMPLETED_FORM_CONTROLS = {
-      cePriority: "priority", ceTracked: "trackedMinutes", ceTags: "tags", ceProject: "projectId", ceProjectField: "projectId", ceProjectToggle: "projectId", ceMaterials: "materials", ceTravel: "travelKm",
+      cePriority: "priority", ceTracked: "trackedMinutes", ceTags: "tags", ceProject: "projectId", ceProjectField: "projectId", ceMaterials: "materials", ceTravel: "travelKm",
       ceLocation: "location", cePlaceSearchBtn: "placeSearch", ceLocationClearBtn: "location", cePhone: "phone", ceEmail: "email", ceUrl: "url", ceDescription: "description", ceDate: "date", ceTime: "time",
       ceCommentText: "comments", ceCommentAdd: "comments", ceSheetBtn: "sheet", ceDeleteBtn: "delete"
     };
@@ -4535,7 +4511,7 @@
         if (ids.length === 0 || ids.length > MAX_BATCH || ids.some(id => typeof id !== "string" || id === "" || id.length > 200)) return null;
         const out = { action: fields.action, taskIds: ids };
         if (fields.action === "SET_PROJECT") {
-          if (typeof fields.projectId !== "string" || fields.projectId === "" || fields.projectId.length > 200) return null;
+          if (fields.projectId !== null && (typeof fields.projectId !== "string" || fields.projectId === "" || fields.projectId.length > 200)) return null;
           out.projectId = fields.projectId;
         } else if (fields.action === "SET_DUE") {
           const date = "dueDate" in fields ? normalizeSnooze(fields.dueDate) : undefined;
@@ -4666,7 +4642,7 @@
 
     // A Multi-Select change as the server makes it (applyBatch in functions/batch.js, which a test holds this equal to): the list with
     // `fields` ({action, taskIds, projectId? | dueDate? | snoozedUntil?}) applied to the tasks it names. MOVE_TO_TOP puts them first,
-    // keeping their order among themselves, and renumbers every `order` 1..n; SET_PROJECT puts them in the project (`projectIds`, the
+    // keeping their order among themselves, and renumbers every `order` 1..n; SET_PROJECT puts them in the project (a null `projectId` takes them out of theirs) (`projectIds`, the
     // stored projects, or null when the page does not know them: any id counts), a task already in it keeping its order number and any
     // other losing it; SET_DUE sets the due date ("" for null); SNOOZE sets the snooze date (null removes it). null when no task is
     // named, the action is unknown or the value is unusable. Pure: the input is not modified.
@@ -4680,6 +4656,12 @@
       if (fields.action === "MOVE_TO_TOP") return [...picked, ...list.filter(t => !wanted.has(t.id))].map((t, i) => ({ ...t, order: i + 1 }));
       if (fields.action === "SET_PROJECT") {
         const id = fields.projectId;
+        if (id === null) return change(t => {
+          const next = { ...t };
+          delete next.projectId;
+          delete next.projectOrder;
+          return next;
+        });
         if (typeof id !== "string" || (Array.isArray(projectIds) && !projectIds.includes(id))) return null;
         return change(t => {
           const next = { ...t };
@@ -4908,7 +4890,7 @@
         const f = action.fields;
         const count = taskCountText(f.taskIds.length);
         if (f.action === "MOVE_TO_TOP") return `Move ${count} to the top`;
-        if (f.action === "SET_PROJECT") return `Add ${count} to` + (quotedTitle(action.title) || " a project");
+        if (f.action === "SET_PROJECT") return f.projectId === null ? `Take ${count} out of their project` : `Add ${count} to` + (quotedTitle(action.title) || " a project");
         if (f.action === "SET_DUE") return f.dueDate ? `Set the due date of ${count} to ${f.dueDate}` : `Clear the due date of ${count}`;
         if (f.action === "SNOOZE") return f.snoozedUntil ? `Snooze ${count} until ${f.snoozedUntil}` : `Unsnooze ${count}`;
       }
@@ -6753,7 +6735,7 @@
       if (!PICKER_KINDS[kind]) return;
       const text = PICKER_KINDS[kind];
       pickerState = { kind, current: current || "", onPick, opener: options.opener || null, allowAdd: options.allowAdd !== false, none: options.noneLabel || "", rows: [], add: "", active: 0 };
-      document.getElementById("pickerTitle").textContent = text.title;
+      document.getElementById("pickerTitle").textContent = options.title || text.title;
       const search = document.getElementById("pickerSearch");
       search.value = "";
       search.placeholder = text.placeholder;
@@ -6854,8 +6836,7 @@
     // The Project field of the add card ("manual"), the queued modal ("edit") and the completed form ("ce"): a hidden input (`${prefix}Project`: ""
     // for none, a project's id or NEW_PROJECT; `${prefix}NewProject` keeps the new project's name) holds the choice, so the save, add and template
     // code reads and writes the ids it always has (through setProjectField). A button shows the choice (`${prefix}ProjectField`, tapped to change it
-    // in the picker modal) beside the Order number, and a toggle (`${prefix}ProjectToggle`) reads "Add to project" while there is none, which opens
-    // the modal, and "Remove from project" while there is one, which clears the choice and the Order number and hides the field. Both stay disabled
+    // in the picker modal, whose first row is None) beside the Order number, which shows only while a project is chosen. The button stays disabled
     // until getProjects has answered (the completed form's also while its saved copy is on screen, completedFieldDisabled). The completed form
     // cannot create a project, so its modal has no Add row.
     const PROJECT_PREFIXES = ["manual", "edit", "ce"];
@@ -6866,12 +6847,8 @@
     function renderProjectField(prefix) {
       const view = projectFieldView(document.getElementById(`${prefix}Project`).value, (document.getElementById(`${prefix}NewProject`) || {}).value, allProjects, prefix === "ce" ? "Deleted project" : "Unknown project");
       document.getElementById(`${prefix}ProjectField`).textContent = view.text;
-      document.getElementById(`${prefix}ProjectRow`).hidden = !view.inProject;
-      const toggle = document.getElementById(`${prefix}ProjectToggle`);
-      toggle.textContent = view.toggle;
-      const locked = projectFieldLocked(prefix);
-      document.getElementById(`${prefix}ProjectField`).disabled = locked;
-      toggle.disabled = locked;
+      document.getElementById(`${prefix}ProjectOrder`).hidden = !view.inProject; // the Order number shows only inside a project
+      document.getElementById(`${prefix}ProjectField`).disabled = projectFieldLocked(prefix);
     }
     function renderProjectFields() {
       for (const prefix of PROJECT_PREFIXES) renderProjectField(prefix);
@@ -6891,17 +6868,12 @@
       }
     }
     // Opens the picker for a form's project; the focus goes back to `opener` (the field's button unless the toggle opened it) when it closes.
-    function openProjectPicker(prefix, opener = document.getElementById(`${prefix}ProjectField`)) {
+    function openProjectPicker(prefix) {
       if (projectFieldLocked(prefix)) return;
       openPicker("project", document.getElementById(`${prefix}Project`).value, (pick) => {
         if (pick.name !== undefined) setProjectField(prefix, NEW_PROJECT, { newName: pick.name });
         else setProjectField(prefix, pick.id);
-      }, { opener, allowAdd: prefix !== "ce" });
-    }
-    function toggleProjectField(prefix) {
-      if (projectFieldLocked(prefix)) return;
-      if (document.getElementById(`${prefix}Project`).value === "") openProjectPicker(prefix, document.getElementById(`${prefix}ProjectToggle`));
-      else setProjectField(prefix, "");
+      }, { opener: document.getElementById(`${prefix}ProjectField`), allowAdd: prefix !== "ce", noneLabel: "None" });
     }
 
     // The order number applies only inside a project: disabled and emptied without one
@@ -7580,6 +7552,7 @@
       if (!selectMode || batchBusy || selectedIds.size === 0) return;
       if (kind === "COMPLETE" || kind === "DELETE") return batchRemove(kind);
       if (kind === "TOP") return batchSend(batchBody("MOVE_TO_TOP", selectedIds), count => `Moved ${taskCountText(count)} to the top.`);
+      if (kind === "PROJECT") return pickBatchProject();
       openBatchModal(kind);
     }
 
@@ -7673,35 +7646,33 @@
     function openBatchModal(kind) {
       const today = todayKey();
       batchModalKind = kind;
-      document.getElementById("batchModalTitle").textContent = kind === "SNOOZE" ? "Snooze" : kind === "DUE" ? "Set due date" : "Add to project";
+      document.getElementById("batchModalTitle").textContent = kind === "SNOOZE" ? "Snooze" : "Set due date";
       document.getElementById("batchModalSub").textContent = `${taskCountText(selectedIds.size)} selected`;
       document.getElementById("batchSnoozePane").hidden = kind !== "SNOOZE";
       document.getElementById("batchDuePane").hidden = kind !== "DUE";
-      document.getElementById("batchProjectPane").hidden = kind !== "PROJECT";
       if (kind === "SNOOZE") {
         const input = document.getElementById("batchSnoozeDate");
         input.min = addDaysTo(today, 1);
         input.value = "";
-      } else if (kind === "DUE") {
-        document.getElementById("batchDueDate").value = "";
       } else {
-        setBatchProject("");
+        document.getElementById("batchDueDate").value = "";
       }
       showLayer("batchModal", closeBatchModal);
     }
-    // The Multi-Select Project choice: a hidden input (`#batchProject`: "" for none yet, a project's id or NEW_PROJECT, whose name is in `#batchNewProject`)
-    // shown by a button (`#batchProjectField`) that opens the picker modal; the name box shows only for a new project.
-    function setBatchProject(value, newName = "") {
-      document.getElementById("batchProject").value = value;
-      document.getElementById("batchNewProject").value = value === NEW_PROJECT ? newName : "";
-      document.getElementById("batchNewProjectBox").hidden = value !== NEW_PROJECT;
-      document.getElementById("batchProjectField").textContent = batchProjectFieldText(value, newName, allProjects);
-    }
-    function openBatchProjectPicker() {
-      openPicker("project", document.getElementById("batchProject").value, (pick) => {
-        if (pick.name !== undefined) setBatchProject(NEW_PROJECT, pick.name);
-        else setBatchProject(pick.id);
-      }, { opener: document.getElementById("batchProjectField") });
+    // Multi-Select Project has no dialog of its own: the picker modal opens at once, titled with the count, its first row None, and the pick is sent
+    // straight away: a project (SET_PROJECT), None (`projectId: null`, which takes the tasks out of their project) or the Add row's new project.
+    function pickBatchProject() {
+      const ids = [...selectedIds];
+      if (ids.length === 0) return;
+      const count = taskCountText(ids.length);
+      openPicker("project", "-", (pick) => {
+        if (pick.name !== undefined) batchSend(batchBody("SET_PROJECT", ids, { newProject: pick.name }), n => `Added ${taskCountText(n)} to “${pick.name}”.`);
+        else if (pick.id === "") batchSend(batchBody("SET_PROJECT", ids, { projectId: null }), n => `Took ${taskCountText(n)} out of their project.`);
+        else {
+          const project = allProjects.find(p => p.id === pick.id);
+          batchSend(batchBody("SET_PROJECT", ids, { projectId: pick.id }), n => `Added ${taskCountText(n)} to “${project ? project.name : "the project"}”.`);
+        }
+      }, { opener: document.querySelector('[data-batch="PROJECT"]'), noneLabel: "None", title: `Add ${count} to a project` });
     }
     function closeBatchModal() {
       hideLayer("batchModal");
@@ -7715,17 +7686,6 @@
     }
     function batchSetDue(date) {
       batchSend(batchBody("SET_DUE", selectedIds, { dueDate: date }), count => date ? `Set the due date of ${taskCountText(count)} to ${date}.` : `Cleared the due date of ${taskCountText(count)}.`);
-    }
-    function batchSetProject() {
-      const choice = document.getElementById("batchProject").value;
-      if (!choice) return askAlert("Choose a project, or add a new one.", { tone: "warning" });
-      if (choice === NEW_PROJECT) {
-        const name = document.getElementById("batchNewProject").value.trim();
-        if (!name) { document.getElementById("batchNewProject").focus(); return askAlert("Enter a name for the new project.", { tone: "warning" }); }
-        return batchSend(batchBody("SET_PROJECT", selectedIds, { newProject: name }), count => `Added ${taskCountText(count)} to “${name}”.`);
-      }
-      const project = allProjects.find(p => p.id === choice);
-      batchSend(batchBody("SET_PROJECT", selectedIds, { projectId: choice }), count => `Added ${taskCountText(count)} to “${project ? project.name : "the project"}”.`);
     }
 
     // Completion totals from getCompletedTasks: the streak, per week, by priority, by tag and by project
@@ -9707,10 +9667,6 @@
       batchSetDue(date);
     });
     document.getElementById("batchDueClearBtn").addEventListener("click", () => batchSetDue(null));
-    document.getElementById("batchNewProject").addEventListener("input", e => {
-      document.getElementById("batchProjectField").textContent = batchProjectFieldText(NEW_PROJECT, e.target.value, allProjects);
-    });
-    document.getElementById("batchProjectSetBtn").addEventListener("click", batchSetProject);
 
     // The offline add queue on the page (the model is in the pure helpers above). `addQueue` mirrors localStorage; every access to
     // storage is in try/catch, and when storage cannot be used `addQueueUsable` is false (nothing can be queued then).

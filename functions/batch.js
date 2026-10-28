@@ -35,7 +35,8 @@ function needsReschedule(task) {
 // Applies one batch action to the tasks named in `request.taskIds`.
 //   request:    {action, taskIds, projectId?, dueDate?, snoozedUntil?}
 //     MOVE_TO_TOP  no value
-//     SET_PROJECT  `projectId`, which must be in `projectIds`; a task already in it keeps its order number, any other loses it
+//     SET_PROJECT  `projectId`, which must be in `projectIds`; a task already in it keeps its order number, any other loses it;
+//                  `projectId: null` takes the tasks out of their project and drops their order numbers
 //     SET_DUE      `dueDate`, a real YYYY-MM-DD date; null or "" clears it (stored as "")
 //     SNOOZE       `snoozedUntil`, a real YYYY-MM-DD date; null or "" unsnoozes
 //   projectIds: ids of the projects that exist
@@ -55,6 +56,7 @@ function applyBatch(tasks, request, projectIds = []) {
   if (action === "MOVE_TO_TOP") return {tasks: moveToTop(tasks, ids), count: ids.length, ids};
   if (action === "SET_PROJECT") {
     const {projectId} = request;
+    if (projectId === null) return change((t) => applyProjectFields(t, {projectId: null}, projectIds));
     if (typeof projectId !== "string" || !projectIds.includes(projectId)) return {error: "Project not found"};
     return change((t) => applyProjectFields(t, {projectId}, projectIds));
   }

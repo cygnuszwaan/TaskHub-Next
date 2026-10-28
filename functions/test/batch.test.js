@@ -88,6 +88,18 @@ describe("batch.js", () => {
       assert.equal("snoozedUntil" in back.tasks[0], false);
       assert.equal(back.tasks[1].snoozedUntil, "2026-11-02");
     });
+    it("SET_PROJECT with a null projectId takes the tasks out of their project and drops their order numbers", () => {
+      const tasks = [
+        {id: "a", order: 1, title: "A", projectId: "p1", projectOrder: 2},
+        {id: "b", order: 2, title: "B"},
+      ];
+      const r = applyBatch(tasks, {action: "SET_PROJECT", taskIds: ["a", "b"], projectId: null}, ["p1"]);
+      assert.equal(r.count, 2);
+      assert.equal("projectId" in r.tasks[0], false);
+      assert.equal("projectOrder" in r.tasks[0], false);
+      assert.deepEqual(r.tasks[1], tasks[1]);
+      assert.match(applyBatch(tasks, {action: "SET_PROJECT", taskIds: ["a"], projectId: ""}, ["p1"]).error, /Project not found/, "an empty string is not none");
+    });
     it("SET_PROJECT needs an existing project; a task already in it keeps its order number, others lose theirs", () => {
       const tasks = list();
       tasks[0].projectId = "p1";

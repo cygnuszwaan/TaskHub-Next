@@ -1131,7 +1131,7 @@ exports.updateTaskDirect = onRequest({
 // 7-batch. Endpoint: change several queued tasks at once (the Queue's Multi-Select mode; see batch.js)
 // Body {action, taskIds, ...}, `action` being one of:
 //   MOVE_TO_TOP  the tasks go to the top of the queue, keeping their order among themselves
-//   SET_PROJECT  `projectId`, or `newProject` (a name): the project is created in the same commit as the change
+//   SET_PROJECT  `projectId` (null takes the tasks out of their project), or `newProject` (a name): the project is created in the same commit as the change
 //   SET_DUE      `dueDate` (YYYY-MM-DD; null or "" clears it)
 //   SNOOZE       `snoozedUntil` (YYYY-MM-DD; null or "" unsnoozes), followed by one engine run for the tasks that have a calendar
 //                event, so their events move at once; a failure there leaves the snooze saved and comes back as `rescheduleError`
