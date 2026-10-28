@@ -999,7 +999,7 @@ describe("public/index.html helpers", () => {
       assert.match(fn, /pickerState\.kind === "queue" \? allProjects\.find\(p => p\.id === selectedProjectFilter\) \|\| null : null/, "shown for a chosen project only, never for All, and only while the Queue's modal is in front");
       assert.match(fn, /hidden = !chosen/);
       assert.match(fn, /`· \$\{chosen\.name\}`/);
-      assert.match(html, /if \(kind === "queue" && !over\) document\.getElementById\("pickerManage"\)\.open = false;/, "collapsed on every open");
+      assert.match(html, /if \(kind === "queue" && !over\) \{[^}]*getElementById\("pickerManage"\)\.open = false;/, "collapsed on every open");
       assert.match(html, /document\.getElementById\("pickerManage"\)\.open = false; \/\/ the new project's Manage starts collapsed too/);
       const render = html.slice(html.indexOf("function renderProjects()"), html.indexOf("// The chosen project's Location row"));
       assert.match(render, /if \(pickerState && pickerState\.kind === "queue"\) renderPicker\(\);/, "a rename or client change redraws the rows and the heading");
@@ -4009,12 +4009,43 @@ describe("public/index.html helpers", () => {
       assert.equal(h.startedText("Back deck", 1), "Started \"Back deck\" with 1 task.");
       assert.equal(h.startedText("Back deck", 5), "Started \"Back deck\" with 5 tasks.");
     });
-    it("has the Start from template controls in the Projects section and Save as template on the chosen project", () => {
-      const section = html.slice(html.indexOf("id=\"projectsSection\""), html.indexOf("id=\"taskList\""));
-      for (const id of ["templateSelect", "templateProjectName", "startTemplateBtn", "renameTemplateBtn", "deleteTemplateBtn", "templateEmpty"]) assert.match(section, new RegExp(`id="${id}"`));
+    it("has the Start from template controls in a second collapsible section of the Project modal and Save as template on the chosen project", () => {
+      const modal = html.indexOf("id=\"pickerModal\"");
+      const manage = html.indexOf("<details class=\"filter-section\" id=\"pickerManage\" hidden>", modal);
+      const section = html.indexOf("<details class=\"filter-section\" id=\"pickerTemplates\" hidden>", modal);
+      const end = html.indexOf("</details>", section);
+      assert.ok(manage > modal && html.indexOf("</details>", manage) < section, "the section follows Manage");
+      assert.ok(end < html.indexOf("onclick=\"closePicker()\"", modal), "and sits above Cancel");
+      assert.match(html.slice(section, html.indexOf("</summary>", section) + 10), /<summary>Start from template<\/summary>/);
+      for (const id of ["templateBlock", "templateSelect", "templateProjectName", "startTemplateBtn", "renameTemplateBtn", "deleteTemplateBtn", "templateEmpty"]) {
+        const i = html.indexOf(`id="${id}"`, section);
+        assert.ok(i > section && i < end, `${id} is in the section`);
+      }
+      const page = html.slice(html.indexOf("id=\"projectsSection\""), html.indexOf("id=\"taskList\""));
+      assert.doesNotMatch(page, /templateBlock|templateSelect|startTemplateBtn|Start from template/, "nothing of it is left under the Project field");
       assert.match(html, /data-action="saveTemplate"/);
       assert.match(html, /endpoint\("getProjectTemplates"\)/);
       assert.match(html, /endpoint\("updateProjectTemplate"\)/);
+    });
+    it("shows the Start from template section with All chosen as well as a project, collapsed on every open, and closes the modal when Start succeeds", () => {
+      const fn = html.slice(html.indexOf("function renderPickerTemplates()"), html.indexOf("function pickerTyped()"));
+      assert.match(fn, /hidden = !\(pickerState && pickerState\.kind === "queue"\)/, "no project needed, only the Queue's modal in front");
+      assert.doesNotMatch(fn, /selectedProjectFilter/);
+      assert.match(html, /renderPickerManage\(\);\s*renderPickerTemplates\(\);/, "redrawn with the rows");
+      assert.match(html, /if \(kind === "queue" && !over\) \{[^}]*getElementById\("pickerTemplates"\)\.open = false;/, "collapsed on every open");
+      const close = html.slice(html.indexOf("function closePicker()"), html.indexOf("function closePickerOnOverlay"));
+      assert.match(close, /getElementById\("pickerTemplates"\)\.hidden = true;/);
+      const start = html.slice(html.indexOf("async function startFromTemplate()"), html.indexOf("async function renameTemplate()"));
+      assert.match(start, /setProjectsStatus\(startedText\(data\.project\.name, data\.added\)\);\s*if \(pickerState && pickerState\.kind === "queue"\) closePicker\(\);/, "the message is set, then the modal closes");
+      assert.match(start, /if \(!data\) return;[\s\S]*closePicker/, "a failed Start leaves the modal open");
+      assert.match(html, /#pickerManage, #pickerTemplates \{ flex: 0 1 auto; min-height: 0; overflow-y: auto; \}/, "scrolls inside the card as Manage does");
+    });
+    it("gives History's Project line the same space under the Tags section as the Queue's", () => {
+      const queue = /\.project-section \{ margin-top: (\d+)px; \}/.exec(html);
+      const history = /<div class="picker-line" style="margin:(\d+)px 0 \d+px;"><span class="picker-line-label" id="historyProjectLabel">/.exec(html);
+      assert.ok(queue && history, "both rules are found");
+      assert.equal(history[1], queue[1]);
+      assert.match(html, /\.filter-section \{ margin-top: 12px; \}/, "both Tags sections are .filter-section, so the gap under each is the Project line's top margin");
     });
     it("declares every function in the page once, so one never replaces another of the same name", () => {
       const code = html.replace(/\/\/.*$/gm, "");

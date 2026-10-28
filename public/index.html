@@ -144,7 +144,7 @@
     .picker-search-row button[hidden] { display: none; }
     #pickerStatus { margin-top: 8px; }
     #pickerStatus:empty { display: none; }
-    #pickerManage { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+    #pickerManage, #pickerTemplates { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
     .picker-field { flex: 1; min-width: 0; min-height: 44px; box-sizing: border-box; text-align: left; white-space: normal; overflow-wrap: anywhere; padding: 10px 12px; font-size: 15px; font-weight: 500; background: var(--surface); color: var(--text); border: 1px solid var(--border-input); border-radius: 6px; }
     .picker-field:disabled { background: var(--surface); color: var(--text-faint); }
     .picker-toggle { min-height: 44px; }
@@ -165,8 +165,7 @@
     .project-location { margin-top: 10px; }
     .project-location label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: var(--text-muted); }
     .project-location input { width: 100%; }
-    .template-block { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--divider); }
-    .template-block .template-title { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+    .filter-section > .template-block { margin-top: 8px; }
     .template-block select { width: 100%; margin-bottom: 8px; }
 
     .task-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px; border-bottom: 1px solid var(--divider); border-radius: 6px; cursor: pointer; transition: background 0.15s ease; }
@@ -529,21 +528,6 @@
         <div class="picker-line">
           <span class="picker-line-label" id="queueProjectLabel">Project</span>
           <button type="button" id="queueProjectField" class="picker-field" aria-haspopup="dialog" aria-labelledby="queueProjectLabel queueProjectField" onclick="openQueueProjectPicker()" disabled>All</button>
-        </div>
-        <div class="template-block" id="templateBlock">
-          <div class="template-title">Start from template</div>
-          <div id="templateEmpty" class="settings-note" style="margin:0;">No templates yet. Choose a project above and tap Save as template.</div>
-          <div id="templateControls" hidden>
-            <select id="templateSelect" aria-label="Template"></select>
-            <div class="input-row">
-              <input type="text" id="templateProjectName" maxlength="100" placeholder="New project name">
-              <button type="button" id="startTemplateBtn">Start</button>
-            </div>
-            <div class="project-row" style="margin-top:6px;">
-              <button type="button" class="btn-secondary" id="renameTemplateBtn">Rename template</button>
-              <button type="button" class="btn-danger" id="deleteTemplateBtn">Delete template</button>
-            </div>
-          </div>
         </div>
         <div id="projectsStatus" class="settings-status"></div>
       </div>
@@ -1263,6 +1247,23 @@
             <p class="settings-note" id="projectUrlNote"></p>
           </div>
           <div class="project-actions" id="projectTemplateAction"></div>
+      </details>
+      <details class="filter-section" id="pickerTemplates" hidden>
+        <summary>Start from template</summary>
+        <div class="template-block" id="templateBlock">
+          <div id="templateEmpty" class="settings-note" style="margin:0;">No templates yet. Choose a project, open Manage and tap Save as template.</div>
+          <div id="templateControls" hidden>
+            <select id="templateSelect" aria-label="Template"></select>
+            <div class="input-row">
+              <input type="text" id="templateProjectName" maxlength="100" placeholder="New project name">
+              <button type="button" id="startTemplateBtn">Start</button>
+            </div>
+            <div class="project-row" style="margin-top:6px;">
+              <button type="button" class="btn-secondary" id="renameTemplateBtn">Rename template</button>
+              <button type="button" class="btn-danger" id="deleteTemplateBtn">Delete template</button>
+            </div>
+          </div>
+        </div>
       </details>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" onclick="closePicker()">Cancel</button>
@@ -6854,7 +6855,10 @@
       if (over) pickerParents.push({ state: pickerState, search: search.value });
       pickerState = { kind, current: current || "", onPick, opener: options.opener || null, allowAdd: options.allowAdd !== false, none: options.noneLabel || "", noneDetail: options.noneDetail || "", onAdd: typeof options.onAdd === "function" ? options.onAdd : null, title: options.title || "", rows: [], add: "", active: 0 };
       applyPicker(pickerState, "");
-      if (kind === "queue" && !over) document.getElementById("pickerManage").open = false; // Manage starts collapsed on every open
+      if (kind === "queue" && !over) { // Manage and Start from template start collapsed on every open
+        document.getElementById("pickerManage").open = false;
+        document.getElementById("pickerTemplates").open = false;
+      }
       renderPicker();
       if (!over) {
         showLayer("pickerModal", closePicker);
@@ -6882,6 +6886,7 @@
       document.getElementById("pickerAddBtn").hidden = true;
       document.getElementById("pickerStatus").textContent = "";
       document.getElementById("pickerManage").hidden = true;
+      document.getElementById("pickerTemplates").hidden = true;
       if (window.visualViewport) {
         window.visualViewport.removeEventListener("resize", fitPickerToViewport);
         window.visualViewport.removeEventListener("scroll", fitPickerToViewport);
@@ -6902,6 +6907,7 @@
       const text = PICKER_KINDS[state.kind];
       const query = document.getElementById("pickerSearch").value;
       renderPickerManage();
+      renderPickerTemplates();
       const source = pickerSource(state.kind);
       const view = pickerRows(state.kind, query, source.items, source.context);
       state.rows = withNoneRow(view.rows, state.none, query, state.noneDetail);
@@ -6923,6 +6929,10 @@
       const chosen = pickerState && pickerState.kind === "queue" ? allProjects.find(p => p.id === selectedProjectFilter) || null : null;
       document.getElementById("pickerManage").hidden = !chosen;
       document.getElementById("pickerManageName").textContent = chosen ? `· ${chosen.name}` : "";
+    }
+    // The Start from template section: shown, with All chosen as well as a project, while the Queue's Project modal is the one in front.
+    function renderPickerTemplates() {
+      document.getElementById("pickerTemplates").hidden = !(pickerState && pickerState.kind === "queue");
     }
     function pickerTyped() {
       if (pickerState) pickerState.active = 0; // a new search starts at its first option
@@ -7878,7 +7888,7 @@
       const entry = projectHoursEntries.find(e => e.projectId === historyProjectId) || null;
       return `
         <div class="summary">
-          <div class="picker-line" style="margin:4px 0;"><span class="picker-line-label" id="historyProjectLabel">Project</span><button type="button" id="historyProjectField" class="picker-field" aria-haspopup="dialog" aria-labelledby="historyProjectLabel historyProjectField" onclick="openHistoryProjectPicker()">${esc(entry ? entry.name || "Untitled project" : HISTORY_ALL_PROJECTS)}</button></div>
+          <div class="picker-line" style="margin:12px 0 4px;"><span class="picker-line-label" id="historyProjectLabel">Project</span><button type="button" id="historyProjectField" class="picker-field" aria-haspopup="dialog" aria-labelledby="historyProjectLabel historyProjectField" onclick="openHistoryProjectPicker()">${esc(entry ? entry.name || "Untitled project" : HISTORY_ALL_PROJECTS)}</button></div>
           <div id="projectHoursBody">${historyProjectPanel(entry)}</div>
         </div>`;
     }
@@ -8927,6 +8937,7 @@
       renderTasks();
       input.value = "";
       setProjectsStatus(startedText(data.project.name, data.added));
+      if (pickerState && pickerState.kind === "queue") closePicker(); // the new project's tasks are on the list behind the modal
     }
 
     async function renameTemplate() {
