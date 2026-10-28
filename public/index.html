@@ -385,6 +385,12 @@
           <input type="number" id="manualProjectOrder" min="1" max="999" step="1" placeholder="Order" title="Order number: lower numbers are scheduled first, empty means unordered" style="width: 90px;" disabled>
         </div>
         <input type="text" id="manualNewProject" maxlength="100" placeholder="Name of the new project (created when the task is added)" style="margin-top: 6px;" hidden>
+        <div id="manualNewProjectClient" style="margin-top: 6px;" hidden>
+          <select id="manualClientChoice" aria-label="Client of the new project" onchange="updateNewClientForm('manual')">
+            <option value="">No client</option>
+          </select>
+          <div id="manualClientFormMount" style="margin-top: 8px;" hidden></div>
+        </div>
       </div>
       <details class="form-section" id="manualScheduling">
         <summary>Scheduling</summary>
@@ -840,6 +846,12 @@
           <input type="number" id="editProjectOrder" min="1" max="999" step="1" placeholder="Order" title="Order number: lower numbers are scheduled first, empty means unordered" style="width: 90px;" disabled>
         </div>
         <input type="text" id="editNewProject" maxlength="100" placeholder="Name of the new project (created when you save)" style="margin-top: 6px;" hidden>
+        <div id="editNewProjectClient" style="margin-top: 6px;" hidden>
+          <select id="editClientChoice" aria-label="Client of the new project" onchange="updateNewClientForm('edit')">
+            <option value="">No client</option>
+          </select>
+          <div id="editClientFormMount" style="margin-top: 8px;" hidden></div>
+        </div>
       </div>
 
       <div class="contact-actions" id="editContactActions" hidden></div>
@@ -2084,6 +2096,7 @@
         // A project to create with the task: the server makes it in the same commit and gives the task its id
         manual.newProject = newProject;
         manual.projectOrder = projectFields(NEW_PROJECT, form.projectOrder).projectOrder;
+        Object.assign(manual, newProjectClientFields(form.newProjectClientId, form.newClient)); // the client goes only with a project made now
       } else if (form.projectId) Object.assign(manual, projectFields(form.projectId, form.projectOrder));
       const materials = materialsFields(form.materials || []);
       if (materials) manual.materials = materials;
@@ -2254,11 +2267,28 @@
     // unusable order means unordered (null); a number is rounded and kept within 1..999. The server stays the validator.
     // The add form's Project select offers this choice last; the project is only created, with the task, when Add succeeds
     const NEW_PROJECT = "__new__";
+    // The Client select under a new project's name ends with this choice, which shows the whole client form (clientFormHtml).
+    const NEW_CLIENT = "__new_client__";
     function projectFields(projectId, orderText) {
       if (!projectId) return { projectId: null, projectOrder: null };
       const text = String(orderText ?? "").trim();
       const n = text === "" ? NaN : Number(text);
       return { projectId, projectOrder: Number.isFinite(n) ? Math.min(Math.max(Math.round(n), 1), MAX_PROJECT_ORDER) : null };
+    }
+
+    // The fields that give a new project its client, for `manual` (addOrUpdateTask) or `updatedFields` (updateTaskDirect), next to `newProject`:
+    // {newClient} for a client made with it (the whole client, as clientFormBody makes it; it wins), {newProjectClientId} for a stored one, {} for none.
+    function newProjectClientFields(clientId, newClient) {
+      if (newClient && typeof newClient === "object" && !Array.isArray(newClient)) return { newClient };
+      const id = typeof clientId === "string" ? clientId.trim() : "";
+      return id && id !== NEW_CLIENT ? { newProjectClientId: id } : {};
+    }
+    const NEW_CLIENT_NAME_WARNING = "Enter a name for the new client, or choose another client.";
+    // The warning for a new client's form that cannot be sent, "" when it can: a missing name, else a bad email, link or rate (clientFormWarning).
+    function newClientWarning(client) {
+      const c = client || {};
+      if (!String(c.name === undefined || c.name === null ? "" : c.name).trim()) return NEW_CLIENT_NAME_WARNING;
+      return clientFormWarning(c);
     }
 
     // "Kitchen reno · 2" for a task in a known project ("Kitchen reno" when it has no order number), else "".
@@ -4125,16 +4155,29 @@
       return merged ? [...actions.slice(0, -1), merged] : null;
     }
     // The names of the fields of a task form that changed and cannot be held offline, because they need an id or an order only the
-    // server makes: the project, its order number and the task number. `form` is the whole updateTaskDirect body of the form. Pure.
+    // server makes: the project (a new one, with a new client), its order number and the task number. `form` is the whole updateTaskDirect body of the form. Pure.
     function serverOnlyEditChanges(task, form) {
       const t = task && typeof task === "object" ? task : {};
       const f = form && typeof form === "object" ? form : {};
       const names = [];
-      if (f.newProject !== undefined) names.push("newProject");
-      else if ("projectId" in f && (f.projectId || null) !== (t.projectId || null)) names.push("projectId");
+      if (f.newProject !== undefined) {
+        names.push("newProject");
+        if (f.newClient !== undefined && f.newClient !== null) names.push("newClient"); // a client made with the new project needs the server too
+      } else if ("projectId" in f && (f.projectId || null) !== (t.projectId || null)) names.push("projectId");
       if ("projectOrder" in f && (f.projectOrder === undefined ? null : f.projectOrder) !== (t.projectOrder === undefined ? null : t.projectOrder)) names.push("projectOrder");
       if (f.queueNumber !== undefined && f.queueNumber !== null) names.push("queueNumber");
       return names;
+    }
+    // The names of what an add (`body` from manualTaskBody or freeTextBody) creates that only the server can make, so the add cannot wait for a
+    // connection: "newProject", and "newClient" when a client is made with it. Empty for every other add. Pure.
+    function serverOnlyAddFields(body) {
+      const manual = body && typeof body === "object" && body.manual && typeof body.manual === "object" ? body.manual : null;
+      if (!manual || typeof manual.newProject !== "string" || !manual.newProject.trim()) return [];
+      return manual.newClient !== undefined && manual.newClient !== null ? ["newProject", "newClient"] : ["newProject"];
+    }
+    // The alert for an add that could not reach the server and cannot be kept for later (`names` from serverOnlyAddFields).
+    function serverOnlyAddText(names) {
+      return `A new ${fieldNamesText(names)} can only be made with a connection, so nothing was added. Choose an existing project to add the task without one, or add it again when you are back online.`;
     }
     // The body a held EDIT of a queued task is sent with: updateTaskDirect's UPDATE of the changed fields only.
     function taskEditBody(action) {
@@ -4571,7 +4614,7 @@
       return { held, other };
     }
     // The names of changed fields as the owner knows them, for "needs a connection" texts (each once, in order).
-    const FIELD_NAMES = { trackedSeconds: "time spent", completedDate: "completion time", completedTime: "completion time", travelKm: "travel", url: "link", projectId: "project", estimatedMinutes: "estimate", dueDate: "due date", snoozedUntil: "snooze", recurrence: "repeats", materials: "materials", newProject: "project", projectOrder: "order number", queueNumber: "task number" };
+    const FIELD_NAMES = { trackedSeconds: "time spent", completedDate: "completion time", completedTime: "completion time", travelKm: "travel", url: "link", projectId: "project", estimatedMinutes: "estimate", dueDate: "due date", snoozedUntil: "snooze", recurrence: "repeats", materials: "materials", newProject: "project", newClient: "client", projectOrder: "order number", queueNumber: "task number" };
     function fieldNamesText(keys) {
       const names = [];
       for (const key of Array.isArray(keys) ? keys : []) {
@@ -5189,6 +5232,12 @@
         document.getElementById("manualNewProject").focus();
         return;
       }
+      const clientPick = newProjectName ? newProjectClientPick("manual") : { clientId: "", client: null };
+      if (clientPick.warning) {
+        await askAlert(clientPick.warning, { tone: "warning" });
+        if (clientPick.focusId) document.getElementById(clientPick.focusId).focus();
+        return;
+      }
 
       const badCost = manual ? invalidMaterialCost(manualMaterials) : null;
       if (badCost) { warnInSection("manualAudit", `The cost of "${badCost}" is not an amount. Use a number such as 12.50, or leave it empty.`); return; }
@@ -5211,6 +5260,8 @@
           // Without the project list the form cannot offer a project, so it sends none
           projectId: projectsLoaded && !newProjectName ? document.getElementById("manualProject").value : "",
           newProjectName,
+          newProjectClientId: clientPick.clientId,
+          newClient: clientPick.client,
           projectOrder: document.getElementById("manualProjectOrder").value,
           materials: manualMaterials,
           description: document.getElementById("manualDescription").value,
@@ -5238,6 +5289,8 @@
       } catch (err) {
         // The connection is the problem, not the add: it waits on the Queue and is sent when the connection returns
         if (body && isNetworkError(err, navigator.onLine)) {
+          const serverOnly = serverOnlyAddFields(body);
+          if (serverOnly.length > 0) { askAlert(serverOnlyAddText(serverOnly), { tone: "warning" }); return; } // a new project or client needs the server: nothing is kept, the card keeps its fields
           const refusal = queueFailedAdd(manual ? "MANUAL" : "TEXT", body, requestId);
           if (refusal) askAlert(refusal, { tone: "error" });
           else resetAddForm(manual);
@@ -5254,6 +5307,7 @@
       setTasks(data.tasks || []);
       if (data.project && data.projects) allProjects = data.projects; // a project made with the task
       resetAddForm(manual);
+      takeClients(data); // the client made with that project
       renderFilterBar();
       renderTasks();
     }
@@ -6295,7 +6349,58 @@
         nameBox.hidden = document.getElementById(`${prefix}Project`).value !== NEW_PROJECT;
         if (nameBox.hidden) nameBox.value = "";
       }
+      syncNewProjectClient(prefix);
       refreshContact(prefix); // the client, and so the inherited phone and email, follows the project
+    }
+
+    // The Client choice under a new project's name (the add card, prefix "manual", and the edit modal, "edit"): its select (`${prefix}ClientChoice`:
+    // No client, the clients, "＋ New client…") shows only while "＋ New project…" is chosen and the clients are loaded, and "＋ New client…" shows the
+    // whole client form (the Clients form block, prefix `${prefix}Client`, mounted in `${prefix}ClientFormMount`). Leaving New project empties both.
+    function syncNewProjectClient(prefix) {
+      const box = document.getElementById(`${prefix}NewProjectClient`);
+      if (!box) return;
+      const open = clientsLoaded && document.getElementById(`${prefix}Project`).value === NEW_PROJECT;
+      box.hidden = !open;
+      if (!open) document.getElementById(`${prefix}ClientChoice`).value = "";
+      updateNewClientForm(prefix);
+    }
+    // Shows the client form while "＋ New client…" is chosen; any other choice hides it and empties it.
+    function updateNewClientForm(prefix) {
+      const mount = document.getElementById(`${prefix}ClientFormMount`);
+      if (!mount) return;
+      const show = document.getElementById(`${prefix}ClientChoice`).value === NEW_CLIENT;
+      mount.hidden = !show;
+      if (!show && document.getElementById(`${prefix}ClientName`)) fillClientFormBlock(`${prefix}Client`, null);
+    }
+    // Both selects follow the client list; a chosen client that is gone is dropped.
+    function renderNewClientChoices() {
+      for (const prefix of ["manual", "edit"]) {
+        const select = document.getElementById(`${prefix}ClientChoice`);
+        if (!select) continue;
+        const chosen = select.value;
+        select.replaceChildren(new Option("No client", ""), ...allClients.map(c => new Option(c.name, c.id)), new Option("＋ New client…", NEW_CLIENT));
+        select.value = chosen === NEW_CLIENT || allClients.some(c => c.id === chosen) ? chosen : "";
+        syncNewProjectClient(prefix);
+      }
+    }
+    // What the Client choice sends with a new project: {clientId, client} (the stored client's id, or the form's client; both empty for none), or
+    // {warning, focusId} for a new client's form that cannot be sent (a missing name, a bad email, link or rate). Nothing while the choice is hidden.
+    function newProjectClientPick(prefix) {
+      const box = document.getElementById(`${prefix}NewProjectClient`);
+      if (!box || box.hidden) return { clientId: "", client: null };
+      const choice = document.getElementById(`${prefix}ClientChoice`).value;
+      if (choice !== NEW_CLIENT) return { clientId: choice, client: null };
+      const client = readClientForm(`${prefix}Client`);
+      const warning = newClientWarning(client);
+      if (warning) return { warning, focusId: client.name ? null : `${prefix}ClientName` };
+      return { clientId: "", client };
+    }
+    // The client list an add or a save returned (it holds the client made with a new project): replaces the page's and refreshes every client view.
+    function takeClients(data) {
+      if (!data || !Array.isArray(data.clients)) return;
+      allClients = data.clients;
+      clientsLoaded = true;
+      refreshClientViews();
     }
 
     // The place last picked into each task form's Location box (the add form, the edit modal and the completed task's form), with its map position, or null.
@@ -6553,8 +6658,15 @@
             document.getElementById("editNewProject").focus();
             return false;
           }
+          const clientPick = newProjectClientPick("edit");
+          if (clientPick.warning) {
+            await askAlert(clientPick.warning, { tone: "warning" });
+            if (clientPick.focusId) document.getElementById(clientPick.focusId).focus();
+            return false;
+          }
           updatedFields.newProject = newProject;
           updatedFields.projectOrder = projectFields(NEW_PROJECT, document.getElementById("editProjectOrder").value).projectOrder;
+          Object.assign(updatedFields, newProjectClientFields(clientPick.clientId, clientPick.client));
         } else {
           Object.assign(updatedFields, projectFields(chosen, document.getElementById("editProjectOrder").value));
         }
@@ -6573,6 +6685,7 @@
         });
         const data = await res.json();
         if (data.project && data.projects) allProjects = data.projects; // a project made with the save
+        takeClients(data); // the client made with that project
         setTasks(data.tasks || []);
         if (data.project && projectsLoaded) renderProjects();
         renderFilterBar();
@@ -8150,6 +8263,7 @@
     // Everything that shows client names follows a change to the list.
     function refreshClientViews() {
       renderClients();
+      renderNewClientChoices();
       if (projectsLoaded) renderProjects();
       if (typeof completedAll !== "undefined" && completedAll.length) renderCompletedRows();
     }
@@ -8842,6 +8956,8 @@
       renderLocation();
     } });
     mountClientForm("client", "clientFormMount");
+    mountClientForm("manualClient", "manualClientFormMount");
+    mountClientForm("editClient", "editClientFormMount");
     if (CONFIG.placesApiKey) {
       document.getElementById("projectPlaceSearchBtn").hidden = true;
       projectPlaces = makePlacesAutocomplete({ queryId: "projectLocationInput", resultsId: "projectPlaceResults", getBias: () => currentSettings && currentSettings.location ? currentSettings.location : null, getContext: () => selectedProjectFilter, onPick: (place, projectId) => setProjectLocation(projectId, placeLocation(place)) });
@@ -9011,6 +9127,7 @@
       if (!data || !Array.isArray(data.tasks)) return;
       setTasks(data.tasks);
       if (data.project && data.projects) allProjects = data.projects;
+      takeClients(data);
       renderFilterBar();
       renderTasks();
     }

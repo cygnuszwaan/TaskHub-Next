@@ -998,10 +998,16 @@ describe("action queue (public/index.html)", () => {
       assert.deepEqual(page.serverOnlyEditChanges(t, {...form, projectId: null, projectOrder: null}), ["projectId", "projectOrder"]);
       assert.deepEqual(page.serverOnlyEditChanges(t, {...form, projectOrder: 3}), ["projectOrder"]);
       assert.deepEqual(page.serverOnlyEditChanges(t, {...form, newProject: "Kitchen", projectOrder: 1}), ["newProject", "projectOrder"]);
+      const jo = {name: "Jo Smith", phone: "", email: "", hourlyRate: "", useWhatsApp: false, location: null, url: ""};
+      assert.deepEqual(page.serverOnlyEditChanges(t, {...form, newProject: "Kitchen", newClient: jo, projectOrder: 1}), ["newProject", "newClient", "projectOrder"], "a client made with the new project needs the server too");
+      assert.deepEqual(page.serverOnlyEditChanges(t, {...form, newProject: "Kitchen", newProjectClientId: "c1"}), ["newProject"], "a stored client is part of the new project");
+      assert.deepEqual(page.serverOnlyEditChanges(t, {...form, newProject: "Kitchen", newClient: null}), ["newProject"], "no client made");
+      assert.deepEqual(page.serverOnlyEditChanges(t, {...form, newClient: jo}), [], "a client alone changes nothing without a new project");
       assert.deepEqual(page.serverOnlyEditChanges(t, {...form, queueNumber: 1}), ["queueNumber"]);
       assert.deepEqual(page.serverOnlyEditChanges(task("b"), {materials: null, projectId: null, projectOrder: null}), [], "a task with none, left with none");
       assert.deepEqual(page.serverOnlyEditChanges(task("b"), {}), []);
       assert.equal(page.fieldNamesText(["newProject", "projectId", "projectOrder", "queueNumber", "materials"]), "project, order number, task number and materials");
+      assert.equal(page.fieldNamesText(["newProject", "newClient", "projectOrder"]), "project, client and order number");
     });
   });
   describe("holding a task's materials", () => {

@@ -59,12 +59,7 @@ A change usually touches several rows: a new endpoint touches an `endpoints-*.md
 
 Each step fits in one turn, adds tests for any new pure logic and updates the `docs/` files it names. The steps are independent of each other.
 
-1. **Inline new client, add card and edit modal** (`frontend-tasks.md`, `frontend-edit-modal.md`, `offline.md`).
-   - Under `#manualNewProject` and `#editNewProject`, a Client select (No client, the clients, "＋ New client…") shown only while "＋ New project…" is chosen and `clientsLoaded`. "＋ New client…" shows the whole client form (the Clients form block, `clientFormHtml` and `mountClientForm` in `frontend-settings.md`, prefixes `manualClient` and `editClient`) beneath it. Add and Save send `newProjectClientId` or `newClient`; a missing name or an invalid field is a warning alert that adds or saves nothing, and the responses' `clients` replace `allClients` and refresh every client view (`refreshClientViews`).
-   - The form is emptied with the rest of the add card after each add and whenever the project choice changes away from New project.
-   - `queuedBody` keeps the whole `manual` body, so a held add already carries `newProject` and will carry `newClient` the same way; `offline.md` lists a new project from the add card as online-only, which the code does not enforce. Settle which is right (a held add with a taken client name fails as a FAILED card on replay) and correct whichever is wrong. The edit modal and Multi-Select do refuse offline (`serverOnlyEditChanges`, `holdBatch`), and the edit modal must refuse a `newClient` too.
-   - Tests for the body builders and `serverOnlyEditChanges`.
-2. **Inline new client, Projects section** (`frontend-queue.md`).
+1. **Inline new client, Projects section** (`frontend-queue.md`).
    - The Projects section's client picker (`clientPickerHtml`) gets "＋ New client…", which shows the same form with its own Add button sending `SET_CLIENT` with `newClient`, and the picker shows even when there are no clients yet (today it only says "No clients yet. Add one under Settings.").
 
 Unplanned ideas are in `stretch-goals.md`.
