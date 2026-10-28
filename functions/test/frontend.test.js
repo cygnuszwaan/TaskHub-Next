@@ -283,7 +283,7 @@ describe("public/index.html helpers", () => {
     it("words the note with the age of the copy and what needs a connection", () => {
       const {completedOfflineNoteText} = load();
       const MIN = 60000;
-      assert.equal(completedOfflineNoteText(0, 5 * MIN), "You're offline. Showing the newest completed tasks as they were 5 minutes ago. Stats, Project hours and photos need a connection.");
+      assert.equal(completedOfflineNoteText(0, 5 * MIN), "You're offline. Showing the newest completed tasks as they were 5 minutes ago. Project hours and photos need a connection.");
       assert.match(completedOfflineNoteText(0, 10 * 1000), /as they were just now\./);
     });
     it("leaves only the fields that can be saved offline enabled in the entry's form", () => {
@@ -316,9 +316,9 @@ describe("public/index.html helpers", () => {
       const saveCompleted = html.slice(html.indexOf("function saveCompletedCache("), html.indexOf("function readCompletedCache()"));
       assert.doesNotMatch(saveCompleted, /clearTaskCache/, "a full storage never costs the task copy for the History one");
     });
-    it("marks Stats, Project hours and photos as needing a connection and reads the list again when the connection returns", () => {
+    it("marks Project hours and photos as needing a connection and reads the list again when the connection returns", () => {
       const copy = html.slice(html.indexOf("function showCompletedCopy(saved)"), html.indexOf("async function fetchCompleted()"));
-      assert.match(copy, /Stats need a connection\./);
+      assert.doesNotMatch(copy, /Stats/);
       assert.match(copy, /Project hours need a connection\./);
       const open = html.slice(html.indexOf("function openCompletedEditor(id)"), html.indexOf("function closeCompletedEditor()"));
       assert.match(open, /Photos need a connection\./);
@@ -910,31 +910,39 @@ describe("public/index.html helpers", () => {
       assert.equal(values[5][2], "Daily at 8pm");
       assert.equal(html.slice(at(`<label for="schedInterval">`), at("</label>", at(`<label for="schedInterval">`))).replace(/<[^>]+>/g, ""), "Repeat every");
     });
-    it("makes the History page a collapsed Stats card above the project hours and completed list, loaded on each visit", () => {
+    it("makes the History page the project hours and completed list, with no Stats card, loaded on each visit", () => {
       const page = at(`id="pageHistory"`);
       const end = at("</main>", page);
       assert.ok(page > at(`id="pageMaterials"`) && end < at(`id="pageSettings"`));
       assert.ok(at(`id="completedList"`) > page && at(`id="completedList"`) < end);
-      const open = at(`<details class="card settings-card" id="statsDetails"`, page);
-      assert.ok(open > page && open < at(`id="completedList"`), "the Stats card comes first");
-      assert.match(html.slice(open, html.indexOf(">", open)), /^<details class="card settings-card" id="statsDetails" hidden$/, "collapsed (no open attribute) until the stats load");
-      const close = html.indexOf("</details>", open);
-      assert.ok(close < at(`id="completedList"`) && close < end, "the Stats card closes before the project hours and list");
-      assert.match(html.slice(open, close), /<summary><h3>Stats<\/h3><\/summary>\s*<div id="statsSummary"><\/div>/);
-      assert.deepEqual(html.slice(page, end).match(/<details\b[^>]*id="(\w+)"/g).map((m) => m.match(/id="(\w+)"/)[1]), ["statsDetails", "completedTagsDetails"], "only the Stats card and the Tags section collapse");
+      assert.equal(html.slice(page, end).includes("statsDetails"), false);
+      assert.deepEqual(html.slice(page, end).match(/<details\b[^>]*id="(\w+)"/g).map((m) => m.match(/id="(\w+)"/)[1]), ["completedTagsDetails"], "only the Tags section collapses");
       assert.doesNotMatch(html, /completedDetails|Recently [Cc]ompleted/);
       const show = html.slice(at("function showTab"), at("function showTab") + 700);
       assert.match(show, /tab === "history"\) fetchCompleted\(\)/);
-    });
-    it("puts the summary, down to Most completed jobs, in the Stats card and the project hours outside it", () => {
-      const fetchFn = html.slice(at("async function fetchCompleted"), at("async function fetchCompleted") + 2200);
-      assert.match(fetchFn, /getElementById\("statsSummary"\)\.innerHTML = summaryHtml/);
+      const fetchFn = html.slice(at("async function fetchCompleted"), at("// The Stats card on the Settings page"));
       assert.match(fetchFn, /list\.innerHTML = renderProjectHours\(/);
-      assert.doesNotMatch(fetchFn, /renderSummary\(data\.summary\) \+/);
-      assert.match(fetchFn, /stats\.hidden = summaryHtml === ""/);
-      assert.equal((fetchFn.match(/stats\.hidden = true/g) || []).length, 2, "hidden for no completions and for a failed load");
+      assert.doesNotMatch(fetchFn, /stats|renderSummary/i);
       const summaryFn = html.slice(at("function renderSummary"), at("function renderProjectHours"));
       assert.ok(summaryFn.indexOf("Most completed jobs") > summaryFn.indexOf("By project"));
+    });
+    it("puts a collapsed Stats card last on the Settings page, read on each visit through a one-entry getCompletedTasks", () => {
+      const page = at(`id="pageSettings"`);
+      const end = at("</main>", page);
+      const open = at(`<details class="card settings-card" id="statsDetails"`, page);
+      assert.ok(open > at("<summary><h3>Tidy up</h3></summary>", page) && open < end, "the Stats card comes after Tidy up");
+      assert.match(html.slice(open, html.indexOf(">", open)), /^<details class="card settings-card" id="statsDetails" hidden$/, "collapsed (no open attribute) until the stats load");
+      const close = html.indexOf("</details>", open);
+      assert.match(html.slice(open, close), /<summary><h3>Stats<\/h3><\/summary>\s*<div id="statsSummary"><\/div>/);
+      const show = html.slice(at("function showTab"), at("function showTab") + 800);
+      assert.match(show, /tab === "settings"\) \{\s*fetchStats\(\);/);
+      const fn = html.slice(at("async function fetchStats"), at("async function fetchStats") + 1400);
+      assert.match(fn, /\$\{COMPLETED_URL\}\?limit=1/);
+      assert.match(fn, /\(data\.tasks \|\| \[\]\)\.length === 0 \? "" : renderSummary\(data\.summary\)/);
+      assert.match(fn, /stats\.hidden = summaryHtml === ""/);
+      assert.match(fn, /Stats need a connection\./);
+      assert.equal((fn.match(/stats\.hidden = true/g) || []).length, 1, "hidden for a failed load that is not a lost connection");
+      assert.doesNotMatch(fn, /\.open\b/, "the open state is left alone");
     });
     it("keeps four tabs on one row by letting them size to their text", () => {
       assert.match(html, /\.tab-btn\s*\{[^}]*flex:\s*1 1 auto;[^}]*font-size:\s*13px/);
@@ -2094,13 +2102,13 @@ describe("public/index.html helpers", () => {
     const page = html.slice(html.indexOf("id=\"pageSettings\""), html.indexOf("</main>", html.indexOf("id=\"pageSettings\"")));
     it("makes every card a details element, collapsed by default, with its title as the summary", () => {
       const cards = [...page.matchAll(/<details class="card settings-card"([^>]*)>\s*<summary><h3>([^<]+)<\/h3><\/summary>/g)];
-      assert.deepEqual(cards.map((m) => m[2]), ["Scheduling", "Job Sheets", "Clients", "Appearance", "Notifications", "Backup", "Tidy up"]);
+      assert.deepEqual(cards.map((m) => m[2]), ["Scheduling", "Job Sheets", "Clients", "Appearance", "Notifications", "Backup", "Tidy up", "Stats"]);
       assert.ok(cards.every((m) => !/\bopen\b/.test(m[1])), "no card starts open");
     });
     it("leaves no plain card on the Settings page and balances the tags", () => {
       assert.doesNotMatch(page, /<div class="card"/);
-      assert.equal((page.match(/<details\b/g) || []).length, 7);
-      assert.equal((page.match(/<\/details>/g) || []).length, 7);
+      assert.equal((page.match(/<details\b/g) || []).length, 8);
+      assert.equal((page.match(/<\/details>/g) || []).length, 8);
     });
     it("styles the summary with a marker that turns when the card opens", () => {
       assert.match(html, /\.settings-card\[open\] > summary::after \{ transform: rotate\(90deg\)/);

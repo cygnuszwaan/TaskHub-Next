@@ -620,10 +620,6 @@
 
   <main id="pageHistory" data-page="history" hidden>
   <div class="offline-note" id="completedOfflineNote" aria-live="polite" hidden><span id="completedOfflineNoteText"></span> <button type="button" id="completedRetryBtn">Retry</button></div>
-  <details class="card settings-card" id="statsDetails" hidden>
-    <summary><h3>Stats</h3></summary>
-    <div id="statsSummary"></div>
-  </details>
   <div class="card">
     <div id="completedList"></div>
     <div id="completedBrowser" hidden>
@@ -836,6 +832,10 @@
     <button type="button" id="dedupBtn" class="btn-secondary" title="Find tasks in the queue that are copies of an earlier one and delete the copies">🧹 Delete duplicate tasks</button>
     <p class="settings-note" style="margin:6px 0 0;">Finds queued tasks with the same title, due date, project and repeat as an earlier one and deletes the most recently added copies, after asking. A copy you have started the timer on is never deleted. This cannot be undone.</p>
     <div id="dedupStatus" class="settings-status"></div>
+  </details>
+  <details class="card settings-card" id="statsDetails" hidden>
+    <summary><h3>Stats</h3></summary>
+    <div id="statsSummary"></div>
   </details>
   </main>
 
@@ -1351,7 +1351,10 @@
       document.querySelectorAll("[data-page]").forEach(page => { page.hidden = page.dataset.page !== tab; });
       document.querySelectorAll("[data-tab]").forEach(btn => btn.classList.toggle("active", btn.dataset.tab === tab));
       if (tab === "history") fetchCompleted(); // loaded on every visit, so it is never stale
-      if (tab === "settings" && !currentSettings) loadSettings();
+      if (tab === "settings") {
+        fetchStats(); // read on every visit, so it is never stale
+        if (!currentSettings) loadSettings();
+      }
       window.scrollTo(0, 0);
     }
 
@@ -3839,7 +3842,7 @@
 
     // The note shown above History while it is the saved copy that is on screen.
     function completedOfflineNoteText(savedAt, now) {
-      return `You're offline. Showing the newest completed tasks as they were ${cacheAgeText(savedAt, now)}. Stats, Project hours and photos need a connection.`;
+      return `You're offline. Showing the newest completed tasks as they were ${cacheAgeText(savedAt, now)}. Project hours and photos need a connection.`;
     }
     // The controls of the Edit Completed Task form and the entry field each one changes. While the saved copy is on screen, or the entry
     // is a completion still waiting to be sent, only
@@ -8434,7 +8437,6 @@
     function showCompletedCopy(saved) {
       const list = document.getElementById("completedList");
       const browser = document.getElementById("completedBrowser");
-      const stats = document.getElementById("statsDetails");
       completedServer = saved.rows;
       completedAll = shownCompleted();
       completedListLimited = saved.limited;
@@ -8443,12 +8445,9 @@
       historyProjectShown = false; // no Project section here, so no project filter
       if (completedAll.length === 0) {
         browser.hidden = true;
-        stats.hidden = true;
         list.innerHTML = "<p style='color:var(--text-faint); margin:0;'>No completed tasks yet.</p>";
         return;
       }
-      document.getElementById("statsSummary").innerHTML = '<p class="settings-note">Stats need a connection.</p>';
-      stats.hidden = false;
       list.innerHTML = '<p class="settings-note">Project hours need a connection.</p>';
       browser.hidden = false;
       renderCompletedRows();
@@ -8456,7 +8455,6 @@
     async function fetchCompleted() {
       const list = document.getElementById("completedList");
       const browser = document.getElementById("completedBrowser");
-      const stats = document.getElementById("statsDetails"); // collapsed by default; its open state is left alone on reloads
       list.textContent = "Loading...";
       try {
         const res = await apiFetch(`${COMPLETED_URL}?limit=${COMPLETED_FETCH_LIMIT}`);
@@ -8471,16 +8469,12 @@
           completedAll = [];
           completedRows = new Map();
           browser.hidden = true;
-          stats.hidden = true;
           list.innerHTML = "<p style='color:var(--text-faint); margin:0;'>No completed tasks yet.</p>";
           return;
         }
         completedAll = shown;
         completedListLimited = data.listTruncated === true;
         completedRows = new Map(shown.filter(t => t.archiveId).map(t => [t.archiveId, t]));
-        const summaryHtml = renderSummary(data.summary);
-        document.getElementById("statsSummary").innerHTML = summaryHtml;
-        stats.hidden = summaryHtml === "";
         list.innerHTML = renderProjectHours(data.projectHours, data.projectHoursTruncated);
         browser.hidden = false;
         renderCompletedRows();
@@ -8491,8 +8485,28 @@
         showSavedCompletedNote(null);
         historyProjectShown = false;
         browser.hidden = true;
-        stats.hidden = true;
         list.innerHTML = "<p>Error loading completed tasks: " + esc(err.message) + "</p>";
+      }
+    }
+    // The Stats card on the Settings page: the summary `getCompletedTasks` computes, read with a one-entry list on every visit.
+    // The card is collapsed by default (its open state is left alone on reloads) and hidden while there are no completions or the load failed.
+    async function fetchStats() {
+      const stats = document.getElementById("statsDetails");
+      const summary = document.getElementById("statsSummary");
+      try {
+        const res = await apiFetch(`${COMPLETED_URL}?limit=1`);
+        const data = await res.json();
+        const summaryHtml = (data.tasks || []).length === 0 ? "" : renderSummary(data.summary);
+        summary.innerHTML = summaryHtml;
+        stats.hidden = summaryHtml === "";
+      } catch (err) {
+        // No connection: keep what an earlier visit showed, else say the card needs one; any other failure hides it.
+        if (isNetworkError(err, navigator.onLine)) {
+          if (summary.innerHTML === "") summary.innerHTML = '<p class="settings-note">Stats need a connection.</p>';
+          stats.hidden = false;
+        } else {
+          stats.hidden = true;
+        }
       }
     }
 
