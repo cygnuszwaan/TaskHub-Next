@@ -8857,11 +8857,12 @@
       renderClientCoords(prefix);
     }
 
-    // The Clients card's form: fill it from a client and show it (editing), or empty and hide it (null).
-    function fillClientForm(client) {
+    // The Clients card's form: fill it from a client and show it (editing), or empty and hide it (null). With `draft` ({name}) and no client it
+    // is the form for a new client: filled with the draft, shown, and saved as a new client (editingClientId stays null).
+    function fillClientForm(client, draft = null) {
       editingClientId = client ? client.id : null;
-      fillClientFormBlock("client", client);
-      document.getElementById("clientEdit").hidden = !client;
+      fillClientFormBlock("client", client || draft);
+      document.getElementById("clientEdit").hidden = !client && !draft;
     }
 
     // Everything that shows client names follows a change to the list.
@@ -8913,20 +8914,29 @@
       const warning = clientFormWarning(client);
       if (warning) { askAlert(warning, { tone: "warning" }); return; }
       const editing = editingClientId;
-      if (!editing) return; // the form shows only while a client is being edited
-      if (await saveClientRequest({ action: "UPDATE", clientId: editing, client }, `Saved "${client.name}".`)) fillClientForm(null);
+      const body = editing ? { action: "UPDATE", clientId: editing, client } : { action: "CREATE", client };
+      if (await saveClientRequest(body, editing ? `Saved "${client.name}".` : `Added "${client.name}".`)) {
+        fillClientForm(null);
+        if (!editing) {
+          document.getElementById("newClientName").value = ""; // a new client is made: the search ends and the whole list shows again
+          renderClients();
+        }
+      }
     }
 
-    // Add: the trimmed text of the search field becomes a new client's name (the server needs only a name). An empty field does nothing; a taken
-    // name shows the server's error in the status line; a success empties the field so the whole list shows again.
-    async function addClient() {
-      const input = document.getElementById("newClientName");
-      const name = input.value.trim();
+    // Add: opens the form for a new client with the trimmed text of the search field as its name, and saves nothing; Save client creates it
+    // (saveClient), Cancel drops it. An empty field does nothing; a name an existing client already has is reported in the status line and
+    // opens nothing. The search text stays until the client is saved.
+    function addClient() {
+      const name = document.getElementById("newClientName").value.replace(/\s+/g, " ").trim();
       if (!name) return;
-      if (await saveClientRequest({ action: "CREATE", client: clientFormBody({ name }) }, `Added "${name}".`)) {
-        input.value = "";
-        renderClients();
+      if (allClients.some(c => String(c.name || "").toLowerCase() === name.toLowerCase())) {
+        setClientsStatus(`A client named "${name}" already exists.`);
+        return;
       }
+      setClientsStatus("");
+      fillClientForm(null, { name });
+      document.getElementById("clientLocation").focus();
     }
 
     async function deleteClient(clientId) {

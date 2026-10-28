@@ -2342,32 +2342,36 @@ describe("public/index.html helpers", () => {
       assert.match(render, /No clients match the search\./);
       assert.ok(render.indexOf("No clients yet.") < render.indexOf("No clients match the search."), "an empty list is not a failed search");
     });
-    it("Add sends the trimmed text as a new client's name through saveClientRequest and empties the field on success", () => {
-      const add = html.slice(html.indexOf("async function addClient()"), html.indexOf("async function deleteClient"));
-      assert.match(add, /const name = input\.value\.trim\(\);\s*if \(!name\) return;/);
-      assert.match(add, /saveClientRequest\(\{ action: "CREATE", client: clientFormBody\(\{ name \}\) \}, /);
-      assert.ok(add.indexOf("saveClientRequest(") < add.indexOf("input.value = \"\""), "the text stays when the server refuses");
-      assert.match(add, /input\.value = "";\s*renderClients\(\);/);
-      const {clientFormBody} = load();
-      const body = clientFormBody({name: "Jo"});
-      assert.equal(body.name, "Jo");
-      const made = require("../clients").addClient([], body, () => "id-1");
-      assert.equal(made.error, undefined, "the server needs only a name");
-      assert.equal(made.client.name, "Jo");
-      assert.ok(require("../clients").addClient(made.clients, clientFormBody({name: "jo"}), () => "id-2").error, "a taken name is refused");
+    it("Add opens the form for a new client named by the typed text and saves nothing", () => {
+      const add = html.slice(html.indexOf("function addClient()"), html.indexOf("async function deleteClient"));
+      assert.doesNotMatch(add, /saveClientRequest|apiFetch|async/, "nothing is sent");
+      assert.match(add, /\.value\.replace\(\/\\s\+\/g, " "\)\.trim\(\);\s*if \(!name\) return;/, "an empty field does nothing");
+      assert.match(add, /fillClientForm\(null, \{ name \}\);/);
+      assert.match(add, /already exists/);
+      assert.ok(add.indexOf("already exists") < add.indexOf("fillClientForm(null, { name })"), "a name in use opens nothing");
+      assert.doesNotMatch(add, /newClientName"\)\.value = ""/, "the search text stays until the client is saved");
     });
-    it("shows the Clients form only while a client is being edited, always as Save client", () => {
+    it("Save client creates a new client when none is being edited, then closes the form and ends the search", () => {
+      const save = html.slice(html.indexOf("async function saveClient()"), html.indexOf("// Add: opens the form"));
+      assert.match(save, /editing \? \{ action: "UPDATE", clientId: editing, client \} : \{ action: "CREATE", client \}/);
+      assert.ok(save.indexOf("saveClientRequest(") < save.indexOf("fillClientForm(null)"), "the form stays open when the server refuses (a taken name)");
+      assert.match(save, /if \(!editing\) \{\s*document\.getElementById\("newClientName"\)\.value = "";[^\n]*\s*renderClients\(\);/);
+    });
+    it("shows the Clients form only for a draft or an edit, always as Save client", () => {
       assert.match(html, /<div id="clientEdit" hidden>\s*<div id="clientFormMount"/);
       const edit = html.slice(html.indexOf("<div id=\"clientEdit\" hidden>"), html.indexOf("id=\"clientsStatus\""));
       assert.match(edit, /id="saveClientBtn">Save client<\/button>/);
       assert.match(edit, /id="cancelClientBtn" class="btn-secondary">Cancel<\/button>/);
-      assert.doesNotMatch(html, /Add client<\/button>\s*<button type="button" id="cancelClientBtn"/);
-      const fill = html.slice(html.indexOf("function fillClientForm(client)"), html.indexOf("// Everything that shows client names follows a change to the list."));
-      assert.match(fill, /getElementById\("clientEdit"\)\.hidden = !client;/);
+      const fill = html.slice(html.indexOf("function fillClientForm("), html.indexOf("// Everything that shows client names follows a change to the list."));
+      assert.match(fill, /editingClientId = client \? client\.id : null;/, "a draft is not an edit");
+      assert.match(fill, /getElementById\("clientEdit"\)\.hidden = !client && !draft;/);
       assert.doesNotMatch(fill, /saveClientBtn|cancelClientBtn/, "the buttons never change");
-      const save = html.slice(html.indexOf("async function saveClient()"), html.indexOf("async function addClient()"));
-      assert.match(save, /if \(!editing\) return;/);
-      assert.doesNotMatch(save, /action: "CREATE"/, "creating is Add's job");
+    });
+    it("the server accepts a name-only client, which is all a draft holds", () => {
+      const {clientFormBody} = load();
+      const made = require("../clients").addClient([], clientFormBody({name: "Jo"}), () => "id-1");
+      assert.equal(made.error, undefined);
+      assert.ok(require("../clients").addClient(made.clients, clientFormBody({name: "jo"}), () => "id-2").error, "a taken name is refused");
     });
   });
 
@@ -5797,8 +5801,8 @@ describe("offline add queue display (page)", () => {
       assert.doesNotMatch(handlers, /getElementById\("client/, "every handler of the block takes its ids from the prefix");
     });
     it("shows and reads the Settings card's form through the prefix-driven functions", () => {
-      const fillCard = html.slice(html.indexOf("function fillClientForm(client)"), html.indexOf("// Everything that shows client names follows a change to the list."));
-      assert.match(fillCard, /fillClientFormBlock\("client", client\)/);
+      const fillCard = html.slice(html.indexOf("function fillClientForm("), html.indexOf("// Everything that shows client names follows a change to the list."));
+      assert.match(fillCard, /fillClientFormBlock\("client", client \|\| draft\)/);
       const save = html.slice(html.indexOf("async function saveClient()"), html.indexOf("async function deleteClient"));
       assert.match(save, /const client = readClientForm\("client"\);/);
       assert.match(html, /function readClientForm\(prefix\) \{\s*return clientFormBody\(clientFormValues\(prefix, id => document\.getElementById\(id\), clientFormState\(prefix\)\.coords\)\);/);
