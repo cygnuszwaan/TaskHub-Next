@@ -3950,15 +3950,13 @@ describe("public/index.html helpers", () => {
       assert.match(remove, /if \(!opts\.noUndo\) \{\s*undoNoteKey = taskId;\s*showUndoNote/);
       assert.match(remove, /if \(opts\.onError\) opts\.onError\(err, taskId\);\s*else askAlert/);
     });
-    it("sends the other actions to batchUpdateTasks, leaves Multi-Select on success and keeps the selection on a failure", () => {
+    it("sends the other actions to batchUpdateTasks and keeps Multi-Select and the selection on success and on a failure", () => {
       assert.match(html, /const BATCH_UPDATE_URL = endpoint\("batchUpdateTasks"\);/);
       const fn = html.slice(html.indexOf("async function batchSend"), html.indexOf("// The dialog for the batch actions"));
       assert.match(fn, /apiFetch\(BATCH_UPDATE_URL/);
       assert.match(fn, /if \(data\.projects\) allProjects = data\.projects;/);
-      assert.match(fn, /setSelectMode\(false\)/);
+      assert.equal(fn.includes("setSelectMode"), false, "the selection stays for the next action");
       assert.match(fn, /catch \(err\) \{[^}]*askAlert\(/);
-      assert.ok(fn.indexOf("catch") > fn.indexOf("setSelectMode(false)"));
-      assert.equal(fn.slice(fn.indexOf("catch")).includes("setSelectMode"), false);
       for (const action of ["MOVE_TO_TOP", "SNOOZE", "SET_DUE", "SET_PROJECT"]) assert.ok(html.includes(`batchBody("${action}"`), action);
     });
     it("keeps a batch for later behind waiting changes or after a connection failure, and never one that needs a new project", () => {
@@ -3969,8 +3967,8 @@ describe("public/index.html helpers", () => {
       assert.match(hold, /if \(body\.newProject !== undefined\) \{/);
       assert.match(hold, /unheldBatchId\(ids\)/);
       assert.match(hold, /makeQueuedAction\(\{ kind: "BATCH"/);
-      assert.match(hold, /setSelectMode\(false\);[\s\S]*refreshShownTasks\(\);/);
-      assert.ok(hold.indexOf("makeQueuedAction") < hold.indexOf("setSelectMode(false)"), "Multi-Select ends only once the change is kept");
+      assert.equal(hold.includes("setSelectMode"), false, "the selection stays for the next action");
+      assert.match(hold, /renderFilterBar\(\);[^\n]*\n\s*renderAddQueue\(\);\s*refreshShownTasks\(\);/);
       assert.match(hold, /if \(behind && navigator\.onLine\) setTimeout\(drainAllQueues, 0\);/);
     });
     it("sends a held batch to batchUpdateTasks with the body the action holds", () => {

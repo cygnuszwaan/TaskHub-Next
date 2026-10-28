@@ -7585,7 +7585,7 @@
       setBatchStatus(batchRemoveResultText(kind, tasks.length, failedIds.length, message));
     }
 
-    // Keeps a Multi-Select change (the body batchSend built) for later as a BATCH action and shows it at once, leaving Multi-Select.
+    // Keeps a Multi-Select change (the body batchSend built) for later as a BATCH action and shows it at once, keeping the selection.
     // `behind` is true when it was kept only because other changes are waiting (the connection may be fine), so the queue is sent now.
     // Refused with an alert, the selection kept, when it needs a new project, names a task a waiting Reopen brought back, or the queue is full.
     function holdBatch(body, doneText, behind) {
@@ -7605,15 +7605,14 @@
       const project = body.projectId ? allProjects.find(p => p.id === body.projectId) : null;
       const item = makeQueuedAction({ kind: "BATCH", title: project ? project.name : "", fields: { ...body, taskIds: ids }, now: Date.now(), offset: clockOffsetMs });
       if (!item || !saveActionQueue([...actionQueue, item])) { askAlert(actionQueueRefusal(0, false), { tone: "warning" }); return; }
-      setSelectMode(false);
-      renderFilterBar();
+      renderFilterBar(); // Multi-Select and the selection stay, ready for another action
       renderAddQueue();
       refreshShownTasks();
       setBatchStatus(`${doneText(ids.length, {})} Waiting to send.`);
       if (behind && navigator.onLine) setTimeout(drainAllQueues, 0);
     }
 
-    // One call to batchUpdateTasks for the selected tasks; `doneText(count, data)` words the result. A failure alerts and keeps the selection.
+    // One call to batchUpdateTasks for the selected tasks; `doneText(count, data)` words the result. Success and failure both keep the selection.
     // Changes already waiting go first: the batch is kept behind them, with a connection or not, so the order holds; a connection
     // failure keeps it too (holdBatch), unless it needs a new project, which only the server can make.
     async function batchSend(body, doneText) {
@@ -7628,8 +7627,7 @@
         const data = await res.json();
         if (data.projects) allProjects = data.projects; // a project made with the batch
         setTasks(data.tasks || allTasks);
-        batchBusy = false;
-        setSelectMode(false);
+        batchBusy = false; // Multi-Select and the selection stay, ready for another action
         renderFilterBar();
         renderTasks();
         setBatchStatus(doneText(data.count, data));
