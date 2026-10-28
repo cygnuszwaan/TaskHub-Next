@@ -638,6 +638,10 @@
         <input type="search" id="completedSearch" class="search-box" placeholder="Search completed tasks" autocomplete="off" enterkeyhint="search" aria-label="Search completed tasks">
         <button type="button" class="btn-secondary" id="clearCompletedSearchBtn" hidden>Clear</button>
       </div>
+      <details class="filter-section" id="completedTagsDetails" hidden>
+        <summary>Tags <small id="completedTagsActive"></small></summary>
+        <div class="tag-filter-bar" id="completedTagFilterBar"></div>
+      </details>
       <p class="settings-note" id="completedCount" style="margin:8px 0;"></p>
       <div class="pager" data-pager></div>
       <div id="completedRows"></div>
@@ -2625,6 +2629,14 @@
       return selected.length === 0 ? "" : `· ${selected.join(", ")}`;
     }
 
+    // The chips of a tag filter over `rows` (tasks or completed entries), pure: [{all: true, count, active}] for All (active when nothing is chosen), then
+    // {tag, count, active} per tag in use, alphabetical (`sortedTags`), the count being the rows carrying it.
+    function tagChipItems(rows, selected) {
+      const list = Array.isArray(rows) ? rows : [];
+      const chosen = Array.isArray(selected) ? selected : [];
+      return [{ all: true, count: list.length, active: chosen.length === 0 }, ...sortedTags(list).map(tag => ({ tag, count: list.filter(r => (r.tags || []).includes(tag)).length, active: chosen.includes(tag) }))];
+    }
+
     // The tasks the Queue shows: those carrying any of the chosen tags (OR; an empty list or null = any), belonging
     // to the chosen project (a project id, null = any) and whose title matches the search text (see matchesSearch).
     // All three apply together. A single tag name is accepted as a list of one. Pure: the input is not modified.
@@ -3027,12 +3039,13 @@
     // counted from 1 and clamped to the pages there are; `projectNameOf` gives a project's name for its id.
     // Returns {items, page, pages, total (the tasks matching), all (every task), from, to (1-based positions of the
     // page's first and last task among the matches; 0 when none). `filters` narrows the list beside the search: {projectId} keeps only that project's tasks
-    // ("" or none keeps all).
+    // ("" or none keeps all) and {tags} only the tasks carrying any of those tags (OR; an empty list keeps all).
     function completedBrowse(rows, query, page, projectNameOf, filters = {}, pageSize = COMPLETED_PAGE_SIZE) {
       const all = Array.isArray(rows) ? rows : [];
       const lookup = typeof projectNameOf === "function" ? projectNameOf : () => "";
       const projectId = filters && typeof filters.projectId === "string" ? filters.projectId : "";
-      const matches = all.filter(r => (!projectId || r.projectId === projectId) && matchesCompletedSearch(r, query, r.projectId ? lookup(r.projectId) : ""));
+      const tags = filters && Array.isArray(filters.tags) ? filters.tags : [];
+      const matches = all.filter(r => (!projectId || r.projectId === projectId) && (tags.length === 0 || tags.some(tag => (Array.isArray(r.tags) ? r.tags : []).includes(tag))) && matchesCompletedSearch(r, query, r.projectId ? lookup(r.projectId) : ""));
       const pages = Math.max(1, Math.ceil(matches.length / pageSize));
       const current = Math.min(Math.max(1, Math.floor(Number(page)) || 1), pages);
       const start = (current - 1) * pageSize;
@@ -3057,7 +3070,7 @@
     }
     // The line above the completed list: "Showing 51-100 of 312 completed tasks", "Showing 1-12 of 12 matches (312
     // completed tasks)" or the no-match text; `limited` adds that older entries exist beyond those loaded, and `filtered` that a filter (the
-    // History project) is on, counting like a search does.
+    // History project or tags) is on, counting like a search does.
     function completedCountText(browse, query, limited, filtered = false) {
       const searching = String(query || "").trim() !== "";
       const narrowed = searching || filtered === true;
@@ -5345,6 +5358,10 @@
         completedPageNo = Number(link.dataset.page);
         renderCompletedRows();
         document.getElementById("completedSearch").scrollIntoView({ block: "start" });
+      });
+      document.getElementById("completedTagFilterBar").addEventListener("click", e => {
+        const chip = e.target.closest(".filter-chip");
+        if (chip) setCompletedTagFilter(chip.hasAttribute("data-all") ? null : chip.dataset.tag);
       });
       // Sort by: the select and the direction button redraw the list; the choice lasts until the page is reloaded
       const sortSelect = document.getElementById("sortBy");
@@ -8366,13 +8383,31 @@
         </div>`;
     }
     // Draw the search box's page of the completed tasks, its count line and both pagers.
+    // The History Tags section: hidden while no loaded completed task has a tag; the chosen tags show in its heading so a filter stays visible collapsed.
+    let completedTagFilters = [];
+    function renderCompletedTagBar() {
+      const items = tagChipItems(completedAll, completedTagFilters);
+      document.getElementById("completedTagsDetails").hidden = items.length < 2;
+      document.getElementById("completedTagFilterBar").innerHTML = items.map(it => it.all
+        ? `<div class="filter-chip ${it.active ? "active" : ""}" data-all="1">All (${it.count})</div>`
+        : `<div class="filter-chip ${it.active ? "active" : ""}" data-tag="${esc(it.tag)}">${esc(it.tag)} (${it.count})</div>`).join("");
+      document.getElementById("completedTagsActive").textContent = tagFilterLabel(completedTagFilters);
+    }
+    // A tap on a chip toggles that tag; All (null) clears; the list returns to its first page.
+    function setCompletedTagFilter(tag) {
+      completedTagFilters = tag === null ? [] : toggleTagFilter(completedTagFilters, tag);
+      completedPageNo = 1;
+      renderCompletedRows();
+    }
     function renderCompletedRows() {
       const query = document.getElementById("completedSearch").value;
       const projectName = (id) => projectSearchText(id, allProjects, allClients);
       const projectId = historyProjectFilter();
-      const browse = completedBrowse(completedAll, query, completedPageNo, projectName, { projectId });
+      completedTagFilters = pruneTagFilter(completedTagFilters, completedAll); // a tag no loaded task carries any more is dropped
+      renderCompletedTagBar();
+      const browse = completedBrowse(completedAll, query, completedPageNo, projectName, { projectId, tags: completedTagFilters });
       completedPageNo = browse.page;
-      document.getElementById("completedCount").textContent = completedCountText(browse, query, completedListLimited, projectId !== "");
+      document.getElementById("completedCount").textContent = completedCountText(browse, query, completedListLimited, projectId !== "" || completedTagFilters.length > 0);
       document.getElementById("completedRows").innerHTML = browse.items.map(completedRowHtml).join("");
       const pager = pagerItems(browse.page, browse.pages).map(it => {
         if (it.kind === "gap") return '<span class="pager-gap">\u2026</span>';
