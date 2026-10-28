@@ -285,6 +285,8 @@
     .confirm-actions .confirm-ok.danger, .confirm-actions .confirm-ok.error { background: var(--danger); }
     .confirm-actions .confirm-ok.warning { background: var(--swipe-abort); }
     .confirm-actions .confirm-ok.success { background: var(--success); }
+    .confirm-actions.stacked { flex-direction: column; }
+    .confirm-actions.stacked button { flex: none; width: 100%; }
 
     [hidden] { display: none !important; }
     .gate { max-width: 360px; margin: 80px auto; text-align: center; }
@@ -1236,10 +1238,11 @@
       <h3 id="confirmTitle" class="confirm-title"></h3>
       <div id="confirmDetail" class="confirm-detail"></div>
       <input type="text" id="confirmInput" class="confirm-input" autocomplete="off" enterkeyhint="done" hidden>
-      <div class="confirm-actions">
+      <div class="confirm-actions" id="confirmActions">
         <button type="button" id="confirmCancelBtn" class="btn-secondary">Cancel</button>
         <button type="button" id="confirmOkBtn" class="confirm-ok">OK</button>
       </div>
+      <div class="confirm-actions stacked" id="confirmChoices" hidden></div>
     </div>
   </div>
   </div>
@@ -3375,19 +3378,38 @@
     // (the confirm button's words, "OK" when missing). With `input` set the dialog also has a text field, which starts as
     // `value`, shows `placeholder` and takes at most `maxLength` characters (100 when missing or not a whole number above 0).
     // With `alert` set it is a message with the one button only (no Cancel, no text field, the button focused whatever the
-    // tone). The answer is always Cancel or the confirm button, never a guess from the text.
+    // tone). With `choices` set (askChoice: 2 to 4 entries `{ id, label, kind, focus }`, `kind` primary, danger or anything
+    // else for a plain button; entries without a text id or label, or repeating an id, are dropped) it shows those buttons in
+    // place of Cancel and OK, `focusChoice` being the first entry with `focus` set (the first when none is). The answer is
+    // always Cancel or the confirm button, or a choice's id, never a guess from the text.
+    const MAX_CHOICES = 4;
+    function choicesOf(list) {
+      const seen = new Set();
+      const choices = [];
+      for (const c of Array.isArray(list) ? list : []) {
+        const id = c && typeof c.id === "string" ? c.id : "";
+        const label = c && typeof c.label === "string" ? c.label.trim() : "";
+        if (!id || !label || seen.has(id)) continue;
+        seen.add(id);
+        choices.push({ id, label, kind: c.kind === "primary" || c.kind === "danger" ? c.kind : "plain", focus: c.focus === true });
+      }
+      return choices.length >= 2 && choices.length <= MAX_CHOICES ? choices : null;
+    }
     function confirmView(text, options) {
       const o = options || {};
       const paragraphs = String(text === undefined || text === null ? "" : text).split(/\n[ \t]*\n/).map(p => p.trim()).filter(Boolean);
       const tone = Object.prototype.hasOwnProperty.call(CONFIRM_TONES, o.tone) ? o.tone : "info";
       const label = typeof o.confirmLabel === "string" ? o.confirmLabel.trim() : "";
+      const choices = o.alert || o.input ? null : choicesOf(o.choices);
       return {
+        choices,
+        focusChoice: choices ? Math.max(0, choices.findIndex((c) => c.focus)) : 0,
         tone,
         icon: CONFIRM_TONES[tone].icon,
         title: paragraphs[0] || "Are you sure?",
         detail: paragraphs.slice(1).map(p => ({ text: p, list: p.startsWith("\u2022 ") })),
         confirmLabel: label || "OK",
-        focusCancel: CONFIRM_TONES[tone].focusCancel && !o.alert,
+        focusCancel: CONFIRM_TONES[tone].focusCancel && !o.alert && !choices,
         alert: !!o.alert,
         input: o.input && !o.alert ? {
           value: o.value === undefined || o.value === null ? "" : String(o.value),
@@ -3401,6 +3423,51 @@
     function failureText(what, err) {
       const reason = err && typeof err.message === "string" ? err.message : typeof err === "string" ? err : "";
       return reason.trim() ? `${what}\n\n${reason.trim()}` : String(what);
+    }
+
+    // Unsaved changes on the two edit forms (Back asks Save, Discard or Keep editing when the form differs from how it opened).
+    // A form's state is its controls' values as [key, value] pairs (the key a control's id, else its place in the form; a
+    // checkbox or radio gives whether it is checked, a file input is left out) and `extras`, the state kept outside the controls
+    // (the materials list, the picked location), compared as JSON. `controls` are `{ id, type, value, checked }`.
+    function controlValues(controls) {
+      const pairs = [];
+      (Array.isArray(controls) ? controls : []).forEach((c, i) => {
+        if (!c || typeof c !== "object" || c.type === "file") return;
+        const checkable = c.type === "checkbox" || c.type === "radio";
+        pairs.push([typeof c.id === "string" && c.id ? c.id : `#${i}`, checkable ? c.checked === true : String(c.value === undefined || c.value === null ? "" : c.value)]);
+      });
+      return pairs;
+    }
+    function formState(controls, extras) {
+      return { controls: controlValues(controls), extras: JSON.stringify(extras === undefined ? null : extras) };
+    }
+    // Whether `after` differs from `before`; without a baseline nothing can be told to differ.
+    function formChanged(before, after) {
+      if (!before || !after) return false;
+      if (before.extras !== after.extras || before.controls.length !== after.controls.length) return true;
+      return before.controls.some((pair, i) => pair[0] !== after.controls[i][0] || pair[1] !== after.controls[i][1]);
+    }
+    // Text left in a comment box counts as a change (Save posts it); a box holding only spaces does not.
+    function commentPending(text) {
+      return normalizeCommentText(text) !== null;
+    }
+    function queuedFormDirty(before, after, commentText) {
+      return formChanged(before, after) || commentPending(commentText);
+    }
+    // `result` is what completedChanges found for the form: a value that cannot be saved counts as a change too.
+    function completedFormDirty(result, commentText) {
+      const r = result || {};
+      return !!r.error || (!!r.fields && Object.keys(r.fields).length > 0) || commentPending(commentText);
+    }
+    const UNSAVED_PROMPT = "Save your changes?\n\nThis form has changes that have not been saved.";
+    const UNSAVED_CHOICES = [
+      { id: "save", label: "Save", kind: "primary" },
+      { id: "discard", label: "Discard", kind: "danger" },
+      { id: "keep", label: "Keep editing", kind: "plain", focus: true },
+    ];
+    // What to do with the answer to UNSAVED_PROMPT: anything but Save or Discard (Back, a tap outside, Escape) keeps editing.
+    function unsavedAction(answer) {
+      return answer === "save" || answer === "discard" ? answer : "keep";
     }
 
     // Reorder mode. A card dragged to a new place takes the task number of the card it lands on (what typing that number in
@@ -4897,14 +4964,15 @@
     // the text and tones). Each opens over any other modal and leaves that modal as it was. Asking a question while another
     // is open cancels the first, but an alert never cancels anything: it waits until the dialog in front of it is closed,
     // and alerts show one after another.
-    let confirmPending = null; // { resolve, opener, input } while the dialog is open
+    let confirmPending = null; // { resolve, opener, input, choices } while the dialog is open
     const alertQueue = []; // { text, options, resolve } of the alerts waiting their turn
     function settleConfirm(answer) {
       const pending = confirmPending;
       if (!pending) return;
       confirmPending = null;
       const field = document.getElementById("confirmInput");
-      const result = pending.input ? (answer ? field.value.trim() : null) : answer;
+      // A question with choices (askChoice) answers with the chosen id, null on any way of dismissing it
+      const result = pending.input ? (answer ? field.value.trim() : null) : pending.choices ? (typeof answer === "string" ? answer : null) : answer;
       hideLayer("confirmModal");
       if (pending.opener && pending.opener.isConnected && typeof pending.opener.focus === "function") pending.opener.focus({ preventScroll: true });
       pending.resolve(result);
@@ -4941,6 +5009,17 @@
         field.maxLength = view.input.maxLength;
         field.setAttribute("aria-label", view.title);
       }
+      const choicesBox = document.getElementById("confirmChoices");
+      choicesBox.hidden = !view.choices;
+      document.getElementById("confirmActions").hidden = !!view.choices;
+      choicesBox.replaceChildren(...(view.choices || []).map((choice) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.choice = choice.id;
+        button.className = CHOICE_CLASSES[choice.kind];
+        button.textContent = choice.label; // the label is set as text, never markup
+        return button;
+      }));
       const cancel = document.getElementById("confirmCancelBtn");
       cancel.hidden = view.alert;
       const ok = document.getElementById("confirmOkBtn");
@@ -4948,10 +5027,12 @@
       ok.className = `confirm-ok ${view.tone}`;
       ok.disabled = !!view.input && !field.value.trim();
       return new Promise(resolve => {
-        confirmPending = { resolve, opener: document.activeElement, input: !!view.input };
+        confirmPending = { resolve, opener: document.activeElement, input: !!view.input, choices: !!view.choices };
         showLayer("confirmModal", () => settleConfirm(false));
         detail.scrollTop = 0;
-        if (view.input) {
+        if (view.choices) {
+          choicesBox.children[view.focusChoice].focus({ preventScroll: true });
+        } else if (view.input) {
           field.focus({ preventScroll: true });
           field.select();
         } else {
@@ -4965,6 +5046,13 @@
     function askInput(text, options) {
       return openConfirm(text, { ...options, input: true });
     }
+    // Asks a question with up to four buttons of the caller's own (`options.choices`, see confirmView) and resolves with the
+    // chosen id, or null for Back, a tap outside the card, Escape or a newer question. Without usable choices it asks nothing.
+    const CHOICE_CLASSES = { primary: "confirm-ok", danger: "btn-danger", plain: "btn-secondary" };
+    function askChoice(text, options) {
+      if (!confirmView(text, { ...options, input: false }).choices) return Promise.resolve(null);
+      return openConfirm(text, { ...options, input: false });
+    }
     function askAlert(text, options) {
       return new Promise(resolve => {
         alertQueue.push({ text, options, resolve });
@@ -4976,6 +5064,10 @@
     }
     document.getElementById("confirmOkBtn").addEventListener("click", () => settleConfirm(true));
     document.getElementById("confirmCancelBtn").addEventListener("click", () => settleConfirm(false));
+    document.getElementById("confirmChoices").addEventListener("click", e => {
+      const button = e.target.closest("button[data-choice]");
+      if (button) settleConfirm(button.dataset.choice);
+    });
     document.getElementById("confirmInput").addEventListener("input", e => {
       document.getElementById("confirmOkBtn").disabled = !e.target.value.trim();
     });
@@ -4992,7 +5084,8 @@
         if (!ok.disabled) settleConfirm(true);
       } else if (e.key === "Tab") {
         e.preventDefault();
-        const controls = [field, document.getElementById("confirmCancelBtn"), ok].filter(el => !el.hidden && !el.disabled);
+        const choiceButtons = [...document.querySelectorAll("#confirmChoices button")];
+        const controls = choiceButtons.length > 0 && !document.getElementById("confirmChoices").hidden ? choiceButtons : [field, document.getElementById("confirmCancelBtn"), ok].filter(el => !el.hidden && !el.disabled);
         const at = controls.indexOf(document.activeElement);
         const next = e.shiftKey ? (at <= 0 ? controls.length - 1 : at - 1) : (at < 0 || at === controls.length - 1 ? 0 : at + 1);
         controls[next].focus();
@@ -6433,10 +6526,46 @@
       setLocationBox("edit", ownLocation ? ownLocation.location : null);
       refreshContact("edit");
       document.getElementById("editDescription").value = typeof task.description === "string" ? task.description : "";
+      editFormBaseline = readEditFormState(); // the form as it opened, for the unsaved-changes prompt on Back
 
       showEditTimer();
       showPhotos(task.id, "taskId", "editPhotos");
-      showLayer("editModal", closeEditModal); // locks the page behind it, which must not scroll with the modal
+      showLayer("editModal", backFromEditModal); // locks the page behind it, which must not scroll with the modal
+    }
+
+    // Back on the edit forms. With nothing changed since the form opened, Back closes it as before; otherwise it asks Save, Discard
+    // or Keep editing (askChoice; Back, a tap outside or Escape keep editing). The queued form is compared with `editFormBaseline`
+    // (every control but the comment box and the materials rows, plus `editMaterials` and the picked location); the completed
+    // form is changed when readCompletedForm finds a field to send. Text in the comment box counts: Save posts it. Photos, comments
+    // already added and the timer apply at once and do not. Save runs the normal save, whose warning leaves the form open.
+    let editFormBaseline = null; // formState of the queued form once openEditModal filled it
+    let unsavedSaving = false; // a Save chosen in the prompt is running
+    function readEditFormState() {
+      const card = document.querySelector("#editModal .modal-card");
+      const controls = [...card.querySelectorAll("input, select, textarea")]
+        .filter((el) => el.id !== "editCommentText" && !el.closest("#editMaterials"))
+        .map((el) => ({ id: el.id, type: el.type, value: el.value, checked: el.checked }));
+      return formState(controls, { materials: editMaterials, location: pickedLocation.edit });
+    }
+    async function askUnsaved(save, discard) {
+      const action = unsavedAction(await askChoice(UNSAVED_PROMPT, { tone: "save", choices: UNSAVED_CHOICES }));
+      if (action === "discard") {
+        discard();
+      } else if (action === "save") {
+        unsavedSaving = true;
+        try { await save(); } finally { unsavedSaving = false; }
+      }
+    }
+    function backFromEditModal() {
+      if (unsavedSaving) return; // the layer stays and the entry is put back
+      if (!queuedFormDirty(editFormBaseline, readEditFormState(), document.getElementById("editCommentText").value)) return closeEditModal();
+      askUnsaved(saveTaskEdits, closeEditModal);
+    }
+    function backFromCompletedEditor() {
+      if (unsavedSaving) return;
+      const row = completedRows.get(document.getElementById("ceId").value);
+      if (!row || !completedFormDirty(readCompletedForm(row), document.getElementById("ceCommentText").value)) return closeCompletedEditor();
+      askUnsaved(saveCompletedEdit, closeCompletedEditor);
     }
 
     // "🔁 Weekly" for an interval of 1, "🔁 Every 2 weeks" otherwise; nothing for a task that does not repeat
@@ -6820,7 +6949,7 @@
 
     // Brings the edit form back after it was closed for a save that could not be kept (its fields were left as typed).
     function reopenEditForm() {
-      showLayer("editModal", closeEditModal);
+      showLayer("editModal", backFromEditModal);
       renderCommentPanel("edit");
       showEditTimer();
     }
@@ -7346,7 +7475,7 @@
       document.getElementById("ceTime").value = values.time;
       // With the saved copy on screen only the fields that can wait for a connection are enabled (completedFieldDisabled)
       for (const [controlId, field] of Object.entries(COMPLETED_FORM_CONTROLS)) document.getElementById(controlId).disabled = completedFieldDisabled(field, offline);
-      showLayer("completedEditModal", closeCompletedEditor);
+      showLayer("completedEditModal", backFromCompletedEditor);
       if (offline) document.getElementById("cePhotos").innerHTML = `<div class="photo-note">${row.waitingRequestId ? "Photos can be added once this completion has been sent." : "Photos need a connection."}</div>`;
       else showPhotos(id, "archiveId", "cePhotos");
     }

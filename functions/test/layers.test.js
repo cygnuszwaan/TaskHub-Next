@@ -333,8 +333,8 @@ describe("the Back button and open overlays", () => {
 
   describe("the page", () => {
     const overlays = [
-      ["editModal", "closeEditModal"],
-      ["completedEditModal", "closeCompletedEditor"],
+      ["editModal", "backFromEditModal"],
+      ["completedEditModal", "backFromCompletedEditor"],
       ["photoModal", "closePhotoViewer"],
       ["snoozeModal", "closeSnoozeModal"],
       ["batchModal", "closeBatchModal"],

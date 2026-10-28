@@ -4,7 +4,7 @@ The queued task's edit modal (`#editModal`, "Edit Task Details") and the complet
 
 ## Layout
 
-- Both modals scroll inside themselves (`max-height: 90vh`, `overscroll-behavior: contain`) and lock the page behind them while open; both are layers, so Android's Back closes one like its Cancel button (frontend-shell.md).
+- Both modals scroll inside themselves (`max-height: 90vh`, `overscroll-behavior: contain`) and lock the page behind them while open; both are layers; Android's Back closes one like its Cancel button when nothing has changed and otherwise asks first (Unsaved changes, below; frontend-shell.md).
 - The top level holds, in order: the title (an input in the queued modal, read-only text in the completed form), a read-only job number line ("Job number 123", `jobNumberText`, hidden for a task with none), Description, Tags, the Project select, the contact buttons row and the Navigate row.
 - Below it are three collapsible sections, one style for both modals (`details.form-section`, a `summary` with a ▸ that turns when open). `closeFormSections` closes every section of a modal each time it opens; only the completed form opens any itself, and only while the saved copy is on screen or the entry is an unsent completion: `completedSectionsToOpen` opens each section that holds a control still enabled (`COMPLETED_CONTROL_SECTIONS` names the section of each control; offline that is all three).
 
@@ -35,6 +35,12 @@ The queued task's edit modal (`#editModal`, "Edit Task Details") and the complet
 - Under the Project field both modals show a row of Call, Text and Email buttons (`#editContactActions`, `#ceContactActions`, `refreshContact`, `contactLinks`: links `tel:`, `sms:` and `mailto:` with the task's title and job number as the subject, `phoneHref`, `smsHref`, `emailHref`) for the task's effective phone and email (its own when typed, else those of its project's client, each decided on its own). A button shows only when there is a detail for it, the row is hidden when there is none, and it follows the typed boxes and the chosen project.
 - When the project's client has `useWhatsApp`, one "💬 WhatsApp" button (a `https://wa.me/<number>` link opening in a new window, `whatsappHref`, `whatsappNumber`: digits only, a leading + or 00 taken as written, a leading 0 replaced by `WHATSAPP_COUNTRY_CODE` 64) replaces Call and Text, whichever of the task and the client the number came from (`effectiveContact`'s `whatsApp`).
 - Below it, the Navigate row (`#editNavigateActions`, `#ceNavigateActions`, `refreshNavigateRow`) holds Navigate and a "🔗 Link" button (`#editLink`, `#ceLink`: a `target="_blank"` link, so it opens in the device's default browser, for the link in force: the typed box, else the project's, else its client's). Each shows only while it has something to open, the row is hidden when neither has, and it follows the typed boxes and the chosen project.
+
+## Unsaved changes
+
+- Back (Android's button or gesture; the layers' `onBack` is `backFromEditModal` or `backFromCompletedEditor`) closes a form at once when it is as it opened. Otherwise it asks Save, Discard or Keep editing (`askChoice` with `UNSAVED_CHOICES`, Keep editing focused); Back on the question, a tap outside it and Escape all keep editing. Cancel and a tap outside the form itself still discard silently.
+- The queued form is changed when `formState` (the value of every control in the modal, except the comment box and the materials rows, plus `editMaterials` and `pickedLocation.edit`) differs from `editFormBaseline`, taken at the end of `openEditModal` (`queuedFormDirty`, `formChanged`). The completed form is changed when `readCompletedForm(row)` has a field to send or an error (`completedFormDirty`). Text in the comment box counts, because Save posts it (`commentPending`); photos, comments already added and the timer apply at once and do not.
+- Save runs the normal save (`saveTaskEdits`, `saveCompletedEdit`): a validation warning leaves the form open on the field at fault. Back is ignored while that save runs (`unsavedSaving`).
 
 ## Comments
 

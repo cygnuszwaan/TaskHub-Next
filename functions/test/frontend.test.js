@@ -636,7 +636,7 @@ describe("public/index.html helpers", () => {
       assert.match(html, /\.modal-overlay\s*\{[^}]*overscroll-behavior:\s*contain/);
       assert.match(html, /body\.modal-open\s*\{[^}]*overflow:\s*hidden/);
       const open = html.slice(html.indexOf("function openEditModal"), html.indexOf("// \"🔁"));
-      assert.match(open, /showLayer\("editModal", closeEditModal\)/);
+      assert.match(open, /showLayer\("editModal", backFromEditModal\)/);
       const close = html.slice(html.indexOf("function closeEditModal"), html.indexOf("function closeModalOnOverlay"));
       assert.match(close, /hideLayer\("editModal"\)/);
       assert.match(html, /lock: \(locked\) => document\.body\.classList\.toggle\("modal-open", locked\)/);
@@ -3750,7 +3750,7 @@ describe("public/index.html helpers", () => {
     });
     it("answers with the trimmed text or null, and keeps the confirm button off while the field is blank", () => {
       const dom = html.slice(html.indexOf("let confirmPending"), html.indexOf("// Share to TaskHub"));
-      assert.match(dom, /const result = pending\.input \? \(answer \? field\.value\.trim\(\) : null\) : answer;/);
+      assert.match(dom, /const result = pending\.input \? \(answer \? field\.value\.trim\(\) : null\) : pending\.choices \? \(typeof answer === "string" \? answer : null\) : answer;/);
       assert.match(dom, /ok\.disabled = !!view\.input && !field\.value\.trim\(\);/);
       assert.match(dom, /"input", e => \{\s*document\.getElementById\("confirmOkBtn"\)\.disabled = !e\.target\.value\.trim\(\);/);
       assert.match(dom, /e\.key === "Enter" && e\.target === field && !e\.isComposing[\s\S]*if \(!ok\.disabled\) settleConfirm\(true\)/);
