@@ -339,6 +339,7 @@ describe("the Back button and open overlays", () => {
       ["snoozeModal", "closeSnoozeModal"],
       ["batchModal", "closeBatchModal"],
       ["proposalModal", "closeProposalModal"],
+      ["pickerModal", "closePicker"],
     ];
     it("shows and hides every overlay as a layer, never by its display alone", () => {
       for (const [id, close] of overlays) {

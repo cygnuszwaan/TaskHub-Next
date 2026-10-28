@@ -17,7 +17,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
+    return {clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSummary, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateMeta, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, LONG_PRESS_MS, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, REORDER_HOLD_MS, REORDER_MOUSE_PX, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -628,7 +628,8 @@ describe("public/index.html helpers", () => {
       assert.doesNotMatch(html.slice(sections[2], end(sections[2])), /manualPhotos|manualComments/, "a task not yet added has no photos or comments");
       assert.match(html.slice(html.indexOf(`id="manualProjectOrder"`), html.indexOf(">", html.indexOf(`id="manualProjectOrder"`))), /disabled/);
       assert.match(html, /id="manualRecurFreq"[^>]*onchange="updateRecurUnit\('manual'\)"/);
-      assert.match(html, /id="manualProject"[^>]*onchange="updateProjectOrderField\('manual'\)"/);
+      assert.match(html, /id="manualProjectField"[^>]*onclick="openProjectPicker\('manual'\)"/);
+      assert.match(html, /id="manualProjectToggle"[^>]*onclick="toggleProjectField\('manual'\)"/);
       assert.match(html, /id="manualRecurFreq"[\s\S]*?<option value="NONE">Does not repeat<\/option>/);
     });
     it("stops the page behind the edit modal from scrolling with it", () => {
@@ -1654,6 +1655,203 @@ describe("public/index.html helpers", () => {
       assert.equal(JSON.stringify(projects), copy);
     });
   });
+  describe("pickerRows", () => {
+    const projects = [{id: "p1", name: "Kitchen reno", clientId: "c1"}, {id: "p2", name: "Garden path"}, {id: "p3", name: "Bathroom", clientId: "c2"}, {id: "p4", name: "attic"}];
+    const clients = [{id: "c1", name: "Smith Ltd"}, {id: "c2", name: "Jones"}, {id: "c3", name: "Brown"}];
+    const ids = (view) => view.rows.map((r) => r.id);
+    const project = (query, counts = {}, items = projects) => load().pickerRows("project", query, items, {clients, counts});
+    const client = (query, items = clients, owned = projects) => load().pickerRows("client", query, items, {projects: owned});
+    it("shows every project for an empty bar, the most used first and equal use in name order", () => {
+      assert.deepEqual(ids(project("")), ["p4", "p3", "p2", "p1"], "no use at all: name order, case ignored");
+      assert.deepEqual(ids(project("", {p1: 2, p3: 5})), ["p3", "p1", "p4", "p2"]);
+      assert.deepEqual(ids(project("   ", {p2: 1})), ["p2", "p4", "p3", "p1"], "blanks are an empty bar");
+      assert.deepEqual(ids(project(undefined)), ["p4", "p3", "p2", "p1"]);
+    });
+    it("gives each project row its client's name as detail, empty for a project with none", () => {
+      const rows = project("").rows;
+      assert.deepEqual(rows.find((r) => r.id === "p1"), {id: "p1", name: "Kitchen reno", detail: "Smith Ltd"});
+      assert.deepEqual(rows.find((r) => r.id === "p2"), {id: "p2", name: "Garden path", detail: ""});
+    });
+    it("matches projects by name or client name through filterProjects, still ranked by use", () => {
+      assert.deepEqual(ids(project("KIT")), ["p1"]);
+      assert.deepEqual(ids(project("jones")), ["p3"]);
+      assert.deepEqual(ids(project("reno smith")), ["p1"]);
+      assert.deepEqual(ids(project("a", {p2: 3})), ["p2", "p4", "p3"], "Garden path, attic and Bathroom contain an a: most used first, then name order");
+    });
+    it("caps the rows at 8 and says when more matched", () => {
+      const many = Array.from({length: 11}, (_, i) => ({id: `p${i}`, name: `Job ${String.fromCharCode(65 + i)}`}));
+      const all = project("", {}, many);
+      assert.equal(load().PICKER_MAX_ROWS, 8);
+      assert.equal(all.rows.length, 8);
+      assert.equal(all.more, true);
+      assert.deepEqual(ids(all), many.slice(0, 8).map((p) => p.id));
+      const narrowed = project("job k", {}, many);
+      assert.deepEqual(ids(narrowed), ["p10"]);
+      assert.equal(narrowed.more, false);
+      const exactly = project("", {}, many.slice(0, 8));
+      assert.equal(exactly.rows.length, 8);
+      assert.equal(exactly.more, false, "eight is not more than eight");
+    });
+    it("offers Add for typed text that matches no name, ignoring case and blank runs, as the server's hasName does", () => {
+      assert.equal(project("").add, "", "nothing typed, nothing to add");
+      assert.equal(project("   ").add, "");
+      assert.equal(project("Deck").add, "Deck");
+      assert.equal(project("  Deck   build ").add, "Deck build", "blanks collapse as the server reads the name");
+      assert.equal(project("kitchen").add, "kitchen", "a part of a name is not the name");
+      assert.equal(project("KITCHEN RENO").add, "", "a taken name, any case");
+      assert.equal(project("kitchen   reno").add, "", "a taken name with extra blanks");
+      assert.equal(project("ATTIC").add, "");
+      assert.equal(project("Smith Ltd").add, "Smith Ltd", "a client's name is not a project's name, so it can be added");
+      assert.deepEqual(ids(project("Smith Ltd")), ["p1"], "while the project of that client still shows");
+    });
+    it("checks the name against every project, not only the rows shown", () => {
+      const many = Array.from({length: 12}, (_, i) => ({id: `p${i}`, name: `Job ${i}`}));
+      const view = project("job 11", {}, many);
+      assert.equal(view.add, "");
+      assert.deepEqual(ids(view), ["p11"]);
+    });
+    it("lists clients by their number of projects and matches every word of the name", () => {
+      assert.deepEqual(ids(client("")), ["c2", "c1", "c3"], "one project each for Jones and Smith Ltd (name order), none for Brown");
+      const owned = [{id: "a", clientId: "c2"}, {id: "b", clientId: "c2"}, {id: "c", clientId: "c1"}, {id: "d"}];
+      assert.deepEqual(ids(client("", clients, owned)), ["c2", "c1", "c3"]);
+      assert.deepEqual(ids(client("ltd smi", clients, owned)), ["c1"]);
+      assert.deepEqual(ids(client("zzz", clients, owned)), []);
+      assert.deepEqual(client("", clients, owned).rows[0], {id: "c2", name: "Jones", detail: ""});
+      assert.equal(client("jones", clients, owned).add, "");
+      assert.equal(client("Jones & Co", clients, owned).add, "Jones & Co");
+    });
+    it("copes with missing or odd input and does not modify what it is given", () => {
+      const h = load();
+      assert.deepEqual(h.pickerRows("project", "x", undefined, undefined), {rows: [], more: false, add: "x"});
+      assert.deepEqual(h.pickerRows("project", undefined, null, null), {rows: [], more: false, add: ""});
+      assert.deepEqual(h.pickerRows("client", "", [null, 5, {id: "c1", name: "Jo"}], {projects: [null, {clientId: "c1"}]}).rows, [{id: "c1", name: "Jo", detail: ""}]);
+      const copy = JSON.stringify([projects, clients]);
+      project("a", {p1: 1});
+      assert.equal(JSON.stringify([projects, clients]), copy);
+    });
+    it("words each kind's dialog", () => {
+      assert.deepEqual(Object.keys(load().PICKER_KINDS), ["project", "client"]);
+      assert.equal(load().PICKER_KINDS.project.title, "Choose a project");
+      assert.equal(load().PICKER_KINDS.project.add("Deck"), "＋ Add “Deck” as a new project");
+      assert.equal(load().PICKER_KINDS.client.add("Jo"), "＋ Add “Jo” as a new client");
+    });
+  });
+  describe("projectFieldView", () => {
+    const projects = [{id: "p1", name: "Kitchen reno"}];
+    it("shows None and offers Add to project while no project is chosen", () => {
+      const {projectFieldView} = load();
+      for (const value of ["", undefined, null, 5]) assert.deepEqual(projectFieldView(value, "", projects, "Unknown project"), {text: "None", inProject: false, toggle: "Add to project"});
+    });
+    it("shows a known project's name and offers Remove from project", () => {
+      assert.deepEqual(load().projectFieldView("p1", "", projects, "Unknown project"), {text: "Kitchen reno", inProject: true, toggle: "Remove from project"});
+    });
+    it("shows New project: Name for the placeholder id, with the name's blanks collapsed", () => {
+      const {projectFieldView, NEW_PROJECT} = load();
+      assert.equal(projectFieldView(NEW_PROJECT, "  Deck   build ", projects, "Unknown project").text, "New project: Deck build");
+      assert.equal(projectFieldView(NEW_PROJECT, "Deck", [], "x").toggle, "Remove from project");
+      assert.equal(projectFieldView(NEW_PROJECT, undefined, projects, "x").text, "New project", "no name yet");
+    });
+    it("shows the given label for a project the list does not know", () => {
+      const {projectFieldView} = load();
+      assert.deepEqual(projectFieldView("gone", "", projects, "Unknown project"), {text: "Unknown project", inProject: true, toggle: "Remove from project"});
+      assert.equal(projectFieldView("gone", "", projects, "Deleted project").text, "Deleted project");
+      assert.equal(projectFieldView("p1", "", undefined, "Unknown project").text, "Unknown project");
+    });
+  });
+  describe("the project picker modal and the Project field", () => {
+    const at = (needle, from = 0) => {
+      const i = html.indexOf(needle, from);
+      assert.ok(i >= 0, `${needle} is on the page`);
+      return i;
+    };
+    it("has one picker dialog with a search bar (combobox) and a list (listbox), above the edit modals", () => {
+      const modal = at("id=\"pickerModal\"");
+      assert.ok(modal > at("id=\"editModal\"") && modal > at("id=\"completedEditModal\""), "later in the page, so it stacks over the forms that open it");
+      assert.ok(modal < at("id=\"confirmModal\""), "and under the question dialog");
+      const card = html.slice(modal, at("id=\"confirmModal\""));
+      assert.match(card, /<input type="text" id="pickerSearch"[^>]*role="combobox"[^>]*aria-controls="pickerList"/);
+      assert.match(card, /<div id="pickerList"[^>]*role="listbox"/);
+      assert.match(card, /role="dialog" aria-modal="true" aria-labelledby="pickerTitle"/);
+      assert.match(html, /showLayer\("pickerModal", closePicker\)/);
+    });
+    it("draws rows as options, at least 44px tall, from existing colour variables only", () => {
+      assert.match(html, /\.picker-row \{[^}]*min-height: 44px/);
+      assert.match(html, /role="option" id="pickerOpt\$\{i\}"/);
+      assert.match(html, /aria-activedescendant/);
+      assert.match(html, /\.picker-field \{[^}]*min-height: 44px/);
+      assert.match(html, /\.picker-toggle \{ min-height: 44px; \}/);
+    });
+    it("keeps the hidden input, the field button, the toggle and the Order number in every form", () => {
+      for (const prefix of ["manual", "edit", "ce"]) {
+        assert.ok(html.includes(`<input type="hidden" id="${prefix}Project" value="">`), `${prefix} hidden input`);
+        assert.match(html, new RegExp(`<button type="button" id="${prefix}ProjectField" class="picker-field"[^>]*onclick="openProjectPicker\\('${prefix}'\\)"[^>]*disabled>None</button>`));
+        assert.match(html, new RegExp(`<button type="button" id="${prefix}ProjectToggle"[^>]*onclick="toggleProjectField\\('${prefix}'\\)"[^>]*disabled>Add to project</button>`));
+        assert.match(html, new RegExp(`id="${prefix}ProjectRow" hidden`), `${prefix} field row starts hidden`);
+        assert.equal(html.split(`id="${prefix}Project"`).length - 1, 1, `${prefix}Project is made once`);
+      }
+      for (const prefix of ["manual", "edit"]) {
+        assert.ok(html.includes(`<input type="hidden" id="${prefix}NewProject" value="">`), `${prefix} new project name`);
+        assert.ok(at(`id="${prefix}ProjectOrder"`) > at(`id="${prefix}ProjectField"`) && at(`id="${prefix}ProjectOrder"`) < at(`id="${prefix}ProjectToggle"`), `${prefix} Order sits beside the field`);
+      }
+      assert.doesNotMatch(html, /<select id="(manual|edit|ce)Project"/, "no select is left");
+    });
+    it("leaves the Add row out of the completed form's picker", () => {
+      assert.match(html, /\}, \{ opener, allowAdd: prefix !== "ce" \}\);/);
+      assert.match(html, /openProjectPicker\(prefix, document\.getElementById\(`\$\{prefix\}ProjectToggle`\)\)/, "the toggle gets the focus back, as the field row may be hidden");
+      const open = html.slice(at("function openPicker("), at("function closePicker()"));
+      assert.match(open, /allowAdd: options\.allowAdd !== false/);
+      const render = html.slice(at("function renderPicker()"), at("function pickerTyped()"));
+      assert.match(render, /state\.add = state\.allowAdd \? view\.add : ""/);
+    });
+    it("assigns a form's project only through setProjectField, never the hidden input's value", () => {
+      assert.doesNotMatch(html, /getElementById\("(manual|edit|ce)Project"\)\.value = /);
+      assert.doesNotMatch(html, /getElementById\("(manual|edit)NewProject"\)\.value = /);
+      const setter = html.slice(at("function setProjectField("), at("function openProjectPicker("));
+      assert.match(setter, /getElementById\(`\$\{prefix\}Project`\)\.value = value/);
+      assert.match(setter, /updateProjectOrderField\(prefix\)/);
+      for (const call of ["setProjectField(\"manual\", projectsLoaded ? v.projectId : \"\")", "setProjectField(\"manual\", \"\")", "setProjectField(\"edit\", task.projectId || \"\")", "setProjectField(\"ce\", values.projectId)"]) assert.ok(html.includes(call), call);
+    });
+    it("clears the choice and the Order number for Remove from project and opens the picker for Add to project", () => {
+      const toggle = html.slice(at("function toggleProjectField("), at("// The order number applies only inside a project"));
+      assert.match(toggle, /if \(projectFieldLocked\(prefix\)\) return;/);
+      assert.match(toggle, /=== ""\) openProjectPicker\(prefix, document\.getElementById\(`\$\{prefix\}ProjectToggle`\)\);\s*else setProjectField\(prefix, ""\);/);
+      const order = html.slice(at("function updateProjectOrderField("), at("// The Client choice under a new project's name"));
+      assert.match(order, /if \(!inProject\) input\.value = "";/);
+      assert.match(order, /renderProjectField\(prefix\);\s*syncNewProjectClient\(prefix\);\s*refreshContact\(prefix\);/);
+    });
+    it("keeps both buttons disabled until getProjects has answered, the completed form's also with its saved copy on screen", () => {
+      const locked = html.slice(at("function projectFieldLocked("), at("// Shows the hidden input's choice"));
+      assert.match(locked, /!projectsLoaded \|\| \(prefix === "ce" && completedFieldDisabled\("projectId", completedFormLimited\(\)\)\)/);
+      assert.match(html, /function renderProjects\(\) \{\s*if \(!projectsLoaded\) return;\s*renderManualProjects\(\);\s*renderProjectFields\(\);/);
+      const {COMPLETED_FORM_CONTROLS, completedFieldDisabled} = load();
+      for (const id of ["ceProject", "ceProjectField", "ceProjectToggle"]) {
+        assert.equal(COMPLETED_FORM_CONTROLS[id], "projectId", id);
+        assert.equal(completedFieldDisabled(COMPLETED_FORM_CONTROLS[id], true), true, `${id} needs a connection`);
+        assert.equal(completedFieldDisabled(COMPLETED_FORM_CONTROLS[id], false), false, id);
+      }
+    });
+    it("shows a project the page does not know as Unknown project, or Deleted project in the completed form", () => {
+      const render = html.slice(at("function renderProjectField("), at("function renderProjectFields()"));
+      assert.match(render, /prefix === "ce" \? "Deleted project" : "Unknown project"/);
+      assert.match(render, /getElementById\(`\$\{prefix\}ProjectRow`\)\.hidden = !view\.inProject/);
+    });
+    it("picks a row or the Add row by tap or Enter and gives the focus back on closing", () => {
+      assert.match(html, /const pick = row\.dataset\.add \? pickerPickAt\(pickerState\.rows\.length\) : \{ id: row\.dataset\.id \};/);
+      assert.match(html, /e\.key === "Enter"\) \{\s*e\.preventDefault\(\);\s*const pick = pickerPickAt\(state\.active\);/);
+      assert.match(html, /e\.key === "Escape"\) \{\s*e\.preventDefault\(\);\s*closePicker\(\);/);
+      const close = html.slice(at("function closePicker()"), at("function closePickerOnOverlay"));
+      assert.match(close, /hideLayer\("pickerModal"\)/);
+      assert.match(close, /state\.opener\.focus\(/);
+      const pickFn = html.slice(at("function pickFromPicker("), at("// The pick for the option at"));
+      assert.ok(pickFn.indexOf("closePicker()") < pickFn.indexOf("state.onPick(pick)"), "it closes first, then reports the choice");
+    });
+    it("sets row text as text: names are escaped", () => {
+      const render = html.slice(at("function renderPicker()"), at("function pickerTyped()"));
+      assert.match(render, /data-id="\$\{esc\(row\.id\)\}"><span class="project-item-name">\$\{esc\(row\.name\)\}<\/span>/);
+      assert.match(render, /esc\(text\.add\(state\.add\)\)/);
+      assert.match(render, /esc\(row\.detail\)/);
+    });
+  });
   describe("filterTasks", () => {
     const tasks = [
       {id: "a", tags: ["Outdoor"], projectId: "p1"},
@@ -1891,7 +2089,7 @@ describe("public/index.html helpers", () => {
     });
     it("has the page offer the choice and close the details form after an add", () => {
       assert.ok(html.includes("id=\"manualNewProject\""));
-      assert.match(html, /new Option\("＋ New project…", NEW_PROJECT\)/);
+      assert.match(html, /setProjectField\(prefix, NEW_PROJECT, \{ newName: pick\.name \}\)/);
       const finish = html.slice(html.indexOf("function finishAdd"), html.indexOf("The project suggestion dialog"));
       assert.match(finish, /manualToggle"\)\.checked = false/);
       assert.match(finish, /showManualFields\(false\)/);
@@ -3820,9 +4018,9 @@ describe("public/index.html helpers", () => {
     it("waits for the answer before moving focus to the field the message is about", () => {
       const at = html.indexOf("async function submitTask");
       const fn = html.slice(at, at + 1500);
-      assert.match(fn, /await askAlert\("Enter a name for the new project, or choose another project\.", \{ tone: "warning" \}\);\s*document\.getElementById\("manualNewProject"\)\.focus\(\);/);
+      assert.match(fn, /await askAlert\("Enter a name for the new project, or choose another project\.", \{ tone: "warning" \}\);\s*document\.getElementById\("manualProjectField"\)\.focus\(\);/);
       const edit = html.slice(html.indexOf("async function saveTaskEdits"), html.indexOf("async function snoozeFromModal"));
-      assert.match(edit, /await askAlert\("Enter a name for the new project\.", \{ tone: "warning" \}\);\s*document\.getElementById\("editNewProject"\)\.focus\(\);\s*return false;/);
+      assert.match(edit, /await askAlert\("Enter a name for the new project\.", \{ tone: "warning" \}\);\s*document\.getElementById\("editProjectField"\)\.focus\(\);\s*return false;/);
     });
     it("runs the Settings location and the Clients form through one place search", () => {
       assert.equal((html.match(/function makePlaceSearch\(/g) || []).length, 1);
@@ -3851,9 +4049,9 @@ describe("public/index.html helpers", () => {
       const shared = html.slice(html.indexOf("function makePlaceSearch("), html.indexOf("// Save a Blob as a file download."));
       assert.match(shared, /Nothing found for “\$\{esc\(text\)\}”, so these are places called “\$\{esc\(used\)\}”/);
     });
-    it("lets the edit modal create a project: a last choice, a name field, and the name sent as newProject", () => {
-      assert.match(html, /<input type="text" id="editNewProject"[^>]*hidden>/);
-      assert.match(html, /projectSelect\.add\(new Option\("＋ New project…", NEW_PROJECT\)\)/);
+    it("lets the edit modal create a project: the picker's Add row, a hidden name, and the name sent as newProject", () => {
+      assert.match(html, /<input type="hidden" id="editNewProject"/);
+      assert.match(html, /setProjectField\(prefix, NEW_PROJECT, \{ newName: pick\.name \}\)/);
       const edit = html.slice(html.indexOf("async function saveTaskEdits"), html.indexOf("async function snoozeFromModal"));
       assert.match(edit, /updatedFields\.newProject = newProject;/);
       assert.match(edit, /if \(data\.project && data\.projects\) allProjects = data\.projects;/);
