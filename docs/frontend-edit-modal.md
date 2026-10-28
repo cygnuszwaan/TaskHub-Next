@@ -14,6 +14,7 @@ The queued task's edit modal (`#editModal`, "Edit Task Details") and the complet
 | Contact details (`#editContact`, `#ceContact`) | Phone, Email, Link, Location | the same |
 | Audit trail (`#editAudit`, `#ceAudit`) | Travel (km), Materials, Photos, Comments | the same, Materials as a textarea, then the 📄 Download job sheet button (the queued modal has none) |
 
+- The add card's manual fields use the same top level and sections, without Photos and Comments (frontend-tasks.md).
 - Photos and Comments are added at once, not on Save. The queued modal then has the timer and Snooze row and Complete, Delete, Cancel and Save; the completed form has Delete, Reopen, Cancel and Save.
 - A validation warning first opens the section holding the field at fault (`warnInSection`, which calls `openFormSection` and then `askAlert`): a bad material cost or travel distance opens Audit trail, a bad email or link Contact details. In the completed form `completedChanges` names that section in the `section` of its error (a bad time spent or completion date opens Scheduling) and Save and Reopen show it the same way.
 

@@ -590,16 +590,42 @@ describe("public/index.html helpers", () => {
       assert.match(html, /getElementById\("travelGroupingEnabled"\)\.addEventListener\("change", updateTravelGroupingFields\)/);
       assert.match(html, /!saved\.travelGrouping/);
     });
-    it("shows every edit-form field in the manual entry: repeats, project with order number, and materials", () => {
+    it("closes every manual section whenever the details form is shown: ticking the box and using a past task", () => {
+      const fn = html.slice(html.indexOf("function showManualFields"), html.indexOf("// Opens one section"));
+      assert.match(fn, /document\.getElementById\("manualFields"\)\.hidden = !show;/);
+      assert.match(fn, /if \(show\) closeFormSections\("manualFields"\);/);
+      assert.match(html, /document\.getElementById\("manualToggle"\)\.addEventListener\("change", e => \{\s*showManualFields\(e\.target\.checked\);/);
+      const use = html.slice(html.indexOf("function useTemplate"), html.indexOf("function useTemplate") + 400);
+      assert.match(use, /toggle\.checked = true;\s*showManualFields\(true\);/);
+      assert.equal((html.match(/getElementById\("manualFields"\)/g) || []).length, 1, "only showManualFields touches the details form");
+    });
+    it("opens the add card section holding the field at fault before a warning", () => {
+      const submit = html.slice(html.indexOf("async function submitTask"), html.indexOf("async function submitTask") + 3500);
+      assert.match(submit, /warnInSection\("manualAudit", `The cost of/);
+      assert.match(submit, /warnInSection\("manualAudit", INVALID_TRAVEL\)/);
+      assert.match(submit, /warnInSection\("manualContact", INVALID_EMAIL\)/);
+      assert.match(submit, /warnInSection\("manualContact", INVALID_URL\)/);
+    });
+    it("lays the manual entry out like the edit modal: Description, Tags and Project, then Scheduling, Contact details and Audit trail", () => {
       const manual = html.indexOf(`id="manualFields"`);
       const queue = html.indexOf(`id="queueCard"`);
-      const ids = ["manualPriority", "manualMinutes", "manualTags", "manualDue", "manualRecurFreq", "manualRecurInterval", "manualProject", "manualProjectOrder", "manualMaterials", "manualNewMaterialText", "addManualMaterialBtn"];
-      let last = manual;
-      for (const id of ids) {
-        const i = html.indexOf(`id="${id}"`);
-        assert.ok(i > last && i < queue, `${id} sits in the manual fields, in the edit form's order`);
-        last = i;
-      }
+      const inOrder = (ids, from, to, what) => {
+        let last = from;
+        for (const id of ids) {
+          const i = html.indexOf(`id="${id}"`);
+          assert.ok(i > last && i < to, `${id} sits in ${what}, in order`);
+          last = i;
+        }
+      };
+      const sections = ["manualScheduling", "manualContact", "manualAudit"].map((id) => html.indexOf(`<details class="form-section" id="${id}">`));
+      assert.ok(sections.every((i, n) => i > manual && i < queue && (n === 0 || i > sections[n - 1])), "three sections, in order");
+      inOrder(["manualDescription", "manualTags", "manualProject", "manualProjectOrder", "manualNewProject"], manual, sections[0], "the top level");
+      const end = (i) => html.indexOf("</details>", i);
+      inOrder(["manualPriority", "manualMinutes", "manualDue", "manualRecurFreq", "manualRecurInterval"], sections[0], end(sections[0]), "Scheduling");
+      inOrder(["manualPhone", "manualEmail", "manualUrl", "manualLocation"], sections[1], end(sections[1]), "Contact details");
+      inOrder(["manualTravel", "manualMaterials", "manualNewMaterialText", "addManualMaterialBtn"], sections[2], end(sections[2]), "Audit trail");
+      for (const id of ["manualScheduling", "manualContact", "manualAudit"]) assert.doesNotMatch(html.slice(html.indexOf(`id="${id}"`) - 40, html.indexOf(`id="${id}"`) + 40), /\sopen[\s>]/, `${id} starts collapsed`);
+      assert.doesNotMatch(html.slice(sections[2], end(sections[2])), /manualPhotos|manualComments/, "a task not yet added has no photos or comments");
       assert.match(html.slice(html.indexOf(`id="manualProjectOrder"`), html.indexOf(">", html.indexOf(`id="manualProjectOrder"`))), /disabled/);
       assert.match(html, /id="manualRecurFreq"[^>]*onchange="updateRecurUnit\('manual'\)"/);
       assert.match(html, /id="manualProject"[^>]*onchange="updateProjectOrderField\('manual'\)"/);
@@ -1284,7 +1310,7 @@ describe("public/index.html helpers", () => {
       assert.match(html, /urlBox\.placeholder = urlPlaceholder\(effectiveUrl\(urlBox\.value, projectId, allProjects, allClients\)\);/);
     });
     it("warns about a bad link when adding or saving, and sends it with the save", () => {
-      assert.match(html, /if \(manual && parseUrlText\(document\.getElementById\("manualUrl"\)\.value\) === undefined\) \{ askAlert\(INVALID_URL, \{ tone: "warning" \}\); return; \}/);
+      assert.match(html, /if \(manual && parseUrlText\(document\.getElementById\("manualUrl"\)\.value\) === undefined\) \{ warnInSection\("manualContact", INVALID_URL\); return; \}/);
       assert.match(html, /if \(url === undefined\) \{ warnInSection\("editContact", INVALID_URL\); return false; \}/);
       assert.match(html, /phone: document\.getElementById\("editPhone"\)\.value\.trim\(\), email, url, description:/);
       assert.match(html, /url: document\.getElementById\("manualUrl"\)\.value,/);
@@ -1327,8 +1353,7 @@ describe("public/index.html helpers", () => {
       };
       has("editAudit", "editTravel");
       has("ceAudit", "ceTravel");
-      assert.ok(html.indexOf("id=\"manualTravel\"") > html.indexOf("id=\"manualMaterials\""));
-      assert.ok(html.indexOf("id=\"manualTravel\"") < html.indexOf("id=\"manualDescription\""));
+      assert.ok(html.indexOf("id=\"manualTravel\"") > html.indexOf("id=\"manualAudit\"") && html.indexOf("id=\"manualTravel\"") < html.indexOf("id=\"manualMaterials\""), "Travel opens the add card's Audit trail, before Materials");
       assert.ok(html.indexOf("id=\"editTravel\"") > html.indexOf("id=\"editAudit\"") && html.indexOf("id=\"editTravel\"") < html.indexOf("id=\"editMaterials\""), "Travel opens the Audit trail, before Materials");
       const jobSheets = html.indexOf("<h3>Job Sheets</h3>");
       assert.ok(html.indexOf("id=\"travelRate\"") > jobSheets && html.indexOf("id=\"travelRate\"") > html.indexOf("id=\"hourlyRate\""));
@@ -1766,7 +1791,7 @@ describe("public/index.html helpers", () => {
       assert.match(html, /new Option\("＋ New project…", NEW_PROJECT\)/);
       const finish = html.slice(html.indexOf("function finishAdd"), html.indexOf("The project suggestion dialog"));
       assert.match(finish, /manualToggle"\)\.checked = false/);
-      assert.match(finish, /manualFields"\)\.hidden = true/);
+      assert.match(finish, /showManualFields\(false\)/);
       assert.match(finish, /data\.project && data\.projects/);
     });
   });
@@ -3470,8 +3495,8 @@ describe("public/index.html helpers", () => {
       assert.doesNotMatch(code, /(?<![\w.])alert\(/, "a native alert() is left");
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
       const inSection = code.match(/(?<!function )warnInSection\(/g) || [];
-      assert.equal(inSection.length, 6, "six validation warnings open the section holding the field at fault first (four in the queued form, two in the completed form)");
-      assert.equal(calls.length - 1 + inSection.length, 66, "the sixty-six messages the page shows (thirteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and two why a Multi-Select change was not); warnInSection's own askAlert call stands for its six");
+      assert.equal(inSection.length, 10, "ten validation warnings open the section holding the field at fault first (four in the add card, four in the queued form, two in the completed form)");
+      assert.equal(calls.length - 1 + inSection.length, 66, "the sixty-six messages the page shows (thirteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and two why a Multi-Select change was not); warnInSection's own askAlert call stands for its ten");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 19, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
@@ -4988,7 +5013,7 @@ describe("offline add queue display (page)", () => {
     it("clears the add card the same way after a sent add and a kept one", () => {
       assert.match(body("finishAdd"), /resetAddForm\(manual\);/);
       const reset = body("resetAddForm");
-      for (const part of ["\"taskInput\").value = \"\"", "startNow\").checked = false", "resetManualExtras()", "manualToggle\").checked = false", "manualFields\").hidden = true"]) {
+      for (const part of ["\"taskInput\").value = \"\"", "startNow\").checked = false", "resetManualExtras()", "manualToggle\").checked = false", "showManualFields(false)"]) {
         assert.ok(reset.includes(part), part);
       }
     });

@@ -57,9 +57,7 @@ A change usually touches several rows: a new endpoint touches an `endpoints-*.md
 
 ## Roadmap
 
-Each step fits in one turn. Do them in order unless told otherwise. Each step adds tests for any new pure logic.
-
-1. Add card sections. The add card's manual fields use the same layout as the edit modal (Description, Tags, Project and the Scheduling, Contact details and Audit trail sections, every section closed each time the "Enter the details myself" box is ticked), with Materials, Travel and the rest where the modal has them. Update the "Adding tasks" paragraph of `frontend-tasks.md`.
+No step is planned. A new one fits in one turn, goes first in the list and adds tests for any new pure logic.
 
 Unplanned ideas are in `stretch-goals.md`.
 

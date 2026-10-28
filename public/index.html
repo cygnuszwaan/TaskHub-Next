@@ -367,42 +367,13 @@
     </div>
     <div id="templateResults" class="template-results" hidden></div>
     <div id="manualFields" hidden style="margin-top: 10px;">
-      <div style="display: flex; gap: 10px;">
-        <div class="form-group" style="flex: 1;">
-          <label for="manualPriority">Priority</label>
-          <select id="manualPriority">
-            <option value="HIGH">HIGH</option>
-            <option value="MEDIUM" selected>MEDIUM</option>
-            <option value="LOW">LOW</option>
-          </select>
-        </div>
-        <div class="form-group" style="flex: 1;">
-          <label for="manualMinutes">Est. Minutes</label>
-          <input type="number" id="manualMinutes" min="5" step="5" value="15" inputmode="numeric">
-        </div>
+      <div class="form-group">
+        <label for="manualDescription">Description</label>
+        <textarea id="manualDescription" rows="3" maxlength="2000" placeholder="Notes for yourself"></textarea>
       </div>
       <div class="form-group">
         <label for="manualTags">Tags (comma separated)</label>
         <input type="text" id="manualTags" placeholder="e.g. Outdoor, Physical">
-      </div>
-      <div class="form-group">
-        <label for="manualDue">Due Date (optional)</label>
-        <input type="date" id="manualDue">
-      </div>
-      <div class="form-group">
-        <label>Repeats</label>
-        <div style="display: flex; gap: 6px; align-items: center;">
-          <select id="manualRecurFreq" style="flex: 1;" onchange="updateRecurUnit('manual')">
-            <option value="NONE">Does not repeat</option>
-            <option value="DAILY">Daily</option>
-            <option value="WEEKLY">Weekly</option>
-            <option value="MONTHLY">Monthly</option>
-            <option value="YEARLY">Yearly</option>
-          </select>
-          <span id="manualRecurEvery">every</span>
-          <input type="number" id="manualRecurInterval" min="1" max="365" step="1" value="1" style="width: 70px;">
-          <span id="manualRecurUnit"></span>
-        </div>
       </div>
       <div class="form-group">
         <label>Project</label>
@@ -414,46 +385,83 @@
         </div>
         <input type="text" id="manualNewProject" maxlength="100" placeholder="Name of the new project (created when the task is added)" style="margin-top: 6px;" hidden>
       </div>
-      <div class="form-group">
-        <label>Materials</label>
-        <div id="manualMaterials"></div>
-        <div class="input-row" style="margin-top: 6px;">
-          <input type="text" id="manualNewMaterialText" maxlength="100" placeholder="Add a material">
-          <input type="number" id="manualNewMaterialCost" class="cost-input" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="Cost" aria-label="Cost of the new material">
-          <button type="button" class="btn-secondary" id="addManualMaterialBtn">Add</button>
+      <details class="form-section" id="manualScheduling">
+        <summary>Scheduling</summary>
+        <div style="display: flex; gap: 10px;">
+          <div class="form-group" style="flex: 1;">
+            <label for="manualPriority">Priority</label>
+            <select id="manualPriority">
+              <option value="HIGH">HIGH</option>
+              <option value="MEDIUM" selected>MEDIUM</option>
+              <option value="LOW">LOW</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label for="manualMinutes">Est. Minutes</label>
+            <input type="number" id="manualMinutes" min="5" step="5" value="15" inputmode="numeric">
+          </div>
         </div>
-      </div>
-      <div class="form-group">
-        <label for="manualTravel">Travel (km)</label>
-        <input type="number" id="manualTravel" min="0" max="10000" step="0.1" inputmode="decimal" placeholder="e.g. 12.5" style="max-width: 160px;">
-      </div>
-      <div class="form-group">
-        <label for="manualLocation">Location</label>
-        <input type="text" id="manualLocation" maxlength="200" autocomplete="off" placeholder="Search for an address">
-        <div class="action-row" style="margin-top: 6px;">
-          <button type="button" id="manualPlaceSearchBtn" class="btn-secondary">Find on map</button>
-          <button type="button" id="manualLocationClearBtn" class="btn-secondary" hidden>Clear</button>
+        <div class="form-group">
+          <label for="manualDue">Due Date (optional)</label>
+          <input type="date" id="manualDue">
         </div>
-        <div id="manualPlaceResults" class="place-results"></div>
-        <p class="settings-note" id="manualLocationNote"></p>
-      </div>
-      <div class="form-group">
-        <label for="manualPhone">Phone <small style="font-weight:normal; color:var(--text-faint);">(empty uses the client's)</small></label>
-        <input type="tel" id="manualPhone" maxlength="40">
-      </div>
-      <div class="form-group">
-        <label for="manualEmail">Email <small style="font-weight:normal; color:var(--text-faint);">(empty uses the client's)</small></label>
-        <input type="email" id="manualEmail" maxlength="100" autocapitalize="off">
-      </div>
-      <div class="form-group">
-        <label for="manualUrl">Link <small style="font-weight:normal; color:var(--text-faint);">(empty uses the project's or client's)</small></label>
-        <input type="url" id="manualUrl" maxlength="500" inputmode="url" autocapitalize="none" autocomplete="off" placeholder="e.g. example.com/menu">
-      </div>
-
-      <div class="form-group">
-        <label for="manualDescription">Description</label>
-        <textarea id="manualDescription" rows="3" maxlength="2000" placeholder="Notes for yourself"></textarea>
-      </div>
+        <div class="form-group">
+          <label>Repeats</label>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <select id="manualRecurFreq" style="flex: 1;" onchange="updateRecurUnit('manual')">
+              <option value="NONE">Does not repeat</option>
+              <option value="DAILY">Daily</option>
+              <option value="WEEKLY">Weekly</option>
+              <option value="MONTHLY">Monthly</option>
+              <option value="YEARLY">Yearly</option>
+            </select>
+            <span id="manualRecurEvery">every</span>
+            <input type="number" id="manualRecurInterval" min="1" max="365" step="1" value="1" style="width: 70px;">
+            <span id="manualRecurUnit"></span>
+          </div>
+        </div>
+      </details>
+      <details class="form-section" id="manualContact">
+        <summary>Contact details</summary>
+        <div class="form-group">
+          <label for="manualPhone">Phone <small style="font-weight:normal; color:var(--text-faint);">(empty uses the client's)</small></label>
+          <input type="tel" id="manualPhone" maxlength="40">
+        </div>
+        <div class="form-group">
+          <label for="manualEmail">Email <small style="font-weight:normal; color:var(--text-faint);">(empty uses the client's)</small></label>
+          <input type="email" id="manualEmail" maxlength="100" autocapitalize="off">
+        </div>
+        <div class="form-group">
+          <label for="manualUrl">Link <small style="font-weight:normal; color:var(--text-faint);">(empty uses the project's or client's)</small></label>
+          <input type="url" id="manualUrl" maxlength="500" inputmode="url" autocapitalize="none" autocomplete="off" placeholder="e.g. example.com/menu">
+        </div>
+        <div class="form-group">
+          <label for="manualLocation">Location</label>
+          <input type="text" id="manualLocation" maxlength="200" autocomplete="off" placeholder="Search for an address">
+          <div class="action-row" style="margin-top: 6px;">
+            <button type="button" id="manualPlaceSearchBtn" class="btn-secondary">Find on map</button>
+            <button type="button" id="manualLocationClearBtn" class="btn-secondary" hidden>Clear</button>
+          </div>
+          <div id="manualPlaceResults" class="place-results"></div>
+          <p class="settings-note" id="manualLocationNote"></p>
+        </div>
+      </details>
+      <details class="form-section" id="manualAudit">
+        <summary>Audit trail</summary>
+        <div class="form-group">
+          <label for="manualTravel">Travel (km)</label>
+          <input type="number" id="manualTravel" min="0" max="10000" step="0.1" inputmode="decimal" placeholder="e.g. 12.5" style="max-width: 160px;">
+        </div>
+        <div class="form-group">
+          <label>Materials</label>
+          <div id="manualMaterials"></div>
+          <div class="input-row" style="margin-top: 6px;">
+            <input type="text" id="manualNewMaterialText" maxlength="100" placeholder="Add a material">
+            <input type="number" id="manualNewMaterialCost" class="cost-input" min="0" max="1000000" step="0.01" inputmode="decimal" placeholder="Cost" aria-label="Cost of the new material">
+            <button type="button" class="btn-secondary" id="addManualMaterialBtn">Add</button>
+          </div>
+        </div>
+      </details>
     </div>
   </div>
 
@@ -5093,10 +5101,10 @@
       }
 
       const badCost = manual ? invalidMaterialCost(manualMaterials) : null;
-      if (badCost) { askAlert(`The cost of "${badCost}" is not an amount. Use a number such as 12.50, or leave it empty.`, { tone: "warning" }); return; }
-      if (manual && parseTravelText(document.getElementById("manualTravel").value) === undefined) { askAlert(INVALID_TRAVEL, { tone: "warning" }); return; }
-      if (manual && parseEmailText(document.getElementById("manualEmail").value) === undefined) { askAlert(INVALID_EMAIL, { tone: "warning" }); return; }
-      if (manual && parseUrlText(document.getElementById("manualUrl").value) === undefined) { askAlert(INVALID_URL, { tone: "warning" }); return; }
+      if (badCost) { warnInSection("manualAudit", `The cost of "${badCost}" is not an amount. Use a number such as 12.50, or leave it empty.`); return; }
+      if (manual && parseTravelText(document.getElementById("manualTravel").value) === undefined) { warnInSection("manualAudit", INVALID_TRAVEL); return; }
+      if (manual && parseEmailText(document.getElementById("manualEmail").value) === undefined) { warnInSection("manualContact", INVALID_EMAIL); return; }
+      if (manual && parseUrlText(document.getElementById("manualUrl").value) === undefined) { warnInSection("manualContact", INVALID_URL); return; }
       setLoading(true);
       let body = null;
       const requestId = newRequestId(); // the same id goes with the add if it has to wait: a second attempt then adds nothing
@@ -5170,7 +5178,7 @@
         resetManualExtras();
         // The details form closes again after each manual add
         document.getElementById("manualToggle").checked = false;
-        document.getElementById("manualFields").hidden = true;
+        showManualFields(false);
       }
     }
 
@@ -5266,7 +5274,7 @@
       document.getElementById("taskInput").value = v.title;
       const toggle = document.getElementById("manualToggle");
       toggle.checked = true;
-      document.getElementById("manualFields").hidden = false;
+      showManualFields(true);
       document.getElementById("manualPriority").value = v.priority;
       document.getElementById("manualMinutes").value = v.estimatedMinutes;
       document.getElementById("manualTags").value = v.tags;
@@ -6091,6 +6099,11 @@
     // Closes every collapsible section (.form-section) of a modal, so each opening starts with them all closed.
     function closeFormSections(modalId) {
       for (const section of document.querySelectorAll(`#${modalId} details.form-section`)) section.open = false;
+    }
+    // Shows or hides the add card's manual fields. Showing them closes every section again, each time the "Enter the details myself" box is ticked.
+    function showManualFields(show) {
+      document.getElementById("manualFields").hidden = !show;
+      if (show) closeFormSections("manualFields");
     }
     // Opens one section, so a field it holds is on screen; a warning about that field is shown after it (warnInSection).
     function openFormSection(sectionId) {
@@ -8677,7 +8690,7 @@
     document.getElementById("lunchEnabled").addEventListener("change", updateLunchFields);
     document.getElementById("travelGroupingEnabled").addEventListener("change", updateTravelGroupingFields);
     document.getElementById("manualToggle").addEventListener("change", e => {
-      document.getElementById("manualFields").hidden = !e.target.checked;
+      showManualFields(e.target.checked);
       if (!e.target.checked) copiedHistory = null;
     });
     document.getElementById("taskInput").addEventListener("input", searchTemplates);
