@@ -631,6 +631,7 @@
         <summary>Tags <small id="completedTagsActive"></small></summary>
         <div class="tag-filter-bar" id="completedTagFilterBar"></div>
       </details>
+      <div id="completedProject"></div>
       <p class="settings-note" id="completedCount" style="margin:8px 0;"></p>
       <div class="pager" data-pager></div>
       <div id="completedRows"></div>
@@ -2916,7 +2917,7 @@
       const start = new Date(weekStart + "T00:00:00Z");
       return `${weekNameFmt.format(start)} – ${weekNameFmt.format(new Date(start.getTime() + 6 * 86400000))}`;
     }
-    // The choice of the History Project section: the current project while it still exists, else "" (Any project, the starting choice), or null
+    // The choice of the History Project section: the current project while it still exists, else "" (All, the starting choice), or null
     // when no project has completed work (the section is not shown).
     function pickHistoryProject(entries, currentId) {
       if (!Array.isArray(entries) || entries.length === 0) return null;
@@ -3028,7 +3029,7 @@
       return { fields };
     }
     // The top row of the History Project picker, and the field's text while it is chosen.
-    const HISTORY_ANY_PROJECT = "Any project";
+    const HISTORY_ALL_PROJECTS = "All";
     // Completed tasks are listed this many to a page.
     const COMPLETED_PAGE_SIZE = 50;
     // Whether a completed task matches a search: the same as a queued task (`matchesSearch`): every word of `query` (case-insensitive, any order, part
@@ -7767,7 +7768,7 @@
     // The History section for the hours of one project: its total, then every week (Monday to Sunday) it has work in, newest first.
     let projectHoursEntries = [];
     let projectHoursTruncated = false;
-    // The History project choice: "" is Any project, else a project id; null before the first load. It filters the completed list only while the
+    // The History project choice: "" is All, else a project id; null before the first load. It filters the completed list only while the
     // section is on screen (`historyProjectShown`: not from the saved copy, not with no project to choose).
     let historyProjectId = null;
     let historyProjectShown = false;
@@ -7781,7 +7782,7 @@
         <div class="summary-total"><button type="button" class="btn-secondary sheet-btn" title="Download a job sheet (PDF) for the whole project to date" onclick="downloadProjectSheet('', this)">📄 Job sheet, project to date</button></div>
         <div class="summary-label">Per week (Monday to Sunday)</div><div class="hours-weeks">${rows}</div>`;
     }
-    // What sits under the Project field: the chosen project's total and weeks, nothing for Any project.
+    // What sits under the Project field: the chosen project's total and weeks, nothing for All.
     function historyProjectPanel(entry) {
       if (!entry) return "";
       return projectHoursBody(entry) + (projectHoursTruncated ? `<div class="summary-total" style="color:var(--text-faint);">A project with a very large number of completed tasks shows only its newest ones.</div>` : "");
@@ -7796,22 +7797,22 @@
       return `
         <div class="summary">
           <div class="summary-label" style="margin-top:0;">Project</div>
-          <div class="picker-line" style="margin:4px 0;"><button type="button" id="historyProjectField" class="picker-field" aria-haspopup="dialog" aria-label="Project" onclick="openHistoryProjectPicker()">${esc(entry ? entry.name || "Untitled project" : HISTORY_ANY_PROJECT)}</button></div>
+          <div class="picker-line" style="margin:4px 0;"><button type="button" id="historyProjectField" class="picker-field" aria-haspopup="dialog" aria-label="Project" onclick="openHistoryProjectPicker()">${esc(entry ? entry.name || "Untitled project" : HISTORY_ALL_PROJECTS)}</button></div>
           <div id="projectHoursBody">${historyProjectPanel(entry)}</div>
         </div>`;
     }
-    // The picker modal for the section's project: only projects with completed work, "Any project" first, no Add row; a pick calls selectHistoryProject.
+    // The picker modal for the section's project: only projects with completed work, "All" first, no Add row; a pick calls selectHistoryProject.
     function openHistoryProjectPicker() {
-      openPicker("hours", historyProjectId, selectHistoryProject, { opener: document.getElementById("historyProjectField"), allowAdd: false, noneLabel: HISTORY_ANY_PROJECT });
+      openPicker("hours", historyProjectId, selectHistoryProject, { opener: document.getElementById("historyProjectField"), allowAdd: false, noneLabel: HISTORY_ALL_PROJECTS });
     }
-    // A pick of the picker: {id} of a project, or "" for Any project. Redraws the section and filters the completed list from its first page.
+    // A pick of the picker: {id} of a project, or "" for All. Redraws the section and filters the completed list from its first page.
     function selectHistoryProject(pick) {
       const id = pick && typeof pick.id === "string" ? pick.id : null;
       const entry = id ? projectHoursEntries.find(e => e.projectId === id) : null;
       if (id === null || (id && !entry)) return;
       historyProjectId = id;
       const field = document.getElementById("historyProjectField");
-      if (field) field.textContent = entry ? entry.name || "Untitled project" : HISTORY_ANY_PROJECT;
+      if (field) field.textContent = entry ? entry.name || "Untitled project" : HISTORY_ALL_PROJECTS;
       document.getElementById("projectHoursBody").innerHTML = historyProjectPanel(entry);
       completedPageNo = 1;
       renderCompletedRows();
@@ -8433,7 +8434,7 @@
       note.hidden = savedAt === null;
       if (savedAt !== null) document.getElementById("completedOfflineNoteText").textContent = completedOfflineNoteText(savedAt, Date.now());
     }
-    // History from the saved copy: the entries can be searched, paged and opened; what the server computes (Stats, Project hours) says it needs a connection.
+    // History from the saved copy: the entries can be searched, paged and opened; what the server computes (Project hours) says it needs a connection.
     function showCompletedCopy(saved) {
       const list = document.getElementById("completedList");
       const browser = document.getElementById("completedBrowser");
@@ -8448,7 +8449,8 @@
         list.innerHTML = "<p style='color:var(--text-faint); margin:0;'>No completed tasks yet.</p>";
         return;
       }
-      list.innerHTML = '<p class="settings-note">Project hours need a connection.</p>';
+      list.innerHTML = "";
+      document.getElementById("completedProject").innerHTML = '<p class="settings-note">Project hours need a connection.</p>';
       browser.hidden = false;
       renderCompletedRows();
     }
@@ -8475,7 +8477,8 @@
         completedAll = shown;
         completedListLimited = data.listTruncated === true;
         completedRows = new Map(shown.filter(t => t.archiveId).map(t => [t.archiveId, t]));
-        list.innerHTML = renderProjectHours(data.projectHours, data.projectHoursTruncated);
+        list.innerHTML = "";
+        document.getElementById("completedProject").innerHTML = renderProjectHours(data.projectHours, data.projectHoursTruncated);
         browser.hidden = false;
         renderCompletedRows();
       } catch (err) {

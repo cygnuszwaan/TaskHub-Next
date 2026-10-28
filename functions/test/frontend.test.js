@@ -921,10 +921,18 @@ describe("public/index.html helpers", () => {
       const show = html.slice(at("function showTab"), at("function showTab") + 700);
       assert.match(show, /tab === "history"\) fetchCompleted\(\)/);
       const fetchFn = html.slice(at("async function fetchCompleted"), at("// The Stats card on the Settings page"));
-      assert.match(fetchFn, /list\.innerHTML = renderProjectHours\(/);
+      assert.match(fetchFn, /getElementById\("completedProject"\)\.innerHTML = renderProjectHours\(/);
+      assert.match(html.slice(at("function showCompletedCopy"), at("async function fetchCompleted")), /getElementById\("completedProject"\)\.innerHTML = '<p class="settings-note">Project hours need a connection\./);
       assert.doesNotMatch(fetchFn, /stats|renderSummary/i);
       const summaryFn = html.slice(at("function renderSummary"), at("function renderProjectHours"));
       assert.ok(summaryFn.indexOf("Most completed jobs") > summaryFn.indexOf("By project"));
+    });
+    it("orders the History page as the search box, the Tags section, the Project section, then the count line, pager and list", () => {
+      const page = at(`id="pageHistory"`);
+      const order = ["completedSearch", "completedTagsDetails", "completedProject", "completedCount", "completedRows"].map((id) => at(`id="${id}"`, page));
+      assert.deepEqual([...order].sort((a, b) => a - b), order);
+      assert.ok(at(`id="completedList"`, page) < at(`id="completedBrowser"`, page), "the status messages stay above the browser");
+      assert.ok(at(`id="completedProject"`, page) > at(`id="completedBrowser"`, page), "the Project section sits inside the browser");
     });
     it("puts a collapsed Stats card last on the Settings page, read on each visit through a one-entry getCompletedTasks", () => {
       const page = at(`id="pageSettings"`);
@@ -2987,14 +2995,14 @@ describe("public/index.html helpers", () => {
       const render = html.slice(html.indexOf("function renderProjectHours("), html.indexOf("// Correcting or deleting a completed task"));
       assert.doesNotMatch(render, /<select|<option|onchange=/);
       assert.match(render, /id="historyProjectField" class="picker-field"[^>]*onclick="openHistoryProjectPicker\(\)"/);
-      assert.match(render, /openPicker\("hours", historyProjectId, selectHistoryProject, \{ opener: document\.getElementById\("historyProjectField"\), allowAdd: false, noneLabel: HISTORY_ANY_PROJECT \}\);/);
-      assert.match(html, /const HISTORY_ANY_PROJECT = "Any project";/);
+      assert.match(render, /openPicker\("hours", historyProjectId, selectHistoryProject, \{ opener: document\.getElementById\("historyProjectField"\), allowAdd: false, noneLabel: HISTORY_ALL_PROJECTS \}\);/);
+      assert.match(html, /const HISTORY_ALL_PROJECTS = "All";/);
       assert.match(render, /<div class="summary-label" style="margin-top:0;">Project<\/div>/, "the label is Project, not Project hours");
       assert.match(render, /function selectHistoryProject\(pick\) \{[\s\S]*historyProjectId = id;[\s\S]*field\.textContent = [\s\S]*completedPageNo = 1;\s*renderCompletedRows\(\);/);
       assert.match(html, /if \(kind === "hours"\) return \{ items: historyProjectChoices\(projectHoursEntries\), context: \{\} \};/);
       assert.doesNotMatch(html, /<select[^>]*id="historyProject"/);
     });
-    it("pickHistoryProject: keeps the current choice while it exists, else Any project (\"\"), and null with no project", () => {
+    it("pickHistoryProject: keeps the current choice while it exists, else All (\"\"), and null with no project", () => {
       const {pickHistoryProject} = load();
       const entries = [{projectId: "a"}, {projectId: "b"}, {projectId: "c"}];
       assert.equal(pickHistoryProject(entries, "c"), "c");
@@ -3050,7 +3058,7 @@ describe("public/index.html helpers", () => {
       assert.match(rows, /projectId !== "" \|\| completedTagFilters\.length > 0/);
       assert.match(html, /getElementById\("completedTagFilterBar"\)\.addEventListener\("click"/);
     });
-    it("filters the History list by the chosen project, which Any project turns off, and says so in the count line", () => {
+    it("filters the History list by the chosen project, which All turns off, and says so in the count line", () => {
       const h = load();
       const rows = [
         {archiveId: "1", title: "Fence", projectId: "p1"}, {archiveId: "2", title: "Deck", projectId: "p2"},
@@ -3058,7 +3066,7 @@ describe("public/index.html helpers", () => {
       ];
       const ids = (b) => b.items.map((r) => r.archiveId);
       assert.deepEqual(ids(h.completedBrowse(rows, "", 1, () => "", {projectId: "p1"})), ["1", "3"]);
-      assert.deepEqual(ids(h.completedBrowse(rows, "", 1, () => "", {projectId: ""})), ["1", "2", "3", "4"], "Any project");
+      assert.deepEqual(ids(h.completedBrowse(rows, "", 1, () => "", {projectId: ""})), ["1", "2", "3", "4"], "All");
       assert.deepEqual(ids(h.completedBrowse(rows, "", 1, () => "")), ["1", "2", "3", "4"], "no filters");
       assert.deepEqual(ids(h.completedBrowse(rows, "paint", 1, () => "", {projectId: "p1"})), ["3"], "the search and the filter combine");
       assert.deepEqual(ids(h.completedBrowse(rows, "paint", 1, () => "", {projectId: "p2"})), []);
