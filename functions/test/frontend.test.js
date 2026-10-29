@@ -17,7 +17,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {pickerViewportBox, withNoneRow, clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagChipItems, projectClientNameById, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSearchText, filterClients, clientDeleteShown, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, clientFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, historyProjectChoices, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, DOUBLE_TAP_MS, tapKind, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, TOAST_MS, REORDER_HINT_TEXT, reorderAllowed, LONG_PRESS_MS, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, managedProject, pickerSavedId, pickerStrayIds, effectiveUrl, urlPlaceholder, completedSelectable, historyBatchPrompt, historyBatchResultText, historyProjectNeeded, historyProjectBody, historyProjectTitle, historyProjectResultText, projectHoursWithPending};`)();
+    return {pickerViewportBox, withNoneRow, clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagChipItems, projectClientNameById, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newClientWarning, setClientBody, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSearchText, filterClients, clientDeleteShown, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, historyProjectChoices, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, DOUBLE_TAP_MS, tapKind, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, TOAST_MS, REORDER_HINT_TEXT, reorderAllowed, LONG_PRESS_MS, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, managedProject, pickerSavedId, pickerStrayIds, effectiveUrl, urlPlaceholder, completedSelectable, historyBatchPrompt, historyBatchResultText, historyProjectNeeded, historyProjectBody, historyProjectTitle, historyProjectResultText, projectHoursWithPending};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -671,7 +671,7 @@ describe("public/index.html helpers", () => {
       };
       const sections = ["manualScheduling", "manualContact", "manualAudit"].map((id) => html.indexOf(`<details class="form-section" id="${id}">`));
       assert.ok(sections.every((i, n) => i > manual && i < queue && (n === 0 || i > sections[n - 1])), "three sections, in order");
-      inOrder(["manualDescription", "manualTags", "manualProject", "manualProjectOrder", "manualNewProject"], manual, sections[0], "the top level");
+      inOrder(["manualDescription", "manualTags", "manualProject", "manualProjectOrder"], manual, sections[0], "the top level");
       const end = (i) => html.indexOf("</details>", i);
       inOrder(["manualPriority", "manualMinutes", "manualDue", "manualRecurFreq", "manualRecurInterval"], sections[0], end(sections[0]), "Scheduling");
       inOrder(["manualPhone", "manualEmail", "manualUrl", "manualLocation"], sections[1], end(sections[1]), "Contact details");
@@ -1933,45 +1933,16 @@ describe("public/index.html helpers", () => {
     const projects = [{id: "p1", name: "Kitchen reno"}];
     it("shows None while no project is chosen", () => {
       const {projectFieldView} = load();
-      for (const value of ["", undefined, null, 5]) assert.deepEqual(projectFieldView(value, "", projects, "Unknown project"), {text: "None", inProject: false});
+      for (const value of ["", undefined, null, 5]) assert.deepEqual(projectFieldView(value, projects, "Unknown project"), {text: "None", inProject: false});
     });
     it("shows a known project's name", () => {
-      assert.deepEqual(load().projectFieldView("p1", "", projects, "Unknown project"), {text: "Kitchen reno", inProject: true});
-    });
-    it("shows New project: Name for the placeholder id, with the name's blanks collapsed", () => {
-      const {projectFieldView, NEW_PROJECT} = load();
-      assert.equal(projectFieldView(NEW_PROJECT, "  Deck   build ", projects, "Unknown project").text, "New project: Deck build");
-      assert.equal(projectFieldView(NEW_PROJECT, "Deck", [], "x").inProject, true);
-      assert.equal(projectFieldView(NEW_PROJECT, undefined, projects, "x").text, "New project", "no name yet");
+      assert.deepEqual(load().projectFieldView("p1", projects, "Unknown project"), {text: "Kitchen reno", inProject: true});
     });
     it("shows the given label for a project the list does not know", () => {
       const {projectFieldView} = load();
-      assert.deepEqual(projectFieldView("gone", "", projects, "Unknown project"), {text: "Unknown project", inProject: true});
-      assert.equal(projectFieldView("gone", "", projects, "Deleted project").text, "Deleted project");
-      assert.equal(projectFieldView("p1", "", undefined, "Unknown project").text, "Unknown project");
-    });
-  });
-  describe("clientFieldView", () => {
-    const clients = [{id: "c1", name: "Smith Ltd"}];
-    it("shows None and offers Add to client while no client is chosen", () => {
-      const {clientFieldView} = load();
-      for (const value of ["", undefined, null, 5]) assert.deepEqual(clientFieldView(value, "", clients), {text: "None", hasClient: false, toggle: "Add to client"});
-    });
-    it("shows a known client's name and offers Remove from client", () => {
-      assert.deepEqual(load().clientFieldView("c1", "", clients), {text: "Smith Ltd", hasClient: true, toggle: "Remove from client"});
-    });
-    it("shows New client: Name for the placeholder id, with the name's blanks collapsed", () => {
-      const {clientFieldView, NEW_CLIENT} = load();
-      assert.equal(clientFieldView(NEW_CLIENT, "  Jo   Smith ", clients).text, "New client: Jo Smith");
-      assert.equal(clientFieldView(NEW_CLIENT, "Jo", []).toggle, "Remove from client");
-      assert.equal(clientFieldView(NEW_CLIENT, undefined, clients).text, "New client", "no name yet");
-      assert.equal(clientFieldView(NEW_CLIENT, "   ", clients).text, "New client", "a blank name is no name");
-    });
-    it("shows Unknown client for an id the list does not know", () => {
-      const {clientFieldView} = load();
-      assert.deepEqual(clientFieldView("gone", "", clients), {text: "Unknown client", hasClient: true, toggle: "Remove from client"});
-      assert.equal(clientFieldView("c1", "", undefined).text, "Unknown client");
-      assert.equal(clientFieldView("c1", "", [null, {id: "c1"}]).text, "Unknown client", "a client with no name");
+      assert.deepEqual(projectFieldView("gone", projects, "Unknown project"), {text: "Unknown project", inProject: true});
+      assert.equal(projectFieldView("gone", projects, "Deleted project").text, "Deleted project");
+      assert.equal(projectFieldView("p1", undefined, "Unknown project").text, "Unknown project");
     });
   });
   describe("the project picker modal and the Project field", () => {
@@ -2024,7 +1995,7 @@ describe("public/index.html helpers", () => {
       assert.match(html, /role="option" id="pickerOpt\$\{i\}"/);
       assert.match(html, /aria-activedescendant/);
       assert.match(html, /\.picker-field \{[^}]*min-height: 44px/);
-      assert.match(html, /\.picker-toggle \{ min-height: 44px; \}/);
+      assert.doesNotMatch(html, /picker-toggle/, "no toggle button is left");
     });
     it("keeps the hidden input, the field button and the Order number in every form, with no toggle", () => {
       for (const prefix of ["manual", "edit", "ce"]) {
@@ -2035,21 +2006,21 @@ describe("public/index.html helpers", () => {
         assert.equal(html.split(`id="${prefix}Project"`).length - 1, 1, `${prefix}Project is made once`);
       }
       for (const prefix of ["manual", "edit"]) {
-        assert.ok(html.includes(`<input type="hidden" id="${prefix}NewProject" value="">`), `${prefix} new project name`);
-        assert.ok(at(`id="${prefix}ProjectOrder"`) > at(`id="${prefix}ProjectField"`) && at(`id="${prefix}ProjectOrder"`) < at(`id="${prefix}NewProject"`), `${prefix} Order sits beside the field`);
+        assert.ok(at(`id="${prefix}ProjectOrder"`) > at(`id="${prefix}ProjectField"`), `${prefix} Order sits beside the field`);
+        assert.doesNotMatch(html, new RegExp(`${prefix}NewProject|${prefix}Client(Choice|Field|Toggle|FormMount|Row|Label)`), `${prefix} has no deferred new project, and no Client choice under the field`);
       }
       assert.doesNotMatch(html, /<select id="(manual|edit|ce)Project"/, "no select is left");
     });
-    it("leaves the Add row out of the completed form's picker", () => {
-      assert.match(html, /\}, \{ opener: document\.getElementById\(`\$\{prefix\}ProjectField`\), allowAdd: prefix !== "ce", noneLabel: "None" \}\);/);
-      const open = html.slice(at("function openPicker("), at("function closePicker()"));
-      assert.match(open, /allowAdd: options\.allowAdd !== false/);
-      const render = html.slice(at("function renderPicker()"), at("function pickerTyped()"));
-      assert.match(render, /state\.add = state\.allowAdd \? view\.add : ""/);
+    it("opens the Queue's modal (kind queue) for all three forms: None first, Add and Manage, no Start from template, Save applies the mark", () => {
+      const open = html.slice(at("function openProjectPicker("), at("// The order number applies only inside a project"));
+      assert.match(open, /openPicker\("queue", document\.getElementById\(`\$\{prefix\}Project`\)\.value, \(pick\) => setProjectField\(prefix, pick\.id\), \{ opener: document\.getElementById\(`\$\{prefix\}ProjectField`\), allowAdd: false, noneLabel: "None", onAdd: addProject, confirm: true, templates: false, title: "Choose a project" \}\);/);
+      assert.doesNotMatch(open, /prefix !== "ce"|prefix === "ce"/, "the completed form gets Add and Manage too");
+      const picker = html.slice(at("function openPicker("), at("function closePicker()"));
+      assert.match(picker, /templates: options\.templates !== false/, "the Queue's own modal keeps Start from template");
+      assert.match(html, /pickerState\.kind === "queue" && pickerState\.templates\);/);
     });
     it("assigns a form's project only through setProjectField, never the hidden input's value", () => {
       assert.doesNotMatch(html, /getElementById\("(manual|edit|ce)Project"\)\.value = /);
-      assert.doesNotMatch(html, /getElementById\("(manual|edit)NewProject"\)\.value = /);
       const setter = html.slice(at("function setProjectField("), at("function openProjectPicker("));
       assert.match(setter, /getElementById\(`\$\{prefix\}Project`\)\.value = value/);
       assert.match(setter, /updateProjectOrderField\(prefix\)/);
@@ -2057,9 +2028,9 @@ describe("public/index.html helpers", () => {
     });
     it("picks None in the picker to clear the choice and the Order number, with no Remove button", () => {
       assert.doesNotMatch(html, /toggleProjectField|Remove from project|Add to project<\/button>/);
-      const order = html.slice(at("function updateProjectOrderField("), at("// The Client choice under a new project's name"));
+      const order = html.slice(at("function updateProjectOrderField("), at("// The client list a project change returned"));
       assert.match(order, /if \(!inProject\) input\.value = "";/);
-      assert.match(order, /renderProjectField\(prefix\);\s*syncNewProjectClient\(prefix\);\s*refreshContact\(prefix\);/);
+      assert.match(order, /renderProjectField\(prefix\);\s*refreshContact\(prefix\);/);
     });
     it("keeps the button disabled until getProjects has answered; the completed form's stays usable with its saved copy on screen, a project change being held", () => {
       const locked = html.slice(at("function projectFieldLocked("), at("// Shows the hidden input's choice"));
@@ -2312,84 +2283,34 @@ describe("public/index.html helpers", () => {
     });
   });
 
-  describe("manualTaskBody with a new project", () => {
-    const form = {title: "Tile floor", priority: "MEDIUM", estimatedMinutes: "60", tags: "", dueDate: "", newProjectName: "  Bathroom reno ", projectOrder: "3"};
-    it("sends the name and the order, never a project id", () => {
-      const {manual} = load().manualTaskBody({...form, projectId: "stale"});
-      assert.equal(manual.newProject, "Bathroom reno");
-      assert.equal(manual.projectOrder, 3);
-      assert.equal("projectId" in manual, false);
-    });
-    it("sends an empty order as null and ignores a blank name", () => {
-      assert.equal(load().manualTaskBody({...form, projectOrder: ""}).manual.projectOrder, null);
-      const {manual} = load().manualTaskBody({...form, newProjectName: "   ", projectId: "p1"});
-      assert.equal("newProject" in manual, false);
+  describe("manualTaskBody with a project", () => {
+    const form = {title: "Tile floor", priority: "MEDIUM", estimatedMinutes: "60", tags: "", dueDate: "", projectId: "p1", projectOrder: "3"};
+    it("sends the project id and the order, and only those", () => {
+      const {manual} = load().manualTaskBody(form);
       assert.equal(manual.projectId, "p1");
+      assert.equal(manual.projectOrder, 3);
+      for (const key of ["newProject", "newClient", "newProjectClientId"]) assert.equal(key in manual, false, key);
     });
-    it("is accepted by the server-side change builder", () => {
-      const {manualTaskChange} = require("../tasks");
-      assert.equal(manualTaskChange(load().manualTaskBody(form).manual).title, "Tile floor");
+    it("sends an empty order as null and nothing without a project", () => {
+      assert.equal(load().manualTaskBody({...form, projectOrder: ""}).manual.projectOrder, null);
+      const {manual} = load().manualTaskBody({...form, projectId: ""});
+      assert.equal("projectId" in manual, false);
+      assert.equal("projectOrder" in manual, false);
     });
-    it("has the page offer the choice and close the details form after an add", () => {
-      assert.ok(html.includes("id=\"manualNewProject\""));
-      assert.match(html, /setProjectField\(prefix, NEW_PROJECT, \{ newName: pick\.name \}\)/);
+    it("has the page close the details form after an add and no deferred project or client left in the add and save paths", () => {
       const finish = html.slice(html.indexOf("function finishAdd"), html.indexOf("The project suggestion dialog"));
       assert.match(finish, /manualToggle"\)\.checked = false/);
       assert.match(finish, /showManualFields\(false\)/);
-      assert.match(finish, /data\.project && data\.projects/);
+      for (const name of ["NEW_PROJECT", "newProjectClientFields", "newProjectClientPick", "syncNewProjectClient", "clientFieldView", "serverOnlyAddFields"]) assert.ok(!html.includes(name), `${name} is gone`);
+      const submit = html.slice(html.indexOf("async function submitTask"), html.indexOf("// Shows what an add returned"));
+      assert.doesNotMatch(submit, /newProject|newClient/);
+      const save = html.slice(html.indexOf("async function saveTaskEdits"), html.indexOf("// Brings the edit form back"));
+      assert.doesNotMatch(save, /newProject|newClient/);
     });
   });
 
-  describe("a new project's client", () => {
-    const form = {title: "Tile floor", priority: "MEDIUM", estimatedMinutes: "60", tags: "", dueDate: "", newProjectName: "Bathroom reno", projectOrder: "1"};
+  describe("the Project field's Manage and Add", () => {
     const jo = {name: "Jo Smith", phone: "", email: "jo@example.com", hourlyRate: "", useWhatsApp: false, location: null, url: ""};
-    it("newProjectClientFields gives the whole client, a stored client's id or nothing, and the whole client wins", () => {
-      const {newProjectClientFields, NEW_CLIENT} = load();
-      assert.deepEqual(newProjectClientFields("", jo), {newClient: jo});
-      assert.deepEqual(newProjectClientFields("c1", jo), {newClient: jo});
-      assert.deepEqual(newProjectClientFields(" c1 ", null), {newProjectClientId: "c1"});
-      for (const id of ["", "  ", null, undefined, 5, NEW_CLIENT]) assert.deepEqual(newProjectClientFields(id, null), {}, String(id));
-      for (const bad of ["Jo", 5, [jo], true]) assert.deepEqual(newProjectClientFields("", bad), {}, JSON.stringify(bad));
-    });
-    it("manualTaskBody sends a stored client's id with a new project, and none without a client", () => {
-      const {manual} = load().manualTaskBody({...form, newProjectClientId: "c1"});
-      assert.equal(manual.newProject, "Bathroom reno");
-      assert.equal(manual.newProjectClientId, "c1");
-      assert.equal("newClient" in manual, false);
-      const bare = load().manualTaskBody({...form, newProjectClientId: ""}).manual;
-      assert.equal("newProjectClientId" in bare, false);
-      assert.equal("newClient" in bare, false);
-    });
-    it("manualTaskBody sends the whole new client, never alongside a client id", () => {
-      const {manual} = load().manualTaskBody({...form, newProjectClientId: "c1", newClient: jo});
-      assert.deepEqual(manual.newClient, jo);
-      assert.equal("newProjectClientId" in manual, false);
-    });
-    it("manualTaskBody drops a client when no project is made now", () => {
-      for (const extra of [{newProjectName: "  "}, {newProjectName: "", projectId: "p1"}]) {
-        const {manual} = load().manualTaskBody({...form, ...extra, newProjectClientId: "c1", newClient: jo});
-        assert.equal("newProjectClientId" in manual, false);
-        assert.equal("newClient" in manual, false);
-      }
-    });
-    it("is accepted by the server: the project and the client are made together and linked", () => {
-      const {withNewProject} = require("../projects");
-      const {manualTaskChange} = require("../tasks");
-      const make = (() => {
-        let n = 0;
-        return () => `id-${++n}`;
-      })();
-      const {manual} = load().manualTaskBody({...form, newClient: jo});
-      const made = withNewProject([], [manualTaskChange(manual)], manual.newProject, make, [], {newProjectClientId: manual.newProjectClientId, newClient: manual.newClient});
-      assert.equal(made.error, undefined);
-      assert.equal(made.clientCreated, true);
-      assert.equal(made.client.name, "Jo Smith");
-      assert.equal(made.project.clientId, made.client.id);
-      assert.equal(made.changes[0].projectId, made.project.id);
-      const stored = withNewProject([], [manualTaskChange(load().manualTaskBody({...form, newProjectClientId: "c1"}).manual)], "Bathroom reno", make, [{id: "c1", name: "Smith Ltd"}], {newProjectClientId: "c1"});
-      assert.equal(stored.project.clientId, "c1");
-      assert.equal(stored.clientCreated, false);
-    });
     it("newClientWarning wants a name, then a usable email, link and rate", () => {
       const {newClientWarning, NEW_CLIENT_NAME_WARNING, INVALID_EMAIL, INVALID_URL, INVALID_RATE} = load();
       assert.equal(newClientWarning(jo), "");
@@ -2401,114 +2322,32 @@ describe("public/index.html helpers", () => {
       assert.equal(newClientWarning({...jo, hourlyRate: "20000"}), INVALID_RATE);
       assert.equal(newClientWarning({...jo, hourlyRate: "85.00", url: "example.com/job"}), "");
     });
-    it("an add that makes a project or a client cannot wait for a connection", () => {
-      const {serverOnlyAddFields, serverOnlyAddText, manualTaskBody, freeTextBody} = load();
-      assert.deepEqual(serverOnlyAddFields(manualTaskBody(form)), ["newProject"]);
-      assert.deepEqual(serverOnlyAddFields(manualTaskBody({...form, newProjectClientId: "c1"})), ["newProject"]);
-      assert.deepEqual(serverOnlyAddFields(manualTaskBody({...form, newClient: jo})), ["newProject", "newClient"]);
-      assert.deepEqual(serverOnlyAddFields(manualTaskBody({...form, newProjectName: "", projectId: "p1"})), []);
-      assert.deepEqual(serverOnlyAddFields(freeTextBody("Mow the lawn")), []);
-      for (const body of [null, undefined, {}, {manual: null}, {manual: {title: "x", newProject: "  "}}, "x"]) assert.deepEqual(serverOnlyAddFields(body), [], JSON.stringify(body));
-      assert.match(serverOnlyAddText(["newProject"]), /^A new project can only be made with a connection, so nothing was added\./);
-      assert.match(serverOnlyAddText(["newProject", "newClient"]), /^A new project and client can only be made/);
-    });
-    it("the add card and the edit modal hold the Client field, its toggle and the client form", () => {
-      for (const prefix of ["manual", "edit"]) {
-        assert.ok(html.includes(`id="${prefix}NewProjectClient"`), prefix);
-        assert.ok(html.includes(`<input type="hidden" id="${prefix}ClientChoice" value="">`), `${prefix} hidden input`);
-        assert.ok(html.includes(`id="${prefix}ClientFormMount"`), prefix);
-        assert.match(html, new RegExp(`<button type="button" id="${prefix}ClientField" class="picker-field"[^>]*onclick="openClientPicker\\('${prefix}'\\)"[^>]*>None</button>`), `${prefix} field button`);
-        assert.match(html, new RegExp(`<button type="button" id="${prefix}ClientToggle"[^>]*onclick="toggleClientField\\('${prefix}'\\)"[^>]*>Add to client</button>`), `${prefix} toggle`);
-        assert.match(html, new RegExp(`id="${prefix}ClientRow" hidden`), `${prefix} field row starts hidden`);
-        assert.ok(html.includes(`mountClientForm("${prefix}Client", "${prefix}ClientFormMount", { nameRow: false })`), `${prefix}: the form's Name row is hidden`);
-        const nameAt = html.indexOf(`id="${prefix}NewProject"`);
-        assert.ok(nameAt > 0 && html.indexOf(`id="${prefix}NewProjectClient"`) > nameAt, `${prefix}: the client choice sits under the new project's name`);
-        assert.ok(html.indexOf(`id="${prefix}ClientField"`) < html.indexOf(`id="${prefix}ClientToggle"`) && html.indexOf(`id="${prefix}ClientToggle"`) < html.indexOf(`id="${prefix}ClientFormMount"`), `${prefix}: field, toggle, then the form`);
-      }
-      assert.doesNotMatch(html, /<select id="(manual|edit)ClientChoice"/, "no select is left");
-      assert.doesNotMatch(html, /new Option\("＋ New client…", NEW_CLIENT\)/, "the select's options are gone");
-    });
-    it("the client form keeps its Name box but hides its row only where the picker names the client", () => {
+    it("the client form always shows its Name row and its ids belong to clientFormHtml alone", () => {
       const {clientFormHtml} = load();
-      const hiddenCount = (markup) => [...markup.matchAll(/ hidden>/g)].length; // the Clear position button is always hidden to start with
-      for (const markup of [clientFormHtml("client"), clientFormHtml("projectClient", {}), clientFormHtml("projectClient", null), clientFormHtml("projectClient", {nameRow: true})]) {
-        assert.equal(hiddenCount(markup), 1, "the Name row shows");
+      for (const prefix of ["client", "projectClient"]) {
+        const markup = clientFormHtml(prefix);
+        assert.equal([...markup.matchAll(/ hidden>/g)].length, 1, "only the Clear position button starts hidden");
         assert.match(markup, /<div class="form-group" style="margin:0;">\s*<label for="\w+Name">Name<\/label>/);
+        const ids = [...markup.matchAll(/id="([^"]+)"/g)].map((m) => m[1]);
+        assert.equal(ids.length, 12);
+        for (const id of ids) assert.equal(html.split(`id="${id}"`).length - 1, 0, `${id} is only made by clientFormHtml`);
       }
-      const hidden = clientFormHtml("editClient", {nameRow: false});
-      assert.match(hidden, /<div class="form-group" style="margin:0;" hidden>\s*<label for="editClientName">Name<\/label>\s*<input type="text" id="editClientName" maxlength="100"/);
-      assert.equal(hiddenCount(hidden), 2, "the Name row, and the Clear position button that was already hidden");
-      assert.equal([...hidden.matchAll(/id="([^"]+)"/g)].length, 12, "the same boxes either way");
-      assert.match(html, /function mountClientForm\(prefix, containerId, options\) \{\s*document\.getElementById\(containerId\)\.innerHTML = clientFormHtml\(prefix, options\);/);
+      assert.match(html, /function mountClientForm\(prefix, containerId\) \{\s*document\.getElementById\(containerId\)\.innerHTML = clientFormHtml\(prefix\);/);
+      assert.ok(!html.includes("nameRow"), "no hidden Name row option is left");
     });
-    it("the Client field follows the picker modal's client kind and the Project field's toggle", () => {
-      const open = html.slice(html.indexOf("function openClientPicker("), html.indexOf("function toggleClientField("));
-      assert.match(open, /openPicker\("client", document\.getElementById\(`\$\{prefix\}ClientChoice`\)\.value,/);
-      assert.match(open, /pick\.name !== undefined\) setClientField\(prefix, NEW_CLIENT, \{ newName: pick\.name \}\);\s*else setClientField\(prefix, pick\.id\);/);
-      assert.match(open, /\{ opener \}\);/, "the Add row stays on: a client can be made");
-      assert.doesNotMatch(open, /allowAdd/);
-      const toggle = html.slice(html.indexOf("function toggleClientField("), html.indexOf("// The place last picked"));
-      assert.match(toggle, /=== ""\) openClientPicker\(prefix, document\.getElementById\(`\$\{prefix\}ClientToggle`\)\);\s*else setClientField\(prefix, ""\);/);
+    it("a form that had a deleted project chosen falls back to None; the completed form keeps its own", () => {
+      const del = html.slice(html.indexOf("async function deleteProject"), html.indexOf("document.getElementById(\"projectClientAddBtn\").addEventListener"));
+      assert.match(del, /for \(const prefix of \["manual", "edit"\]\) \{[^\n]*\n\s*if \(document\.getElementById\(`\$\{prefix\}Project`\)\.value === projectId\) setProjectField\(prefix, ""\);/);
     });
-    it("the Add row's name goes in the form's Name box and the field reads it; any other choice empties the form", () => {
-      const set = html.slice(html.indexOf("function setClientField("), html.indexOf("// Opens the picker for a form's client"));
-      assert.match(set, /getElementById\(`\$\{prefix\}ClientChoice`\)\.value = value;/);
-      assert.match(set, /if \(value === NEW_CLIENT\) document\.getElementById\(`\$\{prefix\}ClientName`\)\.value = newName;\s*updateNewClientForm\(prefix\);/);
-      const render = html.slice(html.indexOf("function renderClientField("), html.indexOf("// Sets a form's client choice"));
-      assert.match(render, /clientFieldView\(choice\.value, nameBox \? nameBox\.value : "", allClients\)/);
-      assert.match(render, /ClientRow`\)\.hidden = !view\.hasClient/);
-      assert.match(render, /ClientToggle`\)\.textContent = view\.toggle/);
-      const update = html.slice(html.indexOf("function updateNewClientForm"), html.indexOf("function renderNewClientChoices"));
-      assert.match(update, /renderClientField\(prefix\)/);
-    });
-    it("assigns a form's client only through setClientField, apart from the two resets", () => {
-      const assigns = [...html.matchAll(/getElementById\(`\$\{prefix\}ClientChoice`\)\.value = [^;]+;/g)].map((m) => m[0]);
-      assert.deepEqual(assigns.sort(), ["getElementById(`${prefix}ClientChoice`).value = \"\";", "getElementById(`${prefix}ClientChoice`).value = value;"], "the reset under syncNewProjectClient and setClientField");
-      assert.doesNotMatch(html, /getElementById\("(manual|edit)ClientChoice"\)\.value = /);
-      const refresh = html.slice(html.indexOf("function renderNewClientChoices"), html.indexOf("function renderClientField"));
-      assert.match(refresh, /choice\.value !== NEW_CLIENT && !allClients\.some\(c => c\.id === choice\.value\)\) choice\.value = "";\s*syncNewProjectClient\(prefix\);/, "a client that is gone is dropped");
-    });
-    it("the client form's ids do not collide with the other boxes of either form", () => {
-      const {clientFormHtml} = load();
-      const ids = [...clientFormHtml("manualClient").matchAll(/id="([^"]+)"/g)].map((m) => m[1]);
-      assert.equal(ids.length, 12);
-      for (const id of ids) assert.ok(id.startsWith("manualClient"), id);
-      for (const id of [...ids, ...[...clientFormHtml("editClient").matchAll(/id="([^"]+)"/g)].map((m) => m[1])]) {
-        assert.equal(html.split(`id="${id}"`).length - 1, 0, `${id} is only made by clientFormHtml`);
-      }
-      for (const id of ["manualClientChoice", "manualClientFormMount", "editClientChoice", "editClientFormMount", "manualNewProjectClient", "editNewProjectClient", "manualClientLabel", "editClientLabel", "manualClientRow", "editClientRow", "manualClientField", "editClientField", "manualClientToggle", "editClientToggle"]) {
-        assert.equal(html.split(`id="${id}"`).length - 1, 1, id);
-        assert.ok(![...ids].includes(id), id);
-      }
-    });
-    it("Add and Save check the new client before sending, and the responses' clients refresh every client view", () => {
-      const submit = html.slice(html.indexOf("async function submitTask"), html.indexOf("// Shows what an add returned"));
-      assert.match(submit, /newProjectClientPick\("manual"\)/);
-      assert.match(submit, /newProjectClientId: clientPick\.clientId/);
-      assert.match(submit, /serverOnlyAddFields\(body\)/);
-      assert.ok(submit.indexOf("clientPick.warning") < submit.indexOf("setLoading(true)"), "a warning stops before anything is sent");
-      assert.ok(submit.indexOf("serverOnlyAddFields") < submit.indexOf("queueFailedAdd"), "an add that needs the server is refused before it is kept");
-      const save = html.slice(html.indexOf("async function saveTaskEdits"), html.indexOf("// Brings the edit form back"));
-      assert.match(save, /newProjectClientPick\("edit"\)/);
-      assert.match(save, /newProjectClientFields\(clientPick\.clientId, clientPick\.client\)/);
-      assert.match(save, /takeClients\(data\)/);
-      const finish = html.slice(html.indexOf("function finishAdd"), html.indexOf("// Clears the add card"));
-      assert.match(finish, /takeClients\(data\)/);
+    it("Add in the form's modal makes the project at once through updateProject, and the client list comes from SET_CLIENT replies only", () => {
+      assert.match(html, /onAdd: addProject, confirm: true, templates: false/);
       const take = html.slice(html.indexOf("function takeClients"), html.indexOf("// The place last picked"));
       assert.match(take, /allClients = data\.clients/);
       assert.match(take, /refreshClientViews\(\)/);
+      const save = html.slice(html.indexOf("async function saveProject"), html.indexOf("// Creates a project, which the modal then marks"));
+      assert.match(save, /takeClients\(data\)/);
       const refresh = html.slice(html.indexOf("function refreshClientViews"), html.indexOf("async function loadClients"));
-      assert.match(refresh, /renderNewClientChoices\(\)/);
-    });
-    it("leaving New project empties the client choice and its form", () => {
-      const field = html.slice(html.indexOf("function updateProjectOrderField"), html.indexOf("function syncNewProjectClient"));
-      assert.match(field, /syncNewProjectClient\(prefix\)/);
-      const sync = html.slice(html.indexOf("function syncNewProjectClient"), html.indexOf("function renderNewClientChoices"));
-      assert.match(sync, /clientsLoaded && document\.getElementById\(`\$\{prefix\}Project`\)\.value === NEW_PROJECT/);
-      assert.match(sync, /ClientChoice`\)\.value = ""/);
-      assert.match(sync, /updateNewClientForm\(prefix\)/);
-      const update = html.slice(html.indexOf("function updateNewClientForm"), html.indexOf("function renderNewClientChoices"));
-      assert.match(update, /fillClientFormBlock\(`\$\{prefix\}Client`, null\)/);
+      assert.doesNotMatch(refresh, /renderNewClientChoices/);
     });
   });
 
@@ -4042,7 +3881,7 @@ describe("public/index.html helpers", () => {
     });
     it("shows the Start from template section with All chosen as well as a project, collapsed on every open, and closes the modal when Start succeeds", () => {
       const fn = html.slice(html.indexOf("function renderPickerTemplates()"), html.indexOf("function pickerTyped()"));
-      assert.match(fn, /hidden = !\(pickerState && pickerState\.kind === "queue"\)/, "no project needed, only the Queue's modal in front");
+      assert.match(fn, /hidden = !\(pickerState && pickerState\.kind === "queue" && pickerState\.templates\)/, "no project needed, only the Queue's modal in front, and not the one a form opens");
       assert.doesNotMatch(fn, /selectedProjectFilter/);
       assert.match(html, /renderPickerManage\(\);\s*renderPickerTemplates\(\);/, "redrawn with the rows");
       assert.match(html, /if \(kind === "queue" && !over\) \{[^}]*getElementById\("pickerTemplates"\)\.open = false;/, "collapsed on every open");
@@ -4705,11 +4544,11 @@ describe("public/index.html helpers", () => {
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
       const inSection = code.match(/(?<!function )warnInSection\(/g) || [];
       assert.equal(inSection.length, 10, "ten validation warnings open the section holding the field at fault first (four in the add card, four in the queued form, two in the completed form)");
-      assert.equal(calls.length - 1 + inSection.length, 67, "the sixty-seven messages the page shows (fourteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and two why a Multi-Select change was not; queueReopen's four refusals share one call and a History batch Delete without a connection adds one; one more says an unused project the Project modal made could not be removed); warnInSection's own askAlert call stands for its ten");
+      assert.equal(calls.length - 1 + inSection.length, 62, "the sixty-two messages the page shows (fourteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and two why a Multi-Select change was not; queueReopen's four refusals share one call and a History batch Delete without a connection adds one; one more says an unused project the Project modal made could not be removed); warnInSection's own askAlert call stands for its ten");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 19, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
-      assert.equal(warnings.length - 1 + inSection.length, 46, "every validation message is a warning alert (queueReopen's refusals are one call, a History batch Delete without a connection another, a project the Project modal could not remove a third)");
+      assert.equal(warnings.length - 1 + inSection.length, 41, "every validation message is a warning alert (queueReopen's refusals are one call, a History batch Delete without a connection another, a project the Project modal could not remove a third)");
       assert.match(code, /function warnInSection\(sectionId, text\) \{\s*openFormSection\(sectionId\);\s*return askAlert\(text, \{ tone: "warning" \}\);/);
     });
     it("hides Cancel for an alert, shows it again for a question and focuses the button", () => {
@@ -4726,11 +4565,8 @@ describe("public/index.html helpers", () => {
       assert.match(dom, /pending\.resolve\(result\);\s*queueMicrotask\(pumpAlerts\);/);
     });
     it("waits for the answer before moving focus to the field the message is about", () => {
-      const at = html.indexOf("async function submitTask");
-      const fn = html.slice(at, at + 1500);
-      assert.match(fn, /await askAlert\("Enter a name for the new project, or choose another project\.", \{ tone: "warning" \}\);\s*document\.getElementById\("manualProjectField"\)\.focus\(\);/);
-      const edit = html.slice(html.indexOf("async function saveTaskEdits"), html.indexOf("async function snoozeFromModal"));
-      assert.match(edit, /await askAlert\("Enter a name for the new project\.", \{ tone: "warning" \}\);\s*document\.getElementById\("editProjectField"\)\.focus\(\);\s*return false;/);
+      const fn = html.slice(html.indexOf("async function addClientToProject"), html.indexOf("async function loadProjects"));
+      assert.match(fn, /await askAlert\(warning, \{ tone: "warning" \}\);\s*if \(!client\.name\) document\.getElementById\("projectClientName"\)\.focus\(\);/);
     });
     it("runs the Settings location and the Clients form through one place search", () => {
       assert.equal((html.match(/function makePlaceSearch\(/g) || []).length, 1);
@@ -4759,13 +4595,11 @@ describe("public/index.html helpers", () => {
       const shared = html.slice(html.indexOf("function makePlaceSearch("), html.indexOf("// Save a Blob as a file download."));
       assert.match(shared, /Nothing found for “\$\{esc\(text\)\}”, so these are places called “\$\{esc\(used\)\}”/);
     });
-    it("lets the edit modal create a project: the picker's Add row, a hidden name, and the name sent as newProject", () => {
-      assert.match(html, /<input type="hidden" id="editNewProject"/);
-      assert.match(html, /setProjectField\(prefix, NEW_PROJECT, \{ newName: pick\.name \}\)/);
+    it("lets the edit modal create a project through the modal's Add, which makes it at once, and saves only the project's id", () => {
+      assert.doesNotMatch(html, /<input type="hidden" id="editNewProject"/);
       const edit = html.slice(html.indexOf("async function saveTaskEdits"), html.indexOf("async function snoozeFromModal"));
-      assert.match(edit, /updatedFields\.newProject = newProject;/);
-      assert.match(edit, /if \(data\.project && data\.projects\) allProjects = data\.projects;/);
-      assert.doesNotMatch(edit, /projectId: NEW_PROJECT|projectId = NEW_PROJECT/, "the placeholder id is never sent");
+      assert.match(edit, /Object\.assign\(updatedFields, projectFields\(document\.getElementById\("editProject"\)\.value, document\.getElementById\("editProjectOrder"\)\.value\)\);/);
+      assert.doesNotMatch(edit, /newProject|newClient/, "the save sends no project to create");
     });
     it("holds a queued task's save and Snooze for later, behind waiting changes or after a connection failure", () => {
       const edit = html.slice(html.indexOf("async function saveTaskEdits"), html.indexOf("async function snoozeFromModal"));
@@ -5370,7 +5204,7 @@ describe("Reordering", () => {
       const actions = html.slice(html.indexOf(`<div class="modal-actions">`, modal), html.indexOf(`id="confirmModal"`, modal));
       assert.ok(actions.indexOf("onclick=\"closePicker()\">Cancel") < actions.indexOf("id=\"pickerSaveBtn\" onclick=\"savePicker()\" hidden>Save"), "Save follows Cancel");
       assert.match(html, /document\.getElementById\("pickerSaveBtn"\)\.hidden = !state\.confirm;/, "only a confirming picker shows it");
-      assert.match(html, /confirm: options\.confirm === true, created: \[\], keep: null,/);
+      assert.match(html, /confirm: options\.confirm === true, templates: options\.templates !== false, created: \[\], keep: null,/);
       const pick = html.slice(html.indexOf("function pickFromPicker("), html.indexOf("function pickerPickAt("));
       assert.match(pick, /if \(state\.confirm\) \{[^}]*\{\s*state\.current = pick\.id;\s*renderPicker\(\);\s*\}\s*return;\s*\}\s*closePicker\(\);\s*state\.onPick\(pick\);/, "a confirming picker marks and stays open, any other closes and picks");
       assert.match(pick, /state\.keep = id;\s*closePicker\(\);\s*state\.onPick\(\{ id \}\);/, "Save applies after the modal has closed");
@@ -5965,7 +5799,6 @@ describe("offline add queue display (page)", () => {
     it("updates the list with the response as finishAdd does, without touching the add card", () => {
       const apply = body("applyQueuedAddResult");
       assert.match(apply, /setTasks\(data\.tasks\)/);
-      assert.match(apply, /allProjects = data\.projects/);
       assert.match(apply, /renderTasks\(\)/);
       assert.doesNotMatch(apply, /taskInput|manualToggle|startNow/);
     });
@@ -6300,7 +6133,7 @@ describe("offline add queue display (page)", () => {
     });
     it("queues the add under that same id only when the failure is the connection's and the body was built", () => {
       const submit = body("submitTask");
-      assert.match(submit, /if \(body && isNetworkError\(err, navigator\.onLine\)\) \{\s*const serverOnly = serverOnlyAddFields\(body\);\s*if \(serverOnly\.length > 0\) \{ askAlert\(serverOnlyAddText\(serverOnly\), \{ tone: "warning" \}\); return; \}[^\n]*\n\s*const refusal = queueFailedAdd\(manual \? "MANUAL" : "TEXT", body, requestId\);/);
+      assert.match(submit, /if \(body && isNetworkError\(err, navigator\.onLine\)\) \{\s*const refusal = queueFailedAdd\(manual \? "MANUAL" : "TEXT", body, requestId\);/);
       assert.match(submit, /if \(refusal\) askAlert\(refusal, \{ tone: "error" \}\);\s*else resetAddForm\(manual\);\s*return;/);
       assert.ok(submit.indexOf("isNetworkError") < submit.indexOf("failureText(\"Error updating tasks\""), "other failures still alert");
     });
@@ -6438,7 +6271,7 @@ describe("offline add queue display (page)", () => {
       assert.doesNotMatch(html, /<input[^>]* id="client(Name|Location|Phone|Email|Url|HourlyRate)"/, "the block's markup comes from clientFormHtml alone");
       assert.doesNotMatch(html, /\bclientCoords\b|\bclientPlaces\b/, "no single-form state is left");
       const mount = html.slice(html.indexOf("function mountClientForm"), html.indexOf("// The Clients card's form: fill it"));
-      assert.match(mount, /innerHTML = clientFormHtml\(prefix, options\)/);
+      assert.match(mount, /innerHTML = clientFormHtml\(prefix\)/);
       assert.match(mount, /getElementById\(`\$\{prefix\}ClearCoordsBtn`\)\.addEventListener/);
       assert.doesNotMatch(mount, /getElementById\("client/, "no id is written out in full");
       const handlers = html.slice(html.indexOf("const clientForms = {}"), html.indexOf("// The Clients card's form: fill it"));
