@@ -1646,7 +1646,6 @@ describe("Multi-Select (BATCH) actions", () => {
       assert.equal(batch({action: "SET_PROJECT"}), null, "a project needs its id");
       assert.equal(batch({action: "SET_PROJECT", projectId: ""}), null);
       assert.deepEqual(batch({action: "SET_PROJECT", projectId: null}).fields, {action: "SET_PROJECT", taskIds: ["b", "d"], projectId: null}, "null takes the tasks out of their project");
-      assert.equal(batch({action: "SET_PROJECT", newProject: "Kitchen"}), null, "a new project needs the server");
       assert.equal(batch({action: "SET_DUE"}), null, "a due date change names its value");
       assert.equal(batch({action: "SET_DUE", dueDate: "2026-02-31"}), null);
       assert.equal(batch({action: "SNOOZE"}), null);

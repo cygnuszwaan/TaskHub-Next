@@ -1809,56 +1809,29 @@ describe("public/index.html helpers", () => {
     const projects = [{id: "p1", name: "Kitchen reno", clientId: "c1"}, {id: "p2", name: "Garden path"}, {id: "p3", name: "Bathroom", clientId: "c2"}, {id: "p4", name: "attic"}];
     const clients = [{id: "c1", name: "Smith Ltd"}, {id: "c2", name: "Jones"}, {id: "c3", name: "Brown"}];
     const ids = (view) => view.rows.map((r) => r.id);
-    const project = (query, counts = {}, items = projects) => load().pickerRows("project", query, items, {clients, counts});
     const client = (query, items = clients, owned = projects) => load().pickerRows("client", query, items, {projects: owned});
-    it("shows every project for an empty bar, the most used first and equal use in name order", () => {
-      assert.deepEqual(ids(project("")), ["p4", "p3", "p2", "p1"], "no use at all: name order, case ignored");
-      assert.deepEqual(ids(project("", {p1: 2, p3: 5})), ["p3", "p1", "p4", "p2"]);
-      assert.deepEqual(ids(project("   ", {p2: 1})), ["p2", "p4", "p3", "p1"], "blanks are an empty bar");
-      assert.deepEqual(ids(project(undefined)), ["p4", "p3", "p2", "p1"]);
-    });
-    it("gives each project row its client's name as detail, empty for a project with none", () => {
-      const rows = project("").rows;
-      assert.deepEqual(rows.find((r) => r.id === "p1"), {id: "p1", name: "Kitchen reno", detail: "Smith Ltd"});
-      assert.deepEqual(rows.find((r) => r.id === "p2"), {id: "p2", name: "Garden path", detail: ""});
-    });
-    it("matches projects by name or client name through filterProjects, still ranked by use", () => {
-      assert.deepEqual(ids(project("KIT")), ["p1"]);
-      assert.deepEqual(ids(project("jones")), ["p3"]);
-      assert.deepEqual(ids(project("reno smith")), ["p1"]);
-      assert.deepEqual(ids(project("a", {p2: 3})), ["p2", "p4", "p3"], "Garden path, attic and Bathroom contain an a: most used first, then name order");
-    });
-    it("caps the rows at 8 and says when more matched", () => {
-      const many = Array.from({length: 11}, (_, i) => ({id: `p${i}`, name: `Job ${String.fromCharCode(65 + i)}`}));
-      const all = project("", {}, many);
+    it("caps the client rows at 8 and says when more matched", () => {
+      const many = Array.from({length: 11}, (_, i) => ({id: `c${i}`, name: `Firm ${String.fromCharCode(65 + i)}`}));
+      const all = client("", many, []);
       assert.equal(load().PICKER_MAX_ROWS, 8);
       assert.equal(all.rows.length, 8);
       assert.equal(all.more, true);
-      assert.deepEqual(ids(all), many.slice(0, 8).map((p) => p.id));
-      const narrowed = project("job k", {}, many);
-      assert.deepEqual(ids(narrowed), ["p10"]);
+      assert.deepEqual(ids(all), many.slice(0, 8).map((c) => c.id));
+      const narrowed = client("firm k", many, []);
+      assert.deepEqual(ids(narrowed), ["c10"]);
       assert.equal(narrowed.more, false);
-      const exactly = project("", {}, many.slice(0, 8));
+      const exactly = client("", many.slice(0, 8), []);
       assert.equal(exactly.rows.length, 8);
       assert.equal(exactly.more, false, "eight is not more than eight");
     });
-    it("offers Add for typed text that matches no name, ignoring case and blank runs, as the server's hasName does", () => {
-      assert.equal(project("").add, "", "nothing typed, nothing to add");
-      assert.equal(project("   ").add, "");
-      assert.equal(project("Deck").add, "Deck");
-      assert.equal(project("  Deck   build ").add, "Deck build", "blanks collapse as the server reads the name");
-      assert.equal(project("kitchen").add, "kitchen", "a part of a name is not the name");
-      assert.equal(project("KITCHEN RENO").add, "", "a taken name, any case");
-      assert.equal(project("kitchen   reno").add, "", "a taken name with extra blanks");
-      assert.equal(project("ATTIC").add, "");
-      assert.equal(project("Smith Ltd").add, "Smith Ltd", "a client's name is not a project's name, so it can be added");
-      assert.deepEqual(ids(project("Smith Ltd")), ["p1"], "while the project of that client still shows");
-    });
-    it("checks the name against every project, not only the rows shown", () => {
-      const many = Array.from({length: 12}, (_, i) => ({id: `p${i}`, name: `Job ${i}`}));
-      const view = project("job 11", {}, many);
-      assert.equal(view.add, "");
-      assert.deepEqual(ids(view), ["p11"]);
+    it("offers Add for a typed client name that matches no name, ignoring case and blank runs, as the server's hasName does", () => {
+      assert.equal(client("").add, "", "nothing typed, nothing to add");
+      assert.equal(client("   ").add, "");
+      assert.equal(client("Acme").add, "Acme");
+      assert.equal(client("  Acme   Co ").add, "Acme Co", "blanks collapse as the server reads the name");
+      assert.equal(client("smith").add, "smith", "a part of a name is not the name");
+      assert.equal(client("SMITH LTD").add, "", "a taken name, any case");
+      assert.equal(client("smith   ltd").add, "", "a taken name with extra blanks");
     });
     it("lists clients by their number of projects and matches every word of the name", () => {
       assert.deepEqual(ids(client("")), ["c2", "c1", "c3"], "one project each for Jones and Smith Ltd (name order), none for Brown");
@@ -1872,19 +1845,17 @@ describe("public/index.html helpers", () => {
     });
     it("copes with missing or odd input and does not modify what it is given", () => {
       const h = load();
-      assert.deepEqual(h.pickerRows("project", "x", undefined, undefined), {rows: [], more: false, add: "x"});
-      assert.deepEqual(h.pickerRows("project", undefined, null, null), {rows: [], more: false, add: ""});
+      assert.deepEqual(h.pickerRows("client", "x", undefined, undefined), {rows: [], more: false, add: "x"});
+      assert.deepEqual(h.pickerRows("client", undefined, null, null), {rows: [], more: false, add: ""});
       assert.deepEqual(h.pickerRows("client", "", [null, 5, {id: "c1", name: "Jo"}], {projects: [null, {clientId: "c1"}]}).rows, [{id: "c1", name: "Jo", detail: ""}]);
       const copy = JSON.stringify([projects, clients]);
-      project("a", {p1: 1});
+      client("a");
       assert.equal(JSON.stringify([projects, clients]), copy);
     });
     it("words each kind's dialog", () => {
-      assert.deepEqual(Object.keys(load().PICKER_KINDS), ["project", "client", "hours", "queue"]);
+      assert.deepEqual(Object.keys(load().PICKER_KINDS), ["client", "hours", "queue"]);
       assert.equal(load().PICKER_KINDS.queue.title, "Projects");
       assert.equal(load().PICKER_KINDS.queue.add("Deck"), "", "the Queue's modal has no Add row");
-      assert.equal(load().PICKER_KINDS.project.title, "Choose a project");
-      assert.equal(load().PICKER_KINDS.project.add("Deck"), "＋ Add “Deck” as a new project");
       assert.equal(load().PICKER_KINDS.client.add("Jo"), "＋ Add “Jo” as a new client");
     });
     it("lists the Queue's projects in the order given, uncapped, with the task count and client at the right and no Add row", () => {
@@ -4044,8 +4015,8 @@ describe("public/index.html helpers", () => {
       const route = html.slice(html.indexOf("function onHistoryBatchAction(kind)"), html.indexOf("async function reopenEntryNow"));
       assert.match(route, /if \(kind === "PROJECT"\) return pickHistoryBatchProject\(\);/);
       const pick = html.slice(html.indexOf("function pickHistoryBatchProject()"), html.indexOf("async function moveEntryNow"));
-      assert.match(pick, /openPicker\("project", "-"/, "no row is marked");
-      assert.match(pick, /allowAdd: false, noneLabel: "None", title: historyProjectTitle\(historySelectedKeys\.size\)/, "None first, no Add row, the count in the title");
+      assert.match(pick, /openPicker\("queue", "", /, "the unified Project modal, None marked");
+      assert.match(pick, /noneLabel: "None", onAdd: addProject, confirm: true, templates: false, title: historyProjectTitle\(historySelectedKeys\.size\)/, "None first, Add and Save, no Start from template, the count in the title");
       assert.match(html, /body: JSON\.stringify\(historyProjectBody\(row, projectId\)\)/);
       const run = html.slice(html.indexOf("async function historyProjectRun(projectId)"), html.indexOf("// Photos on tasks."));
       assert.match(run, /selectedHistoryEntries\(\)/, "every selected entry, shown or not, in list order");
@@ -4309,11 +4280,13 @@ describe("public/index.html helpers", () => {
       assert.ok(html.indexOf("id=\"batchBar\"") > html.indexOf("id=\"taskList\""));
       assert.doesNotMatch(html, /batchProjectPane|batchProjectSetBtn|id="batchProject"|id="batchNewProject"/, "Project has no dialog of its own");
       const pick = html.slice(html.indexOf("function pickBatchProject()"), html.indexOf("function closeBatchModal()"));
-      assert.match(pick, /openPicker\("project", "-", /);
+      assert.match(pick, /openPicker\("queue", "", /, "the unified Project modal, None marked");
       assert.match(pick, /noneLabel: "None"/);
+      assert.match(pick, /onAdd: addProject, confirm: true, templates: false/, "Add and Save as in the single-task fields, no Start from template");
+      assert.match(pick, /title: `Add \$\{count\} to a project`/);
       assert.match(pick, /projectId: null/);
       assert.match(html, /if \(kind === "PROJECT"\) return pickBatchProject\(\);/);
-      assert.match(html, /\{ newProject: pick\.name \}/);
+      assert.doesNotMatch(html, /newProject/, "the page never sends a project to create");
     });
     it("makes a queued card take only taps while selecting, and never makes the Active task selectable", () => {
       const down = html.slice(html.indexOf("const onTaskRowDown"), html.indexOf("const onTaskRowMove"));
@@ -4344,17 +4317,16 @@ describe("public/index.html helpers", () => {
       assert.match(html, /const BATCH_UPDATE_URL = endpoint\("batchUpdateTasks"\);/);
       const fn = html.slice(html.indexOf("async function batchSend"), html.indexOf("// The dialog for the batch actions"));
       assert.match(fn, /apiFetch\(BATCH_UPDATE_URL/);
-      assert.match(fn, /if \(data\.projects\) allProjects = data\.projects;/);
       assert.equal(fn.includes("setSelectMode"), false, "the selection stays for the next action");
       assert.match(fn, /catch \(err\) \{[^}]*askAlert\(/);
       for (const action of ["MOVE_TO_TOP", "SNOOZE", "SET_DUE", "SET_PROJECT"]) assert.ok(html.includes(`batchBody("${action}"`), action);
     });
-    it("keeps a batch for later behind waiting changes or after a connection failure, and never one that needs a new project", () => {
+    it("keeps a batch for later behind waiting changes or after a connection failure", () => {
       const send = html.slice(html.indexOf("async function batchSend"), html.indexOf("// The dialog for the batch actions"));
       assert.match(send, /loadActionQueue\(\);\s*if \(hasPendingActions\(actionQueue\) \|\| actionDraining\) return holdBatch\(body, doneText, true\);/);
       assert.match(send, /if \(isNetworkError\(err, navigator\.onLine\)\) return holdBatch\(body, doneText, false\);/);
       const hold = html.slice(html.indexOf("function holdBatch("), html.indexOf("// One call to batchUpdateTasks"));
-      assert.match(hold, /if \(body\.newProject !== undefined\) \{/);
+      assert.doesNotMatch(hold, /newProject/);
       assert.match(hold, /unheldBatchId\(ids\)/);
       assert.match(hold, /makeQueuedAction\(\{ kind: "BATCH"/);
       assert.equal(hold.includes("setSelectMode"), false, "the selection stays for the next action");
@@ -4544,11 +4516,11 @@ describe("public/index.html helpers", () => {
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
       const inSection = code.match(/(?<!function )warnInSection\(/g) || [];
       assert.equal(inSection.length, 10, "ten validation warnings open the section holding the field at fault first (four in the add card, four in the queued form, two in the completed form)");
-      assert.equal(calls.length - 1 + inSection.length, 62, "the sixty-two messages the page shows (fourteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and two why a Multi-Select change was not; queueReopen's four refusals share one call and a History batch Delete without a connection adds one; one more says an unused project the Project modal made could not be removed); warnInSection's own askAlert call stands for its ten");
+      assert.equal(calls.length - 1 + inSection.length, 61, "the sixty-one messages the page shows (fourteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and one why a Multi-Select change was not; queueReopen's four refusals share one call and a History batch Delete without a connection adds one; one more says an unused project the Project modal made could not be removed); warnInSection's own askAlert call stands for its ten");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 19, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
-      assert.equal(warnings.length - 1 + inSection.length, 41, "every validation message is a warning alert (queueReopen's refusals are one call, a History batch Delete without a connection another, a project the Project modal could not remove a third)");
+      assert.equal(warnings.length - 1 + inSection.length, 40, "every validation message is a warning alert (queueReopen's refusals are one call, a History batch Delete without a connection another, a project the Project modal could not remove a third)");
       assert.match(code, /function warnInSection\(sectionId, text\) \{\s*openFormSection\(sectionId\);\s*return askAlert\(text, \{ tone: "warning" \}\);/);
     });
     it("hides Cancel for an alert, shows it again for a question and focuses the button", () => {

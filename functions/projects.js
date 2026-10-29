@@ -3,7 +3,6 @@
 
 const {normalizeLocation, MAX_LOCATION_NAME_LENGTH} = require("./location");
 const {normalizeUrl, MAX_URL_LENGTH} = require("./contact");
-const {resolveProjectClient} = require("./clients");
 
 const MAX_NAME_LENGTH = 100;
 const MAX_PROJECT_ORDER = 999;
@@ -100,31 +99,6 @@ function addProject(projects, rawName, makeId) {
   return {projects: sortProjects([...projects, project]), project};
 }
 
-// A project created together with the client it carries. Pure: no I/O. `choice` is {newProjectClientId?, newClient?} as
-// resolveProjectClient takes it (`newClient`, the whole client, is created and wins over a stored client's id); `clients` are the stored
-// clients. The project is stored with `clientId` when it carries a client. Returns {projects, project, clients, client, clientCreated}
-// (`client` null and `clients` as given when it carries none) or {error}: the name's error first, then the client's (a taken name, an
-// unusable field, "Client not found").
-function addProjectWithClient(projects, clients, rawName, makeId, choice) {
-  const named = addProject(projects, rawName, makeId);
-  if (named.error) return {error: named.error};
-  const resolved = resolveProjectClient(clients || [], {clientId: choice && choice.newProjectClientId, newClient: choice && choice.newClient}, makeId);
-  if (resolved.error) return {error: resolved.error};
-  if (!resolved.clientId) return {projects: named.projects, project: named.project, clients: resolved.clients, client: null, clientCreated: false};
-  const project = {...named.project, clientId: resolved.clientId};
-  return {projects: sortProjects(named.projects.map((p) => (p.id === project.id ? project : p))), project, clients: resolved.clients, client: resolved.client, clientCreated: resolved.created};
-}
-
-// A manual entry that names a project to create with it. Pure: no I/O. `changes` are the task changes of the entry (see
-// manualTaskChange); each gets the new project's id as its `projectId`, its `projectOrder` left as sent. Returns
-// {projects, project, changes, clients, client, clientCreated} (addProjectWithClient's result plus the changed copies), or {error} for an
-// unusable or taken name or an unusable client. `clients` and `choice` are optional: without them the project carries no client.
-function withNewProject(projects, changes, rawName, makeId, clients, choice) {
-  const added = addProjectWithClient(projects, clients, rawName, makeId, choice);
-  if (added.error) return {error: added.error};
-  return {...added, changes: changes.map((c) => ({...c, projectId: added.project.id}))};
-}
-
 // Rename a project. Pure: no I/O. Returns {projects, project}, {notFound: true} for an unknown id, or {error}.
 function renameProject(projects, projectId, rawName) {
   if (!projects.some((p) => p.id === projectId)) return {notFound: true};
@@ -175,7 +149,5 @@ module.exports = {
   removeProjectFromTasks,
   sortProjects,
   addProject,
-  addProjectWithClient,
-  withNewProject,
   renameProject,
 };

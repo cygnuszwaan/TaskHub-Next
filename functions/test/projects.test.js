@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {MAX_NAME_LENGTH, MAX_PROJECT_ORDER, normalizeProjectName, normalizeProjectOrder, applyProjectFields, projectFieldsOf, removeProjectFromTasks, setProjectLocation, setProjectUrl, sortProjects, addProject, addProjectWithClient, withNewProject, renameProject} = require("../projects");
+const {MAX_NAME_LENGTH, MAX_PROJECT_ORDER, normalizeProjectName, normalizeProjectOrder, applyProjectFields, projectFieldsOf, removeProjectFromTasks, setProjectLocation, setProjectUrl, sortProjects, addProject, renameProject} = require("../projects");
 
 const task = (id, extra = {}) => ({id, title: `Task ${id}`, priority: "MEDIUM", dueDate: "", estimatedMinutes: 15, tags: [], status: "PENDING", ...extra});
 const ids = ["p1", "p2"];
@@ -119,82 +119,6 @@ describe("projects.js", () => {
       const input = [{id: "3", name: "beta"}, {id: "2", name: "Alpha"}, {id: "1", name: "alpha"}];
       assert.deepEqual(sortProjects(input).map((p) => p.id), ["1", "2", "3"]);
       assert.deepEqual(input.map((p) => p.id), ["3", "2", "1"]);
-    });
-  });
-
-  describe("withNewProject", () => {
-    const makeId = () => "new-id";
-    it("adds the project and points every change at it, keeping the order number", () => {
-      const r = withNewProject([{id: "p1", name: "Zed"}], [{title: "A", projectOrder: 2}, {title: "B"}], "  Kitchen   reno ", makeId);
-      assert.deepEqual(r.project, {id: "new-id", name: "Kitchen reno"});
-      assert.deepEqual(r.projects.map((p) => p.name), ["Kitchen reno", "Zed"]);
-      assert.deepEqual(r.changes, [{title: "A", projectOrder: 2, projectId: "new-id"}, {title: "B", projectId: "new-id"}]);
-    });
-    it("does not change its inputs", () => {
-      const projects = [{id: "p1", name: "Zed"}];
-      const changes = [{title: "A", projectId: "p1"}];
-      withNewProject(projects, changes, "Alpha", makeId);
-      assert.deepEqual(projects, [{id: "p1", name: "Zed"}]);
-      assert.deepEqual(changes, [{title: "A", projectId: "p1"}]);
-    });
-    it("carries a client onto the project, not onto the changes", () => {
-      const clients = [{id: "c1", name: "Smith", phone: "", email: ""}];
-      const stored = withNewProject([], [{title: "A"}], "Deck", makeId, clients, {newProjectClientId: "c1"});
-      assert.equal(stored.project.clientId, "c1");
-      assert.deepEqual(stored.changes, [{title: "A", projectId: "new-id"}]);
-      assert.equal(stored.clientCreated, false);
-      const made = withNewProject([], [{title: "A"}], "Deck", makeId, clients, {newClient: {name: "Jo"}});
-      assert.equal(made.project.clientId, "new-id");
-      assert.equal(made.clientCreated, true);
-      assert.deepEqual(made.clients.map((c) => c.name), ["Jo", "Smith"]);
-      assert.deepEqual(made.changes, [{title: "A", projectId: "new-id"}]);
-    });
-    it("returns nothing when the client is unusable", () => {
-      const clients = [{id: "c1", name: "Smith", phone: "", email: ""}];
-      assert.deepEqual(withNewProject([], [{title: "A"}], "Deck", makeId, clients, {newProjectClientId: "zzz"}), {error: "Client not found"});
-      assert.match(withNewProject([], [{title: "A"}], "Deck", makeId, clients, {newClient: {name: "SMITH"}}).error, /already exists/);
-    });
-    it("refuses an unusable or taken name", () => {
-      assert.ok(withNewProject([], [{title: "A"}], "  ", makeId).error);
-      assert.ok(withNewProject([{id: "p1", name: "Garden"}], [{title: "A"}], "GARDEN", makeId).error);
-    });
-  });
-
-  describe("addProjectWithClient", () => {
-    const clients = [{id: "c1", name: "Smith", phone: "", email: ""}];
-    let n = 0;
-    const makeId = () => `id${++n}`;
-    it("stores the project with no clientId and leaves the clients alone when it carries none", () => {
-      const r = addProjectWithClient([], clients, "Deck", makeId, {});
-      assert.deepEqual(r.project.name, "Deck");
-      assert.equal("clientId" in r.project, false);
-      assert.deepEqual([r.client, r.clientCreated, r.clients], [null, false, clients]);
-    });
-    it("gives the project a stored client", () => {
-      const r = addProjectWithClient([{id: "p0", name: "Zed"}], clients, "Deck", makeId, {newProjectClientId: "c1"});
-      assert.equal(r.project.clientId, "c1");
-      assert.deepEqual(r.projects.map((p) => p.name), ["Deck", "Zed"]);
-      assert.equal(r.projects[0].clientId, "c1");
-      assert.deepEqual([r.client, r.clientCreated, r.clients], [clients[0], false, clients]);
-    });
-    it("creates a new client for the project, and it wins over a stored id", () => {
-      const r = addProjectWithClient([], clients, "Deck", () => "new1", {newProjectClientId: "c1", newClient: {name: "Jo", phone: "021"}});
-      assert.deepEqual(r.client, {id: "new1", name: "Jo", phone: "021", email: ""});
-      assert.equal(r.project.clientId, "new1");
-      assert.equal(r.clientCreated, true);
-      assert.deepEqual(r.clients.map((c) => c.id), ["new1", "c1"]);
-      assert.equal(clients.length, 1);
-    });
-    it("refuses an unknown client id, a taken or unusable client and a bad project name, returning no partial result", () => {
-      assert.deepEqual(addProjectWithClient([], clients, "Deck", makeId, {newProjectClientId: "zzz"}), {error: "Client not found"});
-      assert.match(addProjectWithClient([], clients, "Deck", makeId, {newClient: {name: "smith"}}).error, /already exists/);
-      assert.match(addProjectWithClient([], clients, "Deck", makeId, {newClient: {name: "x", email: "bad"}}).error, /not a valid/);
-      assert.match(addProjectWithClient([{id: "p1", name: "Deck"}], clients, "deck", makeId, {newClient: {name: "Jo"}}).error, /project named/);
-      assert.match(addProjectWithClient([], clients, "  ", makeId, {newClient: {name: "Jo"}}).error, /non-empty/);
-    });
-    it("works with no clients list at all", () => {
-      assert.equal(addProjectWithClient([], undefined, "Deck", makeId, undefined).project.name, "Deck");
-      assert.deepEqual(addProjectWithClient([], undefined, "Deck", makeId, {newProjectClientId: "c1"}), {error: "Client not found"});
     });
   });
 

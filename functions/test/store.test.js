@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {withNewProject} = require("../projects");
+const {addClient} = require("../clients");
 const {checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore} = require("../store");
 
 const task = (id, order, extra = {}) => ({id, title: `Task ${id}`, priority: "MEDIUM", dueDate: "", estimatedMinutes: 15, tags: [], status: "PENDING", order, ...extra});
@@ -434,19 +434,20 @@ describe("makeTaskStore: withClients", () => {
   it("commits a new client, a new project and a task together, and nothing when the mutation errors", async () => {
     const db = fakeDb({a: task("a", 1)}, {}, clients);
     const store = makeTaskStore(db);
-    const made = await store.updateTaskList((tasks, tx, {projects, clients: stored}) => {
-      const r = withNewProject(projects, [{title: "n"}], "Deck", () => "new1", stored, {newClient: {name: "Jo"}});
-      tx.set(db.collection("projects").doc(r.project.id), r.project);
+    const made = await store.updateTaskList((tasks, tx, {clients: stored}) => {
+      const r = addClient(stored, {name: "Jo"}, () => "new1");
+      const project = {id: "new1", name: "Deck", clientId: r.client.id};
+      tx.set(db.collection("projects").doc(project.id), project);
       tx.set(db.collection("clients").doc(r.client.id), r.client);
-      return {tasks: [...tasks, task("t2", 2, {projectId: r.project.id})], client: r.client};
+      return {tasks: [...tasks, task("t2", 2, {projectId: project.id})], client: r.client};
     }, {withProjects: true, withClients: true});
     assert.equal(made.client.id, "new1");
     assert.deepEqual(db.data.clients.get("new1"), {id: "new1", name: "Jo", phone: "", email: ""});
     assert.deepEqual(db.data.projects.get("new1"), {id: "new1", name: "Deck", clientId: "new1"});
     assert.equal(db.data.tasks.has("t2"), true);
     const before = db.log.length;
-    const refused = await store.updateTaskList((tasks, tx, {projects, clients: stored}) => {
-      const r = withNewProject(projects, [{title: "n"}], "Other", () => "new2", stored, {newClient: {name: "JO"}});
+    const refused = await store.updateTaskList((tasks, tx, {clients: stored}) => {
+      const r = addClient(stored, {name: "JO"}, () => "new2");
       return {error: r.error, current: tasks};
     }, {withProjects: true, withClients: true});
     assert.match(refused.error, /already exists/);

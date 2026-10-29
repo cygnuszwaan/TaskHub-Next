@@ -58,11 +58,7 @@ A change usually touches several rows: a new endpoint touches an `endpoints-*.md
 
 ## Roadmap
 
-Each step fits in one turn, adds tests for any new pure logic and updates the `docs/` files it names. The steps are independent unless one says it needs an earlier step.
-
-Goal: one Project picker. The Queue's Project filter modal (`kind: queue`: uncapped rows with task count and client, Add button beside the search, collapsible Manage) is the model for every Project picker except History's filter (`kind: hours`, unchanged: it still closes on a row tap and has no Save). Start from template stays unique to the Queue's modal. The single-task Project fields already use it; the pickers left are the Multi-Select Project buttons of the Queue and History.
-
-1. Move both Multi-Select Project buttons onto the unified modal (title "Add 3 tasks to a project", None first); the batch is sent on Save, so the Add row's `newProject` in `batchBody` goes. Then delete the dead code: `kind: project`'s capped list and Add row, and the server's now unused `newProject`, `newProjectClientId` and `newClient` fields in `addOrUpdateTask`, `updateTaskDirect` and `batchUpdateTasks` (`withNewProject`) if nothing else sends them. Update `frontend-queue.md`, `frontend-project-modal.md`, `frontend-history.md`, `offline-edits.md`, `endpoints-tasks.md`, `backend-modules.md`.
+No steps are planned.
 
 Unplanned ideas are in `stretch-goals.md`.
 

@@ -225,19 +225,6 @@ describe("tasks.js", () => {
     it("applies the fields and leaves the task alone when recurrence is not mentioned", () => {
       assert.deepEqual(applyDirectUpdate({...base, recurrence: weekly}, {title: "A2"}), {...base, title: "A2", recurrence: weekly});
     });
-    it("never stores a newProject name on the task (the endpoint turns it into a projectId)", () => {
-      const out = applyDirectUpdate(base, {title: "A2", newProject: "Kitchen reno", projectId: "p9", projectOrder: 2}, ["p9"]);
-      assert.equal("newProject" in out, false);
-      assert.equal(out.projectId, "p9");
-      assert.equal(out.projectOrder, 2);
-    });
-    it("never stores a new project's client choice on the task", () => {
-      const out = applyDirectUpdate(base, {title: "A2", newProject: "Deck", newProjectClientId: "c1", newClient: {name: "Jo"}, projectId: "p9"}, ["p9"]);
-      assert.equal("newProjectClientId" in out, false);
-      assert.equal("newClient" in out, false);
-      assert.equal(out.title, "A2");
-      assert.equal(out.projectId, "p9");
-    });
     it("never changes addedAt through an edit", () => {
       const task = {...base, addedAt: "2026-01-01T00:00:00.000Z"};
       assert.equal(applyDirectUpdate(task, {addedAt: "2030-01-01T00:00:00.000Z", title: "A2"}).addedAt, "2026-01-01T00:00:00.000Z");

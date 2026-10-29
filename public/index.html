@@ -2520,7 +2520,6 @@
     // What the modal says for each kind of choice: its title, the search bar's label and placeholder, the list's label, the line for a list
     // with nothing in it, the line for a search that matches nothing, and the Add row's text for the typed name.
     const PICKER_KINDS = {
-      project: { title: "Choose a project", search: "Search projects", placeholder: "Search projects or clients", list: "Projects", empty: "No projects yet.", noMatch: "No projects match.", add: (name) => `＋ Add “${name}” as a new project` },
       client: { title: "Choose a client", search: "Search clients", placeholder: "Search clients", list: "Clients", empty: "No clients yet.", noMatch: "No clients match.", add: (name) => `＋ Add “${name}” as a new client` },
       hours: { title: "Choose a project", search: "Search projects", placeholder: "Search projects", list: "Projects", empty: "No projects yet.", noMatch: "No projects match.", add: () => "" },
       queue: { title: "Projects", search: "Search projects, or name a new project", placeholder: "Search projects or clients, or type a new project name", list: "Projects", empty: "No projects yet.", noMatch: "No projects match the search.", add: () => "" }
@@ -2561,17 +2560,11 @@
         };
       }
       const used = {};
-      let matched;
-      if (kind === "client") {
-        for (const p of Array.isArray(ctx.projects) ? ctx.projects : []) {
-          if (p && p.clientId) used[p.clientId] = (used[p.clientId] || 0) + 1;
-        }
-        const words = text.toLowerCase().split(/\s+/).filter(Boolean);
-        matched = list.filter((c) => words.every((w) => String(c.name || "").toLowerCase().includes(w)));
-      } else {
-        Object.assign(used, ctx.counts && typeof ctx.counts === "object" ? ctx.counts : {});
-        matched = filterProjects(list, clients, text);
+      for (const p of Array.isArray(ctx.projects) ? ctx.projects : []) {
+        if (p && p.clientId) used[p.clientId] = (used[p.clientId] || 0) + 1;
       }
+      const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+      const matched = list.filter((c) => words.every((w) => String(c.name || "").toLowerCase().includes(w)));
       const nameOf = (item) => String(item.name || "");
       const ranked = matched.map((item, index) => ({ item, index }))
         .sort((a, b) => (used[b.item.id] || 0) - (used[a.item.id] || 0) || nameOf(a.item).toLowerCase().localeCompare(nameOf(b.item).toLowerCase()) || a.index - b.index)
@@ -2579,7 +2572,7 @@
       const typed = text.replace(/\s+/g, " ").trim();
       const taken = list.some((item) => nameOf(item).toLowerCase() === typed.toLowerCase());
       return {
-        rows: ranked.slice(0, PICKER_MAX_ROWS).map((item) => ({ id: item.id, name: nameOf(item), detail: kind === "client" ? "" : projectClientName(item, clients) })),
+        rows: ranked.slice(0, PICKER_MAX_ROWS).map((item) => ({ id: item.id, name: nameOf(item), detail: "" })),
         more: ranked.length > PICKER_MAX_ROWS,
         add: typed && !taken ? typed : ""
       };
@@ -4116,7 +4109,7 @@
       return "pending-" + requestId;
     }
     const TIMER_ACTIONS = ["START", "PAUSE", "ABORT"];
-    const BATCH_ACTIONS = ["MOVE_TO_TOP", "SET_PROJECT", "SET_DUE", "SNOOZE"]; // what a held Multi-Select change can do (the server's batchUpdateTasks, less a new project)
+    const BATCH_ACTIONS = ["MOVE_TO_TOP", "SET_PROJECT", "SET_DUE", "SNOOZE"]; // what a held Multi-Select change can do (the server's batchUpdateTasks)
     const MAX_BATCH = 500; // the most tasks one batch names (the server's limit)
     const EDIT_FIELDS = ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "url", "location", "snoozedUntil", "description", "materials"]; // what a queued task's EDIT holds
     const ENTRY_EDIT_FIELDS = ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "url", "location", "description", "projectId"]; // what a History entry's EDIT holds (the plain fields of the archive row and its project; materials and the completion time need the server)
@@ -7742,12 +7735,8 @@
 
     // Keeps a Multi-Select change (the body batchSend built) for later as a BATCH action and shows it at once, keeping the selection.
     // `behind` is true when it was kept only because other changes are waiting (the connection may be fine), so the queue is sent now.
-    // Refused with an alert, the selection kept, when it needs a new project, names a task a waiting Reopen brought back, or the queue is full.
+    // Refused with an alert, the selection kept, when it names a task a waiting Reopen brought back, or the queue is full.
     function holdBatch(body, doneText, behind) {
-      if (body.newProject !== undefined) {
-        askAlert(behind ? "Changes are waiting to be sent, and a new project can only be made once they are. Choose an existing project, or try again in a moment." : "A new project needs a connection. Choose an existing project, or try again when you are back online.", { tone: "warning" });
-        return;
-      }
       const ids = [...body.taskIds].filter(id => allTasks.some(t => t.id === id));
       if (ids.length === 0) return;
       if (unheldBatchId(ids)) {
@@ -7769,7 +7758,7 @@
 
     // One call to batchUpdateTasks for the selected tasks; `doneText(count, data)` words the result. Success and failure both keep the selection.
     // Changes already waiting go first: the batch is kept behind them, with a connection or not, so the order holds; a connection
-    // failure keeps it too (holdBatch), unless it needs a new project, which only the server can make.
+    // failure keeps it too (holdBatch).
     async function batchSend(body, doneText) {
       closeBatchModal();
       loadActionQueue();
@@ -7780,7 +7769,6 @@
       try {
         const res = await apiFetch(BATCH_UPDATE_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
         const data = await res.json();
-        if (data.projects) allProjects = data.projects; // a project made with the batch
         setTasks(data.tasks || allTasks);
         batchBusy = false; // Multi-Select and the selection stay, ready for another action
         renderFilterBar();
@@ -7813,20 +7801,20 @@
       }
       showLayer("batchModal", closeBatchModal);
     }
-    // Multi-Select Project has no dialog of its own: the picker modal opens at once, titled with the count, its first row None, and the pick is sent
-    // straight away: a project (SET_PROJECT), None (`projectId: null`, which takes the tasks out of their project) or the Add row's new project.
+    // Multi-Select Project has no dialog of its own: the unified Project modal opens at once, titled with the count, its first row None (marked), and
+    // Save sends the mark: a project (SET_PROJECT) or None (`projectId: null`, which takes the tasks out of their project). Add makes the project at once;
+    // the modal deletes it again unless Save kept it.
     function pickBatchProject() {
       const ids = [...selectedIds];
       if (ids.length === 0) return;
+      if (!projectsLoaded) { setBatchStatus("Projects have not loaded yet. Try again in a moment."); return; }
       const count = taskCountText(ids.length);
-      openPicker("project", "-", (pick) => {
-        if (pick.name !== undefined) batchSend(batchBody("SET_PROJECT", ids, { newProject: pick.name }), n => `Added ${taskCountText(n)} to “${pick.name}”.`);
-        else if (pick.id === "") batchSend(batchBody("SET_PROJECT", ids, { projectId: null }), n => `Took ${taskCountText(n)} out of their project.`);
-        else {
-          const project = allProjects.find(p => p.id === pick.id);
-          batchSend(batchBody("SET_PROJECT", ids, { projectId: pick.id }), n => `Added ${taskCountText(n)} to “${project ? project.name : "the project"}”.`);
-        }
-      }, { opener: document.querySelector('[data-batch="PROJECT"]'), noneLabel: "None", title: `Add ${count} to a project` });
+      openPicker("queue", "", (pick) => {
+        if (typeof pick.id !== "string") return;
+        if (pick.id === "") { batchSend(batchBody("SET_PROJECT", ids, { projectId: null }), n => `Took ${taskCountText(n)} out of their project.`); return; }
+        const project = allProjects.find(p => p.id === pick.id);
+        batchSend(batchBody("SET_PROJECT", ids, { projectId: pick.id }), n => `Added ${taskCountText(n)} to “${project ? project.name : "the project"}”.`);
+      }, { opener: document.querySelector('[data-batch="PROJECT"]'), allowAdd: false, noneLabel: "None", onAdd: addProject, confirm: true, templates: false, title: `Add ${count} to a project` });
     }
     function closeBatchModal() {
       hideLayer("batchModal");
@@ -8283,15 +8271,15 @@
       await fetchCompleted(); // the lists as the server now has them, with what is waiting on top; the selection keeps what is still there
     }
 
-    // Multi-Select Project: the picker modal opens at once (the Queue's way), titled with the count, None first and no Add row (a completed entry
-    // cannot make a project), and the pick is sent as soon as it is made.
+    // Multi-Select Project: the unified Project modal opens at once, titled with the count, None first (marked); Save sends the mark. Add makes the
+    // project at once and the modal deletes it again unless Save kept it.
     function pickHistoryBatchProject() {
       if (historySelectedKeys.size === 0) return;
       if (!projectsLoaded) { setHistoryBatchStatus("Projects have not loaded yet. Try again in a moment."); return; }
-      openPicker("project", "-", (pick) => {
-        if (pick.id === undefined) return;
+      openPicker("queue", "", (pick) => {
+        if (typeof pick.id !== "string") return;
         historyProjectRun(pick.id);
-      }, { opener: document.getElementById("historyBatchProjectBtn"), allowAdd: false, noneLabel: "None", title: historyProjectTitle(historySelectedKeys.size) });
+      }, { opener: document.getElementById("historyBatchProjectBtn"), allowAdd: false, noneLabel: "None", onAdd: addProject, confirm: true, templates: false, title: historyProjectTitle(historySelectedKeys.size) });
     }
     // Puts one entry in a project through updateCompletedTask. Returns {message, offline}: a message means it failed, `offline` that the call never
     // reached the server.
