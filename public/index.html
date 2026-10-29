@@ -1900,6 +1900,13 @@
       return project ? `${project.id}|${typeof project.url === "string" ? project.url : ""}` : "";
     }
 
+    // The project the Queue's Project modal manages: the one marked in the modal (its `current`), only while that modal is the one in front
+    // (kind queue) and the project still exists; null for All, a client picker in front or a project that is gone.
+    function managedProject(picker, projects) {
+      if (!picker || picker.kind !== "queue" || !picker.current) return null;
+      return (Array.isArray(projects) ? projects : []).find(p => p.id === picker.current) || null;
+    }
+
     // The own location a task form holds: `text` is the Location box and `picked` the place last picked into it ({name, latitude, longitude})
     // or null. Null for an empty box; the picked place (with its map position) while the text is still its name; else just the typed name.
     function locationFromBox(text, picked) {
@@ -7029,6 +7036,7 @@
         return;
       }
       pickerState = null;
+      managedProjectId = null;
       hideLayer("pickerModal");
       document.getElementById("pickerAddBtn").hidden = true;
       document.getElementById("pickerStatus").textContent = "";
@@ -7071,11 +7079,12 @@
       if (options > 0) search.setAttribute("aria-activedescendant", `pickerOpt${state.active}`);
       else search.removeAttribute("aria-activedescendant");
     }
-    // The Manage section of the Queue's Project modal: shown while that modal is the one in front and a project is chosen, headed by its name.
+    // The Manage section of the Queue's Project modal: shown while that modal is the one in front and a project is marked in it, headed by its name.
     function renderPickerManage() {
-      const chosen = pickerState && pickerState.kind === "queue" ? allProjects.find(p => p.id === selectedProjectFilter) || null : null;
+      const chosen = managedProject(pickerState, allProjects);
       document.getElementById("pickerManage").hidden = !chosen;
       document.getElementById("pickerManageName").textContent = chosen ? `· ${chosen.name}` : "";
+      if (pickerState && pickerState.kind === "queue") renderManage(chosen); // a picker in front of it leaves the fixed markup as it is
     }
     // The Start from template section: shown, with All chosen as well as a project, while the Queue's Project modal is the one in front.
     function renderPickerTemplates() {
@@ -8983,33 +8992,42 @@
       renderProjectFields(); // the buttons unlock once the list is known, and the names follow it
       // A filter on a project that no longer exists (deleted here or elsewhere) is dropped
       if (selectedProjectFilter !== null && !allProjects.some(p => p.id === selectedProjectFilter)) selectedProjectFilter = null;
-      const actions = document.getElementById("projectActions");
       const chosen = allProjects.find(p => p.id === selectedProjectFilter) || null;
       const field = document.getElementById("queueProjectField");
       field.textContent = chosen ? chosen.name || "Untitled project" : QUEUE_ALL_PROJECTS;
       field.disabled = false;
-      if (pickerState && pickerState.kind === "queue") renderPicker(); // the modal's rows and its Manage heading follow a rename, a client or a count
+      if (pickerState && pickerState.kind === "queue") renderPicker(); // the modal's rows and its Manage section follow a rename, a client or a count
+    }
+
+    // The project Manage works on (the one marked in the modal, `managedProject`), set by renderManage and cleared when the modal closes;
+    // the Location and Link rows and the address search act on it.
+    let managedProjectId = null;
+    // Draws the Manage section's contents for `chosen` (null: nothing marked): its Rename, Delete and Client rows, the client form, the
+    // Location and Link rows and Save as template. Called by renderPickerManage while the Queue's modal is the one in front.
+    function renderManage(chosen) {
+      managedProjectId = chosen ? chosen.id : null;
       syncProjectClientForm(chosen);
-      if (allProjects.length === 0) {
-        actions.innerHTML = "";
-        renderProjectLocation(null);
-        renderProjectUrl(null);
-        document.getElementById("projectTemplateAction").innerHTML = "";
-        return;
-      }
-      actions.innerHTML = chosen ? `
+      setManageHtml("projectActions", chosen ? `
         <div class="project-row" data-id="${esc(chosen.id)}">
           <span class="project-name">${esc(chosen.name)}</span>
           <button type="button" class="btn-secondary" data-action="rename">Rename</button>
           <button type="button" class="btn-danger" data-action="delete">Delete</button>
         </div>
-        <div class="project-row" data-id="${esc(chosen.id)}">${clientPickerHtml(chosen)}</div>` : "";
+        <div class="project-row" data-id="${esc(chosen.id)}">${clientPickerHtml(chosen)}</div>` : "");
       renderProjectLocation(chosen);
       renderProjectUrl(chosen);
-      document.getElementById("projectTemplateAction").innerHTML = chosen ? `
+      setManageHtml("projectTemplateAction", chosen ? `
         <div class="project-row" data-id="${esc(chosen.id)}">
           <button type="button" class="btn-secondary" data-action="saveTemplate">📋 Save as template</button>
-        </div>` : "";
+        </div>` : "");
+    }
+    // Sets an element's markup only when it differs from what was last drawn there, so a redraw that changes nothing (the rows retyped, a
+    // picker closing over the modal) keeps the buttons, and the focus on one, as they are.
+    function setManageHtml(id, html) {
+      const el = document.getElementById(id);
+      if (el.dataset.shown === html) return;
+      el.dataset.shown = html;
+      el.innerHTML = html;
     }
 
     // The chosen project's Location row, whose markup is fixed (the address autocomplete is bound to it once). Its text is replaced only
@@ -9220,7 +9238,7 @@
       if (projectId === null || !allProjects.some(p => p.id === projectId)) return Promise.resolve(false);
       return saveProject({ action: "SET_LOCATION", projectId, location }, location ? "Saved." : "Location cleared.");
     }
-    document.getElementById("projectLocationClearBtn").addEventListener("click", () => setProjectLocation(selectedProjectFilter, null));
+    document.getElementById("projectLocationClearBtn").addEventListener("click", () => setProjectLocation(managedProjectId, null));
     // Save link sends the typed link (an empty box takes the project's own link off, so it uses its client's); a bad link is a warning alert
     // and nothing is sent. Clear empties the box and takes the link off.
     async function setProjectUrl(projectId, text) {
@@ -9229,10 +9247,10 @@
       if (url === undefined) { await askAlert(INVALID_URL, { tone: "warning" }); return false; }
       return saveProject({ action: "SET_URL", projectId, url }, url ? "Saved." : "Link cleared.");
     }
-    document.getElementById("projectUrlSaveBtn").addEventListener("click", () => setProjectUrl(selectedProjectFilter, document.getElementById("projectUrlInput").value));
-    document.getElementById("projectUrlClearBtn").addEventListener("click", () => setProjectUrl(selectedProjectFilter, null));
+    document.getElementById("projectUrlSaveBtn").addEventListener("click", () => setProjectUrl(managedProjectId, document.getElementById("projectUrlInput").value));
+    document.getElementById("projectUrlClearBtn").addEventListener("click", () => setProjectUrl(managedProjectId, null));
     document.getElementById("projectUrlInput").addEventListener("keydown", e => {
-      if (e.key === "Enter") { e.preventDefault(); setProjectUrl(selectedProjectFilter, e.target.value); }
+      if (e.key === "Enter") { e.preventDefault(); setProjectUrl(managedProjectId, e.target.value); }
     });
 
     // Project templates: saved from a project's queued tasks and started as a new project, through updateProjectTemplate.
@@ -10169,9 +10187,9 @@
     mountClientForm("projectClient", "projectClientFormMount");
     if (CONFIG.placesApiKey) {
       document.getElementById("projectPlaceSearchBtn").hidden = true;
-      projectPlaces = makePlacesAutocomplete({ queryId: "projectLocationInput", resultsId: "projectPlaceResults", getBias: () => currentSettings && currentSettings.location ? currentSettings.location : null, getContext: () => selectedProjectFilter, onPick: (place, projectId) => setProjectLocation(projectId, placeLocation(place)) });
+      projectPlaces = makePlacesAutocomplete({ queryId: "projectLocationInput", resultsId: "projectPlaceResults", getBias: () => currentSettings && currentSettings.location ? currentSettings.location : null, getContext: () => managedProjectId, onPick: (place, projectId) => setProjectLocation(projectId, placeLocation(place)) });
     } else {
-      makePlaceSearch({ queryId: "projectLocationInput", buttonId: "projectPlaceSearchBtn", resultsId: "projectPlaceResults", showZone: false, queries: placeQueries, clearQuery: false, onPick: place => setProjectLocation(selectedProjectFilter, placeLocation(place)) });
+      makePlaceSearch({ queryId: "projectLocationInput", buttonId: "projectPlaceSearchBtn", resultsId: "projectPlaceResults", showZone: false, queries: placeQueries, clearQuery: false, onPick: place => setProjectLocation(managedProjectId, placeLocation(place)) });
     }
     for (const prefix of ["manual", "edit", "ce"]) {
       const onPick = place => {
