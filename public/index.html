@@ -87,6 +87,11 @@
     .select-row { display: flex; gap: 6px; margin-top: 10px; }
     .select-row button { flex: 1; min-width: 0; box-sizing: border-box; height: 36px; padding-top: 0; padding-bottom: 0; line-height: 1.2; overflow: hidden; } /* a fixed height, so a fallback font's taller ✓ or ✕ cannot make the row grow */
     .swipe-row.shifting { transition: transform 0.15s ease; }
+    /* Drop strips shown while a card is lifted: releasing the card on one sends it to the top or the bottom of the list. */
+    .reorder-strip { position: fixed; left: 8px; right: 8px; z-index: 90; box-sizing: border-box; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: var(--primary); background: var(--surface); border: 2px dashed var(--primary); border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.12); pointer-events: none; }
+    .reorder-strip[hidden] { display: none; }
+    .reorder-strip.active { color: white; background: var(--primary); border-style: solid; }
+    #reorderStripBottom { bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
     .swipe-row.lifted { z-index: 4; transition: none; background: var(--surface); box-shadow: 0 8px 20px rgba(0,0,0,0.28), 0 0 0 2px var(--primary); cursor: grabbing; }
     .batch-status { font-size: 13px; margin-top: 8px; color: var(--text-strong); }
     .batch-status:empty { display: none; }
@@ -819,6 +824,8 @@
     <button type="button" id="undoNoteBtn">Undo</button>
   </footer>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="reorderStripTop" class="reorder-strip" aria-hidden="true" hidden>▲ Send to top</div>
+  <div id="reorderStripBottom" class="reorder-strip" aria-hidden="true" hidden>▼ Send to bottom</div>
 
   <div id="editModal" class="modal-overlay" onclick="closeModalOnOverlay(event)">
     <div class="modal-card">
@@ -3769,6 +3776,20 @@
       let to = 0;
       (mids || []).forEach((m, i) => { if (i !== from && m < centre) to++; });
       return to;
+    }
+    // While a card is lifted, two strips can sit at the top and bottom of the screen: releasing on one sends the card to the first or
+    // the last place. `topEdge` is the top strip's bottom edge and `bottomEdge` the bottom strip's top edge (null when that strip is not
+    // shown); a pointer at `y` is in the top zone at or above the first and in the bottom zone at or below the second, else in none ("").
+    function reorderZoneAt(y, topEdge, bottomEdge) {
+      if (topEdge !== null && topEdge !== undefined && y <= topEdge) return "top";
+      if (bottomEdge !== null && bottomEdge !== undefined && y >= bottomEdge) return "bottom";
+      return "";
+    }
+    // Where a lifted card ends up: the first place in the top zone, the last in the bottom zone, otherwise where it was dragged to.
+    function reorderDropIndex(zone, mids, from, centre) {
+      if (zone === "top") return 0;
+      if (zone === "bottom") return Math.max(0, (mids || []).length - 1);
+      return dragTargetIndex(mids, from, centre);
     }
     // The `queueNumber` to send for moving the card at index `from` of `ids` (the shown task ids, in list order) to index
     // `to`: the number of the card now at `to`, which the moved task takes (`numbers` maps task id to task number). null
@@ -7542,12 +7563,12 @@
     // A queued card held for LONG_PRESS_MS (onTaskRowDown times the hold) lifts, for touch and mouse alike. The lifted card
     // follows the pointer, the cards it passes slide aside, and releasing sends the move (reorderTask). The page scrolls
     // itself when the pointer nears its top or bottom edge, and Escape or a cancelled touch drops the card where it was.
-    // `reorderDrag` is {id, item, row, pointerId, clientY, rows, mids, from, to, height, startDocY, raf} and exists only while a card is lifted.
+    // `reorderDrag` is {id, item, row, pointerId, clientY, rows, mids, from, to, height, startDocY, raf, zone, strips} and exists only while a card is lifted.
     function startReorderPress(press, item) {
       if (reorderDrag) endReorderDrag(false);
       const row = item.closest(".swipe-row");
       if (!row || !press) return;
-      const d = { id: item.dataset.id, item, row, pointerId: press.pointerId, clientY: press.lastY, rows: [], mids: [], from: -1, to: -1, height: 0, startDocY: 0, raf: null };
+      const d = { id: item.dataset.id, item, row, pointerId: press.pointerId, clientY: press.lastY, rows: [], mids: [], from: -1, to: -1, height: 0, startDocY: 0, raf: null, zone: "", strips: { top: null, bottom: null } };
       reorderDrag = d;
       liftReorderCard(d);
     }
@@ -7561,17 +7582,41 @@
       d.height = d.row.getBoundingClientRect().height;
       d.startDocY = d.clientY + window.scrollY;
       d.to = d.from;
+      showReorderStrips(d);
       try { d.item.setPointerCapture(d.pointerId); } catch (err) { /* the drag still works without it */ }
       for (const r of d.rows) r.classList.add(r === d.row ? "lifted" : "shifting");
       if (navigator.vibrate) navigator.vibrate(20);
       paintReorder(d);
       d.raf = requestAnimationFrame(() => reorderScrollStep(d));
     }
+    // Shows the drop strips that would move the card (none for Send to top on the first card, none for Send to bottom on the last), the top
+    // one just under the pinned header.
+    function showReorderStrips(d) {
+      const top = document.getElementById("reorderStripTop");
+      const bottom = document.getElementById("reorderStripBottom");
+      d.strips = { top: d.from > 0 ? top : null, bottom: d.from < d.rows.length - 1 ? bottom : null };
+      if (d.strips.top) {
+        top.style.top = `${document.querySelector(".app-header").getBoundingClientRect().bottom + 6}px`;
+        top.hidden = false;
+      }
+      if (d.strips.bottom) bottom.hidden = false;
+    }
+    function hideReorderStrips() {
+      for (const id of ["reorderStripTop", "reorderStripBottom"]) {
+        const el = document.getElementById(id);
+        el.hidden = true;
+        el.classList.remove("active");
+      }
+    }
+    // The screen edges of the shown strips, for reorderZoneAt (null for a strip that is not shown).
+    function reorderStripEdges(d) {
+      return { top: d.strips.top ? d.strips.top.getBoundingClientRect().bottom : null, bottom: d.strips.bottom ? d.strips.bottom.getBoundingClientRect().top : null };
+    }
     // Draws the lifted card at the pointer and slides the cards between its old and new place by its height.
     function paintReorder(d) {
       const dy = d.clientY + window.scrollY - d.startDocY;
       d.row.style.transform = `translateY(${dy}px) scale(1.02)`;
-      d.to = dragTargetIndex(d.mids, d.from, d.mids[d.from] + dy);
+      d.to = reorderDropIndex(d.zone, d.mids, d.from, d.mids[d.from] + dy);
       d.rows.forEach((r, i) => {
         if (i === d.from) return;
         const up = d.from < d.to && i > d.from && i <= d.to;
@@ -7583,9 +7628,10 @@
     function reorderScrollStep(d) {
       if (reorderDrag !== d) return;
       const EDGE = 64, MAX = 16;
-      const top = document.querySelector(".app-header").getBoundingClientRect().bottom;
-      const bottom = window.innerHeight - EDGE;
-      const speed = d.clientY < top + EDGE ? -Math.min(MAX, (top + EDGE - d.clientY) / 4) : d.clientY > bottom ? Math.min(MAX, (d.clientY - bottom) / 4) : 0;
+      const edges = reorderStripEdges(d); // the scroll bands start where the shown drop strips end; on a strip the page holds still
+      const top = edges.top !== null ? edges.top : document.querySelector(".app-header").getBoundingClientRect().bottom;
+      const bottom = (edges.bottom !== null ? edges.bottom : window.innerHeight) - EDGE;
+      const speed = d.zone ? 0 : d.clientY < top + EDGE ? -Math.min(MAX, (top + EDGE - d.clientY) / 4) : d.clientY > bottom ? Math.min(MAX, (d.clientY - bottom) / 4) : 0;
       if (speed !== 0) {
         window.scrollBy(0, speed);
         paintReorder(d);
@@ -7597,6 +7643,14 @@
       if (!d || e.pointerId !== d.pointerId) return;
       d.clientY = e.clientY;
       if (!d.row.isConnected) return endReorderDrag(false); // the list was redrawn under the drag
+      const edges = reorderStripEdges(d);
+      const zone = reorderZoneAt(d.clientY, edges.top, edges.bottom);
+      if (zone !== d.zone) {
+        d.zone = zone;
+        document.getElementById("reorderStripTop").classList.toggle("active", zone === "top");
+        document.getElementById("reorderStripBottom").classList.toggle("active", zone === "bottom");
+        if (zone && navigator.vibrate) navigator.vibrate(10);
+      }
       paintReorder(d);
     }
     // A lifted card holds the page still: stops the scroll a touch drag would start (the listener is not passive).
@@ -7615,6 +7669,7 @@
       if (!d) return;
       if (d.raf !== null) cancelAnimationFrame(d.raf);
       for (const r of d.rows) { r.classList.remove("lifted", "shifting"); r.style.transform = ""; }
+      hideReorderStrips();
       const ids = d.rows.map(r => r.querySelector(".task-item").dataset.id);
       const number = drop && d.row.isConnected ? reorderQueueNumber(ids, d.from, d.to, taskNumbers) : null;
       if (number !== null) reorderTask(d.id, number);
