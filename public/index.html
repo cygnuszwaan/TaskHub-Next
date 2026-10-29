@@ -614,7 +614,7 @@
         <div class="batch-actions">
           <button type="button" data-history-batch="REOPEN">↩️ Reopen</button>
           <button type="button" class="btn-danger" data-history-batch="DELETE">🗑️ Delete</button>
-          <button type="button" id="historyBatchProjectBtn" disabled>📁 Project</button>
+          <button type="button" id="historyBatchProjectBtn" data-history-batch="PROJECT">📁 Project</button>
         </div>
       </div>
     </div>
@@ -3595,6 +3595,30 @@
         return held > 0 ? `${text} ${held === 1 ? "1 is" : `${held} are`} waiting to be sent.` : text;
       }
       return `${verb} ${done} of ${taskCountText(total)}. ${failed} failed (${message}); ${failed === 1 ? "it is" : "they are"} still selected.`;
+    }
+    // History Multi-Select Project: whether `entry` needs an updateCompletedTask call to be in `projectId` ("" for none). An entry already
+    // there is left alone, since the server answers "Nothing to change" (a 400) for it and the batch would count it as failed.
+    function historyProjectNeeded(entry, projectId) {
+      const row = entry && typeof entry === "object" ? entry : {};
+      const target = typeof projectId === "string" ? projectId : "";
+      const current = typeof row.projectId === "string" ? row.projectId : "";
+      if (target === "") return current !== "" || (row.projectOrder !== undefined && row.projectOrder !== null);
+      return current !== target;
+    }
+    // The body posted to updateCompletedTask to put one entry in `projectId` ("" for none, sent as null: a project change drops the order number).
+    function historyProjectBody(entry, projectId) {
+      return { id: entry.archiveId, updatedFields: { projectId: projectId ? projectId : null } };
+    }
+    // The title of the picker for the batch Project: "Add 3 tasks to a project".
+    function historyProjectTitle(count) {
+      return `Add ${taskCountText(count)} to a project`;
+    }
+    // The status line after a History batch Project: `name` is the project's name, "" for None; `message` is the last failure's text.
+    function historyProjectResultText(total, failed, name, message) {
+      const verb = name ? "Added" : "Took";
+      const where = name ? `to “${name}”` : "out of their project";
+      if (failed === 0) return `${verb} ${taskCountText(total)} ${where}.`;
+      return `${verb} ${total - failed} of ${taskCountText(total)} ${where}. ${failed} failed (${message}); ${failed === 1 ? "it is" : "they are"} still selected.`;
     }
     // The body posted to batchUpdateTasks.
     function batchBody(action, taskIds, extra) {
@@ -8222,7 +8246,6 @@
       for (const btn of document.querySelectorAll("#historyBatchBar [data-history-batch]")) btn.disabled = historyBatchBusy || historySelectedKeys.size === 0;
       document.getElementById("historyBatchAllBtn").disabled = historyBatchBusy;
       document.getElementById("historyBatchNoneBtn").disabled = historyBatchBusy;
-      document.getElementById("historyBatchProjectBtn").disabled = true; // wired to the picker in a later step
     }
     function toggleHistorySelected(key) {
       if (!historySelectMode || historyBatchBusy || !historyShownKeys.has(key)) return;
@@ -8237,6 +8260,7 @@
     }
     function onHistoryBatchAction(kind) {
       if (!historySelectMode || historyBatchBusy || historySelectedKeys.size === 0) return;
+      if (kind === "PROJECT") return pickHistoryBatchProject();
       historyBatchRun(kind);
     }
     // Reopens one entry with no form, as the form's Reopen does for an entry with no edits: held (the queue is not empty, or the connection
@@ -8319,6 +8343,69 @@
       if (failedKeys.length === 0) setHistorySelectMode(false);
       setHistoryBatchStatus(historyBatchResultText(kind, entries.length, failedKeys.length, message, held));
       await fetchCompleted(); // the lists as the server now has them, with what is waiting on top; the selection keeps what is still there
+    }
+
+    // Multi-Select Project: the picker modal opens at once (the Queue's way), titled with the count, None first and no Add row (a completed entry
+    // cannot make a project), and the pick is sent as soon as it is made.
+    function pickHistoryBatchProject() {
+      if (historySelectedKeys.size === 0) return;
+      if (!projectsLoaded) { setHistoryBatchStatus("Projects have not loaded yet. Try again in a moment."); return; }
+      openPicker("project", "-", (pick) => {
+        if (pick.id === undefined) return;
+        historyProjectRun(pick.id);
+      }, { opener: document.getElementById("historyBatchProjectBtn"), allowAdd: false, noneLabel: "None", title: historyProjectTitle(historySelectedKeys.size) });
+    }
+    // Puts one entry in a project through updateCompletedTask. Returns {message, offline}: a message means it failed, `offline` that the call never
+    // reached the server.
+    async function moveEntryNow(row, projectId) {
+      try {
+        await apiFetch(UPDATE_COMPLETED_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(historyProjectBody(row, projectId))
+        });
+        return { message: "", offline: false };
+      } catch (err) {
+        const offline = isNetworkError(err, navigator.onLine);
+        return { message: offline ? "no connection" : err.message, offline };
+      }
+    }
+    // Puts every selected entry, shown or not, in `projectId` ("" for none): no confirmation, one call per entry in list order, one at a time; an entry
+    // already there needs no call. It needs a connection: without one nothing is sent, and once a call finds the connection gone the rest are not
+    // tried. An entry whose call fails stays selected; after a success Multi-Select and the selection stay on, and the lists are read once at the end.
+    async function historyProjectRun(projectId) {
+      const entries = selectedHistoryEntries();
+      if (entries.length === 0 || historyBatchBusy) return;
+      const project = projectId ? allProjects.find(p => p.id === projectId) : null;
+      if (projectId && !project) return;
+      if (!navigator.onLine) {
+        await askAlert("Changing the project of completed tasks needs a connection. Try again when you are back online.", { tone: "warning" });
+        return;
+      }
+      historyBatchBusy = true;
+      setHistoryBatchStatus("");
+      updateHistoryBatchBar();
+      const failedKeys = [];
+      let message = "";
+      let offline = false;
+      try {
+        for (const row of entries) {
+          if (offline) { failedKeys.push(row.archiveId); continue; } // the connection is gone: not tried
+          if (!historyProjectNeeded(row, projectId)) continue;
+          const result = await moveEntryNow(row, projectId);
+          if (result.message) {
+            failedKeys.push(row.archiveId);
+            message = result.message;
+            if (result.offline) offline = true;
+          }
+        }
+      } finally {
+        historyBatchBusy = false;
+      }
+      if (failedKeys.length > 0) historySelectedKeys = new Set(failedKeys);
+      updateHistoryBatchBar();
+      setHistoryBatchStatus(historyProjectResultText(entries.length, failedKeys.length, project ? project.name : "", message));
+      await fetchCompleted(); // the lists as the server now has them; the selection keeps what is still there
     }
 
     // Photos on tasks. The edit form of a completed task (keyed by archive id) and of a task in the queue (keyed by task id)
