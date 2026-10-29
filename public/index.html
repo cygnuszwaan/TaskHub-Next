@@ -141,6 +141,9 @@
     .project-section { margin-top: 12px; }
     .project-section > .settings-status:empty { display: none; }
     .add-section { margin-bottom: 12px; }
+    /* The manual details sit in their own tinted box so they do not read as a continuation of the filters below them. */
+    #manualFields { padding: 12px 14px; background: var(--hover); border: 1px solid var(--border-chip); border-radius: 8px; margin-bottom: 14px; }
+    #manualFields > .form-section:last-child { margin-bottom: 0; }
     .picker-search-row { display: flex; gap: 6px; align-items: center; }
     .picker-search-row #pickerSearch { flex: 1; min-width: 0; }
     .picker-search-row button[hidden] { display: none; }
