@@ -22,7 +22,7 @@ const {PROJECTS_COLLECTION, ADD_REQUESTS_DOC, makeTaskStore, makeProjectStore, m
 const {startFromTemplate} = require("./projectTemplates");
 const {UNAVAILABLE, weatherUrl, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
-const {buildTaskPrompt, buildTagPrompt} = require("./prompts");
+const {buildTaskPrompt, buildTagPrompt, buildPlacePrompt} = require("./prompts");
 const {checkProposal, acceptProposalInList, applyChanges} = require("./proposal");
 const {MAX_TEMPLATES, buildTemplates} = require("./templates");
 const {heldTaskIds} = require("./materials");
@@ -86,6 +86,12 @@ const ALLOWED_ORIGINS = ["https://taskhub-next.web.app", "https://taskhub-next.f
 const ownerOnly = makeOwnerOnly((token) => admin.auth().verifyIdToken(token), () => OWNER_EMAIL.value());
 
 // JSON Schema for the tags the model suggests for a task entered by hand
+const placeSchema = {
+  type: Type.OBJECT,
+  properties: {order: {type: Type.INTEGER}},
+  required: ["order"],
+};
+
 const tagSchema = {
   type: Type.OBJECT,
   properties: {tags: {type: Type.ARRAY, items: {type: Type.STRING}}},
@@ -607,19 +613,36 @@ exports.addOrUpdateTask = onRequest({
       const change = manualTaskChange(body.manual);
       if (!change) return res.status(400).send({error: "A manual entry needs a title"});
       changes = [change];
-      if (needsTagFill(change)) {
+      // The model fills what the owner left empty: tags, and the place in the queue when no task number was given. Both are asked at
+      // once and either failing only logs: the task is added without tags, or at the end.
+      const wantsTags = needsTagFill(change);
+      const wantsPlace = change.order === undefined;
+      if (wantsTags || wantsPlace) {
         try {
-          const currentTasks = await readTaskList();
+          const [currentTasks, {timeZone}] = await Promise.all([readTaskList(), readSettings()]);
           const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
-          const response = await ai.models.generateContent({
+          const [tags, order] = await Promise.all([
+          !wantsTags ? null : ai.models.generateContent({
             model: MODEL_NAME,
             contents: buildTagPrompt({title: change.title, knownTags: currentTasks.flatMap((t) => t.tags || [])}),
             config: {responseMimeType: "application/json", responseSchema: tagSchema},
-          });
-          const tags = cleanTags(JSON.parse(response.text).tags);
-          if (tags.length > 0) change.tags = tags;
+          }).then((response) => cleanTags(JSON.parse(response.text).tags)).catch((err) => {
+            console.warn("Tag suggestion failed; adding the task without tags:", err.message);
+            return null;
+          }),
+          !wantsPlace ? null : ai.models.generateContent({
+            model: MODEL_NAME,
+            contents: buildPlacePrompt({tasks: currentTasks, task: change, today: localDate(timeZone)}),
+            config: {responseMimeType: "application/json", responseSchema: placeSchema},
+          }).then((response) => JSON.parse(response.text).order).catch((err) => {
+            console.warn("Place suggestion failed; adding the task at the end:", err.message);
+            return null;
+          }),
+          ]);
+          if (tags && tags.length > 0) change.tags = tags;
+          if (Number.isInteger(order) && order >= 1) change.order = order;
         } catch (err) {
-          console.warn("Tag suggestion failed; adding the task without tags:", err.message);
+          console.warn("Could not read the list for suggestions; adding the task untagged, at the end:", err.message);
         }
       }
     } else {

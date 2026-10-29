@@ -98,3 +98,25 @@ describe("buildTagPrompt", () => {
     assert.match(buildTagPrompt({title: "x"}), /Tags already in use[^\n]*\[\]/);
   });
 });
+
+describe("buildPlacePrompt", () => {
+  const {buildPlacePrompt} = require("../prompts");
+  const tasks = [
+    {id: "b", title: "Second\njob", priority: "Low", dueDate: "", estimatedMinutes: 30, order: 5, description: "secret", materials: [{text: "paint"}]},
+    {id: "a", title: "First job", priority: "High", dueDate: "2026-11-02", estimatedMinutes: 15, order: 2},
+  ];
+  it("shows the queue in order as 1..n with only the fields that tell urgency, and the new task", () => {
+    const p = buildPlacePrompt({tasks, task: {title: "Fix\n gate", priority: "Medium", dueDate: "", estimatedMinutes: 20}, today: "2026-10-30"});
+    assert.match(p, /Today's date is: 2026-10-30/);
+    assert.ok(p.indexOf("\"title\": \"First job\"") < p.indexOf("\"title\": \"Second job\""), "queue order, not stored order");
+    assert.match(p, /"order": 1,\s*"title": "First job"/);
+    assert.match(p, /"order": 2,\s*"title": "Second job"/, "titles on one line, ranks 1..n whatever the gaps");
+    assert.match(p, /New task to add: \{"title":"Fix gate","priority":"Medium","dueDate":"","estimatedMinutes":20\}/);
+    assert.match(p, /from 1 to 3/);
+    assert.doesNotMatch(p, /secret|paint|"id"/, "no descriptions, materials or ids");
+  });
+  it("works on an empty queue or a missing list", () => {
+    assert.match(buildPlacePrompt({tasks: [], task: {title: "x"}, today: "2026-10-30"}), /from 1 to 1/);
+    assert.match(buildPlacePrompt({tasks: undefined, task: undefined, today: "2026-10-30"}), /from 1 to 1/);
+  });
+});

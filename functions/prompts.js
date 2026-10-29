@@ -73,4 +73,27 @@ function buildTagPrompt({title, knownTags = []}) {
     `;
 }
 
-module.exports = {buildTaskPrompt, buildTagPrompt};
+// The prompt that picks a place in the queue for a task the owner entered by hand without a task number. Pure: no I/O.
+//   tasks: the stored task list (the model sees the fields it needs to judge urgency, in queue order as 1..n)
+//   task:  {title, priority, dueDate, estimatedMinutes} as entered
+//   today: the current local date, YYYY-MM-DD
+// The model sees only titles and scheduling fields, never descriptions or materials.
+function buildPlacePrompt({tasks, task, today}) {
+  const ranked = (Array.isArray(tasks) ? tasks : []).map((t, i) => [t, i]).sort((a, b) => (a[0].order || 0) - (b[0].order || 0) || a[1] - b[1]).map((pair) => pair[0]);
+  const queue = ranked.map(({title, priority, dueDate, estimatedMinutes}, i) => ({order: i + 1, title: oneLine(title), priority, dueDate, estimatedMinutes}));
+  const entry = {title: oneLine(task && task.title), priority: task && task.priority, dueDate: (task && task.dueDate) || "", estimatedMinutes: task && task.estimatedMinutes};
+  return `
+      You are an expert task queue organizer. Today's date is: ${today}.
+      
+      Current queue, in order (order 1 is done first):
+      ${JSON.stringify(queue, null, 2)}
+      
+      New task to add: ${JSON.stringify(entry)}
+      
+      Choose the order this new task should hold once it is added, from 1 to ${queue.length + 1}: ahead of the tasks that are less
+      urgent or due later, behind those that are more urgent or due sooner, and at ${queue.length + 1} (the end) when nothing is
+      less urgent. Existing tasks keep their relative order. Return ONLY the order.
+    `;
+}
+
+module.exports = {buildTaskPrompt, buildTagPrompt, buildPlacePrompt};
