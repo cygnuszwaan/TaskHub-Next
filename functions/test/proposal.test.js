@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {MIN_STEPS, MAX_STEPS, MAX_APPLY_CHANGES, namesProject, normalizeStep, checkProposal, normalizeProposal, proposalChanges, acceptProposalInList, applyChanges} = require("../proposal");
+const {MIN_STEPS, MAX_STEPS, MAX_APPLY_CHANGES, namesProject, normalizeStep, checkProposal, normalizeProposal, proposalChanges, stepsDescription, withStepsNote, acceptProposalInList, applyChanges} = require("../proposal");
 
 const step = (n, extra = {}) => ({title: `Step ${n}`, priority: "MEDIUM", estimatedMinutes: 30, tags: ["Indoor"], ...extra});
 const steps = (n) => Array.from({length: n}, (_, i) => step(i + 1));
@@ -238,6 +238,42 @@ describe("proposal.js", () => {
       assert.match(why(raw({name: "kitchen reno"})), /already exists/);
       assert.match(why(raw(), {...opts, input: "tile the deck"}), /names an existing project/);
       assert.equal(checkProposal(raw(), {...opts, input: "tile the deck"}).proposal, undefined);
+    });
+  });
+  describe("stepsDescription and withStepsNote", () => {
+    const proposal = {name: "P", steps: [step(1, {description: "Wear a mask\nH5 piles"}), step(2), step(3)]};
+    it("numbers the steps and indents a step's own description under it", () => {
+      assert.equal(stepsDescription(proposal), "1. Step 1\n   Wear a mask\n   H5 piles\n2. Step 2\n3. Step 3");
+    });
+    it("falls back to the titles alone when the full text is over 2000 characters", () => {
+      const long = {steps: [step(1, {description: "x".repeat(2000)}), step(2), step(3)]};
+      assert.equal(stepsDescription(long), "1. Step 1\n2. Step 2\n3. Step 3");
+    });
+    it("puts the steps in the description of the one new task a declined suggestion adds", () => {
+      const out = withStepsNote([{title: "Renovate", order: 1}], proposal);
+      assert.equal(out.length, 1);
+      assert.equal(out[0].title, "Renovate");
+      assert.equal(out[0].description, stepsDescription(proposal));
+    });
+    it("keeps the model's own description first, a blank line before the steps, and never exceeds 2000 characters", () => {
+      const out = withStepsNote([{title: "Renovate", description: "Budget 5k"}], proposal);
+      assert.equal(out[0].description, `Budget 5k\n\n${stepsDescription(proposal)}`);
+      const crowded = withStepsNote([{title: "Renovate", description: "y".repeat(2000)}], proposal)[0].description;
+      assert.equal(crowded.length <= 2000, true);
+      assert.equal(crowded.endsWith(stepsDescription(proposal)), true);
+    });
+    it("leaves any other list alone: none, several new tasks, or a change to an existing task", () => {
+      assert.deepEqual(withStepsNote([], proposal), []);
+      const several = [{title: "a"}, {title: "b"}];
+      assert.deepEqual(withStepsNote(several, proposal), several);
+      const existing = [{id: "t1", title: "a"}];
+      assert.deepEqual(withStepsNote(existing, proposal), existing);
+      assert.deepEqual(withStepsNote(undefined, proposal), []);
+    });
+    it("does not modify the changes it is given", () => {
+      const changes = [{title: "Renovate"}];
+      withStepsNote(changes, proposal);
+      assert.equal("description" in changes[0], false);
     });
   });
 });

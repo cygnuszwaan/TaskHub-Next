@@ -50,10 +50,17 @@ describe("description.js", () => {
   });
 
   describe("the model", () => {
-    it("never sets or changes description, on an update or a new task", () => {
+    it("never sets or changes description, on an update or a new task, unless the caller allows it", () => {
       const merged = mergeTaskChanges([withDescription()], [{id: "t1", title: "Paint fence", description: "Hacked"}, {title: "New task", description: "Nope"}], makeId);
       assert.equal(merged.tasks.find((t) => t.id === "t1").description, withDescription().description);
       assert.equal("description" in merged.tasks.find((t) => t.title === "New task"), false);
+    });
+    it("sets a long input's description on a new task when allowed, trimmed and cut to 2000 characters, and still never on an update", () => {
+      const long = `  ${"x".repeat(2500)}  `;
+      const merged = mergeTaskChanges([withDescription()], [{id: "t1", title: "Paint fence", description: "Hacked"}, {title: "New task", description: long}, {title: "Short one", description: "   "}], makeId, [], {description: true});
+      assert.equal(merged.tasks.find((t) => t.id === "t1").description, withDescription().description);
+      assert.equal(merged.tasks.find((t) => t.title === "New task").description, "x".repeat(MAX_DESCRIPTION_LENGTH));
+      assert.equal("description" in merged.tasks.find((t) => t.title === "Short one"), false);
     });
     it("keeps description when it updates other fields", () => {
       const merged = mergeTaskChanges([withDescription()], [{id: "t1", title: "Paint the fence", priority: "HIGH"}], makeId);

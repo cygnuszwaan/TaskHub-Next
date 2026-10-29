@@ -29,7 +29,7 @@ describe("fingerprint.js", () => {
     });
     it("changes with any scheduling-relevant task field", () => {
       const base = fp();
-      const changes = [{title: "Other"}, {priority: "HIGH"}, {dueDate: "2026-10-25"}, {estimatedMinutes: 45}, {tags: ["Outdoor"]}, {recurrence: {frequency: "WEEKLY", interval: 1}}, {order: 5}, {projectId: "p1"}, {projectId: "p1", projectOrder: 2}];
+      const changes = [{title: "Other"}, {description: "Wear a mask"}, {priority: "HIGH"}, {dueDate: "2026-10-25"}, {estimatedMinutes: 45}, {tags: ["Outdoor"]}, {recurrence: {frequency: "WEEKLY", interval: 1}}, {order: 5}, {projectId: "p1"}, {projectId: "p1", projectOrder: 2}];
       for (const change of changes) {
         assert.notEqual(fp({tasks: [task("a", change), task("b", {order: 2})]}), base, JSON.stringify(change));
       }

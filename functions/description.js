@@ -1,6 +1,6 @@
 /* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
-// Task descriptions: free text the owner writes about a task. Never shown to the model; it writes descriptions only on the steps of a suggested project (see proposal.js). Pure: no I/O.
+// Task descriptions: free text the owner writes about a task. Never shown to the model; it writes descriptions only on a new task of a free-text add, on the steps of a suggested project and on the one task of a declined suggestion (see proposal.js). Pure: no I/O.
 
 const MAX_DESCRIPTION_LENGTH = 2000;
 

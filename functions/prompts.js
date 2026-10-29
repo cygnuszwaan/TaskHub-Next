@@ -53,6 +53,10 @@ function buildTaskPrompt({tasks, projects, input, today, proposals = false}) {
       If the input says a task repeats (for example "every Monday", "monthly", "every 2 weeks"), set recurrence
       to the frequency and interval, and set dueDate to its first occurrence. Leave recurrence out for tasks that do not repeat
       and for existing tasks whose repetition the input does not mention. To stop an existing task repeating, return frequency NONE.
+      Keep every title short. When the input for a NEW task holds more than a short title can carry (long instructions, a list of
+      stages or requirements, measurements, rules, warnings), keep the title brief and put that detail in the task's description
+      field: short plain-text lines, at most 2000 characters, kept to what the input says, with no citation markers such as [1, 2].
+      Leave description out of a task whose input fits its title, and never return description for a change to an existing task.
       Do not put tasks into projects and do not return project fields: the owner does that themselves.${proposals ? PROPOSAL_INSTRUCTIONS : ""}
     `;
 }

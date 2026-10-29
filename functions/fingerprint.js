@@ -5,7 +5,7 @@ const {localDate} = require("./time");
 const {snoozeDate} = require("./snooze");
 
 // Bump when the scheduling prompt or the engine's rules change, so the first run after a deploy is never skipped.
-const FINGERPRINT_VERSION = 16;
+const FINGERPRINT_VERSION = 17;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 // The fields of a task that can change what Gemini is asked or how it answers. Calendar and schedule fields are
@@ -15,6 +15,7 @@ function taskKey(task) {
   return {
     id: task.id,
     title: task.title,
+    description: typeof task.description === "string" ? task.description : "", // it goes into the event, so an edit must re-run the engine
     priority: task.priority,
     dueDate: task.dueDate || "",
     estimatedMinutes: task.estimatedMinutes,

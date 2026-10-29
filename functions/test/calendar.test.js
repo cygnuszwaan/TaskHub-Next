@@ -4,7 +4,7 @@ const {describe, it, beforeEach, afterEach, mock} = require("node:test");
 const assert = require("node:assert/strict");
 
 const NZ = "Pacific/Auckland";
-const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("../calendar");
+const {AGENT_MARKER, eventDescription, deleteCalendarEvent, deleteTaskEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("../calendar");
 
 // Minimal stand-in for the googleapis calendar client
 function fakeCalendar({events = [], freebusy, deleteError} = {}) {
@@ -248,5 +248,21 @@ describe("calendar.js", () => {
       await deleteTaskEvents(cal, "c", undefined);
       assert.equal(cal.calls.delete.length + cal.calls.list.length, 0);
     });
+  });
+});
+
+describe("eventDescription", () => {
+  it("is the task's description followed by the marker", () => {
+    const text = eventDescription({description: "  Strip the walls.\nWear a mask.  "}, "Earliest open gap.");
+    assert.equal(text, `Strip the walls.\nWear a mask.\n\n${AGENT_MARKER}.`);
+  });
+  it("is the marker and the reasoning for a task with no description", () => {
+    for (const task of [{}, {description: ""}, {description: "   "}, {description: 5}, null]) {
+      assert.equal(eventDescription(task, "Earliest open gap."), `${AGENT_MARKER}. Earliest open gap.`);
+    }
+    assert.equal(eventDescription({}, undefined), `${AGENT_MARKER}. `);
+  });
+  it("always holds the marker, so cleanup still finds the event", () => {
+    assert.equal(eventDescription({description: "x".repeat(2000)}, "r").includes(AGENT_MARKER), true);
   });
 });

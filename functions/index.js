@@ -9,7 +9,7 @@ const {GoogleGenAI, Type} = require("@google/genai");
 const {calendar: createCalendarClient} = require("@googleapis/calendar");
 const {JWT} = require("google-auth-library");
 const {localDate, startOfLocalDay, localDayStart, addDays} = require("./time");
-const {AGENT_MARKER, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
+const {eventDescription, deleteCalendarEvent, deleteTaskEvents, findAgentEvents, eventIdsForTasks, appBusyWindows, eventWindow, getBusyWindows, getForeignBusyWindows, mergeBusyWindows} = require("./calendar");
 const {repairSchedule, buildFixedSlots, buildAnchors, matchLockedEvents} = require("./schedule");
 const {taskCoordinates} = require("./location");
 const {planSchedule} = require("./planner");
@@ -23,7 +23,7 @@ const {startFromTemplate} = require("./projectTemplates");
 const {UNAVAILABLE, weatherUrl, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
 const {buildTaskPrompt, buildTagPrompt, buildPlacePrompt} = require("./prompts");
-const {checkProposal, acceptProposalInList, applyChanges} = require("./proposal");
+const {checkProposal, withStepsNote, acceptProposalInList, applyChanges} = require("./proposal");
 const {MAX_TEMPLATES, buildTemplates} = require("./templates");
 const {heldTaskIds} = require("./materials");
 const {SUMMARY_MAX_ROWS, PROJECT_MAX_ROWS, clampLimit, serializeCompleted, summaryWindowStart, summarizeCompleted, summarizeProjectHours} = require("./completed");
@@ -141,6 +141,10 @@ const changeSchema = {
           order: {
             type: Type.INTEGER,
             description: "For a new task, the rank (from 1) it should hold in the full list; for an existing task, its current rank",
+          },
+          description: {
+            type: Type.STRING,
+            description: "For a new task only: the detail of a long input that does not fit the short title (instructions, stages, measurements, rules), as short plain-text lines; omit when the title carries the input",
           },
         },
         required: ["title", "priority", "estimatedMinutes", "tags", "order"],
@@ -384,7 +388,7 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
       const task = toSchedule.find((t) => t.id === slot.taskId);
       const eventResource = {
         summary: task.title,
-        description: `${AGENT_MARKER}. ${slot.item.reasoning || ""}`,
+        description: eventDescription(task, slot.item.reasoning),
         extendedProperties: {private: {taskId: task.id}},
       };
       if (slot.allDay) {
@@ -672,7 +676,7 @@ exports.addOrUpdateTask = onRequest({
       const verdict = allowProposal ? checkProposal(parsed.projectProposal, {input: userInput, projects}) : {};
       if (allowProposal && !verdict.proposal) console.log(`No project suggestion (${verdict.reason}); the model returned ${changes.length} task change(s).`);
       const proposal = verdict.proposal || null;
-      if (proposal) return res.status(200).send({success: true, needsChoice: true, proposal, singleChanges: changes});
+      if (proposal) return res.status(200).send({success: true, needsChoice: true, proposal, singleChanges: withStepsNote(changes, proposal)});
     }
 
     // Merge into the list as it is now, not as it was when the model was asked. The projects are read in the same
@@ -680,7 +684,7 @@ exports.addOrUpdateTask = onRequest({
     const result = await updateTaskList((tasks, tx, {projects: stored, jobCounter, addRequests}) => {
       // An add already made under this requestId is not made again: nothing is written and no job number is taken
       if (isRepeatedRequest({ids: addRequests}, requestId)) return {current: tasks, duplicate: true, added: 0, updated: 0, skipped: 0};
-      const merged = mergeTaskChanges(tasks, changes, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined, description: body.manual !== undefined, travelKm: body.manual !== undefined, contact: body.manual !== undefined, location: body.manual !== undefined, history: body.manual !== undefined, now: new Date().toISOString(), jobCounter});
+      const merged = mergeTaskChanges(tasks, changes, randomUUID, stored.map((p) => p.id), {materials: body.manual !== undefined, description: true, travelKm: body.manual !== undefined, contact: body.manual !== undefined, location: body.manual !== undefined, history: body.manual !== undefined, now: new Date().toISOString(), jobCounter});
       const changed = merged.added + merged.updated > 0;
       let list = merged.tasks;
       if (body.startNow === true) {

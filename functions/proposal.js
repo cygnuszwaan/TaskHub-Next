@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {normalizeProjectName, addProject} = require("./projects");
 const {cleanTags, mergeTaskChanges} = require("./tasks");
-const {normalizeDescription} = require("./description");
+const {normalizeDescription, MAX_DESCRIPTION_LENGTH} = require("./description");
 
 // A suggested project has at least this many steps and at most this many.
 const MIN_STEPS = 3;
@@ -106,6 +106,32 @@ function acceptProposalInList(tasks, projects, raw, makeId, now, jobCounter) {
   return {tasks: merged.tasks, project: created.project, projects: created.projects, added: merged.added, ...(merged.jobCounter !== undefined ? {jobCounter: merged.jobCounter} : {})};
 }
 
+// The suggested steps as plain text for a task description: a numbered line per step, a step's own description indented under it.
+// When that is longer than a description may be, the step titles alone (cut at the limit like any description). Pure.
+function stepsDescription(proposal) {
+  const steps = proposal && Array.isArray(proposal.steps) ? proposal.steps : [];
+  const full = steps.map((s, i) => `${i + 1}. ${s.title}${s.description ? `\n${s.description.split("\n").map((line) => `   ${line}`).join("\n")}` : ""}`).join("\n");
+  if (full.length <= MAX_DESCRIPTION_LENGTH) return full;
+  return steps.map((s, i) => `${i + 1}. ${s.title}`).join("\n");
+}
+
+// The model's changes for the owner to decline a suggestion with (`singleChanges`): when they add exactly one new task, the
+// suggested steps go in that task's description (after any description the model already gave it, a blank line between, the whole cut to
+// MAX_DESCRIPTION_LENGTH), so the plan is not lost. Any other list (no change, an existing task changed, or several new tasks, which
+// already are the stages) is returned as it is. Pure: the changes passed in are not modified.
+function withStepsNote(changes, proposal) {
+  const list = Array.isArray(changes) ? changes : [];
+  if (list.length !== 1) return list;
+  const [only] = list;
+  if (!only || typeof only !== "object" || Array.isArray(only) || only.id) return list;
+  const steps = stepsDescription(proposal).slice(0, MAX_DESCRIPTION_LENGTH);
+  if (!steps) return list;
+  const own = normalizeDescription(only.description);
+  const room = MAX_DESCRIPTION_LENGTH - steps.length - 2; // what is left for the model's own text
+  const text = typeof own === "string" && room > 0 ? `${own.slice(0, room).trimEnd()}\n\n${steps}` : steps;
+  return [{...only, description: text}];
+}
+
 // The changes of a declined suggestion (`{apply: {changes}}`), which go through mergeTaskChanges like the model's own
 // output. Pure: no I/O. Returns the list of change objects, or null when `raw` is not an object with a `changes` array of
 // at most MAX_APPLY_CHANGES objects.
@@ -116,4 +142,4 @@ function applyChanges(raw) {
   return raw.changes;
 }
 
-module.exports = {MIN_STEPS, MAX_STEPS, MAX_APPLY_CHANGES, namesProject, normalizeStep, checkProposal, normalizeProposal, proposalChanges, acceptProposalInList, applyChanges};
+module.exports = {MIN_STEPS, MAX_STEPS, MAX_APPLY_CHANGES, namesProject, normalizeStep, checkProposal, normalizeProposal, proposalChanges, stepsDescription, withStepsNote, acceptProposalInList, applyChanges};

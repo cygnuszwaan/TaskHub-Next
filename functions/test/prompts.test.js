@@ -15,7 +15,15 @@ describe("prompts.js", () => {
 
     it("never shows the model a task's description", () => {
       const withDescription = tasks.map((t) => ({...t, description: "Secret note about the ladder"}));
-      assert.doesNotMatch(prompt({tasks: withDescription}), /Secret note|description/);
+      const text = prompt({tasks: withDescription});
+      assert.doesNotMatch(text, /Secret note/);
+      const listed = text.slice(text.indexOf("Current Task List"), text.indexOf("Existing Projects"));
+      assert.doesNotMatch(listed, /description/);
+    });
+
+    it("asks for a description only on a new task whose input is too long for the title", () => {
+      assert.match(prompt(), /put that detail in the task's description/);
+      assert.match(prompt(), /never return description for a change to an existing task/);
     });
 
     it("names today's date and quotes the input", () => {
