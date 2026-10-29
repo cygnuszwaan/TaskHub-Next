@@ -59,11 +59,7 @@ A change usually touches several rows: a new endpoint touches an `endpoints-*.md
 
 Each step fits in one turn, adds tests for any new pure logic and updates the `docs/` files it names. The steps are independent unless one says it needs an earlier step.
 
-Goal: the Queue and History tabs share one layout (search, Tags, Project, Select) and keep only their own features.
-
-1. Hold a History project change offline. Add `projectId` to `ENTRY_EDIT_FIELDS`, so a project change on an entry, from the batch bar or the form's Project field, is held as an EDIT and sent in order (`title` the project's name; None reads "Take 2 tasks out of their project"), shown at once in the History list, the project filter and the hours (a project change drops the entry's `projectOrder`, as `applyCompletedEdit` does), with the waiting chip; an entry still waiting to be sent as a completion is handled as the entry form handles it (read `offline-edits.md` first). Tests keep the page's copy of the rule equal to the server's. Docs: `offline-edits.md`, `frontend-history.md`.
-
-Unplanned ideas are in `stretch-goals.md`.
+No steps are planned. Unplanned ideas are in `stretch-goals.md`.
 
 ## Open questions
 

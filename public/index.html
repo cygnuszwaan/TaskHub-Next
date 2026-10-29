@@ -139,6 +139,7 @@
     .picker-line[hidden] { display: none; }
     .picker-line-label { flex: none; font-size: 13px; font-weight: 600; color: var(--text-muted); }
     .project-section { margin-top: 12px; }
+    .project-section > .settings-status:empty { display: none; }
     .add-section { margin-bottom: 12px; }
     .picker-search-row { display: flex; gap: 6px; align-items: center; }
     .picker-search-row #pickerSearch { flex: 1; min-width: 0; }
@@ -209,6 +210,7 @@
     .material-group-title { font-weight: 600; font-size: 14px; cursor: pointer; }
     .material-group-title.plain-title { cursor: default; }
     .summary { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--divider); }
+    .summary.no-rule { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
     .summary-total { font-size: 14px; margin-bottom: 10px; }
     .hours-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 3px 0; border-bottom: 1px solid var(--divider); }
     .hours-row span:nth-child(2) { color: var(--text-muted); text-align: right; flex: 1; }
@@ -521,10 +523,6 @@
           </div>
         </div>
       </div>
-      <details class="filter-section" id="tagsDetails">
-        <summary>Tags <small id="tagsActive"></small></summary>
-        <div class="tag-filter-bar" id="tagFilterBar"></div>
-      </details>
       <div class="project-section" id="projectsSection">
         <div class="picker-line">
           <span class="picker-line-label" id="queueProjectLabel">Project</span>
@@ -532,6 +530,10 @@
         </div>
         <div id="projectsStatus" class="settings-status"></div>
       </div>
+      <details class="filter-section" id="tagsDetails">
+        <summary>Tags <small id="tagsActive"></small></summary>
+        <div class="tag-filter-bar" id="tagFilterBar"></div>
+      </details>
       <div class="sort-row">
         <label for="sortBy">Sort by</label>
         <select id="sortBy" aria-label="Sort by"></select>
@@ -590,11 +592,11 @@
         <input type="search" id="completedSearch" class="search-box" placeholder="Search completed, #job, @client" autocomplete="off" enterkeyhint="search" aria-label="Search completed tasks">
         <button type="button" class="btn-secondary" id="clearCompletedSearchBtn" hidden>Clear</button>
       </div>
+      <div id="completedProject"></div>
       <details class="filter-section" id="completedTagsDetails" hidden>
         <summary>Tags <small id="completedTagsActive"></small></summary>
         <div class="tag-filter-bar" id="completedTagFilterBar"></div>
       </details>
-      <div id="completedProject"></div>
       <div class="select-row">
         <button type="button" class="btn-secondary" id="historySelectModeBtn" aria-pressed="false">☑️ Select tasks</button>
       </div>
@@ -2978,6 +2980,65 @@
     function historyProjectChoices(entries) {
       return (Array.isArray(entries) ? entries : []).filter((e) => e && typeof e === "object").map((e) => ({ id: e.projectId, name: e.name || "Untitled project", detail: hoursText(e.minutes, e.estimatedMinutes) }));
     }
+    // The server's project hours (`entries`, from getCompletedTasks) with the held project changes of History entries put on, so the section and the
+    // picker agree with the list at once. `serverRows` are the entries as the server sent them, `shownRows` the same with the waiting changes applied
+    // (withPendingActions), `projects` the current [{id, name}]. Each entry whose project differs moves its server figures (minutes as the server counts
+    // them, in its local week) from the old project to the new one; a project left with no work drops out and one that gains work and has no entry is
+    // added under its name (a project missing from `projects` is not added). A week's figures stay whole minutes, as the server sends them, so a
+    // project's totals are the sums of its weeks and the next read of the server replaces them. Pure: the inputs are not modified.
+    function projectHoursWithPending(entries, serverRows, shownRows, projects, timeZone) {
+      const base = Array.isArray(entries) ? entries : [];
+      const names = new Map((Array.isArray(projects) ? projects : []).filter(p => p && typeof p.id === "string" && p.id).map(p => [p.id, typeof p.name === "string" ? p.name : ""]));
+      const byId = new Map((Array.isArray(shownRows) ? shownRows : []).filter(r => r && r.archiveId).map(r => [r.archiveId, r]));
+      const moves = [];
+      for (const row of Array.isArray(serverRows) ? serverRows : []) {
+        const shown = row && row.archiveId ? byId.get(row.archiveId) : undefined;
+        if (!shown) continue;
+        const from = typeof row.projectId === "string" ? row.projectId : "";
+        const to = typeof shown.projectId === "string" ? shown.projectId : "";
+        if (from !== to) moves.push({ row, from, to });
+      }
+      if (moves.length === 0) return base;
+      const byProject = new Map(base.map(e => [e.projectId, { name: e.name, weeks: new Map((e.weeks || []).map(w => [w.weekStart, { count: w.count, minutes: w.minutes, estimated: w.estimatedMinutes }])) }]));
+      const weekOf = (iso) => {
+        const date = zonedDateTime(iso, timeZone).date;
+        if (!date) return "";
+        const day = new Date(`${date}T00:00:00Z`);
+        return new Date(day.getTime() - ((day.getUTCDay() + 6) % 7) * 86400000).toISOString().slice(0, 10);
+      };
+      const minutes = (row) => (Number.isFinite(row.trackedSeconds) && row.trackedSeconds > 0 ? row.trackedSeconds / 60 : Number.isFinite(row.estimatedMinutes) && row.estimatedMinutes > 0 ? Math.round(row.estimatedMinutes) : 0);
+      const adjust = (projectId, row, sign) => {
+        const weekStart = weekOf(row.completedAt);
+        if (!projectId || !weekStart) return;
+        let entry = byProject.get(projectId);
+        if (!entry) {
+          if (sign < 0 || !names.has(projectId)) return;
+          entry = { name: names.get(projectId), weeks: new Map() };
+          byProject.set(projectId, entry);
+        }
+        const week = entry.weeks.get(weekStart) || { count: 0, minutes: 0, estimated: 0 };
+        const m = minutes(row);
+        const tracked = Number.isFinite(row.trackedSeconds) && row.trackedSeconds > 0;
+        week.count += sign;
+        week.minutes = Math.max(0, Math.round(week.minutes + sign * m));
+        if (!tracked) week.estimated = Math.max(0, Math.round(week.estimated + sign * m));
+        if (week.count <= 0) entry.weeks.delete(weekStart);
+        else entry.weeks.set(weekStart, week);
+      };
+      for (const { row, from, to } of moves) {
+        if (from && !byProject.has(from)) continue; // not counted by the server (a deleted project), so nothing to take off
+        adjust(from, row, -1);
+        adjust(to, row, 1);
+      }
+      const out = [];
+      for (const [projectId, entry] of byProject) {
+        const weeks = [...entry.weeks].sort((a, b) => (a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0)).map(([weekStart, w]) => ({ weekStart, count: w.count, minutes: w.minutes, estimatedMinutes: w.estimated }));
+        if (weeks.length === 0) continue;
+        out.push({ projectId, name: entry.name, count: weeks.reduce((n, w) => n + w.count, 0), minutes: weeks.reduce((n, w) => n + w.minutes, 0), estimatedMinutes: weeks.reduce((n, w) => n + w.estimatedMinutes, 0), weeks });
+      }
+      out.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || (a.projectId < b.projectId ? -1 : 1));
+      return out;
+    }
     // A comma separated tag field as a list: trimmed, empty entries dropped.
     function parseTagList(text) {
       return String(text || "").split(",").map(s => s.trim()).filter(Boolean);
@@ -3614,11 +3675,12 @@
       return `Add ${taskCountText(count)} to a project`;
     }
     // The status line after a History batch Project: `name` is the project's name, "" for None; `message` is the last failure's text.
-    function historyProjectResultText(total, failed, name, message) {
+    function historyProjectResultText(total, failed, name, message, held = 0) {
       const verb = name ? "Added" : "Took";
       const where = name ? `to “${name}”` : "out of their project";
-      if (failed === 0) return `${verb} ${taskCountText(total)} ${where}.`;
-      return `${verb} ${total - failed} of ${taskCountText(total)} ${where}. ${failed} failed (${message}); ${failed === 1 ? "it is" : "they are"} still selected.`;
+      const waiting = held > 0 ? ` ${held === 1 ? "1 is" : `${held} are`} waiting to be sent.` : "";
+      if (failed === 0) return `${verb} ${taskCountText(total)} ${where}.${waiting}`;
+      return `${verb} ${total - failed} of ${taskCountText(total)} ${where}.${waiting} ${failed} failed (${message}); ${failed === 1 ? "it is" : "they are"} still selected.`;
     }
     // The body posted to batchUpdateTasks.
     function batchBody(action, taskIds, extra) {
@@ -3959,7 +4021,7 @@
       ceLocation: "location", cePlaceSearchBtn: "placeSearch", ceLocationClearBtn: "location", cePhone: "phone", ceEmail: "email", ceUrl: "url", ceDescription: "description", ceDate: "date", ceTime: "time",
       ceCommentText: "comments", ceCommentAdd: "comments", ceSheetBtn: "sheet", ceDeleteBtn: "delete"
     };
-    const OFFLINE_COMPLETED_FIELDS = ["priority", "trackedMinutes", "tags", "travelKm", "location", "phone", "email", "url", "description", "comments", "commentDelete"];
+    const OFFLINE_COMPLETED_FIELDS = ["priority", "trackedMinutes", "tags", "travelKm", "location", "phone", "email", "url", "description", "projectId", "comments", "commentDelete"];
     function completedFieldDisabled(field, offline) {
       return offline === true && !OFFLINE_COMPLETED_FIELDS.includes(field);
     }
@@ -4099,7 +4161,7 @@
     const BATCH_ACTIONS = ["MOVE_TO_TOP", "SET_PROJECT", "SET_DUE", "SNOOZE"]; // what a held Multi-Select change can do (the server's batchUpdateTasks, less a new project)
     const MAX_BATCH = 500; // the most tasks one batch names (the server's limit)
     const EDIT_FIELDS = ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "url", "location", "snoozedUntil", "description", "materials"]; // what a queued task's EDIT holds
-    const ENTRY_EDIT_FIELDS = ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "url", "location", "description"]; // what a History entry's EDIT holds (the plain fields of the archive row; materials, the project and the completion time need the server)
+    const ENTRY_EDIT_FIELDS = ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "url", "location", "description", "projectId"]; // what a History entry's EDIT holds (the plain fields of the archive row and its project; materials and the completion time need the server)
     const MAX_TRACKED_SECONDS = 3600000; // the most time an entry may be corrected to (1000 hours)
     const MAX_ENTRY_TAGS = 20;
     const MAX_DESCRIPTION_LENGTH = 2000;
@@ -4448,6 +4510,7 @@
         else if (key === "snoozedUntil") clean = normalizeSnooze(value);
         else if (key === "description") clean = normalizeDescription(value);
         else if (key === "materials") clean = heldMaterials(value);
+        else if (key === "projectId") clean = value === null || value === "" ? null : typeof value === "string" && value.length <= 200 ? value : undefined; // an entry's project: an id, null or empty text for none
         if (clean === undefined) bad.push(key);
         else out[key] = clean;
       }
@@ -4458,7 +4521,9 @@
     function applyEditFields(target, fields, allowed = EDIT_FIELDS) {
       const next = { ...target };
       for (const [key, value] of Object.entries(checkEditFields(fields, allowed).fields)) {
-        if (value === null) delete next[key];
+        if (key === "projectId" && allowed === ENTRY_EDIT_FIELDS) { // as applyCompletedEdit: none drops project and order number, another project drops the order number, the same one changes nothing
+          if (value === null) { delete next.projectId; delete next.projectOrder; } else if (value !== next.projectId) { next.projectId = value; delete next.projectOrder; }
+        } else if (value === null) delete next[key];
         else next[key] = value;
       }
       return next;
@@ -7969,7 +8034,7 @@
       if (!historyProjectShown) return "";
       const entry = projectHoursEntries.find(e => e.projectId === historyProjectId) || null;
       return `
-        <div class="summary">
+        <div class="summary no-rule">
           <div class="picker-line" style="margin:12px 0 4px;"><span class="picker-line-label" id="historyProjectLabel">Project</span><button type="button" id="historyProjectField" class="picker-field" aria-haspopup="dialog" aria-labelledby="historyProjectLabel historyProjectField" onclick="openHistoryProjectPicker()">${esc(entry ? entry.name || "Untitled project" : HISTORY_ALL_PROJECTS)}</button></div>
           <div id="projectHoursBody">${historyProjectPanel(entry)}</div>
         </div>`;
@@ -8370,33 +8435,51 @@
         return { message: offline ? "no connection" : err.message, offline };
       }
     }
-    // Puts every selected entry, shown or not, in `projectId` ("" for none): no confirmation, one call per entry in list order, one at a time; an entry
-    // already there needs no call. It needs a connection: without one nothing is sent, and once a call finds the connection gone the rest are not
-    // tried. An entry whose call fails stays selected; after a success Multi-Select and the selection stay on, and the lists are read once at the end.
+    // Holds the move of one entry to `projectId` ("" for none) for later as an EDIT of its project, quietly (a batch reports in its status line, not
+    // in an alert): the entry shows the change at once (withPendingActions). Returns "" when kept, else why not.
+    function holdEntryProject(row, projectId) {
+      if (!usableArchiveId(row.archiveId)) return "This entry cannot be changed without a connection.";
+      loadActionQueue();
+      const refusal = actionQueueRefusal(actionQueue.length, actionQueueUsable);
+      if (refusal) return refusal;
+      const item = makeQueuedAction({ kind: "EDIT", archiveId: row.archiveId, title: row.title, fields: { projectId: projectId ? projectId : null }, now: Date.now(), offset: clockOffsetMs });
+      if (!item || !saveActionQueue([...actionQueue, item])) return actionQueueRefusal(0, false);
+      return "";
+    }
+    // Puts every selected entry, shown or not, in `projectId` ("" for none): no confirmation, one entry at a time in list order; an entry already
+    // there needs no call. An entry is sent as online (moveEntryNow) unless a change is already waiting or a send is running (the order must hold), or the
+    // connection is gone (this one and the rest): it is then held as an EDIT of its project (holdEntryProject, offline-edits.md), counts as done and
+    // shows the change at once. An entry whose call fails, or that cannot be held, stays selected; after a success Multi-Select and the whole selection stay on;
+    // the lists are read once at the end.
     async function historyProjectRun(projectId) {
       const entries = selectedHistoryEntries();
       if (entries.length === 0 || historyBatchBusy) return;
       const project = projectId ? allProjects.find(p => p.id === projectId) : null;
       if (projectId && !project) return;
-      if (!navigator.onLine) {
-        await askAlert("Changing the project of completed tasks needs a connection. Try again when you are back online.", { tone: "warning" });
-        return;
-      }
       historyBatchBusy = true;
       setHistoryBatchStatus("");
       updateHistoryBatchBar();
       const failedKeys = [];
       let message = "";
-      let offline = false;
+      let held = 0;
+      let heldBehind = false;
+      let offline = !navigator.onLine;
       try {
         for (const row of entries) {
-          if (offline) { failedKeys.push(row.archiveId); continue; } // the connection is gone: not tried
           if (!historyProjectNeeded(row, projectId)) continue;
-          const result = await moveEntryNow(row, projectId);
-          if (result.message) {
+          loadActionQueue();
+          let result = { message: "", offline: false };
+          if (!offline && !hasPendingActions(actionQueue) && !actionDraining) result = await moveEntryNow(row, projectId);
+          else heldBehind = true;
+          if (result.offline) offline = true;
+          if (result.message && !result.offline) { // the server refused it
             failedKeys.push(row.archiveId);
             message = result.message;
-            if (result.offline) offline = true;
+            continue;
+          }
+          if (result.message || offline || heldBehind) { // no connection, or changes are waiting: kept to go in order
+            const why = holdEntryProject(row, projectId);
+            if (why) { failedKeys.push(row.archiveId); message = why; } else held++;
           }
         }
       } finally {
@@ -8404,8 +8487,11 @@
       }
       if (failedKeys.length > 0) historySelectedKeys = new Set(failedKeys);
       updateHistoryBatchBar();
-      setHistoryBatchStatus(historyProjectResultText(entries.length, failedKeys.length, project ? project.name : "", message));
-      await fetchCompleted(); // the lists as the server now has them; the selection keeps what is still there
+      setHistoryBatchStatus(historyProjectResultText(entries.length, failedKeys.length, project ? project.name : "", message, held));
+      renderFilterBar();
+      renderAddQueue();
+      await fetchCompleted(); // the lists as the server now has them, with what is waiting on top; the selection keeps what is still there
+      if (held > 0 && heldBehind && navigator.onLine) setTimeout(drainAllQueues, 0);
     }
 
     // Photos on tasks. The edit form of a completed task (keyed by archive id) and of a task in the queue (keyed by task id)
@@ -8847,7 +8933,7 @@
         completedListLimited = data.listTruncated === true;
         completedRows = new Map(shown.filter(t => t.archiveId).map(t => [t.archiveId, t]));
         list.innerHTML = "";
-        document.getElementById("completedProject").innerHTML = renderProjectHours(data.projectHours, data.projectHoursTruncated);
+        document.getElementById("completedProject").innerHTML = renderProjectHours(projectHoursWithPending(data.projectHours, tasks, shown, allProjects, appTimeZone), data.projectHoursTruncated); // the held project changes are on top
         browser.hidden = false;
         renderCompletedRows();
       } catch (err) {

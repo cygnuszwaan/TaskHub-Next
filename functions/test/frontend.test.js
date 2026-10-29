@@ -17,7 +17,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {pickerViewportBox, withNoneRow, clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagChipItems, projectClientNameById, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSearchText, filterClients, clientDeleteShown, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, clientFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, historyProjectChoices, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, DOUBLE_TAP_MS, tapKind, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, TOAST_MS, REORDER_HINT_TEXT, reorderAllowed, LONG_PRESS_MS, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder, completedSelectable, historyBatchPrompt, historyBatchResultText, historyProjectNeeded, historyProjectBody, historyProjectTitle, historyProjectResultText};`)();
+    return {pickerViewportBox, withNoneRow, clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagChipItems, projectClientNameById, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_PROJECT, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newProjectClientFields, newClientWarning, setClientBody, serverOnlyAddFields, serverOnlyAddText, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSearchText, filterClients, clientDeleteShown, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, clientFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, historyProjectChoices, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, base64FromDataUrl, DOUBLE_TAP_MS, tapKind, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, TOAST_MS, REORDER_HINT_TEXT, reorderAllowed, LONG_PRESS_MS, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, effectiveUrl, urlPlaceholder, completedSelectable, historyBatchPrompt, historyBatchResultText, historyProjectNeeded, historyProjectBody, historyProjectTitle, historyProjectResultText, projectHoursWithPending};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -288,15 +288,15 @@ describe("public/index.html helpers", () => {
     });
     it("leaves only the fields that can be saved offline enabled in the entry's form", () => {
       const {COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled} = load();
-      assert.deepEqual(OFFLINE_COMPLETED_FIELDS, ["priority", "trackedMinutes", "tags", "travelKm", "location", "phone", "email", "url", "description", "comments", "commentDelete"]);
+      assert.deepEqual(OFFLINE_COMPLETED_FIELDS, ["priority", "trackedMinutes", "tags", "travelKm", "location", "phone", "email", "url", "description", "projectId", "comments", "commentDelete"]);
       for (const field of new Set(Object.values(COMPLETED_FORM_CONTROLS))) {
         assert.equal(completedFieldDisabled(field, false), false, `${field} online`);
         assert.equal(completedFieldDisabled(field, undefined), false, `${field} unknown`);
         assert.equal(completedFieldDisabled(field, true), !OFFLINE_COMPLETED_FIELDS.includes(field), `${field} offline`);
       }
       const enabled = Object.entries(COMPLETED_FORM_CONTROLS).filter(([, field]) => !completedFieldDisabled(field, true)).map(([id]) => id);
-      assert.deepEqual(enabled, ["cePriority", "ceTracked", "ceTags", "ceTravel", "ceLocation", "ceLocationClearBtn", "cePhone", "ceEmail", "ceUrl", "ceDescription", "ceCommentText", "ceCommentAdd"]);
-      for (const id of ["ceProject", "ceMaterials", "ceDate", "ceTime", "cePlaceSearchBtn", "ceSheetBtn", "ceDeleteBtn"]) assert.ok(!enabled.includes(id), `${id} needs a connection`);
+      assert.deepEqual(enabled, ["cePriority", "ceTracked", "ceTags", "ceProject", "ceProjectField", "ceTravel", "ceLocation", "ceLocationClearBtn", "cePhone", "ceEmail", "ceUrl", "ceDescription", "ceCommentText", "ceCommentAdd"]);
+      for (const id of ["ceMaterials", "ceDate", "ceTime", "cePlaceSearchBtn", "ceSheetBtn", "ceDeleteBtn"]) assert.ok(!enabled.includes(id), `${id} needs a connection`);
     });
     it("covers every control of the entry's form: each id exists on the page and each form field has a control", () => {
       const {COMPLETED_FORM_CONTROLS} = load();
@@ -928,9 +928,9 @@ describe("public/index.html helpers", () => {
       const summaryFn = html.slice(at("function renderSummary"), at("function renderProjectHours"));
       assert.ok(summaryFn.indexOf("Most completed jobs") > summaryFn.indexOf("By project"));
     });
-    it("orders the History page as the search box, the Tags section, the Project section, then the count line, pager and list", () => {
+    it("orders the History page as the search box, the Project section, the Tags section, then the count line, pager and list", () => {
       const page = at(`id="pageHistory"`);
-      const order = ["completedSearch", "completedTagsDetails", "completedProject", "completedCount", "completedRows"].map((id) => at(`id="${id}"`, page));
+      const order = ["completedSearch", "completedProject", "completedTagsDetails", "completedCount", "completedRows"].map((id) => at(`id="${id}"`, page));
       assert.deepEqual([...order].sort((a, b) => a - b), order);
       assert.ok(at(`id="completedList"`, page) < at(`id="completedBrowser"`, page), "the status messages stay above the browser");
       assert.ok(at(`id="completedProject"`, page) > at(`id="completedBrowser"`, page), "the Project section sits inside the browser");
@@ -970,11 +970,11 @@ describe("public/index.html helpers", () => {
         assert.ok(i > page && i < end, `${id} is on the Settings page`);
       }
     });
-    it("has no Projects card of its own: the Queue's Project field sits just below the collapsible Tags section, its project actions in the modal's Manage section", () => {
+    it("has no Projects card of its own: the Queue's Project field sits above the collapsible Tags section, its project actions in the modal's Manage section", () => {
       const q = at(`id="queueCard"`);
       const tags = at(`<details class="filter-section" id="tagsDetails">`, q);
       const projects = at(`<div class="project-section" id="projectsSection">`, q);
-      assert.ok(q < tags && closeOf(tags) < projects && projects < at(`id="taskList"`, q));
+      assert.ok(q < projects && projects < tags && closeOf(tags) < at(`id="sortBy"`, q) && at(`id="sortBy"`, q) < at(`id="taskList"`, q));
       assert.ok(at(`id="tagFilterBar"`, tags) < closeOf(tags));
       assert.ok(at(`id="queueProjectLabel"`, projects) < at(`id="queueProjectField"`, projects), "the label sits to the left of the field");
       for (const id of ["queueProjectField", "projectsStatus"]) {
@@ -2048,14 +2048,14 @@ describe("public/index.html helpers", () => {
       assert.match(order, /if \(!inProject\) input\.value = "";/);
       assert.match(order, /renderProjectField\(prefix\);\s*syncNewProjectClient\(prefix\);\s*refreshContact\(prefix\);/);
     });
-    it("keeps the button disabled until getProjects has answered, the completed form's also with its saved copy on screen", () => {
+    it("keeps the button disabled until getProjects has answered; the completed form's stays usable with its saved copy on screen, a project change being held", () => {
       const locked = html.slice(at("function projectFieldLocked("), at("// Shows the hidden input's choice"));
       assert.match(locked, /!projectsLoaded \|\| \(prefix === "ce" && completedFieldDisabled\("projectId", completedFormLimited\(\)\)\)/);
       assert.match(html, /function renderProjects\(\) \{\s*if \(!projectsLoaded\) return;\s*renderManualProjects\(\);\s*renderProjectFields\(\);/);
       const {COMPLETED_FORM_CONTROLS, completedFieldDisabled} = load();
       for (const id of ["ceProject", "ceProjectField"]) {
         assert.equal(COMPLETED_FORM_CONTROLS[id], "projectId", id);
-        assert.equal(completedFieldDisabled(COMPLETED_FORM_CONTROLS[id], true), true, `${id} needs a connection`);
+        assert.equal(completedFieldDisabled(COMPLETED_FORM_CONTROLS[id], true), false, `${id}: a project change is held without a connection`);
         assert.equal(completedFieldDisabled(COMPLETED_FORM_CONTROLS[id], false), false, id);
       }
     });
@@ -3581,14 +3581,14 @@ describe("public/index.html helpers", () => {
       assert.ok(queue.includes("id=\"sortBy\"") && queue.includes("id=\"sortDirBtn\""));
       assert.ok(html.includes("sortTasks(filtered, sortKey, sortDescending)"));
     });
-    it("orders the Queue card's parts: Active task, Tags, Project, Sort by, Select tasks, then the list", () => {
+    it("orders the Queue card's parts: Active task, Project, Tags, Sort by, Select tasks, then the list", () => {
       const at = (id) => html.indexOf(`id="${id}"`);
-      const order = ["activeTaskBox", "tagsDetails", "projectsSection", "queueProjectField", "projectsStatus", "sortBy", "sortDirBtn", "selectModeBtn", "batchStatus", "taskList"];
+      const order = ["activeTaskBox", "projectsSection", "queueProjectField", "projectsStatus", "tagsDetails", "sortBy", "sortDirBtn", "selectModeBtn", "batchStatus", "taskList"];
       for (let i = 1; i < order.length; i++) assert.ok(at(order[i - 1]) > 0 && at(order[i]) > at(order[i - 1]), `${order[i]} comes after ${order[i - 1]}`);
       const sortRow = html.lastIndexOf("<div class=\"sort-row\">", at("sortBy"));
-      assert.ok(sortRow > at("projectsStatus"), "the sort row sits after the Project section");
+      assert.ok(sortRow > at("tagsDetails"), "the sort row sits after the Tags section");
       const between = html.slice(sortRow, at("taskList"));
-      assert.equal(between.includes("<details"), false, "nothing but the Sort and Select rows sits between Project and the list");
+      assert.equal(between.includes("<details"), false, "nothing but the Sort and Select rows sits between Tags and the list");
     });
     it("labels the edit modal's description box just Description", () => {
       assert.ok(html.includes("<label for=\"editDescription\">Description</label>"));
@@ -4114,6 +4114,68 @@ describe("public/index.html helpers", () => {
       assert.deepEqual(historyProjectBody({archiveId: "a1"}, "p1"), {id: "a1", updatedFields: {projectId: "p1"}});
       assert.deepEqual(historyProjectBody({archiveId: "a1"}, ""), {id: "a1", updatedFields: {projectId: null}});
     });
+    describe("projectHoursWithPending", () => {
+      const zone = "Pacific/Auckland";
+      // Monday 2026-10-19 and Monday 2026-10-26 local weeks
+      const row = (archiveId, projectId, completedAt, extra = {}) => ({archiveId, projectId, completedAt, trackedSeconds: 1800, estimatedMinutes: 10, ...extra});
+      const serverHours = () => [
+        {projectId: "p1", name: "Kitchen", count: 3, minutes: 100, estimatedMinutes: 10, weeks: [{weekStart: "2026-10-26", count: 1, minutes: 30, estimatedMinutes: 0}, {weekStart: "2026-10-19", count: 2, minutes: 70, estimatedMinutes: 10}]},
+      ];
+      const rows = () => [
+        row("a1", "p1", "2026-10-27T01:00:00.000Z"),
+        row("a2", "p1", "2026-10-21T01:00:00.000Z", {trackedSeconds: 0, estimatedMinutes: 10}),
+        row("a3", "p1", "2026-10-22T01:00:00.000Z", {trackedSeconds: 3600}),
+        row("a4", undefined, "2026-10-28T01:00:00.000Z"),
+      ];
+      const projects = [{id: "p1", name: "Kitchen"}, {id: "p2", name: "Bathroom"}];
+      const shownWith = (changes) => rows().map((r) => (changes[r.archiveId] !== undefined ? {...r, projectId: changes[r.archiveId] || undefined} : r));
+
+      it("returns the server's hours untouched when nothing moved", () => {
+        const {projectHoursWithPending} = load();
+        const hours = serverHours();
+        assert.equal(projectHoursWithPending(hours, rows(), rows(), projects, zone), hours);
+        assert.equal(projectHoursWithPending(undefined, [], [], projects, zone).length, 0);
+      });
+      it("moves an entry's minutes, in its own week, from the old project to the new one", () => {
+        const {projectHoursWithPending} = load();
+        const out = projectHoursWithPending(serverHours(), rows(), shownWith({a3: "p2"}), projects, zone);
+        assert.deepEqual(out.map((e) => e.name), ["Bathroom", "Kitchen"], "a project that gains work is added, by name");
+        const kitchen = out.find((e) => e.projectId === "p1");
+        assert.deepEqual(kitchen, {projectId: "p1", name: "Kitchen", count: 2, minutes: 40, estimatedMinutes: 10, weeks: [{weekStart: "2026-10-26", count: 1, minutes: 30, estimatedMinutes: 0}, {weekStart: "2026-10-19", count: 1, minutes: 10, estimatedMinutes: 10}]});
+        const bathroom = out.find((e) => e.projectId === "p2");
+        assert.deepEqual(bathroom, {projectId: "p2", name: "Bathroom", count: 1, minutes: 60, estimatedMinutes: 0, weeks: [{weekStart: "2026-10-19", count: 1, minutes: 60, estimatedMinutes: 0}]});
+      });
+      it("counts an estimate-only entry's minutes as estimated and drops a week or project left empty", () => {
+        const {projectHoursWithPending} = load();
+        const moved = projectHoursWithPending(serverHours(), rows(), shownWith({a2: "p2", a3: "p2"}), projects, zone);
+        const kitchen = moved.find((e) => e.projectId === "p1");
+        assert.equal(kitchen.weeks.length, 1, "the week with no work left is gone");
+        assert.equal(kitchen.estimatedMinutes, 0);
+        assert.equal(moved.find((e) => e.projectId === "p2").estimatedMinutes, 10);
+        const none = projectHoursWithPending(serverHours(), rows(), shownWith({a1: "", a2: "", a3: ""}), projects, zone);
+        assert.deepEqual(none, [], "a project with no work left drops out");
+      });
+      it("adds an entry that had no project to its new one, and leaves out a project it cannot name", () => {
+        const {projectHoursWithPending} = load();
+        const out = projectHoursWithPending(serverHours(), rows(), shownWith({a4: "p1"}), projects, zone);
+        const kitchen = out.find((e) => e.projectId === "p1");
+        assert.equal(kitchen.count, 4);
+        assert.equal(kitchen.minutes, 130);
+        assert.equal(kitchen.weeks[0].weekStart, "2026-10-26");
+        assert.equal(kitchen.weeks[0].count, 2);
+        const unknown = projectHoursWithPending(serverHours(), rows(), shownWith({a4: "px"}), projects, zone);
+        assert.deepEqual(unknown, serverHours(), "no name to show it under");
+      });
+      it("ignores a shown entry the server did not send and leaves its inputs alone", () => {
+        const {projectHoursWithPending} = load();
+        const hours = serverHours();
+        const before = JSON.stringify(hours);
+        const shown = [...shownWith({a3: "p2"}), row("new", "p2", "2026-10-27T02:00:00.000Z")];
+        const out = projectHoursWithPending(hours, rows(), shown, projects, zone);
+        assert.equal(out.find((e) => e.projectId === "p2").count, 1, "only the entry that moved");
+        assert.equal(JSON.stringify(hours), before);
+      });
+    });
     it("historyProjectTitle and historyProjectResultText: word the picker and the status line", () => {
       const {historyProjectTitle, historyProjectResultText} = load();
       assert.equal(historyProjectTitle(3), "Add 3 tasks to a project");
@@ -4122,6 +4184,9 @@ describe("public/index.html helpers", () => {
       assert.equal(historyProjectResultText(1, 0, "", ""), "Took 1 task out of their project.");
       assert.equal(historyProjectResultText(3, 1, "Kitchen", "no connection"), "Added 2 of 3 tasks to \u201cKitchen\u201d. 1 failed (no connection); it is still selected.");
       assert.equal(historyProjectResultText(4, 2, "", "Unknown project"), "Took 2 of 4 tasks out of their project. 2 failed (Unknown project); they are still selected.");
+      assert.equal(historyProjectResultText(3, 0, "Kitchen", "", 3), "Added 3 tasks to \u201cKitchen\u201d. 3 are waiting to be sent.");
+      assert.equal(historyProjectResultText(2, 0, "", "", 1), "Took 2 tasks out of their project. 1 is waiting to be sent.");
+      assert.equal(historyProjectResultText(3, 1, "Kitchen", "Unknown project", 1), "Added 2 of 3 tasks to \u201cKitchen\u201d. 1 is waiting to be sent. 1 failed (Unknown project); it is still selected.");
     });
     it("wires the History Project button to the picker and one updateCompletedTask call per entry", () => {
       const route = html.slice(html.indexOf("function onHistoryBatchAction(kind)"), html.indexOf("async function reopenEntryNow"));
@@ -4132,7 +4197,9 @@ describe("public/index.html helpers", () => {
       assert.match(html, /body: JSON\.stringify\(historyProjectBody\(row, projectId\)\)/);
       const run = html.slice(html.indexOf("async function historyProjectRun(projectId)"), html.indexOf("// Photos on tasks."));
       assert.match(run, /selectedHistoryEntries\(\)/, "every selected entry, shown or not, in list order");
-      assert.match(run, /!navigator\.onLine/, "online only");
+      assert.doesNotMatch(run, /needs a connection/, "no connection needed: a move is held");
+      assert.match(run, /!hasPendingActions\(actionQueue\) && !actionDraining/, "behind waiting changes it is held, so the order holds");
+      assert.match(run, /holdEntryProject\(row, projectId\)/, "no connection or changes waiting: held as an EDIT of the entry's project");
       assert.match(run, /if \(!historyProjectNeeded\(row, projectId\)\) continue;/);
       assert.match(run, /if \(result\.offline\) offline = true;/, "the rest are not tried once the connection is gone");
       assert.match(run, /if \(failedKeys\.length > 0\) historySelectedKeys = new Set\(failedKeys\);/, "a failed entry stays selected");
@@ -4625,11 +4692,11 @@ describe("public/index.html helpers", () => {
       const calls = code.match(/(?<!function )askAlert\(/g) || [];
       const inSection = code.match(/(?<!function )warnInSection\(/g) || [];
       assert.equal(inSection.length, 10, "ten validation warnings open the section holding the field at fault first (four in the add card, four in the queued form, two in the completed form)");
-      assert.equal(calls.length - 1 + inSection.length, 67, "the sixty-seven messages the page shows (fourteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and two why a Multi-Select change was not; queueReopen's four refusals share one call and a History batch Delete and a History batch Project without a connection add one each); warnInSection's own askAlert call stands for its ten");
+      assert.equal(calls.length - 1 + inSection.length, 66, "the sixty-six messages the page shows (fourteen are refusals to keep an add, a change or a comment for later, six tell why a held edit was not kept and two why a Multi-Select change was not; queueReopen's four refusals share one call and a History batch Delete without a connection adds one); warnInSection's own askAlert call stands for its ten");
       const errors = code.match(/askAlert\(failureText\([^\n]*\{ tone: "error" \}\)/g) || [];
       assert.equal(errors.length, 19, "every failed call is an error alert with the reason as detail");
       const warnings = code.match(/askAlert\([^;\n]*?\{ tone: "warning" \}\)/g) || [];
-      assert.equal(warnings.length - 1 + inSection.length, 46, "every validation message is a warning alert (queueReopen's refusals are one call, a History batch Delete without a connection another, a History batch Project without one another)");
+      assert.equal(warnings.length - 1 + inSection.length, 45, "every validation message is a warning alert (queueReopen's refusals are one call, a History batch Delete without a connection another)");
       assert.match(code, /function warnInSection\(sectionId, text\) \{\s*openFormSection\(sectionId\);\s*return askAlert\(text, \{ tone: "warning" \}\);/);
     });
     it("hides Cancel for an alert, shows it again for a question and focuses the button", () => {

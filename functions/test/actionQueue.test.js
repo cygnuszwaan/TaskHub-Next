@@ -208,10 +208,13 @@ describe("action queue (public/index.html)", () => {
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {projectId: "p"}}), null, "a field that cannot be held");
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {queueNumber: 2}}), null, "a field that needs the server");
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", archiveId: "archive-0001", fields: {title: "x"}}), null, "an entry holds only the plain fields of its archive row");
-      for (const fields of [{materials: []}, {projectId: "p"}, {completedDate: "2026-10-27", completedTime: "09:00"}, {estimatedMinutes: 5}, {trackedSeconds: -1}, {priority: "URGENT"}]) {
+      for (const fields of [{materials: []}, {completedDate: "2026-10-27", completedTime: "09:00"}, {estimatedMinutes: 5}, {trackedSeconds: -1}, {priority: "URGENT"}]) {
         assert.equal(page.makeQueuedAction({...base, kind: "EDIT", archiveId: "archive-0001", fields}), null, JSON.stringify(fields));
       }
       assert.deepEqual(page.makeQueuedAction({...base, kind: "EDIT", archiveId: "archive-0001", fields: {priority: "HIGH"}}).fields, {priority: "HIGH"});
+      assert.deepEqual(page.makeQueuedAction({...base, kind: "EDIT", archiveId: "archive-0001", fields: {projectId: "p"}}).fields, {projectId: "p"}, "an entry holds its project");
+      assert.deepEqual(page.makeQueuedAction({...base, kind: "EDIT", archiveId: "archive-0001", fields: {projectId: ""}}).fields, {projectId: null}, "none, as the server stores it");
+      assert.equal(page.makeQueuedAction({...base, kind: "EDIT", archiveId: "archive-0001", fields: {projectId: 5}}), null, "not an id");
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {description: 5}}), null);
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a", fields: {}}), null);
       assert.equal(page.makeQueuedAction({...base, kind: "EDIT", taskId: "a"}), null);
@@ -268,7 +271,7 @@ describe("action queue (public/index.html)", () => {
       const page = load();
       assert.deepEqual(page.ACTION_KINDS, ["TIMER", "COMPLETE", "REOPEN", "EDIT", "UNDO", "COMMENT", "COMMENT_DELETE", "DELETE", "SHOPPING_ADD", "SHOPPING_REMOVE", "BATCH"]);
       assert.deepEqual(page.EDIT_FIELDS, ["title", "priority", "estimatedMinutes", "tags", "dueDate", "recurrence", "travelKm", "phone", "email", "url", "location", "snoozedUntil", "description", "materials"]);
-      assert.deepEqual(page.ENTRY_EDIT_FIELDS, ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "url", "location", "description"]);
+      assert.deepEqual(page.ENTRY_EDIT_FIELDS, ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "url", "location", "description", "projectId"]);
     });
   });
 
@@ -817,7 +820,7 @@ describe("action queue (public/index.html)", () => {
     });
     it("splits a form's changes into the ones that can be held and the names of the rest", () => {
       const page = load();
-      assert.deepEqual(page.splitHeldFields({description: "x", trackedSeconds: 600, completedDate: "2026-10-27", completedTime: "09:00", travelKm: 3, materials: ["a"], projectId: "p"}), {held: {description: "x", trackedSeconds: 600, travelKm: 3}, other: ["completedDate", "completedTime", "materials", "projectId"]});
+      assert.deepEqual(page.splitHeldFields({description: "x", trackedSeconds: 600, completedDate: "2026-10-27", completedTime: "09:00", travelKm: 3, materials: ["a"], projectId: "p"}), {held: {description: "x", trackedSeconds: 600, travelKm: 3, projectId: "p"}, other: ["completedDate", "completedTime", "materials"]});
       assert.deepEqual(page.splitHeldFields({description: null}), {held: {description: null}, other: []});
       for (const nothing of [{}, null, undefined, [], "x"]) assert.deepEqual(page.splitHeldFields(nothing), {held: {}, other: []});
     });
@@ -1130,7 +1133,7 @@ describe("action queue (public/index.html)", () => {
   describe("holding the edit of a History entry", () => {
     const entry = (extra = {}) => ({id: "e", title: "Task e", status: "PENDING", priority: "LOW", estimatedMinutes: 10, tags: ["old"], trackedSeconds: 90, description: "was", completedAt: iso(T0 - 5 * MIN), archiveId: "archive-0001", completedCount: 1, recentSeconds: [90], ...extra});
     const serverEntry = (row, fields) => {
-      const result = applyCompletedEdit(row, fields, {timeZone: "Pacific/Auckland", now: new Date(T0)});
+      const result = applyCompletedEdit(row, fields, {timeZone: "Pacific/Auckland", now: new Date(T0), projectIds: ["p1", "p2"]});
       if (result.error === "Nothing to change") return row; // a no-op the server refuses leaves the row as it is
       assert.ok(!result.error, `${JSON.stringify(fields)}: ${result.error}`);
       const next = {...row, ...result.set};
@@ -1155,12 +1158,13 @@ describe("action queue (public/index.html)", () => {
     });
     it("leaves an entry as the server's correction does, field by field", () => {
       const page = load();
-      const olds = [entry(), entry({priority: "HIGH", tags: ["x", "y"], trackedSeconds: 0, travelKm: 3, phone: "021", email: "o@o.nz", url: "https://old.example/x", location: {name: "Old", latitude: -36.6, longitude: 174.7}})];
+      const olds = [entry(), entry({priority: "HIGH", tags: ["x", "y"], trackedSeconds: 0, travelKm: 3, phone: "021", email: "o@o.nz", url: "https://old.example/x", location: {name: "Old", latitude: -36.6, longitude: 174.7}}), entry({projectId: "p1", projectOrder: 3})];
       const fields = [
         {priority: "MEDIUM"}, {trackedSeconds: 600}, {trackedSeconds: 0}, {trackedSeconds: 125.6}, {tags: [" a ", "A", "", "b"]}, {tags: []},
         {tags: Array.from({length: 25}, (_, i) => `t${i}`)}, {travelKm: 2.26}, {travelKm: null}, {travelKm: 0}, {phone: " 1  2 "}, {phone: null},
         {email: "a@b.co"}, {email: null}, {url: " example.com/job "}, {url: null}, {url: ""}, {location: {name: " Rd "}}, {location: null}, {location: {name: "P", latitude: -36.6, longitude: 174.7}},
         {description: "  hi "}, {description: null}, {description: ""},
+        {projectId: "p1"}, {projectId: "p2"}, {projectId: null}, {projectId: ""}, {projectId: "p2", priority: "HIGH"},
         {priority: "LOW", trackedSeconds: 30, tags: ["q"], travelKm: 7.5, phone: "123", email: "z@z.nz", url: "https://z.example", location: {name: "Z"}, description: "all"},
       ];
       for (const row of olds) {
@@ -1170,6 +1174,23 @@ describe("action queue (public/index.html)", () => {
           assert.deepEqual(page.applyEditFields(row, checked.fields, page.ENTRY_EDIT_FIELDS), serverEntry(row, checked.fields), JSON.stringify(f));
         }
       }
+    });
+    it("shows a held project change in History as the server's correction leaves the row, and drops the order number", () => {
+      const page = load();
+      const row = entry({projectId: "p1", projectOrder: 3});
+      const to = (fields) => page.withPendingActions([], [row], [editEntry(page, fields)]).completed[0];
+      assert.equal(to({projectId: "p2"}).projectId, "p2");
+      assert.equal("projectOrder" in to({projectId: "p2"}), false, "another project drops the order number");
+      assert.equal(to({projectId: "p1"}).projectOrder, 3, "the same project changes nothing");
+      const none = to({projectId: null});
+      assert.equal("projectId" in none || "projectOrder" in none, false, "none drops both");
+      const second = page.withPendingActions([], [entry()], [editEntry(page, {projectId: "p1"}), editEntry(page, {projectId: "p2"}, {requestId: "req-n0002"})]).completed[0];
+      assert.equal(second.projectId, "p2", "held changes apply in order");
+    });
+    it("sends a held project change to updateCompletedTask, with None as null", () => {
+      const page = load();
+      assert.deepEqual(page.entryEditBody(editEntry(page, {projectId: "p1"})), {id: "archive-0001", updatedFields: {projectId: "p1"}});
+      assert.deepEqual(page.entryEditBody(editEntry(page, {projectId: ""})), {id: "archive-0001", updatedFields: {projectId: null}});
     });
     it("replays an entry's EDIT in History and on the entry a REOPEN brings back", () => {
       const page = load();
@@ -1208,9 +1229,10 @@ describe("action queue (public/index.html)", () => {
       assert.deepEqual(page.entryEditBody(edit), {id: "archive-0001", updatedFields: {trackedSeconds: 600, tags: ["a"], description: null}});
       assert.equal(page.actionLabel(edit), "Update time spent, tags and description on “Task e”");
       const held = page.splitHeldFields({priority: "HIGH", trackedSeconds: 60, tags: [], travelKm: 1, phone: "1", email: "a@b.co", url: "https://a.example", location: null, description: "d", materials: ["m"], projectId: "p", completedDate: "2026-10-27", completedTime: "09:00"});
-      assert.deepEqual(Object.keys(held.held), ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "url", "location", "description"]);
-      assert.deepEqual(held.other, ["materials", "projectId", "completedDate", "completedTime"]);
-      assert.equal(page.fieldNamesText(held.other), "materials, project and completion time");
+      assert.deepEqual(Object.keys(held.held), ["priority", "trackedSeconds", "tags", "travelKm", "phone", "email", "url", "location", "description", "projectId"]);
+      assert.deepEqual(held.other, ["materials", "completedDate", "completedTime"]);
+      assert.equal(page.fieldNamesText(held.other), "materials and completion time");
+      assert.equal(page.actionLabel(editEntry(page, {projectId: "p"})), "Update project on “Task e”");
     });
   });
   describe("holding a comment", () => {
