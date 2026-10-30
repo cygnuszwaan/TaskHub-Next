@@ -43,6 +43,33 @@ describe("settings.js", () => {
     });
   });
 
+  describe("weatherDays", () => {
+    it("defaults to 3 and keeps a stored valid value", () => {
+      assert.equal(mergeSettings(undefined).weatherDays, 3);
+      assert.equal(mergeSettings({weatherDays: 16}).weatherDays, 16);
+    });
+    it("falls back to 3 for an unusable stored value", () => {
+      for (const bad of [0, 17, 2.5, "5", null, NaN]) assert.equal(mergeSettings({weatherDays: bad}).weatherDays, 3);
+    });
+    it("is editable, alone, without touching the rest", () => {
+      const r = applySettingsUpdate(base(), {weatherDays: 5});
+      assert.equal(r.settings.weatherDays, 5);
+      assert.equal(r.settings.scheduleDays, 7);
+      assert.deepEqual(r.settings.schedule, DEFAULTS.schedule);
+    });
+    it("rejects out-of-range and non-integer values, saving nothing", () => {
+      for (const bad of [0, 17, 1.5, "3", null]) {
+        const r = applySettingsUpdate(base(), {weatherDays: bad});
+        assert.match(r.error, /weatherDays/);
+        assert.equal(r.settings, undefined);
+      }
+    });
+    it("accepts the bounds", () => {
+      assert.equal(applySettingsUpdate(base(), {weatherDays: 1}).settings.weatherDays, 1);
+      assert.equal(applySettingsUpdate(base(), {weatherDays: 16}).settings.weatherDays, 16);
+    });
+  });
+
   describe("scheduleDays", () => {
     it("defaults to 7 and keeps a stored valid value", () => {
       assert.equal(mergeSettings(undefined).scheduleDays, 7);

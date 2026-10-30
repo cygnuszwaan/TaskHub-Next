@@ -33,4 +33,4 @@ Firebase setup, deploy, backups, push notifications, address autocomplete, secre
 - Gemini (`@google/genai`, model constant `MODEL_NAME`, chosen for its free tier) only to parse free text into tasks and to suggest tags for a manual entry that has none; nothing is scheduled by a model.
 - Google Calendar via `@googleapis/calendar` with a service-account `JWT` from `google-auth-library` (only the Calendar API is loaded: the full `googleapis` package alone filled most of a 256 MiB instance).
 - Google Tasks (REST, with `google-auth-library`'s `OAuth2Client`) for the voice inbox only.
-- Weather from Open-Meteo for the configured location: current conditions and a 3-day daily forecast.
+- Weather from Open-Meteo for the configured location: current conditions and a daily forecast of `weatherDays` days (default 3).

@@ -1652,6 +1652,17 @@ describe("public/index.html helpers", () => {
       assert.match(html, /e\.target\.closest\("\.timer-warning"\)\) return null/);
       assert.match(html, /sendTimerAction\(task\.id, "PAUSE", capIt && warning \? \{ capSeconds: warning\.cap \} : \{\}\)/);
     });
+    it("has a forecast window field in the Scheduling settings, loaded, saved and change-checked", () => {
+      assert.match(html, /<label for="weatherDays">Trust the weather forecast for \(days\)<\/label>/);
+      assert.match(html, /id="weatherDays" min="1" max="16" step="1"/);
+      const apply = html.slice(html.indexOf("function applySettings(s)"), html.indexOf("async function saveSettings"));
+      assert.ok(apply.includes("getElementById(\"weatherDays\")"), "filled from the saved settings");
+      const changed = html.slice(html.indexOf("function scheduleFieldsChanged"), html.indexOf("function setSettingsStatus"));
+      assert.ok(changed.includes("getElementById(\"weatherDays\")"), "counts as an unsaved scheduling change");
+      const save = html.slice(html.indexOf("async function saveSettings"), html.indexOf("document.getElementById(\"undoNoteBtn\")"));
+      assert.ok(save.includes("getElementById(\"weatherDays\")"), "read when saving");
+      assert.match(html, /typeof saved\.weatherDays !== "number"/);
+    });
     it("has a Warn when a timer has run for field in the Scheduling settings", () => {
       assert.match(html, /<label for="timerWarnHours">Warn when a timer has run for \(hours\)<\/label>/);
     });
@@ -1723,6 +1734,15 @@ describe("public/index.html helpers", () => {
       const h = load();
       assert.equal("timerWarnHours" in h.settingsPayload({...form, timerWarnHours: ""}), false);
       assert.equal("timerWarnHours" in h.settingsPayload({...form, timerWarnHours: undefined}), false);
+    });
+    it("sends the forecast window, and leaves it out when its field is empty so the saved value stays", () => {
+      const h = load();
+      const {applySettingsUpdate, mergeSettings} = require("../settings");
+      assert.equal(h.settingsPayload({...form, weatherDays: "5"}).weatherDays, 5);
+      assert.equal("weatherDays" in h.settingsPayload({...form, weatherDays: ""}), false);
+      assert.equal("weatherDays" in h.settingsPayload({...form, weatherDays: undefined}), false);
+      assert.equal(applySettingsUpdate(mergeSettings(undefined), h.settingsPayload({...form, weatherDays: "16"})).settings.weatherDays, 16);
+      assert.match(applySettingsUpdate(mergeSettings(undefined), h.settingsPayload({...form, weatherDays: "17"})).error, /weatherDays/);
     });
     it("sends URGENCY for anything but NUMBER", () => {
       const h = load();

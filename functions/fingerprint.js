@@ -5,7 +5,7 @@ const {localDate} = require("./time");
 const {snoozeDate} = require("./snooze");
 
 // Bump when the scheduling prompt or the engine's rules change, so the first run after a deploy is never skipped.
-const FINGERPRINT_VERSION = 17;
+const FINGERPRINT_VERSION = 18;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 // The fields of a task that can change what Gemini is asked or how it answers. Calendar and schedule fields are
@@ -73,7 +73,7 @@ function groupingAnchors(anchors) {
 //   tasks:      the unlocked tasks being scheduled
 //   busySlots:  merged busy windows, as passed to the planner
 //   weatherKey: coarse weather summary (see weather.js `forecastKey`)
-//   settings:   {timeZone, location, scheduleDays, gapMinutes, scheduleOrder, day, travelGrouping} (the lunch break is already part of busySlots)
+//   settings:   {timeZone, location, scheduleDays, weatherDays, gapMinutes, scheduleOrder, day, travelGrouping} (the lunch break is already part of busySlots)
 //   locations:  {taskId: {latitude, longitude}}, the tasks' effective coordinates (location.js `taskCoordinates`); only counted with the area preference on
 //   anchors:    [{date, latitude, longitude}], the slots the run leaves in place (schedule.js `buildAnchors`); only counted with the area preference on
 //   now, horizon: the run's instant and the end of the scheduling window
@@ -85,6 +85,7 @@ function computeFingerprint({tasks, busySlots, weatherKey, settings, now, horizo
     version: FINGERPRINT_VERSION,
     timeZone,
     scheduleDays: settings.scheduleDays,
+    weatherDays: settings.weatherDays,
     gapMinutes: settings.gapMinutes || 0,
     scheduleOrder: settings.scheduleOrder === "NUMBER" ? "NUMBER" : "URGENCY",
     day: settings.day ? {start: settings.day.start, end: settings.day.end} : null,

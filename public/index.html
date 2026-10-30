@@ -644,6 +644,11 @@
           </div>
         </div>
         <div class="form-group">
+          <label for="weatherDays">Trust the weather forecast for (days)</label>
+          <input type="number" id="weatherDays" min="1" max="16" step="1" inputmode="numeric">
+          <p class="settings-note">Outdoor and Garden tasks are only scheduled inside this many days from today, and never on a rainy day.</p>
+        </div>
+        <div class="form-group">
           <label for="timerWarnHours">Warn when a timer has run for (hours)</label>
           <input type="number" id="timerWarnHours" min="1" max="48" step="1" inputmode="numeric">
           <!-- <p class="settings-note">The Active task says so and offers to pause it, keeping only that many hours.</p> -->
@@ -1979,6 +1984,8 @@
         location: { name: form.location.name, latitude: form.location.latitude, longitude: form.location.longitude },
         timeZone: form.timeZone,
         scheduleDays: Number(form.scheduleDays),
+        // an empty field leaves the saved value alone
+        ...(form.weatherDays === undefined || String(form.weatherDays).trim() === "" ? {} : { weatherDays: Number(form.weatherDays) }),
         gapMinutes: Number(form.gapMinutes),
         // an empty field leaves the saved value alone
         ...(form.timerWarnHours === undefined || String(form.timerWarnHours).trim() === "" ? {} : { timerWarnHours: Number(form.timerWarnHours) }),
@@ -9505,6 +9512,7 @@
       const day = s.day || {};
       const area = s.travelGrouping || {};
       return document.getElementById("scheduleDays").value !== String(s.scheduleDays)
+        || document.getElementById("weatherDays").value !== String(s.weatherDays)
         || document.getElementById("travelGroupingEnabled").checked !== !!area.enabled
         || document.getElementById("travelRadiusKm").value !== String(area.radiusKm)
         || document.getElementById("travelDeferDays").value !== String(area.maxDeferDays)
@@ -9533,6 +9541,7 @@
       document.title = `TaskHub Next - ${s.location.name}`;
       renderLocation();
       document.getElementById("scheduleDays").value = typeof s.scheduleDays === "number" ? String(s.scheduleDays) : "";
+      document.getElementById("weatherDays").value = typeof s.weatherDays === "number" ? String(s.weatherDays) : "";
       document.getElementById("gapMinutes").value = typeof s.gapMinutes === "number" ? String(s.gapMinutes) : "";
       document.getElementById("timerWarnHours").value = typeof s.timerWarnHours === "number" ? String(s.timerWarnHours) : "";
       document.getElementById("scheduleOrder").value = s.scheduleOrder === "NUMBER" ? "NUMBER" : "URGENCY";
@@ -10039,6 +10048,7 @@
             location: place,
             timeZone: place.timeZone,
             scheduleDays: document.getElementById("scheduleDays").value,
+            weatherDays: document.getElementById("weatherDays").value,
             gapMinutes: document.getElementById("gapMinutes").value,
             timerWarnHours: document.getElementById("timerWarnHours").value,
             scheduleOrder: document.getElementById("scheduleOrder").value,
@@ -10056,9 +10066,9 @@
         });
         const saved = (await res.json()).settings;
         applySettings(saved);
-        if (typeof saved.scheduleDays !== "number" || typeof saved.gapMinutes !== "number" || typeof saved.timerWarnHours !== "number" || typeof saved.scheduleOrder !== "string" || !saved.day || !saved.lunch || !saved.travelGrouping) {
+        if (typeof saved.scheduleDays !== "number" || typeof saved.weatherDays !== "number" || typeof saved.gapMinutes !== "number" || typeof saved.timerWarnHours !== "number" || typeof saved.scheduleOrder !== "string" || !saved.day || !saved.lunch || !saved.travelGrouping) {
           // An older deployed backend drops fields it does not know, so a setting would silently keep its old value
-          setSettingsStatus("Saved, but the server ignored the days, gap, timer warning, order, day, lunch or area setting. Deploy the latest functions.");
+          setSettingsStatus("Saved, but the server ignored the days, weather days, gap, timer warning, order, day, lunch or area setting. Deploy the latest functions.");
           return false;
         }
         setSettingsStatus("Saved.");

@@ -17,6 +17,10 @@ describe("weather.js", () => {
       assert.equal(WEATHER_DAYS, 3);
       assert.deepEqual(u.searchParams.get("daily").split(","), ["weather_code", "temperature_2m_max", "temperature_2m_min", "precipitation_sum", "precipitation_probability_max"]);
     });
+    it("asks for as many forecast days as given, WEATHER_DAYS when none", () => {
+      assert.equal(new URL(weatherUrl({latitude: 0, longitude: 0}, "UTC", 7)).searchParams.get("forecast_days"), "7");
+      assert.equal(new URL(weatherUrl({latitude: 0, longitude: 0}, "UTC")).searchParams.get("forecast_days"), String(WEATHER_DAYS));
+    });
     it("asks for the days in the configured time zone, encoded", () => {
       assert.equal(url({latitude: 34.05, longitude: -118.24}, "America/Los_Angeles").searchParams.get("timezone"), "America/Los_Angeles");
       assert.match(weatherUrl({latitude: 0, longitude: 0}, "America/Los_Angeles"), /timezone=America%2FLos_Angeles$/);
@@ -112,6 +116,15 @@ describe("weather.js", () => {
     });
   });
 
+  describe("parseForecast days", () => {
+    const week = {daily: {time: ["2026-10-22", "2026-10-23", "2026-10-24", "2026-10-25", "2026-10-26"], weather_code: [0, 0, 0, 0, 0]}};
+    it("keeps at most the given number of days, WEATHER_DAYS when none", () => {
+      assert.deepEqual(parseForecast(week, 5).map((d) => d.date), week.daily.time);
+      assert.deepEqual(parseForecast(week, 2).map((d) => d.date), ["2026-10-22", "2026-10-23"]);
+      assert.equal(parseForecast(week).length, WEATHER_DAYS);
+    });
+  });
+
   describe("forecastKey", () => {
     const day = (rainy) => ({date: "2026-10-22", rainy});
     it("has one letter per day: W rainy, D dry", () => {
@@ -152,6 +165,15 @@ describe("weather.js", () => {
     it("ignores forecast days outside the window", () => {
       const w = weatherWindow({today: "2026-10-22", forecast: [day("2026-10-21", true), day("2026-10-22", false), day("2026-10-25", true)], current: "DRY"});
       assert.deepEqual(w.rainyDates, []);
+    });
+    it("ends the window `days` days from today, WEATHER_DAYS when none are given", () => {
+      const forecast = [day("2026-10-22", false), day("2026-10-23", false), day("2026-10-24", true), day("2026-10-26", true)];
+      assert.deepEqual(weatherWindow({today: "2026-10-22", forecast, current: "DRY", days: 5}), {lastDate: "2026-10-26", rainyDates: ["2026-10-24", "2026-10-26"]});
+      assert.deepEqual(weatherWindow({today: "2026-10-22", forecast, current: "DRY", days: 1}), {lastDate: "2026-10-22", rainyDates: []});
+      assert.equal(weatherWindow({today: "2026-10-22", forecast, current: "DRY"}).lastDate, "2026-10-24");
+    });
+    it("without a forecast, a wet current key makes every day of a longer window rainy", () => {
+      assert.deepEqual(weatherWindow({today: "2026-10-22", forecast: [], current: "WET", days: 5}).rainyDates, ["2026-10-22", "2026-10-23", "2026-10-24", "2026-10-25", "2026-10-26"]);
     });
     it("rolls over a month end", () => {
       assert.equal(weatherWindow({today: "2026-10-30", forecast: [], current: "DRY"}).lastDate, "2026-11-01");

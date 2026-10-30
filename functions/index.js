@@ -217,12 +217,12 @@ async function removeTaskCalendarEvent(task) {
 // Helper: Fetch the weather at a location ({latitude, longitude}) as {forecast, key}: the current conditions as one
 // line for the prompt, the daily forecast for the first days (empty when unavailable) and the coarse summary for the
 // run fingerprint. A failed request gives the unavailable text, no forecast and the unavailable key.
-async function getWeather(location, timeZone) {
+async function getWeather(location, timeZone, days) {
   try {
-    const res = await fetch(weatherUrl(location, timeZone));
+    const res = await fetch(weatherUrl(location, timeZone, days));
     if (!res.ok) throw new Error(`Open-Meteo answered ${res.status}`);
     const data = await res.json();
-    const forecast = parseForecast(data);
+    const forecast = parseForecast(data, days);
     return {forecast, key: forecastKey(forecast, data.current_weather)};
   } catch (err) {
     console.warn("Weather unavailable:", err.message);
@@ -355,7 +355,7 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
   let fingerprint = null;
   let weatherRules = null;
   if (toSchedule.length > 0) {
-    const weather = await getWeather(settings.location, timeZone);
+    const weather = await getWeather(settings.location, timeZone, settings.weatherDays);
     // Area preference: the tasks' effective coordinates and the slots this run leaves in place (pinned tasks, and in a
     // subset run every other scheduled task) that make their day a day with a task in that area. A failed read aborts the run.
     const lockedByTask = new Map([...lockedEvents].map(([id, ev]) => [id, eventWindow(ev, timeZone)]));
@@ -377,7 +377,7 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
     const fixed = buildFixedSlots({tasks: currentTasks, inScopeIds: subset ? new Set(inScope.map((t) => t.id)) : null, lockedWindows: lockedByTask, timeZone});
     console.log(`Scheduling ${toSchedule.length} tasks over ${settings.scheduleDays} days (${busySlots.length} busy windows, gap ${gap} min, day ${settings.day.start}-${settings.day.end}, lunch ${settings.lunch.enabled ? "on" : "off"}, area grouping ${grouping ? `${grouping.radiusKm} km / ${grouping.maxDeferDays} days, ${Object.keys(locations).length} located, ${anchors.length} anchors` : "off"}, to ${horizon.toISOString()})`);
     // Outdoor and Garden tasks stay inside the forecast window and off rainy days (enforced by the slot validation)
-    weatherRules = weatherWindow({today: localDate(timeZone, now), forecast: weather.forecast, current: weather.key});
+    weatherRules = weatherWindow({today: localDate(timeZone, now), forecast: weather.forecast, current: weather.key, days: settings.weatherDays});
     const validation = {busy: busySlots, now, horizon, timeZone, weather: weatherRules, allTasks: currentTasks, fixed, gapMinutes: gap, dayStartMin, dayEndMin};
     const result = planValidSchedule(toSchedule, validation, settings.scheduleOrder, grouping ? {locations, grouping, anchors} : {});
     scheduledList = result.items;
@@ -1479,7 +1479,7 @@ exports.getSettings = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, r
 }));
 
 // 9. Endpoint: Update Settings
-// Body: {settings: {location?, timeZone?, scheduleDays?, gapMinutes?, timerWarnHours?, scheduleOrder?, day?, lunch?, travelGrouping?, schedule?, jobSheet?}}, any subset of the editable fields. 400 with the reason
+// Body: {settings: {location?, timeZone?, scheduleDays?, weatherDays?, gapMinutes?, timerWarnHours?, scheduleOrder?, day?, lunch?, travelGrouping?, schedule?, jobSheet?}}, any subset of the editable fields. 400 with the reason
 // when a field is invalid (nothing is saved); run state cannot be set.
 exports.updateSettings = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {

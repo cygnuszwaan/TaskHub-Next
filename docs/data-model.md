@@ -7,6 +7,7 @@ Firestore collections and documents, the runtime settings and the Task shape.
   - `location {name, latitude, longitude}`: default Whangaparāoa (-36.63, 174.78).
   - `timeZone`: IANA name, default Pacific/Auckland.
   - `scheduleDays`: how many days ahead a run schedules, a whole number 1..28, default 7.
+  - `weatherDays`: how many days of weather forecast are trusted, a whole number 1..16 (Open-Meteo's limit), default 3: Outdoor and Garden tasks are only scheduled on a local date inside the first `weatherDays` days from today, and never on a rainy one; later days are scheduled without regard to weather for every other task.
   - `gapMinutes`: free minutes kept between scheduled tasks, a whole number 0..60, default 0.
   - `timerWarnHours`: hours a timer may run since it was started before the page warns it may have been left on, a whole number 1..48, default 6; read only by the page.
   - `scheduleOrder`: the order the planner takes tasks in, `URGENCY` (default) or `NUMBER` (task number, i.e. queue order); see the scheduling engine.

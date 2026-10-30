@@ -17,6 +17,11 @@ const TICK_GRACE_MS = 60 * 1000;
 const MIN_SCHEDULE_DAYS = 1;
 const MAX_SCHEDULE_DAYS = 28;
 
+// How many days of weather forecast are trusted: Outdoor and Garden tasks are only scheduled inside this window.
+// Open-Meteo serves at most 16 forecast days.
+const MIN_WEATHER_DAYS = 1;
+const MAX_WEATHER_DAYS = 16;
+
 // Gap left between scheduled tasks (minutes), and the lunch break's length range (minutes).
 const MIN_GAP_MINUTES = 0;
 const MAX_GAP_MINUTES = 60;
@@ -44,6 +49,7 @@ const DEFAULTS = Object.freeze({
   location: Object.freeze({name: "Whangaparāoa, Auckland", latitude: -36.63, longitude: 174.78}),
   timeZone: "Pacific/Auckland",
   scheduleDays: 7,
+  weatherDays: 3,
   gapMinutes: 0,
   timerWarnHours: 6,
   scheduleOrder: "URGENCY",
@@ -90,6 +96,13 @@ function checkTimeZone(v) {
 function checkScheduleDays(v) {
   if (!Number.isInteger(v) || v < MIN_SCHEDULE_DAYS || v > MAX_SCHEDULE_DAYS) {
     throw new Error(`scheduleDays must be a whole number from ${MIN_SCHEDULE_DAYS} to ${MAX_SCHEDULE_DAYS}`);
+  }
+  return v;
+}
+
+function checkWeatherDays(v) {
+  if (!Number.isInteger(v) || v < MIN_WEATHER_DAYS || v > MAX_WEATHER_DAYS) {
+    throw new Error(`weatherDays must be a whole number from ${MIN_WEATHER_DAYS} to ${MAX_WEATHER_DAYS}`);
   }
   return v;
 }
@@ -238,6 +251,7 @@ const EDITABLE = [
   ["location", "longitude", (v) => checkNumber(v, "location.longitude", -180, 180)],
   ["timeZone", null, checkTimeZone],
   ["scheduleDays", null, checkScheduleDays],
+  ["weatherDays", null, checkWeatherDays],
   ["gapMinutes", null, checkGapMinutes],
   ["timerWarnHours", null, checkTimerWarnHours],
   ["scheduleOrder", null, checkScheduleOrder],
@@ -279,7 +293,7 @@ function isoOrNull(v) {
 // Full settings from whatever is stored (possibly nothing). A missing or unusable stored field falls back to
 // its default, so a hand-edited document can never break the app. Pure: returns a new object.
 function mergeSettings(stored) {
-  const out = {location: {...DEFAULTS.location}, timeZone: DEFAULTS.timeZone, scheduleDays: DEFAULTS.scheduleDays, gapMinutes: DEFAULTS.gapMinutes, timerWarnHours: DEFAULTS.timerWarnHours, scheduleOrder: DEFAULTS.scheduleOrder, day: {...DEFAULTS.day}, lunch: {...DEFAULTS.lunch}, travelGrouping: {...DEFAULTS.travelGrouping}, schedule: {...DEFAULTS.schedule}, jobSheet: {...DEFAULTS.jobSheet}, notify: {...DEFAULTS.notify}};
+  const out = {location: {...DEFAULTS.location}, timeZone: DEFAULTS.timeZone, scheduleDays: DEFAULTS.scheduleDays, weatherDays: DEFAULTS.weatherDays, gapMinutes: DEFAULTS.gapMinutes, timerWarnHours: DEFAULTS.timerWarnHours, scheduleOrder: DEFAULTS.scheduleOrder, day: {...DEFAULTS.day}, lunch: {...DEFAULTS.lunch}, travelGrouping: {...DEFAULTS.travelGrouping}, schedule: {...DEFAULTS.schedule}, jobSheet: {...DEFAULTS.jobSheet}, notify: {...DEFAULTS.notify}};
   for (const [group, key, check] of EDITABLE) {
     const value = readField(stored, group, key);
     if (value === undefined) continue;
@@ -363,4 +377,4 @@ function claimRun(settings, now = new Date()) {
   return {due: true, settings: {...settings, lastAutoRunAt: now.toISOString()}};
 }
 
-module.exports = {REMINDER_LEADS, MAX_CONTRACTOR_INFO, MIN_DAY_MINUTES, dayWindowMinutes, MIN_SCHEDULE_DAYS, MAX_SCHEDULE_DAYS, MIN_GAP_MINUTES, MAX_GAP_MINUTES, MIN_LUNCH_MINUTES, MAX_LUNCH_MINUTES, MIN_GROUPING_RADIUS_KM, MAX_GROUPING_RADIUS_KM, MIN_DEFER_DAYS, MAX_DEFER_DAYS, INTERVALS, FREQUENCIES, TICK_GRACE_MS, DEFAULTS, mergeSettings, applySettingsUpdate, isRunDue, claimRun};
+module.exports = {REMINDER_LEADS, MAX_CONTRACTOR_INFO, MIN_DAY_MINUTES, dayWindowMinutes, MIN_SCHEDULE_DAYS, MAX_SCHEDULE_DAYS, MIN_WEATHER_DAYS, MAX_WEATHER_DAYS, MIN_GAP_MINUTES, MAX_GAP_MINUTES, MIN_LUNCH_MINUTES, MAX_LUNCH_MINUTES, MIN_GROUPING_RADIUS_KM, MAX_GROUPING_RADIUS_KM, MIN_DEFER_DAYS, MAX_DEFER_DAYS, INTERVALS, FREQUENCIES, TICK_GRACE_MS, DEFAULTS, mergeSettings, applySettingsUpdate, isRunDue, claimRun};

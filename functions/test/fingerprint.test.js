@@ -53,6 +53,10 @@ describe("fingerprint.js", () => {
       assert.notEqual(fp({settings: {...settings, scheduleDays: 28}}), fp());
       assert.equal(fp({settings: {...settings, scheduleDays: 7}}), fp());
     });
+    it("changes with the forecast window, even when the weather key is the same", () => {
+      assert.notEqual(fp({settings: {...settings, weatherDays: 5}}), fp({settings: {...settings, weatherDays: 3}}));
+      assert.equal(fp({settings: {...settings, weatherDays: 3}}), fp({settings: {...settings, weatherDays: 3}}));
+    });
     it("changes with the busy windows", () => {
       assert.notEqual(fp({busySlots: []}), fp());
       assert.notEqual(fp({busySlots: [{start: "2026-10-22T13:00:00+13:00", end: "2026-10-22T14:30:00+13:00"}]}), fp());
