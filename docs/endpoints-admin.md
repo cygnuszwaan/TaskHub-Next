@@ -4,9 +4,9 @@ The functions for scheduling runs, settings and notifications, tidying up, proje
 
 | Function | Purpose | AI |
 |---|---|---|
-| `generateWeeklySchedule` | Manual full run, the "Update now" button | No |
+| `generateWeeklySchedule` | Manual full run, the "Update now" button; first pulls the voice inbox (`infrastructure.md`) | No |
 | `rescheduleTask` | Replace one task's calendar event (engine run for that task only). 404 for an unknown task, 409 when the task is pinned to the personal calendar or is held back for materials | No |
-| `autoScheduleDaily` | Dispatcher on a 15-minute cron (not HTTP; see below); first sends any start reminders due (`sendStartReminders`), then runs the same engine when the settings say a run is due, skipping it when nothing changed since the last full run; pushes the run-failed and weather-moved alerts | No |
+| `autoScheduleDaily` | Dispatcher on a 15-minute cron (not HTTP; see below); first sends any start reminders due (`sendStartReminders`), pulls the voice inbox (`infrastructure.md`), then runs the same engine when the settings say a run is due, skipping it when nothing changed since the last full run; pushes the run-failed and weather-moved alerts | No |
 | `getSettings` | Read `settings/app` with defaults filled in; the device tokens are left out and replaced by a `pushDevices` count | No |
 | `updatePushToken` | Body `{action, token}`: `REGISTER` adds the device's FCM token to `pushTokens` (a token already listed stays; past 5 the oldest goes), `UNREGISTER` removes it; 400 for another action or an unusable token. Responds `{success, devices}` | No |
 | `sendTestNotification` | No body. Sends the test message to every registered device (`sendToTokens`) and drops the devices the push service reports as gone. 400 when no device is registered, 502 with the error codes when nothing was delivered. Responds `{success, sent, failed, removed, devices}` | No |

@@ -39,6 +39,8 @@ const {makeOwnerOnly} = require("./auth");
 const {dayWindowMinutes} = require("./settings");
 const {lastIssued} = require("./jobNumber");
 const {normalizeRequestId, isRepeatedRequest} = require("./addRequests");
+const {findList, inboxEntries} = require("./voiceInbox");
+const {makeOAuthClient, makeTasksApi} = require("./googleTasks");
 const {resolveActionTime, normalizeArchiveId} = require("./clientTime");
 const {randomUUID} = require("crypto");
 const {v1: firestoreV1} = require("@google-cloud/firestore");
@@ -78,6 +80,8 @@ const PERSONAL_CALENDAR_ID = defineString("USER_PERSONAL_CALENDAR_ID");
 
 // Cloud Storage bucket the weekly backup is written to (set in functions/.env; empty skips the backup)
 const BACKUP_BUCKET = defineString("BACKUP_BUCKET", {default: ""});
+// The title of the Google Tasks list that is the voice inbox (see pullVoiceInbox)
+const VOICE_INBOX_LIST = defineString("VOICE_INBOX_LIST", {default: "TaskHub"});
 
 // The owner's Google account, the only one allowed to call the HTTP endpoints (set in functions/.env)
 const OWNER_EMAIL = defineString("OWNER_EMAIL");
@@ -470,9 +474,12 @@ exports.autoScheduleDaily = onSchedule({
   memory: "512MiB",
   secrets: [
     {name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"},
+    {name: "GEMINI_API_KEY", version: "latest"},
+    {name: "GOOGLE_TASKS_OAUTH", version: "latest"},
   ],
 }, async (event) => {
   await sendStartReminders();
+  await pullVoiceInbox(); // before the run, so a task added by voice is scheduled by it
   let settings = null;
   try {
     const claim = await claimAutoRun();
@@ -523,12 +530,15 @@ exports.weeklyBackup = onSchedule({
 exports.generateWeeklySchedule = onRequest({
   secrets: [
     {name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"},
+    {name: "GEMINI_API_KEY", version: "latest"},
+    {name: "GOOGLE_TASKS_OAUTH", version: "latest"},
   ],
   cors: ALLOWED_ORIGINS,
   timeoutSeconds: 120,
   memory: "512MiB",
 }, ownerOnly(async (req, res) => {
   try {
+    await pullVoiceInbox(); // "Update now" also takes whatever was added by voice since the last tick
     const result = await runScheduleEngine();
     res.status(200).send(result);
   } catch (err) {
@@ -566,6 +576,75 @@ exports.rescheduleTask = onRequest({
     res.status(500).send({error: err.message});
   }
 }));
+
+// The model's new or changed tasks for free text: {changes (project fields removed), parsed (its whole answer), projects (the stored
+// ones it was shown)}. With `allowProposal` it may also suggest a project, which stays in `parsed`.
+async function askModelForChanges(userInput, allowProposal) {
+  const [currentTasks, {timeZone}, projects] = await Promise.all([readTaskList(), readSettings(), readProjects()]);
+  const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
+  const prompt = buildTaskPrompt({tasks: currentTasks, projects, input: userInput, today: localDate(timeZone), proposals: allowProposal});
+  const response = await ai.models.generateContent({
+    model: MODEL_NAME,
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: allowProposal ? {...changeSchema, properties: {...changeSchema.properties, projectProposal: proposalSchema}} : changeSchema,
+    },
+  });
+  const parsed = JSON.parse(response.text);
+  return {parsed, changes: withoutProjectFields(parsed.tasks), projects};
+}
+
+// Add free text as the add card would with no project suggestion: the model's changes merged into the list in one transaction, under
+// `requestId` so a repeat adds nothing. Returns {added, updated, skipped, duplicate?}.
+async function addFreeText(input, requestId) {
+  if (await requestWasUsed(requestId)) return {added: 0, updated: 0, skipped: 0, duplicate: true};
+  const {changes} = await askModelForChanges(input, false);
+  const result = await updateTaskList((tasks, tx, {projects: stored, jobCounter, addRequests}) => {
+    if (isRepeatedRequest({ids: addRequests}, requestId)) return {current: tasks, duplicate: true, added: 0, updated: 0, skipped: 0};
+    const merged = mergeTaskChanges(tasks, changes, randomUUID, stored.map((p) => p.id), {description: true, now: new Date().toISOString(), jobCounter});
+    const changed = merged.added + merged.updated > 0;
+    return {...merged, tasks: changed ? merged.tasks : null, current: changed ? merged.tasks : tasks, addRequestId: changed ? requestId : null};
+  }, {withProjects: true, withJobCounter: true, withAddRequests: true});
+  return {added: result.added, updated: result.updated, skipped: result.skipped, ...(result.duplicate ? {duplicate: true} : {})};
+}
+
+// The voice inbox: every open item of the owner's Google Tasks list `VOICE_INBOX_LIST` is added as free text (addFreeText, under a
+// request id made from the item's id) and then completed in Google Tasks. An item whose add throws (the model or the database failed)
+// is left open and tried again on the next pull; one the model turned into no change is completed all the same, so it is not asked
+// about again. Never throws: a failure is logged, and nothing happens without the `GOOGLE_TASKS_OAUTH` secret. Returns {found, added}.
+async function pullVoiceInbox() {
+  try {
+    const raw = process.env.GOOGLE_TASKS_OAUTH;
+    if (!raw) {
+      console.warn("Voice inbox: GOOGLE_TASKS_OAUTH is not set; nothing pulled");
+      return {found: 0, added: 0};
+    }
+    const api = makeTasksApi(makeOAuthClient(raw));
+    const listId = findList(await api.lists(), VOICE_INBOX_LIST.value());
+    if (!listId) {
+      console.warn(`Voice inbox: no Google Tasks list titled "${VOICE_INBOX_LIST.value()}"; nothing pulled`);
+      return {found: 0, added: 0};
+    }
+    const entries = inboxEntries(await api.items(listId));
+    let added = 0;
+    for (const entry of entries) {
+      try {
+        const done = await addFreeText(entry.input, entry.requestId);
+        if (done.added + done.updated === 0 && !done.duplicate) console.warn(`Voice inbox: the model made no change of "${entry.input.slice(0, 80)}"`);
+        added += done.added;
+        await api.complete(listId, entry.taskId);
+      } catch (err) {
+        console.error(`Voice inbox: could not add item ${entry.taskId}; it stays on the list:`, err.message);
+      }
+    }
+    if (entries.length) console.log(`Voice inbox: ${entries.length} item(s) read, ${added} task(s) added`);
+    return {found: entries.length, added};
+  } catch (err) {
+    console.error("Voice inbox failed:", err.message);
+    return {found: 0, added: 0};
+  }
+}
 
 // 3. Endpoint: Add / Ingest Task. The model returns only new or changed tasks; they are merged into the
 // stored list inside a transaction, so everything else on the list is preserved. With a `manual` body ({title,
@@ -653,25 +732,12 @@ exports.addOrUpdateTask = onRequest({
       const userInput = body.input;
       if (!userInput) return res.status(400).send({error: "Missing input"});
 
-      const [currentTasks, {timeZone}, projects] = await Promise.all([readTaskList(), readSettings(), readProjects()]);
-
-      const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
       // A project suggestion is only asked for when the caller says it can answer one (`allowProposal`)
       const allowProposal = body.allowProposal === true;
-      const prompt = buildTaskPrompt({tasks: currentTasks, projects, input: userInput, today: localDate(timeZone), proposals: allowProposal});
-
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: allowProposal ? {...changeSchema, properties: {...changeSchema.properties, projectProposal: proposalSchema}} : changeSchema,
-        },
-      });
-
-      const parsed = JSON.parse(response.text);
       // The model never places a task in a project; only an accepted suggestion (or a manual entry) does
-      changes = withoutProjectFields(parsed.tasks);
+      const asked = await askModelForChanges(userInput, allowProposal);
+      const {parsed, projects} = asked;
+      changes = asked.changes;
       // A valid suggestion commits nothing: the owner chooses between the project and the single task(s) first
       const verdict = allowProposal ? checkProposal(parsed.projectProposal, {input: userInput, projects}) : {};
       if (allowProposal && !verdict.proposal) console.log(`No project suggestion (${verdict.reason}); the model returned ${changes.length} task change(s).`);

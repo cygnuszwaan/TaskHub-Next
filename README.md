@@ -29,6 +29,26 @@ firebase functions:secrets:set GOOGLE_CALENDAR_CREDENTIALS --data-file service-a
 | `USER_PERSONAL_CALENDAR_ID` | Your personal calendar (read-only) |
 | `BACKUP_BUCKET` | Cloud Storage bucket for the weekly backup (see below). Leave empty to switch the backup off |
 
+**Voice inbox** (optional to use, but the secret below must exist before you deploy: the scheduled run and Update now are bound to it)
+
+Lets you say "Hey Google, add buy fence palings to my TaskHub list" and have it arrive as a task. Gemini puts the item on a Google Tasks list; TaskHub reads it every 15 minutes (and on Update now), adds it like a typed task and completes the item.
+
+1. In the Google Tasks app (or tasks.google.com) create a list titled `TaskHub`, or any title you then put in `VOICE_INBOX_LIST` in `functions/.env.taskhub-next`.
+2. Google Cloud console, project `taskhub-next`: APIs & Services, Library, enable **Google Tasks API**.
+3. OAuth consent screen: User type External, add your account as a test user, then **Publish app** so the status is "In production" (in Testing Google expires the refresh token after 7 days; an unverified app in production only shows a warning screen once).
+4. Credentials, Create credentials, OAuth client ID, Application type **Desktop app**. Note the client ID and secret.
+5. Grant access and store the result:
+
+```sh
+cd functions
+export GOOGLE_OAUTH_CLIENT_ID=...  GOOGLE_OAUTH_CLIENT_SECRET=...
+npm run authorize-tasks     # open the link it prints, sign in as the owner, allow
+firebase functions:secrets:set GOOGLE_TASKS_OAUTH --data-file google-tasks-oauth.json --project taskhub-next
+rm google-tasks-oauth.json
+```
+
+6. Deploy the functions, then say "Hey Google, add test voice task to my TaskHub list". It should appear after the next 15-minute tick or on Update now. If it does not, `npm run logs` and look for `Voice inbox`. Check first that Gemini put the item on the `TaskHub` list and not on your default list: if it did not, say the list name in the command ("to my TaskHub list").
+
 **Notifications** (nothing to install; check once)
 
 Push uses Firebase Cloud Messaging, which is on by default in a Firebase project; the functions send as their own service account, so there is no secret. In the Firebase console, Project settings, Cloud Messaging, check that "Firebase Cloud Messaging API (V1)" is enabled. Optionally generate a Web Push certificate there and paste its public key into `CONFIG.vapidKey` in `public/index.html`; empty uses Firebase's default key. Then deploy functions and hosting, open the installed app, and use Settings, Notifications: Turn on notifications, allow the prompt, then Send a test. Each device is switched on separately. If the test returns an error, run `npm run logs`: a permission error means the Cloud Messaging API is disabled for `taskhub-next` or the functions' service account may not send.

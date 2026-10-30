@@ -27,3 +27,4 @@ yarn-error.log*
 
 # macOS
 .DS_Store
+google-tasks-oauth.json

@@ -9,6 +9,7 @@
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions --project taskhub-next",
     "logs": "firebase functions:log --project taskhub-next",
+    "authorize-tasks": "node scripts/authorizeTasks.js",
     "backfill-job-numbers": "node scripts/backfillJobNumbers.js",
     "migrate-client-addresses": "node scripts/migrateClientAddresses.js",
     "migrate-comments-to-description": "node scripts/migrateCommentsToDescription.js"

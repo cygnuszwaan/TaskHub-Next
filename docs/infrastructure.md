@@ -17,12 +17,19 @@ Firebase setup, deploy, backups, push notifications, address autocomplete, secre
 
 ## Secrets, auth and config
 
-- Secrets: `GEMINI_API_KEY` (bound to `addOrUpdateTask` only), `GOOGLE_CALENDAR_CREDENTIALS` (service-account JSON; bound to every function that touches Calendar, including `completeTask` and `updateTaskDirect`).
+- Secrets: `GEMINI_API_KEY` (bound to `addOrUpdateTask`, and to `autoScheduleDaily` and `generateWeeklySchedule` for the voice inbox), `GOOGLE_CALENDAR_CREDENTIALS` (service-account JSON; bound to every function that touches Calendar, including `completeTask` and `updateTaskDirect`), `GOOGLE_TASKS_OAUTH` (JSON `{client_id, client_secret, refresh_token}` of the owner's grant for the Tasks scope, bound to `autoScheduleDaily` and `generateWeeklySchedule`; it must exist before a deploy, which fails without it).
 - Firebase Auth in `taskhub-next`: the Google provider is enabled and a web app is registered (Hosting serves its config at `/__/firebase/init.json`). Auth users are per project and unrelated to the chore tracker's.
-- Config (Firebase params read from `functions/.env` at deploy): `OWNER_EMAIL` (the one Google account allowed to call the endpoints), `USER_CALENDAR_ID` (the agent calendar that tasks are scheduled onto) `USER_PERSONAL_CALENDAR_ID` (the owner's personal calendar, read-only, used for free/busy) and `BACKUP_BUCKET` (Cloud Storage bucket for the weekly backup; empty by default, which skips it).
+- Config (Firebase params read from `functions/.env` at deploy): `OWNER_EMAIL` (the one Google account allowed to call the endpoints), `USER_CALENDAR_ID` (the agent calendar that tasks are scheduled onto) `USER_PERSONAL_CALENDAR_ID` (the owner's personal calendar, read-only, used for free/busy) `BACKUP_BUCKET` (Cloud Storage bucket for the weekly backup; empty by default, which skips it) and `VOICE_INBOX_LIST` (title of the voice inbox list in Google Tasks; `TaskHub` by default).
+
+## Voice inbox
+
+- "Hey Google, add ... to my TaskHub list" (Gemini) puts an item on the Google Tasks list titled `VOICE_INBOX_LIST`. `pullVoiceInbox` reads that list with the owner's OAuth refresh token (`GOOGLE_TASKS_OAUTH`, the Tasks scope, REST calls in `googleTasks.js`; a service account cannot see a personal list) at the start of every `autoScheduleDaily` tick (every 15 minutes) and of every "Update now", before the engine runs, so a task added by voice is scheduled by that run.
+- Each open item, up to `MAX_ENTRIES` 10 per pull, is its title and notes as free text, added by `addFreeText` exactly as a typed add with no project suggestion (the model parses it, and may fill the description of a long one, or change an existing task the text names), under the request id `gt-<item id>` in `settings/addRequests`, so an item read twice is added once. The item is then completed in Google Tasks (it stays there as a record, hidden from the list). An item whose add throws stays open for the next pull; one the model turned into no change is completed all the same and logged (`Voice inbox: the model made no change of ...`).
+- It never throws and does nothing visible without the secret, the list or a working token: look in `npm run logs` for `Voice inbox`. An expired or revoked token logs `invalid_grant` on every pull until `npm run authorize-tasks` is run again (`backend-scripts.md`). The OAuth consent screen must be "In production", or Google expires the refresh token after 7 days.
 
 ## Services used
 
 - Gemini (`@google/genai`, model constant `MODEL_NAME`, chosen for its free tier) only to parse free text into tasks and to suggest tags for a manual entry that has none; nothing is scheduled by a model.
 - Google Calendar via `@googleapis/calendar` with a service-account `JWT` from `google-auth-library` (only the Calendar API is loaded: the full `googleapis` package alone filled most of a 256 MiB instance).
+- Google Tasks (REST, with `google-auth-library`'s `OAuth2Client`) for the voice inbox only.
 - Weather from Open-Meteo for the configured location: current conditions and a 3-day daily forecast.
