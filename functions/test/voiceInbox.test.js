@@ -2,13 +2,21 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {INBOX_SCOPE, MAX_ENTRIES, MAX_INPUT_LENGTH, findList, requestIdFor, inboxEntries} = require("../voiceInbox");
+const {INBOX_SCOPE, DEFAULT_LIST, MAX_ENTRIES, MAX_INPUT_LENGTH, isDefaultList, findList, requestIdFor, inboxEntries} = require("../voiceInbox");
 const {normalizeRequestId} = require("../addRequests");
 const {oauthSecret, parseOAuthSecret, makeOAuthClient, makeTasksApi} = require("../googleTasks");
 
 describe("voiceInbox.js", () => {
   it("asks for the Tasks scope only", () => {
     assert.equal(INBOX_SCOPE, "https://www.googleapis.com/auth/tasks");
+  });
+
+  describe("isDefaultList", () => {
+    it("recognises @default, ignoring case and spacing, and nothing else", () => {
+      assert.equal(DEFAULT_LIST, "@default");
+      for (const value of ["@default", " @DEFAULT ", "@Default"]) assert.equal(isDefaultList(value), true, value);
+      for (const value of ["TaskHub", "My Tasks", "default", "", undefined, null, 5]) assert.equal(isDefaultList(value), false, String(value));
+    });
   });
 
   describe("findList", () => {
@@ -45,6 +53,17 @@ describe("voiceInbox.js", () => {
     const item = (extra = {}) => ({id: "item0001", title: "Buy fence palings", status: "needsAction", ...extra});
     it("turns an open item into its text, a request id and the item's id", () => {
       assert.deepEqual(inboxEntries([item()]), [{taskId: "item0001", requestId: "gt-item0001", input: "Buy fence palings"}]);
+    });
+    it("adds a Due line from the date part of the item's due date", () => {
+      assert.equal(inboxEntries([item({due: "2026-11-02T00:00:00.000Z"})])[0].input, "Buy fence palings\nDue: 2026-11-02");
+      assert.equal(inboxEntries([item({notes: "20 pcs", due: "2026-11-02T00:00:00.000Z"})])[0].input, "Buy fence palings\n20 pcs\nDue: 2026-11-02");
+      for (const due of [undefined, "", "tomorrow", 5]) assert.equal(inboxEntries([item({due})])[0].input, "Buy fence palings", String(due));
+    });
+    it("leaves alone an item last changed before `since`, and takes the rest", () => {
+      const list = [item({id: "old00001", updated: "2026-10-30T09:00:00.000Z"}), item({id: "same0001", updated: "2026-10-30T10:00:00.000Z"}), item({id: "new00001", updated: "2026-10-30T11:00:00.000Z"}), item({id: "nodate01"})];
+      assert.deepEqual(inboxEntries(list, {since: "2026-10-30T10:00:00.000Z"}).map((e) => e.taskId), ["same0001", "new00001"]);
+      assert.deepEqual(inboxEntries(list).map((e) => e.taskId), ["old00001", "same0001", "new00001", "nodate01"]);
+      assert.deepEqual(inboxEntries(list, {since: "not a date"}).length, 4);
     });
     it("tidies the title's spacing and puts notes on a line of their own", () => {
       const [entry] = inboxEntries([item({title: "  Buy   fence\npalings ", notes: "  20 pieces, 1.8 m\nH3.2  "})]);
@@ -117,6 +136,19 @@ describe("googleTasks.js", () => {
       assert.equal(client.calls[0].url, "https://tasks.googleapis.com/tasks/v1/lists/list%2F1/tasks");
       assert.equal(client.calls[0].params.showCompleted, false);
       assert.equal(client.calls[0].params.showHidden, false);
+    });
+    it("asks only for items changed since `updatedMin` when given one", async () => {
+      const client = fakeClient([{}]);
+      await makeTasksApi(client).items("l1", "2026-10-30T10:00:00.000Z");
+      assert.equal(client.calls[0].params.updatedMin, "2026-10-30T10:00:00.000Z");
+    });
+    it("addresses the default list as @default, not percent-encoded", async () => {
+      const client = fakeClient([{}, {}]);
+      const api = makeTasksApi(client);
+      await api.items("@default");
+      await api.complete("@default", "t1");
+      assert.equal(client.calls[0].url, "https://tasks.googleapis.com/tasks/v1/lists/@default/tasks");
+      assert.equal(client.calls[1].url, "https://tasks.googleapis.com/tasks/v1/lists/@default/tasks/t1");
     });
     it("completes an item with a PATCH", async () => {
       const client = fakeClient([{}]);

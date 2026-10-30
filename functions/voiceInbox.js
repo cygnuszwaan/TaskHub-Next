@@ -9,7 +9,15 @@ const INBOX_SCOPE = "https://www.googleapis.com/auth/tasks";
 const MAX_ENTRIES = 10;
 const MAX_INPUT_LENGTH = 4000;
 
+// The Google Tasks id of the owner's default list ("My Tasks"), which is where Gemini puts every task it adds: it cannot add to a named list.
+const DEFAULT_LIST = "@default";
+
 const squash = (text) => String(text).replace(/\s+/g, " ").trim().toLowerCase();
+
+// Whether the setting names the default list (`@default`, which Google Tasks accepts as a list id, so a renamed or translated "My Tasks" does not matter).
+function isDefaultList(setting) {
+  return typeof setting === "string" && setting.trim().toLowerCase() === DEFAULT_LIST;
+}
 
 // The id of the task list titled `title` (ignoring case and spacing; the first when several share it), else null.
 //   lists: the owner's Google task lists, [{id, title}]
@@ -30,19 +38,25 @@ function requestIdFor(taskId) {
 }
 
 // The items to add, from a task list's items: those not completed, deleted or hidden that have a title, in the order given, at most
-// MAX_ENTRIES. `input` is the title and then the notes on lines of their own, cut to MAX_INPUT_LENGTH; `taskId` is the item's id.
-function inboxEntries(items) {
+// MAX_ENTRIES. `input` is the title, then the notes on lines of their own and a line "Due: YYYY-MM-DD" when the item has a due date
+// (the date part of Google's `due`), cut to MAX_INPUT_LENGTH; `taskId` is the item's id.
+//   opts.since: ISO text; an item last changed before it is left alone (the owner's own older items on the default list)
+function inboxEntries(items, {since} = {}) {
+  const sinceMs = typeof since === "string" ? Date.parse(since) : NaN;
   const entries = [];
   for (const item of Array.isArray(items) ? items : []) {
     if (!item || typeof item !== "object" || typeof item.id !== "string" || !item.id) continue;
     if (item.status === "completed" || item.deleted === true || item.hidden === true) continue;
+    if (!Number.isNaN(sinceMs) && !(Date.parse(item.updated) >= sinceMs)) continue;
     const title = typeof item.title === "string" ? item.title.replace(/\s+/g, " ").trim() : "";
     if (!title) continue;
     const notes = typeof item.notes === "string" ? item.notes.trim() : "";
-    entries.push({taskId: item.id, requestId: requestIdFor(item.id), input: (notes ? `${title}\n${notes}` : title).slice(0, MAX_INPUT_LENGTH)});
+    const due = typeof item.due === "string" && /^\d{4}-\d{2}-\d{2}/.test(item.due) ? item.due.slice(0, 10) : "";
+    const text = [title, notes, due ? `Due: ${due}` : ""].filter(Boolean).join("\n");
+    entries.push({taskId: item.id, requestId: requestIdFor(item.id), input: text.slice(0, MAX_INPUT_LENGTH)});
     if (entries.length >= MAX_ENTRIES) break;
   }
   return entries;
 }
 
-module.exports = {INBOX_SCOPE, MAX_ENTRIES, MAX_INPUT_LENGTH, findList, requestIdFor, inboxEntries};
+module.exports = {INBOX_SCOPE, DEFAULT_LIST, MAX_ENTRIES, MAX_INPUT_LENGTH, isDefaultList, findList, requestIdFor, inboxEntries};

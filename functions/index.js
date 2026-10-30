@@ -39,7 +39,7 @@ const {makeOwnerOnly} = require("./auth");
 const {dayWindowMinutes} = require("./settings");
 const {lastIssued} = require("./jobNumber");
 const {normalizeRequestId, isRepeatedRequest} = require("./addRequests");
-const {findList, inboxEntries} = require("./voiceInbox");
+const {DEFAULT_LIST, isDefaultList, findList, inboxEntries} = require("./voiceInbox");
 const {makeOAuthClient, makeTasksApi} = require("./googleTasks");
 const {resolveActionTime, normalizeArchiveId} = require("./clientTime");
 const {randomUUID} = require("crypto");
@@ -80,8 +80,8 @@ const PERSONAL_CALENDAR_ID = defineString("USER_PERSONAL_CALENDAR_ID");
 
 // Cloud Storage bucket the weekly backup is written to (set in functions/.env; empty skips the backup)
 const BACKUP_BUCKET = defineString("BACKUP_BUCKET", {default: ""});
-// The title of the Google Tasks list that is the voice inbox (see pullVoiceInbox)
-const VOICE_INBOX_LIST = defineString("VOICE_INBOX_LIST", {default: "TaskHub"});
+// The Google Tasks list that is the voice inbox (see pullVoiceInbox): `@default` for the default list, else a list's title
+const VOICE_INBOX_LIST = defineString("VOICE_INBOX_LIST", {default: DEFAULT_LIST});
 
 // The owner's Google account, the only one allowed to call the HTTP endpoints (set in functions/.env)
 const OWNER_EMAIL = defineString("OWNER_EMAIL");
@@ -606,12 +606,29 @@ async function addFreeText(input, requestId) {
   return {added: result.added, updated: result.updated, skipped: result.skipped, ...(result.duplicate ? {duplicate: true} : {})};
 }
 
-// The voice inbox: every open item of the owner's Google Tasks list `VOICE_INBOX_LIST` is added as free text (addFreeText, under a
+// The voice inbox: every open item of the owner's Google Tasks list `VOICE_INBOX_LIST` (by default the default list, the only one Gemini adds to; then only items changed since `settings/voiceInbox`'s `since`) is added as free text (addFreeText, under a
 // request id made from the item's id) and then completed in Google Tasks. An item whose add throws (the model or the database failed)
 // is left open and tried again on the next pull; one the model turned into no change is completed all the same, so it is not asked
 // about again. Never throws: a failure is logged, and nothing happens without the `GOOGLE_TASKS_OAUTH` secret. Returns {found, added}.
 // The Tasks client of the last pull, kept while the secret is unchanged so a warm instance reuses its access token between ticks
 let voiceInboxClient = null; // {raw, api}
+// When the default list became the voice inbox, `settings/voiceInbox` {since}: only items changed from then on are taken, so the
+// owner's older items in "My Tasks" are never added and completed. Written on the first pull; cached once read.
+const VOICE_INBOX_REF = db.doc("settings/voiceInbox");
+let voiceInboxSince = null;
+
+async function readVoiceInboxSince() {
+  if (voiceInboxSince) return voiceInboxSince;
+  const snap = await VOICE_INBOX_REF.get();
+  if (!snap.exists || typeof snap.data().since !== "string") {
+    await VOICE_INBOX_REF.create({since: new Date().toISOString()}).catch((err) => {
+      if (err.code !== 6) throw err; // 6: ALREADY_EXISTS, another pull wrote it first
+    });
+    return readVoiceInboxSince();
+  }
+  voiceInboxSince = snap.data().since;
+  return voiceInboxSince;
+}
 
 async function pullVoiceInbox() {
   try {
@@ -622,12 +639,14 @@ async function pullVoiceInbox() {
     }
     if (!voiceInboxClient || voiceInboxClient.raw !== raw) voiceInboxClient = {raw, api: makeTasksApi(makeOAuthClient(raw))};
     const {api} = voiceInboxClient;
-    const listId = findList(await api.lists(), VOICE_INBOX_LIST.value());
+    const onDefault = isDefaultList(VOICE_INBOX_LIST.value());
+    const listId = onDefault ? DEFAULT_LIST : findList(await api.lists(), VOICE_INBOX_LIST.value());
     if (!listId) {
       console.warn(`Voice inbox: no Google Tasks list titled "${VOICE_INBOX_LIST.value()}"; nothing pulled`);
       return {found: 0, added: 0};
     }
-    const entries = inboxEntries(await api.items(listId));
+    const since = onDefault ? await readVoiceInboxSince() : undefined;
+    const entries = inboxEntries(await api.items(listId, since), {since});
     let added = 0;
     for (const entry of entries) {
       try {

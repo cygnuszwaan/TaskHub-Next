@@ -7,6 +7,9 @@ const {OAuth2Client} = require("google-auth-library");
 
 const BASE = "https://tasks.googleapis.com/tasks/v1";
 
+// A list or task id for a URL path; the default list's `@default` is kept as it is.
+const pathId = (id) => (id === "@default" ? id : encodeURIComponent(id));
+
 // The secret's text, {client_id, client_secret, refresh_token}: the OAuth client and the refresh token the owner granted. Pure.
 function oauthSecret({clientId, clientSecret, refreshToken}) {
   return JSON.stringify({client_id: clientId, client_secret: clientSecret, refresh_token: refreshToken});
@@ -49,12 +52,12 @@ function makeTasksApi(client) {
       } while (pageToken);
       return out;
     },
-    // The open items of one list (completed and hidden ones are not asked for)
-    async items(listId) {
+    // The open items of one list (completed and hidden ones are not asked for); `updatedMin`, ISO text, leaves out items last changed before it
+    async items(listId, updatedMin) {
       const out = [];
       let pageToken;
       do {
-        const data = await get(`/lists/${encodeURIComponent(listId)}/tasks`, {maxResults: 100, showCompleted: false, showHidden: false, pageToken});
+        const data = await get(`/lists/${pathId(listId)}/tasks`, {maxResults: 100, showCompleted: false, showHidden: false, updatedMin, pageToken});
         out.push(...(data.items || []));
         pageToken = data.nextPageToken;
       } while (pageToken);
@@ -62,7 +65,7 @@ function makeTasksApi(client) {
     },
     // Mark one item done, so it leaves the list but stays in Google Tasks as a record of what was added
     async complete(listId, taskId) {
-      await client.request({url: `${BASE}/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(taskId)}`, method: "PATCH", data: {status: "completed"}});
+      await client.request({url: `${BASE}/lists/${pathId(listId)}/tasks/${encodeURIComponent(taskId)}`, method: "PATCH", data: {status: "completed"}});
     },
   };
 }

@@ -31,9 +31,9 @@ firebase functions:secrets:set GOOGLE_CALENDAR_CREDENTIALS --data-file service-a
 
 **Voice inbox** (optional to use, but the secret below must exist before you deploy: the minute poll and Update now are bound to it)
 
-Lets you say "Hey Google, add buy fence palings to my TaskHub list" and have it arrive as a task. Gemini puts the item on a Google Tasks list; TaskHub reads the list every minute (and on Update now), adds each item like a typed task and completes it. The task is in your queue about a minute after you say it and goes on the calendar at the next scheduling run. The poll is a Cloud Scheduler job (free for the first three jobs on a billing account, then $0.10 a month).
+Lets you say "Hey Google, add buy fence palings to my tasks" and have it arrive as a task. Gemini can only add to your default Google Tasks list ("My Tasks"), so that is the inbox: TaskHub reads it every minute (and on Update now), adds each item like a typed task and completes it. The task is in your queue about a minute after you say it and goes on the calendar at the next scheduling run. The poll is a Cloud Scheduler job (free for the first three jobs on a billing account, then $0.10 a month).
 
-1. In the Google Tasks app (or tasks.google.com) create a list titled `TaskHub`, or any title you then put in `VOICE_INBOX_LIST` in `functions/.env.taskhub-next`.
+1. Nothing to create: the inbox is your default Google Tasks list (`VOICE_INBOX_LIST=@default` in `functions/.env.taskhub-next`). Only items added or changed after the first minute the poll runs are taken, so what is already in "My Tasks" is left alone, but from then on anything you add there by hand, by voice or as a Gemini reminder becomes a TaskHub task. To use a list of your own instead, put its title in `VOICE_INBOX_LIST` (you then move items onto it yourself, as Gemini will not).
 2. Google Cloud console, project `taskhub-next`: APIs & Services, Library, enable **Google Tasks API**.
 3. OAuth consent screen: User type External, add your account as a test user, then **Publish app** so the status is "In production" (in Testing Google expires the refresh token after 7 days; an unverified app in production only shows a warning screen once).
 4. Credentials, Create credentials, OAuth client ID, Application type **Desktop app**. Note the client ID and secret.
@@ -47,7 +47,7 @@ firebase functions:secrets:set GOOGLE_TASKS_OAUTH --data-file google-tasks-oauth
 rm google-tasks-oauth.json
 ```
 
-6. Deploy the functions, then say "Hey Google, add test voice task to my TaskHub list". It should appear in the queue within a minute or two (or at once on Update now). If it does not, `npm run logs` and look for `Voice inbox`. Check first that Gemini put the item on the `TaskHub` list and not on your default list: if it did not, say the list name in the command ("to my TaskHub list").
+6. Deploy the functions and wait a couple of minutes (the first poll sets the starting time), then say "Hey Google, add test voice task to my tasks". It should appear in the queue within a minute or two (or at once on Update now). If it does not, `npm run logs` and look for `Voice inbox`. Say "tasks" or "to-dos": Gemini treats "list" as a Google Keep list.
 
 **Notifications** (nothing to install; check once)
 
