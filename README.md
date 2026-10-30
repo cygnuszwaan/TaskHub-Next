@@ -29,9 +29,9 @@ firebase functions:secrets:set GOOGLE_CALENDAR_CREDENTIALS --data-file service-a
 | `USER_PERSONAL_CALENDAR_ID` | Your personal calendar (read-only) |
 | `BACKUP_BUCKET` | Cloud Storage bucket for the weekly backup (see below). Leave empty to switch the backup off |
 
-**Voice inbox** (optional to use, but the secret below must exist before you deploy: the scheduled run and Update now are bound to it)
+**Voice inbox** (optional to use, but the secret below must exist before you deploy: the minute poll and Update now are bound to it)
 
-Lets you say "Hey Google, add buy fence palings to my TaskHub list" and have it arrive as a task. Gemini puts the item on a Google Tasks list; TaskHub reads it every 15 minutes (and on Update now), adds it like a typed task and completes the item.
+Lets you say "Hey Google, add buy fence palings to my TaskHub list" and have it arrive as a task. Gemini puts the item on a Google Tasks list; TaskHub reads the list every minute (and on Update now), adds each item like a typed task and completes it. The task is in your queue about a minute after you say it and goes on the calendar at the next scheduling run. The poll is a Cloud Scheduler job (free for the first three jobs on a billing account, then $0.10 a month).
 
 1. In the Google Tasks app (or tasks.google.com) create a list titled `TaskHub`, or any title you then put in `VOICE_INBOX_LIST` in `functions/.env.taskhub-next`.
 2. Google Cloud console, project `taskhub-next`: APIs & Services, Library, enable **Google Tasks API**.
@@ -47,7 +47,7 @@ firebase functions:secrets:set GOOGLE_TASKS_OAUTH --data-file google-tasks-oauth
 rm google-tasks-oauth.json
 ```
 
-6. Deploy the functions, then say "Hey Google, add test voice task to my TaskHub list". It should appear after the next 15-minute tick or on Update now. If it does not, `npm run logs` and look for `Voice inbox`. Check first that Gemini put the item on the `TaskHub` list and not on your default list: if it did not, say the list name in the command ("to my TaskHub list").
+6. Deploy the functions, then say "Hey Google, add test voice task to my TaskHub list". It should appear in the queue within a minute or two (or at once on Update now). If it does not, `npm run logs` and look for `Voice inbox`. Check first that Gemini put the item on the `TaskHub` list and not on your default list: if it did not, say the list name in the command ("to my TaskHub list").
 
 **Notifications** (nothing to install; check once)
 

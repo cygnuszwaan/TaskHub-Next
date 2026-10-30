@@ -17,7 +17,7 @@
 //   firebase functions:secrets:set GOOGLE_TASKS_OAUTH --data-file google-tasks-oauth.json --project taskhub-next
 //   rm google-tasks-oauth.json
 //
-// The secret must exist before the next functions deploy: the scheduled run and "Update now" are bound to it.
+// The secret must exist before the next functions deploy: the minute poll and "Update now" are bound to it.
 const http = require("http");
 const fs = require("fs");
 const {randomBytes} = require("crypto");

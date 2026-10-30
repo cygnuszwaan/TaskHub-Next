@@ -463,7 +463,7 @@ async function runScheduleEngine({taskIds, skipIfUnchanged = false} = {}) {
 }
 
 // 1. Scheduled Function: dispatcher for the automatic schedule update
-// Ticks every 15 minutes (the Cloud Scheduler cron is fixed at deploy; 15 minutes is the finest interval offered). Every tick
+// Ticks every 15 minutes (the Cloud Scheduler cron is fixed at deploy). Every tick
 // first sends any start-of-task reminders that fell due (sendStartReminders).
 // Each tick asks the runtime settings whether a run is due (daily at a set local time, or every N minutes in the
 // 8:00-20:00 local window) and claims it atomically, so a duplicate tick cannot start a second run. The claim
@@ -474,12 +474,9 @@ exports.autoScheduleDaily = onSchedule({
   memory: "512MiB",
   secrets: [
     {name: "GOOGLE_CALENDAR_CREDENTIALS", version: "latest"},
-    {name: "GEMINI_API_KEY", version: "latest"},
-    {name: "GOOGLE_TASKS_OAUTH", version: "latest"},
   ],
 }, async (event) => {
   await sendStartReminders();
-  await pullVoiceInbox(); // before the run, so a task added by voice is scheduled by it
   let settings = null;
   try {
     const claim = await claimAutoRun();
@@ -613,6 +610,9 @@ async function addFreeText(input, requestId) {
 // request id made from the item's id) and then completed in Google Tasks. An item whose add throws (the model or the database failed)
 // is left open and tried again on the next pull; one the model turned into no change is completed all the same, so it is not asked
 // about again. Never throws: a failure is logged, and nothing happens without the `GOOGLE_TASKS_OAUTH` secret. Returns {found, added}.
+// The Tasks client of the last pull, kept while the secret is unchanged so a warm instance reuses its access token between ticks
+let voiceInboxClient = null; // {raw, api}
+
 async function pullVoiceInbox() {
   try {
     const raw = process.env.GOOGLE_TASKS_OAUTH;
@@ -620,7 +620,8 @@ async function pullVoiceInbox() {
       console.warn("Voice inbox: GOOGLE_TASKS_OAUTH is not set; nothing pulled");
       return {found: 0, added: 0};
     }
-    const api = makeTasksApi(makeOAuthClient(raw));
+    if (!voiceInboxClient || voiceInboxClient.raw !== raw) voiceInboxClient = {raw, api: makeTasksApi(makeOAuthClient(raw))};
+    const {api} = voiceInboxClient;
     const listId = findList(await api.lists(), VOICE_INBOX_LIST.value());
     if (!listId) {
       console.warn(`Voice inbox: no Google Tasks list titled "${VOICE_INBOX_LIST.value()}"; nothing pulled`);
@@ -645,6 +646,20 @@ async function pullVoiceInbox() {
     return {found: 0, added: 0};
   }
 }
+
+// Voice inbox poll: every minute (an empty list costs two Google Tasks calls and nothing else), so a task said to Gemini is in the
+// queue about a minute later. The next scheduling run places it on the calendar. A tick that overlaps a slow one is harmless: an item
+// is added once whoever gets there first (see addFreeText).
+exports.voiceInboxPoll = onSchedule({
+  schedule: "* * * * *",
+  timeoutSeconds: 120,
+  secrets: [
+    {name: "GEMINI_API_KEY", version: "latest"},
+    {name: "GOOGLE_TASKS_OAUTH", version: "latest"},
+  ],
+}, async () => {
+  await pullVoiceInbox();
+});
 
 // 3. Endpoint: Add / Ingest Task. The model returns only new or changed tasks; they are merged into the
 // stored list inside a transaction, so everything else on the list is preserved. With a `manual` body ({title,
