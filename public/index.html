@@ -1558,7 +1558,7 @@
     let selectedProjectFilter = null; // a project id, null = show all
     const QUEUE_ALL_PROJECTS = "All"; // what the Queue's Project field shows with no project chosen, and its picker's first row
     let taskNumbers = new Map(); // task id -> task number, refreshed on every redraw of the list (queueNumbers)
-    let sortKey = "scheduled"; // the Queue's "Sort by" choice (see SORT_OPTIONS)
+    let sortKey = "number"; // the Queue's "Sort by" choice (see SORT_OPTIONS)
     let sortDescending = false;
     // Reordering on the Queue: a queued card held for LONG_PRESS_MS lifts and can be dragged to a new place while the list
     // is in the queue's own order (reorderAllowed); `reorderDrag` is the lifted card, see the Reorder block below.
