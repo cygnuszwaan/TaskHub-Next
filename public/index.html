@@ -1001,7 +1001,7 @@
     </div>
   </div>
 
-  <input type="file" id="photoInput" accept="image/*" hidden>
+  <input type="file" id="photoInput" accept="image/*" multiple hidden>
   <div id="photoModal" class="modal-overlay" onclick="closePhotoOnOverlay(event)">
     <div class="modal-card photo-modal-card">
       <img id="photoFull" alt="Photo of the task">
@@ -3383,10 +3383,10 @@
       return { apply: { changes: Array.isArray(singleChanges) ? singleChanges : [] }, ...addTaskExtras({ startNow }) };
     }
 
-    // Photos on completed tasks. The server takes a JPEG of at most PHOTO_MAX_BYTES, three to a task; the page shrinks a
+    // Photos on completed tasks. The server takes a JPEG of at most PHOTO_MAX_BYTES, ten to a task; the page shrinks a
     // picture on a canvas to PHOTO_MAX_SIDE pixels on its longest side at PHOTO_QUALITY, and tries smaller and plainer
     // versions only when that still does not fit.
-    const MAX_PHOTOS = 3;
+    const MAX_PHOTOS = 10;
     const PHOTO_MAX_SIDE = 1280;
     const PHOTO_QUALITY = 0.7;
     const PHOTO_MAX_BYTES = 300 * 1024;
@@ -3405,10 +3405,17 @@
       if (!photoTargetSize(width, height)) return [];
       return [[PHOTO_MAX_SIDE, PHOTO_QUALITY], ...PHOTO_FALLBACKS].map(([side, quality]) => ({ ...photoTargetSize(width, height, side), quality }));
     }
-    // The header of a task's photos: "No photos yet", "1 of 3 photos".
+    // The header of a task's photos: "No photos yet", "1 of 10 photos".
     function photoCountText(count) {
       const n = Number.isInteger(count) && count > 0 ? count : 0;
       return n === 0 ? "No photos yet" : `${n} of ${MAX_PHOTOS} photos`;
+    }
+    // How many of `fileCount` chosen pictures a task holding `count` photos has room for: {take, skipped}.
+    function photoBatchSplit(fileCount, count) {
+      const files = Number.isInteger(fileCount) && fileCount > 0 ? fileCount : 0;
+      const held = Number.isInteger(count) && count > 0 ? count : 0;
+      const take = Math.min(files, Math.max(0, MAX_PHOTOS - held));
+      return { take, skipped: files - take };
     }
     // The base64 part of a data URL (what the server takes as `image`); "" for anything that is not one.
     function base64FromDataUrl(url) {
@@ -5501,8 +5508,8 @@
         else openPhotoViewer(el.dataset.photoView, el.dataset.photoId);
       });
       document.getElementById("photoInput").addEventListener("change", e => {
-        const file = e.target.files && e.target.files[0];
-        if (file && photoTargetId) addPhoto(photoTargetId, file);
+        const files = Array.from(e.target.files || []);
+        if (files.length && photoTargetId) addPhotos(photoTargetId, files);
         e.target.value = "";
       });
       document.getElementById("completedBrowser").addEventListener("click", e => {
@@ -8678,24 +8685,39 @@
         reader.readAsDataURL(blob);
       });
     }
-    async function addPhoto(key, file) {
+    // Adds the chosen pictures one after another (one request each), as many as the task has room for. A picture that fails
+    // is skipped and the rest go on; one alert at the end lists the failures and any pictures left out for lack of room.
+    async function addPhotos(key, files) {
       const panel = photoPanels.get(key);
       if (!panel || panel.busy || panel.status !== "ready") return;
+      const { take, skipped } = photoBatchSplit(files.length, panel.photos.length);
+      const problems = [];
+      let failed = 0;
+      if (skipped > 0) problems.push(`${skipped} ${skipped === 1 ? "picture was" : "pictures were"} left out: a task holds at most ${MAX_PHOTOS} photos.`);
       try {
-        panel.busy = "Shrinking photo…";
-        renderPhotoPanel(key);
-        const image = base64FromDataUrl(await blobToDataUrl(await shrinkPhoto(file)));
-        panel.busy = "Uploading photo…";
-        renderPhotoPanel(key);
-        await apiFetch(ADD_PHOTO_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [panel.field]: key, image }) });
-        panel.busy = "";
-        await loadPhotos(key, panel);
-      } catch (err) {
-        askAlert(failureText("Photo failed", err), { tone: "error" });
+        for (let i = 0; i < take; i++) {
+          const label = take > 1 ? ` ${i + 1} of ${take}` : "";
+          try {
+            panel.busy = `Shrinking photo${label}…`;
+            renderPhotoPanel(key);
+            const image = base64FromDataUrl(await blobToDataUrl(await shrinkPhoto(files[i])));
+            panel.busy = `Uploading photo${label}…`;
+            renderPhotoPanel(key);
+            await apiFetch(ADD_PHOTO_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [panel.field]: key, image }) });
+          } catch (err) {
+            failed++;
+            problems.push(`${take > 1 ? `Photo ${i + 1}: ` : ""}${err && err.message ? err.message : "Request failed"}`);
+          }
+        }
+        if (take > 0) {
+          panel.busy = "";
+          await loadPhotos(key, panel);
+        }
       } finally {
         panel.busy = "";
         if (photoPanels.get(key) === panel) renderPhotoPanel(key);
       }
+      if (problems.length) askAlert(failureText(failed === 1 && skipped === 0 ? "Photo failed" : "Some photos were not added", new Error(problems.join("\n"))), { tone: "error" });
     }
     function openPhotoViewer(key, id) {
       const panel = photoPanels.get(key);

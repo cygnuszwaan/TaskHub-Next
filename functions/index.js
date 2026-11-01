@@ -1035,7 +1035,7 @@ exports.deleteCompletedTask = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async
 
 // 6b. Endpoints: photos on tasks (see photos.js)
 // addCompletedPhoto: body {archiveId | taskId, image}, `image` a base64 JPEG of at most about 300 KB, `archiveId` a completed
-// task and `taskId` one still in the queue; at most 3 photos per task. Responds {success, photo: {id, bytes, addedAt}}; 400
+// task and `taskId` one still in the queue; at most 10 photos per task. Responds {success, photo: {id, bytes, addedAt}}; 400
 // with the reason for an unusable image or a full task, 404 for an unknown archive row or task. getCompletedPhotos: body
 // {archiveId | taskId}; responds {photos: [{id, data, bytes, addedAt}]}, oldest first, `data` the base64 JPEG.
 // deleteCompletedPhoto: body {id}, the photo's id; deletes it for good, 404 for an unknown id.
@@ -1063,7 +1063,7 @@ exports.addCompletedPhoto = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (
       return {id: ref.id, doc};
     });
     if (result.notFound) return res.status(404).send({error: "Completed task not found"});
-    if (result.full) return res.status(400).send({error: "This task already has the most photos (3)"});
+    if (result.full) return res.status(400).send({error: "This task already has the most photos (10)"});
     const saved = serializePhoto(result.id, result.doc);
     res.status(200).send({success: true, photo: {id: saved.id, bytes: saved.bytes, addedAt: saved.addedAt}});
   } catch (err) {

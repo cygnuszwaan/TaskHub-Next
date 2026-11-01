@@ -8,7 +8,7 @@
 
 // Most decoded bytes one photo may hold (the page shrinks pictures well below this), most photos per completed task.
 const MAX_PHOTO_BYTES = 300 * 1024;
-const MAX_PHOTOS = 3;
+const MAX_PHOTOS = 10;
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 const DATA_URL = /^data:image\/jpe?g;base64,/i;
 

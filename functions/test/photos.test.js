@@ -62,11 +62,11 @@ describe("photos.js", () => {
 
   describe("canAddPhoto", () => {
     it("allows up to MAX_PHOTOS", () => {
-      assert.equal(MAX_PHOTOS, 3);
+      assert.equal(MAX_PHOTOS, 10);
       assert.equal(canAddPhoto(0), true);
-      assert.equal(canAddPhoto(2), true);
-      assert.equal(canAddPhoto(3), false);
-      assert.equal(canAddPhoto(4), false);
+      assert.equal(canAddPhoto(9), true);
+      assert.equal(canAddPhoto(10), false);
+      assert.equal(canAddPhoto(11), false);
       assert.equal(canAddPhoto(-1), false);
       assert.equal(canAddPhoto("1"), false);
     });
