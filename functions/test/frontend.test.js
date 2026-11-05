@@ -3358,11 +3358,11 @@ describe("public/index.html helpers", () => {
       assert.equal(normalizeSortKey("nonsense"), "scheduled");
       assert.equal(normalizeSortKey(undefined), "scheduled");
     });
-    it("sorts by scheduled date, ascending, unless told otherwise, and the page starts there", () => {
+    it("sorts by scheduled date, ascending, unless told otherwise, and the page starts on Task number", () => {
       const {sortTasks} = load();
       assert.deepEqual(ids(sortTasks(tasks())), ids(sortTasks(tasks(), "scheduled", false)));
       assert.deepEqual(ids(sortTasks(tasks(), "order", false)), ids(sortTasks(tasks(), "scheduled", false)));
-      assert.ok(html.includes("let sortKey = \"scheduled\""));
+      assert.ok(html.includes("let sortKey = \"number\""));
     });
     it("does not show the task number on a task card", () => {
       const card = html.slice(html.indexOf("function taskItemHtml"), html.indexOf("function renderTasks"));
@@ -4628,17 +4628,18 @@ describe("public/index.html helpers", () => {
       for (const v of ["", "  \n ", null, undefined]) assert.equal(shoppingItemText(v), "");
       assert.equal(shoppingItemText(42), "42");
     });
-    it("is a section at the bottom of the Materials to get card, laid out like a task's materials", () => {
+    it("is its own card on the Materials page, below the Task materials card", () => {
       const page = html.slice(html.indexOf("<main id=\"pageMaterials\""), html.indexOf("</main>", html.indexOf("<main id=\"pageMaterials\"")));
-      assert.equal((page.match(/<div class="card">/g) || []).length, 1, "one card, not two");
-      assert.ok(page.indexOf("id=\"materialsList\"") < page.indexOf("Miscellaneous"), "below the task materials");
-      assert.match(page, /<div class="material-group" id="shoppingSection">\s*<div class="material-group-title plain-title">Miscellaneous<\/div>/);
-      assert.doesNotMatch(page, /<h3[^>]*>Miscellaneous<\/h3>/);
+      assert.equal((page.match(/<div class="card"/g) || []).length, 2, "Task materials and Miscellaneous");
+      assert.match(page, /<h3[^>]*>Task materials<\/h3>\s*<div id="materialsList">/);
+      assert.match(page, /<div class="card" id="shoppingSection">\s*<h3[^>]*>Miscellaneous<\/h3>/);
+      assert.ok(page.indexOf("id=\"materialsList\"") < page.indexOf("id=\"shoppingSection\""), "below the task materials");
+      assert.ok(page.indexOf("id=\"materialsStatus\"") < page.indexOf("id=\"shoppingSection\""), "the task card's status line stays in its own card");
       assert.match(page, /<input type="text" id="shoppingInput" maxlength="100"/);
       assert.match(page, /id="shoppingAddBtn"/);
       assert.match(page, /id="shoppingList"/);
       assert.match(page, /id="shoppingStatus"/);
-      assert.ok(page.indexOf("id=\"shoppingSection\"") < page.indexOf("id=\"materialsStatus\""), "inside the card, before its status line");
+      assert.ok(page.indexOf("id=\"shoppingStatus\"") > page.indexOf("id=\"shoppingSection\""), "inside the Miscellaneous card");
     });
     it("shoppingWithAdded: appends the cleaned text with the given id, like the server", () => {
       const {shoppingWithAdded} = load();

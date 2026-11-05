@@ -563,19 +563,19 @@
 
   <main id="pageMaterials" data-page="materials" hidden>
   <div class="card">
-    <h3 style="margin-top:0; margin-bottom:12px;">Materials to get</h3>
+    <h3 style="margin-top:0; margin-bottom:12px;">Task materials</h3>
     <div id="materialsList"></div>
-    <div class="material-group" id="shoppingSection">
-      <div class="material-group-title plain-title">Miscellaneous</div>
-      <div class="offline-note" id="shoppingOfflineNote" aria-live="polite" hidden><span id="shoppingOfflineNoteText"></span> <button type="button" id="shoppingRetryBtn">Retry</button></div>
-      <div class="material-row shopping-add">
-        <input type="text" id="shoppingInput" maxlength="100" placeholder="Add an item to get" aria-label="Add an item to get" autocomplete="off" enterkeyhint="done">
-        <button type="button" id="shoppingAddBtn">Add</button>
-      </div>
-      <div id="shoppingList"></div>
-      <div id="shoppingStatus" class="settings-status"></div>
-    </div>
     <div id="materialsStatus" class="settings-status"></div>
+  </div>
+  <div class="card" id="shoppingSection">
+    <h3 style="margin-top:0; margin-bottom:12px;">Miscellaneous</h3>
+    <div class="offline-note" id="shoppingOfflineNote" aria-live="polite" hidden><span id="shoppingOfflineNoteText"></span> <button type="button" id="shoppingRetryBtn">Retry</button></div>
+    <div class="material-row shopping-add">
+      <input type="text" id="shoppingInput" maxlength="100" placeholder="Add an item to get" aria-label="Add an item to get" autocomplete="off" enterkeyhint="done">
+      <button type="button" id="shoppingAddBtn">Add</button>
+    </div>
+    <div id="shoppingList"></div>
+    <div id="shoppingStatus" class="settings-status"></div>
   </div>
   </main>
 
@@ -2736,7 +2736,7 @@
     function snoozeNeedsReschedule(t) {
       return Boolean(t.googleCalendarEventId || t.scheduledStart) && !t.locked && openMaterialsOf(t).length === 0;
     }
-    // The Queue's "Sort by" choices as [key, label], in menu order. The default is "scheduled".
+    // The Queue's "Sort by" choices as [key, label], in menu order. The page starts on "number"; an unknown key falls back to "scheduled".
     const SORT_OPTIONS = [
       ["priority", "Priority"],
       ["added", "Date added"],
@@ -6442,7 +6442,7 @@
     function addEditMaterial() { if (addMaterialTo(editMaterials, "newMaterialText", "newMaterialCost")) renderEditMaterials(); }
     function addManualMaterial() { if (addMaterialTo(manualMaterials, "manualNewMaterialText", "manualNewMaterialCost")) renderManualMaterials(); }
 
-    // The Materials card: every unchecked material of every task, grouped by task, so nothing holding a task back
+    // The Task materials card: every unchecked material of every task, grouped by task, so nothing holding a task back
     // is out of sight. Checking one saves it and removes it from the card.
     function renderMaterialsCard() {
       const groups = openMaterialGroups(allTasks);
