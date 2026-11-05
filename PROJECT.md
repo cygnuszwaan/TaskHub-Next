@@ -59,7 +59,12 @@ A change usually touches several rows: a new endpoint touches an `endpoints-*.md
 
 ## Roadmap
 
-No steps are planned.
+Groceries: a store-ordered grocery list, and the Materials page split into three cards. Each step fits one turn and adds tests for any new pure logic; step 2 may split into backend and page/offline.
+
+1. Split the Materials page into three cards: Task Materials (today's "Materials to get" card, tab count unchanged), Miscellaneous (the existing list moved into its own card, data and endpoints unchanged) and, from step 2, Groceries. Update `frontend-materials.md`.
+2. Groceries list: `settings/groceryList` `{items: [{id, text}]}` shaped like `settings/shoppingList` (same limits and rules), `getGroceryList` and `updateGroceryList` (ADD, REMOVE), included in `exportData`; a Groceries card with an add field and tick-to-remove with Undo, in the order added; generalise the offline `SHOPPING_ADD` and `SHOPPING_REMOVE` actions and the saved-list cache with a `list` field rather than duplicating them. Update `data-model.md`, `endpoints-admin.md`, `frontend-materials.md`, `offline.md`, `offline-edits.md`, `backend-modules.md`.
+3. Store order: `settings/groceryOrder` `{stores: {id: {name, order: [itemKey]}}}`, kept apart from the list so a ticked item's place is not forgotten (`itemKey` normalises case and spacing); a store picker on the Groceries card (remembered between visits; Woolworths Whangaparāoa, Pak'nSave Silverdale and New World Stanmore Bay preloaded, others addable by name); the card shows items in the chosen store's order with items the store has not seen at the end, marked new; a long-press drag, as in the Queue's Reorder, places the item after its nearest known neighbour and saves that store's order; a paste box seeds or extends a store's order from one item per line in walking order. No learning from tick order.
+4. Voice: `voiceInboxPoll` routes a Google Tasks item that starts with the trigger word "groceries" to the Groceries list, split into items and added without the model, deduplicated by the `gt-<item id>` request id; anything without the word stays a task. Nothing goes to Miscellaneous by voice. Update `infrastructure.md`.
 
 Unplanned ideas are in `stretch-goals.md`.
 
@@ -74,3 +79,4 @@ Unplanned ideas are in `stretch-goals.md`.
 - Should a voice inbox failure notify the owner? A revoked or expired token (`invalid_grant`) or a missing list only logs, so voice tasks silently stop arriving until someone reads `npm run logs`. A push alert, throttled like the run-failed one, would need its own switch in Settings.
 - Does Google sign-in work in the installed Android window? The popup is tried first and the redirect fallback is in place, both untested there. If redirect sign-in fails on `taskhub-next.web.app`, set `authDomain` to the page's own host (that host's `/__/auth/handler` must then be an authorized redirect URI of the OAuth client).
 - Public multi-user version: lock detection (an event moved to the personal calendar pins its task) lists events on the personal calendar, which a busy-time-only scope cannot do. Drop pinning in the public build, or request a broader read scope and accept a heavier review?
+- Does the phone's "add to my tasks: groceries, ..." phrasing reach the default Google Tasks list as one item? Step 4 of the roadmap assumes it does; if the assistant sends it elsewhere (Google Keep, say) or splits it, find a phrasing that works before building the routing.
