@@ -18,7 +18,7 @@ const {setTimerInList, pauseTimer} = require("./timer");
 const {withoutProjectFields, needsTagFill, cleanTags, newTaskIds, applyDirectUpdate, moveToQueueNumber, completeInList, removalRecord, isUndoable, undoInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {applyBatch, needsReschedule} = require("./batch");
 const {findDuplicateTasks} = require("./duplicates");
-const {PROJECTS_COLLECTION, ADD_REQUESTS_DOC, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore} = require("./store");
+const {PROJECTS_COLLECTION, ADD_REQUESTS_DOC, GROCERY_DOC, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore} = require("./store");
 const {startFromTemplate} = require("./projectTemplates");
 const {UNAVAILABLE, weatherUrl, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
@@ -66,6 +66,8 @@ const {getProjects: readProjects, createProject, renameProject, setProjectClient
 const {getClients: readClients, createClient, updateClient, deleteClient} = makeClientStore(db);
 // The Miscellaneous shopping list on the Materials tab, one document `settings/shoppingList`; see shopping.js and store.js.
 const {getItems: readShoppingItems, addItem: addShoppingItem, removeItem: removeShoppingItem} = makeShoppingStore(db);
+// The Groceries list on the Materials tab: the same kind of list in its own document, `settings/groceryList`.
+const {getItems: readGroceryItems, addItem: addGroceryItem, removeItem: removeGroceryItem} = makeShoppingStore(db, GROCERY_DOC);
 // Project templates (a project's steps saved for reuse), in `project_templates/{id}`; see projectTemplates.js and store.js.
 const {getTemplates: readTemplates, saveTemplate, renameTemplate, deleteTemplate} = makeTemplateStore(db);
 // Runtime settings (location, time zone, auto-run schedule) in `settings/app`; see settings.js.
@@ -1386,17 +1388,18 @@ exports.undoRemove = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, re
 // another without a shared snapshot, which is fine for a single user's backup.
 exports.exportData = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
-    const [tasks, projects, clients, projectTemplates, shoppingList, settings, counterSnap, archiveSnap] = await Promise.all([
+    const [tasks, projects, clients, projectTemplates, shoppingList, groceryList, settings, counterSnap, archiveSnap] = await Promise.all([
       readTaskList(),
       readProjects(),
       readClients(),
       readTemplates(),
       readShoppingItems(),
+      readGroceryItems(),
       readSettings(),
       db.doc("settings/jobCounter").get(),
       db.collection("completed_tasks").orderBy("completedAt", "desc").limit(EXPORT_MAX_ROWS).get(),
     ]);
-    const payload = buildExport({tasks, projects, clients, projectTemplates, shoppingList, settings: publicSettings(settings), completed: archiveSnap.docs.map((d) => d.data()), now: new Date(), jobCounter: lastIssued(counterSnap.exists ? counterSnap.data() : undefined)});
+    const payload = buildExport({tasks, projects, clients, projectTemplates, shoppingList, groceryList, settings: publicSettings(settings), completed: archiveSnap.docs.map((d) => d.data()), now: new Date(), jobCounter: lastIssued(counterSnap.exists ? counterSnap.data() : undefined)});
     res.status(200).type("application/json").send(JSON.stringify(payload, null, 2));
   } catch (err) {
     console.error(err);
@@ -1664,6 +1667,33 @@ exports.updateShoppingList = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async 
     let result;
     if (action === "ADD") result = await addShoppingItem(text, randomUUID);
     else if (action === "REMOVE") result = await removeShoppingItem(itemId);
+    else return res.status(400).send({error: "action must be ADD or REMOVE"});
+    if (result.error) return res.status(400).send({error: result.error});
+    res.status(200).send({success: true, items: result.items, ...(result.item ? {item: result.item} : {})});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 17. Endpoint: Read the Groceries list (the Materials tab)
+exports.getGroceryList = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    res.status(200).send({success: true, items: await readGroceryItems()});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 18. Endpoint: Add to / take from the Groceries list
+// Body: {action: "ADD", text} | {action: "REMOVE", itemId}, answered exactly as updateShoppingList answers it, for the Groceries list.
+exports.updateGroceryList = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const {action, text, itemId} = req.body || {};
+    let result;
+    if (action === "ADD") result = await addGroceryItem(text, randomUUID);
+    else if (action === "REMOVE") result = await removeGroceryItem(itemId);
     else return res.status(400).send({error: "action must be ADD or REMOVE"});
     if (result.error) return res.status(400).send({error: result.error});
     res.status(200).send({success: true, items: result.items, ...(result.item ? {item: result.item} : {})});

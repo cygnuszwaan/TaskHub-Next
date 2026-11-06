@@ -19,6 +19,7 @@ const SETTINGS_DOC = "settings/app";
 const JOB_COUNTER_DOC = "settings/jobCounter";
 const ADD_REQUESTS_DOC = "settings/addRequests";
 const SHOPPING_DOC = "settings/shoppingList";
+const GROCERY_DOC = "settings/groceryList";
 
 // Doc ids are task ids: non-empty strings, no "/" and not "." or ".." (Firestore rules), and unique within a list.
 function checkTaskIds(tasks) {
@@ -230,12 +231,13 @@ function makeClientStore(db) {
   return {getClients, createClient, updateClient: updateClientById, deleteClient};
 }
 
-// The Miscellaneous shopping list in one document, `settings/shoppingList` ({items: [{id, text}]}; absent until the first item). `db` is a Firestore instance.
+// A shopping list in one document ({items: [{id, text}]}; absent until the first item): the Miscellaneous list, `settings/shoppingList`, by
+// default, or the Groceries list, `settings/groceryList` (GROCERY_DOC), through `docPath`; both follow the same rules (see shopping.js). `db` is a Firestore instance.
 //   getItems()               -> the items in the order added
 //   addItem(text, makeId)    -> {items, item, added} or {error}: the read and the write share one transaction, and an item already there (ignoring case) is not added twice
 //   removeItem(id)           -> {items, removed}: an id that is not there changes nothing
-function makeShoppingStore(db) {
-  const ref = db.doc(SHOPPING_DOC);
+function makeShoppingStore(db, docPath = SHOPPING_DOC) {
+  const ref = db.doc(docPath);
   const itemsFrom = (snap) => normalizeShoppingItems(snap.exists ? snap.data().items : []);
 
   async function getItems() {
@@ -394,4 +396,4 @@ function makeSettingsStore(db) {
   return {getSettings, updateSettings, claimAutoRun, setRunFingerprint, addDeviceToken, removeDeviceTokens, claimReminderWindow};
 }
 
-module.exports = {COLLECTION, PROJECTS_COLLECTION, CLIENTS_COLLECTION, TEMPLATES_COLLECTION, SETTINGS_DOC, JOB_COUNTER_DOC, ADD_REQUESTS_DOC, SHOPPING_DOC, checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore};
+module.exports = {COLLECTION, PROJECTS_COLLECTION, CLIENTS_COLLECTION, TEMPLATES_COLLECTION, SETTINGS_DOC, JOB_COUNTER_DOC, ADD_REQUESTS_DOC, SHOPPING_DOC, GROCERY_DOC, checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore};

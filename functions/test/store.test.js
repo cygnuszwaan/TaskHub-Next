@@ -3,7 +3,7 @@
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
 const {addClient} = require("../clients");
-const {checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore} = require("../store");
+const {GROCERY_DOC, checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore} = require("../store");
 
 const task = (id, order, extra = {}) => ({id, title: `Task ${id}`, priority: "MEDIUM", dueDate: "", estimatedMinutes: 15, tags: [], status: "PENDING", order, ...extra});
 
@@ -777,6 +777,32 @@ describe("store.js makeShoppingStore", () => {
     db.data.settings.set("app", {timeZone: "Pacific/Auckland"});
     await makeShoppingStore(db).addItem("Eggs", () => "n");
     assert.deepEqual(db.data.settings.get("app"), {timeZone: "Pacific/Auckland"});
+  });
+});
+
+describe("store.js makeShoppingStore for the Groceries list", () => {
+  it("keeps the Groceries list in settings/groceryList, apart from the Miscellaneous list", async () => {
+    assert.equal(GROCERY_DOC, "settings/groceryList");
+    const db = fakeDb();
+    db.data.settings.set("shoppingList", {items: [{id: "m", text: "Duct tape"}]});
+    const groceries = makeShoppingStore(db, GROCERY_DOC);
+    assert.deepEqual(await groceries.getItems(), []);
+    await groceries.addItem(" Milk ", () => "g1");
+    assert.deepEqual(db.data.settings.get("groceryList"), {items: [{id: "g1", text: "Milk"}]});
+    assert.deepEqual(db.data.settings.get("shoppingList"), {items: [{id: "m", text: "Duct tape"}]});
+    assert.deepEqual((await makeShoppingStore(db).getItems()).map((i) => i.id), ["m"]);
+    assert.deepEqual(db.log, ["set settings/groceryList"]);
+  });
+  it("removes, ignores a repeat and ignores an id that belongs to the other list", async () => {
+    const db = fakeDb();
+    db.data.settings.set("shoppingList", {items: [{id: "m", text: "Duct tape"}]});
+    db.data.settings.set("groceryList", {items: [{id: "g1", text: "Milk"}, {id: "g2", text: "Eggs"}]});
+    const groceries = makeShoppingStore(db, GROCERY_DOC);
+    assert.equal((await groceries.addItem("milk", () => "x")).added, false);
+    assert.equal((await groceries.removeItem("m")).removed, false);
+    assert.deepEqual(db.data.settings.get("shoppingList"), {items: [{id: "m", text: "Duct tape"}]});
+    assert.deepEqual((await groceries.removeItem("g1")).items, [{id: "g2", text: "Eggs"}]);
+    assert.deepEqual(db.data.settings.get("groceryList"), {items: [{id: "g2", text: "Eggs"}]});
   });
 });
 
