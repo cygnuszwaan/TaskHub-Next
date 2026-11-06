@@ -18,7 +18,7 @@ const {setTimerInList, pauseTimer} = require("./timer");
 const {withoutProjectFields, needsTagFill, cleanTags, newTaskIds, applyDirectUpdate, moveToQueueNumber, completeInList, removalRecord, isUndoable, undoInList, manualTaskChange, mergeTaskChanges, applyScheduleResults} = require("./tasks");
 const {applyBatch, needsReschedule} = require("./batch");
 const {findDuplicateTasks} = require("./duplicates");
-const {PROJECTS_COLLECTION, ADD_REQUESTS_DOC, GROCERY_DOC, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore} = require("./store");
+const {PROJECTS_COLLECTION, ADD_REQUESTS_DOC, GROCERY_DOC, makeGroceryOrderStore, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore} = require("./store");
 const {startFromTemplate} = require("./projectTemplates");
 const {UNAVAILABLE, weatherUrl, parseForecast, forecastKey, weatherWindow} = require("./weather");
 const {computeFingerprint, hasEndedSlot, shouldSkipRun} = require("./fingerprint");
@@ -68,6 +68,9 @@ const {getClients: readClients, createClient, updateClient, deleteClient} = make
 const {getItems: readShoppingItems, addItem: addShoppingItem, removeItem: removeShoppingItem} = makeShoppingStore(db);
 // The Groceries list on the Materials tab: the same kind of list in its own document, `settings/groceryList`.
 const {getItems: readGroceryItems, addItem: addGroceryItem, removeItem: removeGroceryItem} = makeShoppingStore(db, GROCERY_DOC);
+// The order the Groceries list is walked in at each store, one document `settings/groceryOrder`; see groceryOrder.js and store.js.
+const {getStores: readGroceryStores, update: updateGroceryStores} = makeGroceryOrderStore(db);
+const groceryOrder = require("./groceryOrder");
 // Project templates (a project's steps saved for reuse), in `project_templates/{id}`; see projectTemplates.js and store.js.
 const {getTemplates: readTemplates, saveTemplate, renameTemplate, deleteTemplate} = makeTemplateStore(db);
 // Runtime settings (location, time zone, auto-run schedule) in `settings/app`; see settings.js.
@@ -1388,18 +1391,19 @@ exports.undoRemove = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, re
 // another without a shared snapshot, which is fine for a single user's backup.
 exports.exportData = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
   try {
-    const [tasks, projects, clients, projectTemplates, shoppingList, groceryList, settings, counterSnap, archiveSnap] = await Promise.all([
+    const [tasks, projects, clients, projectTemplates, shoppingList, groceryList, groceryStores, settings, counterSnap, archiveSnap] = await Promise.all([
       readTaskList(),
       readProjects(),
       readClients(),
       readTemplates(),
       readShoppingItems(),
       readGroceryItems(),
+      readGroceryStores(),
       readSettings(),
       db.doc("settings/jobCounter").get(),
       db.collection("completed_tasks").orderBy("completedAt", "desc").limit(EXPORT_MAX_ROWS).get(),
     ]);
-    const payload = buildExport({tasks, projects, clients, projectTemplates, shoppingList, groceryList, settings: publicSettings(settings), completed: archiveSnap.docs.map((d) => d.data()), now: new Date(), jobCounter: lastIssued(counterSnap.exists ? counterSnap.data() : undefined)});
+    const payload = buildExport({tasks, projects, clients, projectTemplates, shoppingList, groceryList, groceryOrder: groceryStores, settings: publicSettings(settings), completed: archiveSnap.docs.map((d) => d.data()), now: new Date(), jobCounter: lastIssued(counterSnap.exists ? counterSnap.data() : undefined)});
     res.status(200).type("application/json").send(JSON.stringify(payload, null, 2));
   } catch (err) {
     console.error(err);
@@ -1697,6 +1701,45 @@ exports.updateGroceryList = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (
     else return res.status(400).send({error: "action must be ADD or REMOVE"});
     if (result.error) return res.status(400).send({error: result.error});
     res.status(200).send({success: true, items: result.items, ...(result.item ? {item: result.item} : {})});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 19. Endpoint: Read the Groceries stores and the order the list is walked in at each (the Materials tab)
+exports.getGroceryOrder = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    res.status(200).send({success: true, stores: await readGroceryStores()});
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({error: err.message});
+  }
+}));
+
+// 20. Endpoint: Change the Groceries stores and their orders
+// Body: {action: "ADD_STORE", name} | {action: "REMOVE_STORE", storeId} | {action: "MOVE", storeId, text, afterText?} | {action: "SEED", storeId, text, mode?}.
+// ADD_STORE appends a store (400 for an unusable or taken name, or ten stores); REMOVE_STORE takes one away with its order (an id that is not there
+// changes nothing); MOVE puts an item right after `afterText`'s place in the store's order, or first when `afterText` is empty; SEED sets
+// ("replace") or extends ("extend", the default) the order from lines of text, one item per line. 400 with the reason for unusable input, 404 for an
+// unknown `storeId`. Responds {success, stores} with every store, plus `store` for ADD_STORE and `count` and `skipped` for SEED.
+exports.updateGroceryOrder = onRequest({cors: ALLOWED_ORIGINS}, ownerOnly(async (req, res) => {
+  try {
+    const {action, name, storeId, text, afterText, mode} = req.body || {};
+    let change;
+    if (action === "ADD_STORE") change = (stores) => groceryOrder.addStore(stores, name, randomUUID);
+    else if (action === "REMOVE_STORE") change = (stores) => groceryOrder.removeStore(stores, storeId);
+    else if (action === "MOVE") change = (stores) => groceryOrder.moveItem(stores, storeId, text, afterText);
+    else if (action === "SEED") change = (stores) => groceryOrder.seedOrder(stores, storeId, text, mode);
+    else return res.status(400).send({error: "action must be ADD_STORE, REMOVE_STORE, MOVE or SEED"});
+    const result = await updateGroceryStores(change);
+    if (result.error) return res.status(result.notFound ? 404 : 400).send({error: result.error});
+    res.status(200).send({
+      success: true,
+      stores: result.stores,
+      ...(result.store ? {store: result.store} : {}),
+      ...(result.count !== undefined ? {count: result.count, skipped: result.skipped} : {}),
+    });
   } catch (err) {
     console.error(err);
     res.status(500).send({error: err.message});

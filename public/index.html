@@ -562,13 +562,13 @@
   </main>
 
   <main id="pageMaterials" data-page="materials" hidden>
-  <div class="card">
-    <h3 style="margin-top:0; margin-bottom:12px;">Task materials</h3>
+  <details class="card settings-card" id="taskMaterialsSection">
+    <summary><h3>Task materials</h3></summary>
     <div id="materialsList"></div>
     <div id="materialsStatus" class="settings-status"></div>
-  </div>
-  <div class="card" id="grocerySection">
-    <h3 style="margin-top:0; margin-bottom:12px;">Groceries</h3>
+  </details>
+  <details class="card settings-card" id="grocerySection">
+    <summary><h3>Groceries</h3></summary>
     <div class="offline-note" id="groceryOfflineNote" aria-live="polite" hidden><span id="groceryOfflineNoteText"></span> <button type="button" id="groceryRetryBtn">Retry</button></div>
     <div class="material-row shopping-add">
       <input type="text" id="groceryInput" maxlength="100" placeholder="Add a grocery item" aria-label="Add a grocery item" autocomplete="off" enterkeyhint="done">
@@ -576,9 +576,9 @@
     </div>
     <div id="groceryList"></div>
     <div id="groceryStatus" class="settings-status"></div>
-  </div>
-  <div class="card" id="shoppingSection">
-    <h3 style="margin-top:0; margin-bottom:12px;">Miscellaneous</h3>
+  </details>
+  <details class="card settings-card" id="shoppingSection">
+    <summary><h3>Miscellaneous</h3></summary>
     <div class="offline-note" id="shoppingOfflineNote" aria-live="polite" hidden><span id="shoppingOfflineNoteText"></span> <button type="button" id="shoppingRetryBtn">Retry</button></div>
     <div class="material-row shopping-add">
       <input type="text" id="shoppingInput" maxlength="100" placeholder="Add an item to get" aria-label="Add an item to get" autocomplete="off" enterkeyhint="done">
@@ -586,7 +586,7 @@
     </div>
     <div id="shoppingList"></div>
     <div id="shoppingStatus" class="settings-status"></div>
-  </div>
+  </details>
   </main>
 
   <main id="pageHistory" data-page="history" hidden>

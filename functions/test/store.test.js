@@ -3,7 +3,8 @@
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
 const {addClient} = require("../clients");
-const {GROCERY_DOC, checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore} = require("../store");
+const {addStore, removeStore, moveItem, seedOrder, DEFAULT_STORES} = require("../groceryOrder");
+const {GROCERY_DOC, GROCERY_ORDER_DOC, checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeGroceryOrderStore, makeTemplateStore, makeSettingsStore} = require("../store");
 
 const task = (id, order, extra = {}) => ({id, title: `Task ${id}`, priority: "MEDIUM", dueDate: "", estimatedMinutes: 15, tags: [], status: "PENDING", order, ...extra});
 
@@ -803,6 +804,58 @@ describe("store.js makeShoppingStore for the Groceries list", () => {
     assert.deepEqual(db.data.settings.get("shoppingList"), {items: [{id: "m", text: "Duct tape"}]});
     assert.deepEqual((await groceries.removeItem("g1")).items, [{id: "g2", text: "Eggs"}]);
     assert.deepEqual(db.data.settings.get("groceryList"), {items: [{id: "g2", text: "Eggs"}]});
+  });
+});
+
+describe("store.js makeGroceryOrderStore", () => {
+  const seeded = () => {
+    const db = fakeDb();
+    db.data.settings.set("groceryOrder", {stores: [{id: "a", name: "Woolworths", order: ["bread", "milk"]}, {id: "b", name: "New World", order: []}]});
+    return db;
+  };
+
+  it("keeps the order in settings/groceryOrder", () => {
+    assert.equal(GROCERY_ORDER_DOC, "settings/groceryOrder");
+  });
+  it("getStores reads the stores in order, the defaults when the document is absent", async () => {
+    assert.deepEqual((await makeGroceryOrderStore(seeded()).getStores()).map((s) => s.id), ["a", "b"]);
+    const defaults = await makeGroceryOrderStore(fakeDb()).getStores();
+    assert.deepEqual(defaults.map((s) => s.id), DEFAULT_STORES.map((s) => s.id));
+    assert.ok(defaults.every((s) => s.order.length === 0));
+  });
+  it("update writes the whole document in one transaction, the defaults included on the first change", async () => {
+    const db = fakeDb();
+    const store = makeGroceryOrderStore(db);
+    const r = await store.update((stores) => addStore(stores, "Four Square", () => "n1"));
+    assert.equal(r.store.id, "n1");
+    assert.equal(db.data.settings.get("groceryOrder").stores.length, DEFAULT_STORES.length + 1);
+    assert.deepEqual(db.log, ["set settings/groceryOrder"]);
+  });
+  it("update moves and seeds through the pure operations", async () => {
+    const db = seeded();
+    const store = makeGroceryOrderStore(db);
+    await store.update((stores) => moveItem(stores, "a", "Eggs", "bread"));
+    assert.deepEqual(db.data.settings.get("groceryOrder").stores[0].order, ["bread", "eggs", "milk"]);
+    await store.update((stores) => seedOrder(stores, "b", "Milk\nButter", "replace"));
+    assert.deepEqual(db.data.settings.get("groceryOrder").stores[1].order, ["milk", "butter"]);
+    await store.update((stores) => removeStore(stores, "a"));
+    assert.deepEqual(db.data.settings.get("groceryOrder").stores.map((s) => s.id), ["b"]);
+  });
+  it("update writes nothing for an error or a change that changes nothing", async () => {
+    const db = seeded();
+    const store = makeGroceryOrderStore(db);
+    assert.match((await store.update((stores) => moveItem(stores, "zzz", "Milk", null))).error, /Store not found/);
+    assert.equal((await store.update((stores) => moveItem(stores, "a", "Bread", null))).changed, false);
+    assert.equal((await store.update((stores) => removeStore(stores, "zzz"))).removed, false);
+    assert.deepEqual(db.log, []);
+  });
+  it("leaves the lists and the settings document alone", async () => {
+    const db = seeded();
+    db.data.settings.set("groceryList", {items: [{id: "g", text: "Milk"}]});
+    db.data.settings.set("app", {timeZone: "Pacific/Auckland"});
+    await makeGroceryOrderStore(db).update((stores) => moveItem(stores, "a", "Eggs", null));
+    assert.deepEqual(db.data.settings.get("groceryList"), {items: [{id: "g", text: "Milk"}]});
+    assert.deepEqual(db.data.settings.get("app"), {timeZone: "Pacific/Auckland"});
   });
 });
 

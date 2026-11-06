@@ -771,14 +771,17 @@ describe("public/index.html helpers", () => {
       assert.equal(html.slice(at(`id="pageQueue"`), end).split(`class="card"`).length, 2, "the Queue page has one card only");
       assert.ok(at(`id="pageHistory"`) > end, "the History page is not on the Queue page");
     });
-    it("makes Materials a page, not a collapsible card", () => {
+    it("makes Materials a page of three collapsible cards, all collapsed on every load", () => {
       const page = at(`id="pageMaterials"`);
       const end = at("</main>", page);
       for (const id of ["materialsList", "materialsStatus"]) {
         const i = at(`id="${id}"`);
         assert.ok(i > page && i < end, `${id} is on the Materials page`);
       }
-      assert.doesNotMatch(html.slice(page, end), /<details/);
+      const cards = [...html.slice(page, end).matchAll(/<details class="card settings-card" id="([^"]+)"([^>]*)>\s*<summary><h3>([^<]+)<\/h3><\/summary>/g)];
+      assert.deepEqual(cards.map((m) => [m[1], m[3]]), [["taskMaterialsSection", "Task materials"], ["grocerySection", "Groceries"], ["shoppingSection", "Miscellaneous"]]);
+      assert.ok(cards.every((m) => !/\bopen\b/.test(m[2])), "no card has the open attribute, so each is collapsed until opened");
+      assert.equal((html.slice(page, end).match(/<details/g) || []).length, 3, "the Materials page holds only these three");
       assert.doesNotMatch(html, /id="materialsDetails"/);
       assert.ok(html.indexOf(`id="editMaterials"`) > html.indexOf(`id="editModal"`));
     });
@@ -4638,10 +4641,10 @@ describe("public/index.html helpers", () => {
     });
     it("is its own card on the Materials page, after the Task materials and Groceries cards", () => {
       const page = html.slice(html.indexOf("<main id=\"pageMaterials\""), html.indexOf("</main>", html.indexOf("<main id=\"pageMaterials\"")));
-      assert.equal((page.match(/<div class="card"/g) || []).length, 3, "Task materials, Groceries and Miscellaneous");
-      assert.match(page, /<h3[^>]*>Task materials<\/h3>\s*<div id="materialsList">/);
-      assert.match(page, /<div class="card" id="shoppingSection">\s*<h3[^>]*>Miscellaneous<\/h3>/);
-      assert.match(page, /<div class="card" id="grocerySection">\s*<h3[^>]*>Groceries<\/h3>/);
+      assert.equal((page.match(/<details class="card settings-card"/g) || []).length, 3, "Task materials, Groceries and Miscellaneous");
+      assert.match(page, /<details class="card settings-card" id="taskMaterialsSection">\s*<summary><h3>Task materials<\/h3><\/summary>\s*<div id="materialsList">/);
+      assert.match(page, /<details class="card settings-card" id="shoppingSection">\s*<summary><h3>Miscellaneous<\/h3><\/summary>/);
+      assert.match(page, /<details class="card settings-card" id="grocerySection">\s*<summary><h3>Groceries<\/h3><\/summary>/);
       assert.ok(page.indexOf("id=\"materialsList\"") < page.indexOf("id=\"grocerySection\""), "Groceries is below the task materials");
       assert.ok(page.indexOf("id=\"grocerySection\"") < page.indexOf("id=\"shoppingSection\""), "and above Miscellaneous");
       assert.ok(page.indexOf("id=\"materialsStatus\"") < page.indexOf("id=\"grocerySection\""), "the task card's status line stays in its own card");

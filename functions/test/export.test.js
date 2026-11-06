@@ -43,6 +43,11 @@ describe("export.js buildExport", () => {
     assert.deepEqual(buildExport({tasks, projects, groceryList, settings, completed: [], now}).groceryList, groceryList);
     for (const v of [undefined, null, "x"]) assert.deepEqual(buildExport({tasks, projects, groceryList: v, settings, completed: [], now}).groceryList, []);
   });
+  it("includes the Groceries stores and their orders, an empty list when none are given", () => {
+    const groceryOrder = [{id: "a", name: "Woolworths", order: ["milk"]}];
+    assert.deepEqual(buildExport({tasks, projects, groceryOrder, settings, completed: [], now}).groceryOrder, groceryOrder);
+    for (const v of [undefined, null, "x"]) assert.deepEqual(buildExport({tasks, projects, groceryOrder: v, settings, completed: [], now}).groceryOrder, []);
+  });
   it("includes tasks, projects and settings as given", () => {
     const out = buildExport({tasks, projects, settings, completed: [], now});
     assert.deepEqual(out.tasks, tasks);

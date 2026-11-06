@@ -9,6 +9,7 @@ const {requestIdsOf, normalizeRequestId, recordRequest} = require("./addRequests
 const {sortProjects, addProject, renameProject, setProjectLocation, setProjectUrl, removeProjectFromTasks} = require("./projects");
 const {buildTemplateSteps, sortTemplates, addTemplate, renameTemplate} = require("./projectTemplates");
 const {normalizeShoppingItems, addShoppingItem, removeShoppingItem} = require("./shopping");
+const {normalizeStores} = require("./groceryOrder");
 const {sortClients, addClient, updateClient, removeClientFromProjects, setProjectClient} = require("./clients");
 
 const COLLECTION = "tasks";
@@ -20,6 +21,7 @@ const JOB_COUNTER_DOC = "settings/jobCounter";
 const ADD_REQUESTS_DOC = "settings/addRequests";
 const SHOPPING_DOC = "settings/shoppingList";
 const GROCERY_DOC = "settings/groceryList";
+const GROCERY_ORDER_DOC = "settings/groceryOrder";
 
 // Doc ids are task ids: non-empty strings, no "/" and not "." or ".." (Firestore rules), and unique within a list.
 function checkTaskIds(tasks) {
@@ -263,6 +265,31 @@ function makeShoppingStore(db, docPath = SHOPPING_DOC) {
   return {getItems, addItem, removeItem};
 }
 
+// The Groceries stores and their walking orders in one document, `settings/groceryOrder` ({stores: [{id, name, order: [itemKey]}]}; absent until
+// the first change, which reads as the default stores with empty orders). `db` is a Firestore instance.
+//   getStores()      -> the stores in the order added
+//   update(change)   -> the result of `change(stores)`, one of the pure operations in groceryOrder.js (addStore, removeStore, moveItem, seedOrder
+//                       with their other arguments bound): the read and the write share one transaction, and nothing is written for a result with
+//                       an `error` or no `changed`
+function makeGroceryOrderStore(db) {
+  const ref = db.doc(GROCERY_ORDER_DOC);
+  const storesFrom = (snap) => normalizeStores(snap.exists ? snap.data().stores : undefined);
+
+  async function getStores() {
+    return storesFrom(await ref.get());
+  }
+
+  async function update(change) {
+    return db.runTransaction(async (tx) => {
+      const result = change(storesFrom(await tx.get(ref)));
+      if (!result.error && result.changed) tx.set(ref, {stores: result.stores});
+      return result;
+    });
+  }
+
+  return {getStores, update};
+}
+
 // Project templates in `project_templates/{id}` ({id, name, steps}, the doc id being the template's id). `db` is a Firestore instance.
 //   getTemplates()                          -> all templates, sorted by name
 //   saveTemplate(projectId, name, makeId)   -> {templates, template}, {notFound: true} (project) or {error}: in one transaction
@@ -396,4 +423,4 @@ function makeSettingsStore(db) {
   return {getSettings, updateSettings, claimAutoRun, setRunFingerprint, addDeviceToken, removeDeviceTokens, claimReminderWindow};
 }
 
-module.exports = {COLLECTION, PROJECTS_COLLECTION, CLIENTS_COLLECTION, TEMPLATES_COLLECTION, SETTINGS_DOC, JOB_COUNTER_DOC, ADD_REQUESTS_DOC, SHOPPING_DOC, GROCERY_DOC, checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeTemplateStore, makeSettingsStore};
+module.exports = {COLLECTION, PROJECTS_COLLECTION, CLIENTS_COLLECTION, TEMPLATES_COLLECTION, SETTINGS_DOC, JOB_COUNTER_DOC, ADD_REQUESTS_DOC, SHOPPING_DOC, GROCERY_DOC, GROCERY_ORDER_DOC, checkTaskIds, sortTasks, diffTasks, makeTaskStore, makeProjectStore, makeClientStore, makeShoppingStore, makeGroceryOrderStore, makeTemplateStore, makeSettingsStore};
