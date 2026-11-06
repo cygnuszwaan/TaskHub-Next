@@ -17,7 +17,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {pickerViewportBox, withNoneRow, clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, shoppingCacheKey, GROCERY_CACHE_KEY, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagChipItems, projectClientNameById, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newClientWarning, setClientBody, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSearchText, filterClients, clientDeleteShown, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, historyProjectChoices, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, photoBatchSplit, base64FromDataUrl, DOUBLE_TAP_MS, tapKind, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderZoneAt, reorderDropIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, TOAST_MS, REORDER_HINT_TEXT, reorderAllowed, LONG_PRESS_MS, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, managedProject, pickerSavedId, pickerStrayIds, effectiveUrl, urlPlaceholder, completedSelectable, historyBatchPrompt, historyBatchResultText, historyProjectNeeded, historyProjectBody, historyProjectTitle, historyProjectResultText, projectHoursWithPending};`)();
+    return {pickerViewportBox, withNoneRow, clientFormHtml, clientFormValues, clientFormFill, clientFormWarning, INVALID_RATE, MAX_COMMENT_LENGTH, commentsOf, normalizeCommentText, withCommentsList, addCommentBody, deleteCommentBody, commentTimeline, commentLineView, deleteCommentPrompt, commentIdFor, TASK_CACHE_KEY, serializeTaskCache, parseTaskCache, cacheAgeText, offlineNoteText, COMPLETED_CACHE_KEY, COMPLETED_CACHE_ROWS, serializeCompletedCache, parseCompletedCache, completedOfflineNoteText, SHOPPING_CACHE_KEY, serializeShoppingCache, parseShoppingCache, shoppingOfflineNoteText, shoppingCacheKey, GROCERY_CACHE_KEY, groceryItemKey, normalizeGroceryStores, serializeGroceryOrderCache, parseGroceryOrderCache, chooseGroceryStore, sortGroceryItems, groceryOrderWithMove, groceryDropAfter, GROCERY_ORDER_CACHE_KEY, GROCERY_STORE_PREF_KEY, COMPLETED_FORM_CONTROLS, OFFLINE_COMPLETED_FIELDS, completedFieldDisabled, COMPLETED_CONTROL_SECTIONS, completedSectionsToOpen, ADD_QUEUE_KEY, ADD_QUEUE_MAX, newRequestId, makeQueuedAdd, parseQueue, serializeQueue, isNetworkError, drainQueue, queueCardView, queueDiscardPrompt, queueWithout, queueRetry, addQueueRefusal, formLocation, navigationHref, locationFromBox, taskLocationView, taskLocationChip, confirmView, failureText, shoppingItemText, shoppingWithAdded, shoppingWithout, shoppingWithRestored, withTaskMaterialChecked, MAX_SHOPPING_ITEMS, CONFIRM_TONES, TABS, normalizeTab, removalMessage, checkOffMessage, parseEmailText, INVALID_EMAIL, phoneDigits, phoneHref, smsHref, whatsappNumber, whatsappHref, emailHref, effectiveContact, contactPlaceholder, contactLinks, sortedTags, toggleTagFilter, pruneTagFilter, tagChipItems, projectClientNameById, tagFilterLabel, scheduleChoice, scheduleFromChoice, DAILY_TIME, DEFAULT_TIME_ZONE, makeFormatters, setTimeZone, getZone: () => appTimeZone, daysUntilDue, dueClass, DUE_SOON_DAYS, runningSeconds, longTimerWarning, DEFAULT_TIMER_WARN_HOURS, jobNumberWords, formatInstant, formatSchedule, geocodeUrl, placeFromGeocode, placesFromGeocode, placeQueries, placeLocation, effectiveLocation, projectLocationView, projectLocationKey, PLACES_AUTOCOMPLETE_URL, PLACES_DETAILS_FIELDS, PLACES_MIN_CHARS, PLACES_DEBOUNCE_MS, PLACES_BIAS_RADIUS_M, PLACES_MAX_SUGGESTIONS, newSessionToken, placesDetailsUrl, autocompleteBody, suggestionsFromAutocomplete, placeFromDetails, clientFillFromPlace, placesErrorText, settingsPayload, jobSheetPayload, parseTravelText, travelBoxText, INVALID_TRAVEL, manualTaskBody, recurrenceFields, scheduleSummary, matchesSearch, projectFields, NEW_CLIENT, NEW_CLIENT_NAME_WARNING, newClientWarning, setClientBody, fieldNamesText, projectLabel, projectClientName, projectSearchText, filterProjects, clientSearchText, filterClients, clientDeleteShown, clientFormBody, deleteClientPrompt, projectTaskCounts, PICKER_MAX_ROWS, PICKER_KINDS, pickerRows, projectFieldView, filterTasks, deleteProjectPrompt, completePrompt, openMaterialsOf, materialsChipText, openMaterialGroups, openMaterialCount, withMaterialChecked, materialsFields, MAX_MATERIALS, needsRedirectSignIn, addDaysTo, snoozeDateFor, snoozeDateFromInput, isSnoozedTask, snoozeChipText, snoozeNeedsReschedule, SORT_OPTIONS, normalizeSortKey, sortTasks, queueNumbers, numberChipText, jobNumberText, addQueueNumber, bottomTaskNumber, queueNumberChange, activeTaskOf, isTimerRunning, elapsedSecondsOf, formatElapsed, durationText, completedTimeText, streakText, statProjectName, jobStatsText, fmtMinutes, decimalHours, hoursText, projectWeekText, weekRangeText, pickHistoryProject, historyProjectChoices, parseTagList, zonedDateTime, completedFormValues, completedChanges, completedMaterialTexts, parseMaterialLines, materialLine, parseMaterialItems, completedMaterialLines, parseCostText, costBoxText, materialCostValue, invalidMaterialCost, COMPLETED_PAGE_SIZE, matchesCompletedSearch, completedBrowse, pagerItems, completedCountText, THEME_KEY, normalizeTheme, isDarkTheme, themeFromToggle, themeMetaMedia, exportFilename, jobSheetFilename, exportSummary, templateMatches, templateFormValues, manualSectionsToOpen, addTaskExtras, freeTextBody, proposalStepText, proposalAcceptBody, proposalDeclineBody, historyOf, historyForTitle, MAX_PHOTOS, PHOTO_MAX_SIDE, PHOTO_QUALITY, PHOTO_MAX_BYTES, photoTargetSize, photoAttempts, photoCountText, photoBatchSplit, base64FromDataUrl, DOUBLE_TAP_MS, tapKind, PRESS_MOVE_PX, pressMoved, timerChipIcon, FLASH_MS, flashElapsed, SWIPE_START_PX, SWIPE_COMMIT_PX, isHorizontalDrag, swipeAction, swipeOffset, deletePrompt, abortPrompt, reopenPrompt, withoutTasks, insertTaskAt, UNDO_WINDOW_MS, UNDO_NOTE_MS, templateStepsText, defaultProjectName, saveTemplateBody, startTemplateBody, deleteTemplatePrompt, startedText, csvRequestBody, csvFilename, sharedText, shareFromSearch, pushState, pushTokenBody, pushTestText, notifyFormValues, notifyPayload, pruneSelection, toggledSelection, taskCountText, batchCountText, batchRemovePrompt, batchRemoveResultText, batchBody, batchSnoozeText, dragTargetIndex, reorderZoneAt, reorderDropIndex, reorderQueueNumber, moveToQueueNumberInList, reorderMessage, TOAST_MS, REORDER_HINT_TEXT, reorderAllowed, LONG_PRESS_MS, MAX_URL_LENGTH, INVALID_URL, normalizeUrl, parseUrlText, projectUrlView, projectUrlKey, managedProject, pickerSavedId, pickerStrayIds, effectiveUrl, urlPlaceholder, completedSelectable, historyBatchPrompt, historyBatchResultText, historyProjectNeeded, historyProjectBody, historyProjectTitle, historyProjectResultText, projectHoursWithPending};`)();
 }
 
 describe("public/index.html helpers", () => {
@@ -781,7 +781,8 @@ describe("public/index.html helpers", () => {
       const cards = [...html.slice(page, end).matchAll(/<details class="card settings-card" id="([^"]+)"([^>]*)>\s*<summary><h3>([^<]+)<\/h3><\/summary>/g)];
       assert.deepEqual(cards.map((m) => [m[1], m[3]]), [["taskMaterialsSection", "Task materials"], ["grocerySection", "Groceries"], ["shoppingSection", "Miscellaneous"]]);
       assert.ok(cards.every((m) => !/\bopen\b/.test(m[2])), "no card has the open attribute, so each is collapsed until opened");
-      assert.equal((html.slice(page, end).match(/<details/g) || []).length, 3, "the Materials page holds only these three");
+      assert.equal((html.slice(page, end).match(/<details class="card settings-card"/g) || []).length, 3, "the Materials page holds only these three cards");
+      assert.equal((html.slice(page, end).match(/<details/g) || []).length, 4, "and the Groceries card's own Stores and order section");
       assert.doesNotMatch(html, /id="materialsDetails"/);
       assert.ok(html.indexOf(`id="editMaterials"`) > html.indexOf(`id="editModal"`));
     });
@@ -4449,7 +4450,7 @@ describe("public/index.html helpers", () => {
       const code = html.replace(/\/\/.*$/gm, "");
       assert.doesNotMatch(code, /(?<![\w.])confirm\(/, "a native confirm() is left");
       const asks = code.match(/(?<!function )askConfirm\(/g) || [];
-      assert.equal(asks.length, 16, "the sixteen questions the page asks (one discards a waiting change, one deletes a comment, one confirms a History batch)");
+      assert.equal(asks.length, 18, "the eighteen questions the page asks (one discards a waiting change, one deletes a comment, one confirms a History batch, two are about a Groceries store: removing it and replacing its order)");
     });
     it("marks the dialog up as a modal alert dialog above every other modal, with Cancel and a confirm button", () => {
       assert.match(html, /<div id="confirmModal" class="modal-overlay confirm-overlay"/);
@@ -4632,6 +4633,177 @@ describe("public/index.html helpers", () => {
       assert.match(send, /"snoozedUntil" in item\.fields[\s\S]*snoozeNeedsReschedule\(snoozed\)\) await rescheduleTask\(item\.taskId\);/, "a sent snooze moves the calendar event as the online Snooze does");
     });
   });
+  describe("the Groceries store order", () => {
+    const server = require("../groceryOrder");
+    const items = (...texts) => texts.map((text, i) => ({id: `i${i}`, text}));
+
+    it("groceryItemKey matches the server's itemKey", () => {
+      const {groceryItemKey} = load();
+      for (const v of ["Milk", "  Full  Cream\n Milk ", "", "   ", null, undefined, 5, "x".repeat(100), "x".repeat(101), "ÉCLAIRS"]) assert.equal(groceryItemKey(v), server.itemKey(v), JSON.stringify(v));
+    });
+    it("groceryOrderWithMove gives what the server's moveItem gives", () => {
+      const {groceryOrderWithMove} = load();
+      const order = ["bread", "milk", "eggs"];
+      for (const text of ["Bread", "eggs", "Butter", " MILK "]) {
+        for (const after of [null, undefined, "", "bread", "EGGS", "ghost", "milk"]) {
+          const expected = server.moveItem([{id: "a", name: "A", order}], "a", text, after).stores[0].order;
+          assert.deepEqual(groceryOrderWithMove(order, text, after), expected, `${text} after ${after}`);
+        }
+      }
+      assert.deepEqual(groceryOrderWithMove(order, "  ", "bread"), order);
+      assert.deepEqual(order, ["bread", "milk", "eggs"], "the input is not modified");
+    });
+    it("sortGroceryItems puts known items in the store's order, then the new ones as added, marked new", () => {
+      const {sortGroceryItems} = load();
+      const shown = sortGroceryItems(items("Eggs", "Butter", "Bread", "Milk", "Jam"), ["bread", "milk", "eggs"]);
+      assert.deepEqual(shown.map((i) => i.text), ["Bread", "Milk", "Eggs", "Butter", "Jam"]);
+      assert.deepEqual(shown.map((i) => i.isNew), [false, false, false, true, true]);
+      assert.deepEqual(shown[0], {id: "i2", text: "Bread", isNew: false});
+    });
+    it("sortGroceryItems keeps the order added, with nothing marked new, when the store has no order", () => {
+      const {sortGroceryItems} = load();
+      for (const order of [[], undefined, null]) {
+        const shown = sortGroceryItems(items("Eggs", "Bread"), order);
+        assert.deepEqual(shown.map((i) => i.text), ["Eggs", "Bread"]);
+        assert.ok(shown.every((i) => i.isNew === false));
+      }
+      assert.deepEqual(sortGroceryItems(undefined, ["milk"]), []);
+    });
+    it("sortGroceryItems matches an item to its place whatever its case or spacing", () => {
+      const {sortGroceryItems} = load();
+      const shown = sortGroceryItems(items("MILK", "full  cream"), ["full cream", "milk"]);
+      assert.deepEqual(shown.map((i) => i.text), ["full  cream", "MILK"]);
+    });
+    it("groceryDropAfter names the nearest item above the new place that the store has a place for", () => {
+      const {groceryDropAfter} = load();
+      const shown = [{text: "Bread", isNew: false}, {text: "Milk", isNew: false}, {text: "Eggs", isNew: false}, {text: "Butter", isNew: true}, {text: "Jam", isNew: true}];
+      assert.equal(groceryDropAfter(shown, 2, 0), null, "to the top");
+      assert.equal(groceryDropAfter(shown, 0, 2), "Eggs", "down past two");
+      assert.equal(groceryDropAfter(shown, 2, 1), "Bread", "up one");
+      assert.equal(groceryDropAfter(shown, 4, 3), "Eggs", "a new item above another new one takes the last known item");
+      assert.equal(groceryDropAfter(shown, 3, 1), "Bread", "a new item among the known ones");
+      assert.equal(groceryDropAfter(shown, 3, 0), null, "a new item to the top");
+      assert.equal(groceryDropAfter(shown, 0, 4), "Eggs", "a known item below the new ones skips them");
+    });
+    it("groceryDropAfter returns null for indexes that do not fit", () => {
+      const {groceryDropAfter} = load();
+      const shown = [{text: "A", isNew: false}, {text: "B", isNew: false}];
+      for (const [from, to] of [[-1, 0], [0, 2], [2, 0], [0.5, 1], ["0", 1]]) assert.equal(groceryDropAfter(shown, from, to), null);
+      assert.equal(groceryDropAfter(undefined, 0, 1), null);
+    });
+    it("a drop followed through gives the order the server would store", () => {
+      const {sortGroceryItems, groceryDropAfter, groceryOrderWithMove} = load();
+      const order = ["bread", "milk", "eggs"];
+      const shown = sortGroceryItems(items("Bread", "Milk", "Eggs", "Butter"), order);
+      const after = groceryDropAfter(shown, 3, 1);
+      const next = groceryOrderWithMove(order, "Butter", after);
+      assert.deepEqual(next, ["bread", "butter", "milk", "eggs"]);
+      assert.deepEqual(sortGroceryItems(items("Bread", "Milk", "Eggs", "Butter"), next).map((i) => i.text), ["Bread", "Butter", "Milk", "Eggs"]);
+    });
+    it("normalizeGroceryStores keeps usable stores only, with usable keys once each", () => {
+      const {normalizeGroceryStores} = load();
+      const out = normalizeGroceryStores([{id: "a", name: " Woolworths ", order: ["Milk", "milk", "", 5, "Eggs"]}, {id: "a", name: "Again"}, {id: "", name: "x"}, {id: "b", name: "  "}, null, {id: "c", name: "Pak'nSave"}]);
+      assert.deepEqual(out, [{id: "a", name: "Woolworths", order: ["milk", "eggs"]}, {id: "c", name: "Pak'nSave", order: []}]);
+      assert.deepEqual(normalizeGroceryStores("x"), []);
+    });
+    it("keeps the stores' saved copy under its own key, for the signed-in user only", () => {
+      const {GROCERY_ORDER_CACHE_KEY, serializeGroceryOrderCache, parseGroceryOrderCache} = load();
+      assert.equal(GROCERY_ORDER_CACHE_KEY, "taskhub-grocery-order-cache");
+      const stores = [{id: "a", name: "Woolworths", order: ["milk"]}];
+      const text = serializeGroceryOrderCache("u1", stores, 5);
+      assert.deepEqual(parseGroceryOrderCache(text, "u1"), {stores, savedAt: 5});
+      assert.equal(parseGroceryOrderCache(text, "u2"), null);
+      assert.deepEqual(parseGroceryOrderCache(serializeGroceryOrderCache("u1", [], 5), "u1"), {stores: [], savedAt: 5});
+      for (const bad of [null, "", "{", JSON.stringify({v: 2, uid: "u1", savedAt: 5, stores: []}), JSON.stringify({v: 1, uid: "u1", stores: []}), JSON.stringify({v: 1, uid: "u1", savedAt: 5, stores: "x"})]) assert.equal(parseGroceryOrderCache(bad, "u1"), null);
+      assert.equal(parseGroceryOrderCache(text, ""), null);
+    });
+    it("chooseGroceryStore keeps the preferred store while it is there, else the first, else none", () => {
+      const {chooseGroceryStore} = load();
+      const stores = [{id: "a"}, {id: "b"}];
+      assert.equal(chooseGroceryStore(stores, "b"), "b");
+      for (const pref of ["zzz", null, undefined, ""]) assert.equal(chooseGroceryStore(stores, pref), "a");
+      assert.equal(chooseGroceryStore([], "a"), null);
+      assert.equal(chooseGroceryStore(undefined, "a"), null);
+    });
+
+    it("has a store picker, a Stores and order section and a drag handle in the Groceries card", () => {
+      const page = html.slice(html.indexOf("<main id=\"pageMaterials\""), html.indexOf("</main>", html.indexOf("<main id=\"pageMaterials\"")));
+      const card = page.slice(page.indexOf("id=\"grocerySection\""), page.indexOf("id=\"shoppingSection\""));
+      assert.match(card, /<select id="groceryStore" aria-label="Store">/);
+      assert.ok(card.indexOf("id=\"groceryStore\"") < card.indexOf("id=\"groceryInput\""), "the store is chosen before items are added");
+      assert.match(card, /<details class="filter-section" id="groceryStoreTools">\s*<summary>Stores and order<\/summary>/);
+      for (const id of ["groceryStoreName", "groceryAddStoreBtn", "grocerySeedText", "grocerySeedLabel", "grocerySeedExtendBtn", "grocerySeedReplaceBtn", "groceryRemoveStoreBtn"]) assert.ok(card.includes(`id="${id}"`), id);
+      assert.doesNotMatch(card.slice(0, card.indexOf("groceryStoreTools")), /open/, "collapsed by default");
+      assert.match(html, /\$\{list === "grocery" \? '<span class="drag-handle" data-drag-handle/, "only Groceries rows have a handle");
+    });
+    it("shows the Groceries list sorted for the chosen store, with a New chip, and Miscellaneous as added", () => {
+      const fn = html.slice(html.indexOf("function renderShoppingList"), html.indexOf("// The address a list is read from"));
+      assert.match(fn, /const shown = list === "grocery" \? sortGroceryItems\(s\.items, groceryCurrentOrder\(\)\) : s\.items;/);
+      assert.match(fn, /i\.isNew \? ' <span class="chip" title="This store has no place for this item yet">New<\/span>'/);
+      assert.doesNotMatch(html, /shoppingState\.grocery\.items = sortGroceryItems/, "the stored list stays in the order added");
+    });
+    it("reads the stores after sign-in, saves them for offline use and clears the copy on sign-out", () => {
+      assert.match(html, /const GROCERY_ORDER_URL = endpoint\("getGroceryOrder"\);/);
+      assert.match(html, /const UPDATE_GROCERY_ORDER_URL = endpoint\("updateGroceryOrder"\);/);
+      const from = html.indexOf("lib.onAuthStateChanged");
+      const auth = html.slice(from, html.indexOf("showGate(\"\");", from));
+      assert.match(auth, /loadShoppingList\("grocery"\);\s*loadGroceryOrder\(\);/);
+      assert.match(auth, /clearGroceryOrderCache\(\); \/\/ nor of the Groceries stores/);
+      const load1 = html.slice(html.indexOf("async function loadGroceryOrder"), html.indexOf("function sendGroceryOrder"));
+      assert.match(load1, /apiFetch\(GROCERY_ORDER_URL\)/);
+      assert.match(load1, /isNetworkError\(err, navigator\.onLine\)/);
+      assert.match(load1, /readGroceryOrderCache\(\)/);
+      assert.match(load1, /setGroceryStores\(saved\.stores, true\)/);
+      const set = html.slice(html.indexOf("function setGroceryStores"), html.indexOf("function renderGroceryStores"));
+      assert.match(set, /if \(!fromCache\) saveGroceryOrderCache\(o\.stores\);/, "the saved copy is only ever the server's");
+      assert.match(html, /window\.addEventListener\("online", \(\) => \{ if \(groceryOrderState\.fromCache\) loadGroceryOrder\(\); \}\)/);
+    });
+    it("sends every change to the order in turn, undoes a failed move and says a lost connection needs one", () => {
+      const fn = html.slice(html.indexOf("function sendGroceryOrder"), html.indexOf("async function addGroceryStore"));
+      assert.match(fn, /o\.chain = o\.chain\.then\(async \(\) => \{/);
+      assert.match(fn, /apiFetch\(UPDATE_GROCERY_ORDER_URL, \{ method: "POST"/);
+      assert.match(fn, /if \(o\.pending === 0 && Array\.isArray\(data\.stores\)\) setGroceryStores\(data\.stores, false\);/);
+      assert.match(fn, /if \(undo\) undo\(\);/);
+      assert.match(fn, /changing the order needs a connection\./);
+      const move = html.slice(html.indexOf("function moveGroceryItem"), html.indexOf("// Checking a material shows it gone"));
+      assert.match(move, /groceryDropAfter\(shown, from, to\)/);
+      assert.match(move, /store\.order = groceryOrderWithMove\(before, item\.text, afterText\);\s*renderShoppingList\("grocery"\);\s*sendGroceryOrder\(\{ action: "MOVE", storeId: store\.id, text: item\.text, afterText \}/);
+      assert.match(move, /still\.order = before;/);
+    });
+    it("adds and removes stores and seeds the order through the endpoint, asking before anything is lost", () => {
+      assert.match(html, /sendGroceryOrder\(\{ action: "ADD_STORE", name \}\)/);
+      assert.match(html, /askConfirm\(`Remove \$\{store\.name\} and its order\?`, \{ tone: "danger", confirmLabel: "Remove" \}\)/);
+      assert.match(html, /sendGroceryOrder\(\{ action: "REMOVE_STORE", storeId: store\.id \}\)/);
+      assert.match(html, /mode === "replace" && store\.order\.length && !await askConfirm\(/, "an empty order is replaced without asking");
+      assert.match(html, /sendGroceryOrder\(\{ action: "SEED", storeId: store\.id, text: box\.value, mode \}\)/);
+      assert.match(html, /document\.getElementById\("grocerySeedExtendBtn"\)\.addEventListener\("click", \(\) => seedGroceryOrder\("extend"\)\)/);
+      assert.match(html, /document\.getElementById\("grocerySeedReplaceBtn"\)\.addEventListener\("click", \(\) => seedGroceryOrder\("replace"\)\)/);
+    });
+    it("remembers the chosen store on the device", () => {
+      const {GROCERY_STORE_PREF_KEY} = load();
+      assert.equal(GROCERY_STORE_PREF_KEY, "taskhub-grocery-store");
+      assert.match(html, /localStorage\.setItem\(GROCERY_STORE_PREF_KEY, groceryOrderState\.selected\)/);
+      assert.match(html, /localStorage\.getItem\(GROCERY_STORE_PREF_KEY\)/);
+      assert.match(html, /document\.getElementById\("groceryStore"\)\.addEventListener\("change", e => chooseGroceryStoreFromPicker\(e\.target\.value\)\)/);
+    });
+    it("drags a row by its handle: a handle never ticks the row, a lifted row follows the pointer and a drop saves the move", () => {
+      assert.match(html, /box\.addEventListener\("click", e => \{ if \(e\.target\.closest\("\[data-drag-handle\]"\)\) \{ e\.preventDefault\(\); e\.stopPropagation\(\); \} \}, true\)/);
+      assert.match(html, /box\.addEventListener\("pointerdown", startGroceryDrag\)/);
+      assert.match(html, /for \(const type of \["pointerup", "pointercancel"\]\) box\.addEventListener\(type, onGroceryDragUp\)/);
+      assert.match(html, /e\.key === "Escape" && groceryOrderState\.drag\) endGroceryDrag\(false\)/);
+      const start = html.slice(html.indexOf("function startGroceryDrag"), html.indexOf("function paintGroceryDrag"));
+      assert.match(start, /e\.pointerType === "mouse" && e\.button !== 0/);
+      assert.match(start, /setPointerCapture\(e\.pointerId\)/);
+      assert.match(start, /rows\.length < 2 \|\| !groceryCurrentStore\(\)/, "nothing to drag with one item or no store");
+      assert.match(html, /d\.to = dragTargetIndex\(d\.mids, d\.from, d\.mids\[d\.from\] \+ dy\);\s*d\.rows\.forEach/);
+      const end = html.slice(html.indexOf("function endGroceryDrag"), html.indexOf("function moveGroceryItem"));
+      assert.match(end, /if \(!drop \|\| !d\.row\.isConnected \|\| d\.to === d\.from\) return;/);
+      assert.match(end, /shown\.some\(\(item, i\) => item\.id !== d\.ids\[i\]\)\) return; \/\/ the list changed during the drag/);
+      assert.match(end, /moveGroceryItem\(shown, d\.from, d\.to\);/);
+      assert.match(html, /\.drag-handle \{[^}]*touch-action: none/);
+    });
+  });
+
   describe("the Miscellaneous list", () => {
     it("shoppingItemText: collapses whitespace and trims, empty for blank or missing text", () => {
       const {shoppingItemText} = load();

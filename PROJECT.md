@@ -59,10 +59,9 @@ A change usually touches several rows: a new endpoint touches an `endpoints-*.md
 
 ## Roadmap
 
-Groceries: the Groceries card, between Task materials and Miscellaneous, is built (add, tick off with Undo, offline); what remains is ordering it by store and filling it by voice. Each step fits one turn and adds tests for any new pure logic.
+Groceries: the Groceries card, between Task materials and Miscellaneous, is built (add, tick off with Undo, offline); it is ordered by store (picker, drag by handle, paste-in order, Stores and order section) and what remains is filling it by voice. Each step fits one turn and adds tests for any new pure logic.
 
-1. Store order, page (the backend is done: `getGroceryOrder` and `updateGroceryOrder` over `settings/groceryOrder` `{stores: [{id, name, order: [itemKey]}]}`, kept apart from the list so a ticked item's place is not forgotten; the three stores are the defaults until the first change, and `exportData` carries them): a store picker on the Groceries card (remembered between visits on the device; an Add store control); the card shows items in the chosen store's order with items the store has not seen at the end, marked new; a long-press drag, as in the Queue's Reorder, sends `MOVE` with the item and its nearest known neighbour above it; a paste box sends `SEED` (replace or extend); the stores and orders are saved on the device (as the lists are) so the sorted list shows offline. Changes to the order need a connection. No learning from tick order. Update `frontend-materials.md`, `offline.md`.
-2. Voice: `voiceInboxPoll` routes a Google Tasks item that starts with the trigger word "groceries" to the Groceries list, split into items and added without the model, deduplicated by the `gt-<item id>` request id; anything without the word stays a task. Nothing goes to Miscellaneous by voice. Update `infrastructure.md`.
+1. Voice: `voiceInboxPoll` routes a Google Tasks item that starts with the trigger word "groceries" to the Groceries list, split into items and added without the model, deduplicated by the `gt-<item id>` request id; anything without the word stays a task. Nothing goes to Miscellaneous by voice. Update `infrastructure.md`.
 
 Unplanned ideas are in `stretch-goals.md`.
 

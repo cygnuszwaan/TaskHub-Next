@@ -195,6 +195,10 @@
     .held-chip { background: var(--held-bg); color: var(--held-fg); font-weight: 600; }
     .material-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
     .material-row input[type="text"] { flex: 1; min-width: 0; }
+    .material-row select { flex: 1; min-width: 0; }
+    .drag-handle { margin-left: auto; padding: 6px 8px; color: var(--text-faint); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+    .material-row.grocery-shifting { transition: transform 0.15s ease; }
+    .material-row.grocery-lifted { position: relative; z-index: 4; transition: none; background: var(--surface); box-shadow: 0 8px 20px rgba(0,0,0,0.28), 0 0 0 2px var(--primary); cursor: grabbing; }
     .material-row input[type="checkbox"] { width: auto; flex: none; }
     .material-row button { padding: 4px 9px; font-size: 13px; flex: none; }
     .material-row input[type="number"], .cost-input { width: 84px; flex: none; }
@@ -570,12 +574,34 @@
   <details class="card settings-card" id="grocerySection">
     <summary><h3>Groceries</h3></summary>
     <div class="offline-note" id="groceryOfflineNote" aria-live="polite" hidden><span id="groceryOfflineNoteText"></span> <button type="button" id="groceryRetryBtn">Retry</button></div>
+    <div class="material-row">
+      <select id="groceryStore" aria-label="Store"></select>
+    </div>
     <div class="material-row shopping-add">
       <input type="text" id="groceryInput" maxlength="100" placeholder="Add a grocery item" aria-label="Add a grocery item" autocomplete="off" enterkeyhint="done">
       <button type="button" id="groceryAddBtn">Add</button>
     </div>
     <div id="groceryList"></div>
     <div id="groceryStatus" class="settings-status"></div>
+    <details class="filter-section" id="groceryStoreTools">
+      <summary>Stores and order</summary>
+      <div class="form-group">
+        <label for="groceryStoreName">Add a store</label>
+        <div class="material-row">
+          <input type="text" id="groceryStoreName" maxlength="60" placeholder="Store name" autocomplete="off" enterkeyhint="done">
+          <button type="button" id="groceryAddStoreBtn">Add store</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="grocerySeedText" id="grocerySeedLabel">Order for the chosen store</label>
+        <textarea id="grocerySeedText" rows="6" placeholder="One item per line, in the order you walk the store"></textarea>
+        <div class="material-row">
+          <button type="button" id="grocerySeedExtendBtn">Add to order</button>
+          <button type="button" id="grocerySeedReplaceBtn" class="btn-secondary">Replace order</button>
+        </div>
+      </div>
+      <button type="button" id="groceryRemoveStoreBtn" class="btn-danger">Remove this store</button>
+    </details>
   </details>
   <details class="card settings-card" id="shoppingSection">
     <summary><h3>Miscellaneous</h3></summary>
@@ -1348,6 +1374,8 @@
     const UPDATE_SHOPPING_URL = endpoint("updateShoppingList");
     const GROCERY_URL = endpoint("getGroceryList");
     const UPDATE_GROCERY_URL = endpoint("updateGroceryList");
+    const GROCERY_ORDER_URL = endpoint("getGroceryOrder");
+    const UPDATE_GROCERY_ORDER_URL = endpoint("updateGroceryOrder");
     const UPDATE_TEMPLATE_URL = endpoint("updateProjectTemplate");
     const GET_CLIENTS_URL = endpoint("getClients");
     const UPDATE_CLIENT_URL = endpoint("updateClient");
@@ -1425,12 +1453,14 @@
             loadProjectTemplates();
             loadShoppingList("shopping");
             loadShoppingList("grocery");
+            loadGroceryOrder();
             loadSettings();
             refreshPushToken();
           } else {
             clearTaskCache(); // signed out: no copy of the owner's tasks stays on this device
             clearCompletedCache(); // nor of the completed entries
             clearShoppingCache(); // nor of the Miscellaneous or Groceries list
+            clearGroceryOrderCache(); // nor of the Groceries stores
             showGate("");
           }
         });
@@ -1597,6 +1627,10 @@
       return { items: [], loaded: false, server: [], syncAt: 0, savedAt: null, pending: 0, chain: Promise.resolve(), realIds: new Map() };
     }
     const shoppingState = { shopping: newShoppingState(), grocery: newShoppingState() };
+    // The Groceries stores and their walking orders: `stores` ([{id, name, order}]), `selected` (the shown store's id, null before any
+    // store is known), `loaded`, `fromCache` (the saved copy is what is shown), `pending` and `chain` (changes sent in order, like a list's),
+    // and `drag` (the grocery row being dragged, see startGroceryDrag; null otherwise).
+    const groceryOrderState = { stores: [], selected: null, loaded: false, fromCache: false, pending: 0, chain: Promise.resolve(), drag: null };
     // The page elements of each list's card.
     const SHOPPING_ELEMENTS = {
       shopping: { box: "shoppingList", status: "shoppingStatus", input: "shoppingInput", add: "shoppingAddBtn", note: "shoppingOfflineNote", noteText: "shoppingOfflineNoteText", retry: "shoppingRetryBtn" },
@@ -4020,6 +4054,82 @@
     function shoppingOfflineNoteText(savedAt, now, list = "shopping") {
       return `You're offline. Showing the ${shoppingListName(list)} list as it was ${cacheAgeText(savedAt, now)}. Changes are kept and sent when the connection returns.`;
     }
+    // The Groceries list in a store's walking order. A store is {id, name, order: [key]}; a key is an item's text with spacing
+    // collapsed and lower case (groceryItemKey, the same as the server's itemKey, so an item matches whatever case it was typed in).
+    const GROCERY_ORDER_CACHE_KEY = "taskhub-grocery-order-cache"; // the stores and orders as the server last sent them, for offline use
+    const GROCERY_STORE_PREF_KEY = "taskhub-grocery-store"; // the id of the store chosen on this device
+    function groceryItemKey(text) {
+      if (typeof text !== "string") return null;
+      const key = text.replace(/\s+/g, " ").trim().toLowerCase();
+      return key && key.length <= MAX_SHOPPING_TEXT ? key : null;
+    }
+    // The stores as the page keeps them: usable ones only ({id, name, order of keys, each once}), each id once.
+    function normalizeGroceryStores(value) {
+      const seen = new Set();
+      const stores = [];
+      for (const raw of Array.isArray(value) ? value : []) {
+        if (!raw || typeof raw.id !== "string" || !raw.id || seen.has(raw.id) || typeof raw.name !== "string" || !raw.name.trim()) continue;
+        seen.add(raw.id);
+        const keys = new Set();
+        for (const k of Array.isArray(raw.order) ? raw.order : []) { const key = groceryItemKey(k); if (key) keys.add(key); }
+        stores.push({ id: raw.id, name: raw.name.trim(), order: [...keys] });
+      }
+      return stores;
+    }
+    function serializeGroceryOrderCache(uid, stores, savedAt) {
+      return JSON.stringify({ v: 1, uid: String(uid || ""), savedAt, stores: normalizeGroceryStores(stores) });
+    }
+    // {stores, savedAt} for a stored copy that is well formed and belongs to `uid`, else null. No stores is a valid copy.
+    function parseGroceryOrderCache(text, uid) {
+      if (typeof text !== "string" || !text || !uid) return null;
+      try {
+        const data = JSON.parse(text);
+        if (!data || data.v !== 1 || data.uid !== uid || !Array.isArray(data.stores) || !Number.isFinite(data.savedAt)) return null;
+        return { stores: normalizeGroceryStores(data.stores), savedAt: data.savedAt };
+      } catch (e) { return null; }
+    }
+    // The id of the store to show: `preferredId` while the store is still there, else the first store, else null.
+    function chooseGroceryStore(stores, preferredId) {
+      const list = Array.isArray(stores) ? stores : [];
+      return list.some(s => s.id === preferredId) ? preferredId : list.length ? list[0].id : null;
+    }
+    // The list as shown for a store: the items the store has a place for in its order, then the others in the order they were added,
+    // each as {id, text, isNew}. `isNew` marks an item a store with an order has not seen; with an empty order nothing is new and the
+    // list stays in the order added.
+    function sortGroceryItems(items, order) {
+      const places = new Map((Array.isArray(order) ? order : []).map((k, i) => [k, i]));
+      const known = [];
+      const rest = [];
+      for (const item of Array.isArray(items) ? items : []) {
+        const key = groceryItemKey(item.text);
+        if (key !== null && places.has(key)) known.push({ id: item.id, text: item.text, isNew: false, at: places.get(key) });
+        else rest.push({ id: item.id, text: item.text, isNew: places.size > 0 });
+      }
+      known.sort((a, b) => a.at - b.at);
+      return [...known.map(({ at, ...item }) => item), ...rest];
+    }
+    // An order with an item put right after `afterText`'s place, or first when `afterText` is empty or null; the item moves if it is
+    // already there, and goes last when `afterText` is not in the order. The same rule as the server's moveItem.
+    function groceryOrderWithMove(order, text, afterText) {
+      const key = groceryItemKey(text);
+      const list = Array.isArray(order) ? order : [];
+      if (key === null) return list;
+      const afterKey = typeof afterText === "string" && afterText.trim() ? groceryItemKey(afterText) : null;
+      const rest = list.filter(k => k !== key);
+      let place = 0;
+      if (afterKey !== null) { const found = rest.indexOf(afterKey); place = found < 0 ? rest.length : found + 1; }
+      return [...rest.slice(0, place), key, ...rest.slice(place)];
+    }
+    // The text to send as `afterText` for dragging the item at index `from` of the shown list to index `to`: the nearest item above its
+    // new place that the store has a place for (new items sit at the end and have none), or null when there is none, which puts it first.
+    function groceryDropAfter(shown, from, to) {
+      const list = Array.isArray(shown) ? shown.slice() : [];
+      if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < 0 || from >= list.length || to >= list.length) return null;
+      const [moved] = list.splice(from, 1);
+      list.splice(to, 0, moved);
+      for (let i = to - 1; i >= 0; i--) if (!list[i].isNew) return list[i].text;
+      return null;
+    }
 
     // The note shown above History while it is the saved copy that is on screen.
     function completedOfflineNoteText(savedAt, now) {
@@ -5770,6 +5880,23 @@
         document.getElementById(ui.retry).addEventListener("click", () => loadShoppingList(list));
         window.addEventListener("online", () => { if (shoppingState[list].savedAt !== null) loadShoppingList(list); }); // the lists' saved copies are replaced too
       }
+      window.addEventListener("online", () => { if (groceryOrderState.fromCache) loadGroceryOrder(); }); // so are the stores'
+      document.getElementById("groceryStore").addEventListener("change", e => chooseGroceryStoreFromPicker(e.target.value));
+      document.getElementById("groceryAddStoreBtn").addEventListener("click", addGroceryStore);
+      document.getElementById("groceryStoreName").addEventListener("keydown", e => {
+        if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); addGroceryStore(); }
+      });
+      document.getElementById("groceryRemoveStoreBtn").addEventListener("click", removeGroceryStore);
+      document.getElementById("grocerySeedExtendBtn").addEventListener("click", () => seedGroceryOrder("extend"));
+      document.getElementById("grocerySeedReplaceBtn").addEventListener("click", () => seedGroceryOrder("replace"));
+      {
+        const box = document.getElementById("groceryList");
+        box.addEventListener("click", e => { if (e.target.closest("[data-drag-handle]")) { e.preventDefault(); e.stopPropagation(); } }, true); // a handle never ticks its row
+        box.addEventListener("pointerdown", startGroceryDrag);
+        box.addEventListener("pointermove", onGroceryDragMove);
+        for (const type of ["pointerup", "pointercancel"]) box.addEventListener(type, onGroceryDragUp);
+        document.addEventListener("keydown", e => { if (e.key === "Escape" && groceryOrderState.drag) endGroceryDrag(false); });
+      }
 
       updateRecurUnit("manual"); // hides the interval controls until a frequency is chosen
       loadAddQueue();
@@ -6509,11 +6636,12 @@
     function renderShoppingList(list = "shopping") {
       const s = shoppingState[list];
       const waitingShopping = waitingShoppingIds(actionQueue, list);
+      const shown = list === "grocery" ? sortGroceryItems(s.items, groceryCurrentOrder()) : s.items; // Groceries in the chosen store's order
       document.getElementById(SHOPPING_ELEMENTS[list].box).innerHTML = !s.loaded ? "" : s.items.length === 0 ?
         "<p style='color:var(--text-faint); margin:0;'>Nothing on the list.</p>" :
-        s.items.map(i => `
+        shown.map(i => `
           <label class="material-row" data-shopping-id="${esc(i.id)}">
-            <input type="checkbox"> <span>${esc(i.text)}</span>${waitingShopping.has(i.id) ? ' <span class="chip held-chip" title="This item is waiting to be sent">⏳ Waiting to send</span>' : ""}
+            <input type="checkbox"> <span>${esc(i.text)}</span>${i.isNew ? ' <span class="chip" title="This store has no place for this item yet">New</span>' : ""}${waitingShopping.has(i.id) ? ' <span class="chip held-chip" title="This item is waiting to be sent">⏳ Waiting to send</span>' : ""}${list === "grocery" ? '<span class="drag-handle" data-drag-handle title="Drag to move this item in the store\'s order" aria-label="Drag to move">⠿</span>' : ""}
           </label>`).join("");
     }
 
@@ -6761,6 +6889,224 @@
       queueShopping({ kind: "SHOPPING_REMOVE", requestId: newRequestId(), fields: shoppingFields(list, { id: itemId, text: removed.item.text }) }, () => {
         s.items = shoppingWithRestored(s.items, removed.item, removed.index);
         if (undoNoteKey === key) hideUndoNote();
+      });
+    }
+
+    // The Groceries stores and their orders. The order is read with the list and saved on the device, so the sorted list shows offline;
+    // changing it (a drag, a new store, a pasted order) needs a connection and is sent in order, one change after another.
+    function groceryCurrentStore() {
+      return groceryOrderState.stores.find(s => s.id === groceryOrderState.selected) || null;
+    }
+    function groceryCurrentOrder() {
+      const store = groceryCurrentStore();
+      return store ? store.order : [];
+    }
+    function saveGroceryOrderCache(stores) {
+      const user = firebaseAuth && firebaseAuth.currentUser;
+      if (!user) return;
+      try { localStorage.setItem(GROCERY_ORDER_CACHE_KEY, serializeGroceryOrderCache(user.uid, stores, Date.now())); } catch (e) { clearGroceryOrderCache(); }
+    }
+    function readGroceryOrderCache() {
+      const user = firebaseAuth && firebaseAuth.currentUser;
+      try { return user ? parseGroceryOrderCache(localStorage.getItem(GROCERY_ORDER_CACHE_KEY), user.uid) : null; } catch (e) { return null; }
+    }
+    function clearGroceryOrderCache() {
+      try { localStorage.removeItem(GROCERY_ORDER_CACHE_KEY); } catch (e) { /* storage unavailable */ }
+    }
+    function rememberGroceryStore() {
+      try { if (groceryOrderState.selected) localStorage.setItem(GROCERY_STORE_PREF_KEY, groceryOrderState.selected); } catch (e) { /* storage unavailable */ }
+    }
+    function groceryStatus(text) {
+      document.getElementById(SHOPPING_ELEMENTS.grocery.status).textContent = text;
+    }
+    // Takes the stores as they are (from the server, or the saved copy when `fromCache`): chooses the shown store (the one chosen on this
+    // device while it is still there), and draws the picker and the list.
+    function setGroceryStores(stores, fromCache) {
+      const o = groceryOrderState;
+      o.stores = normalizeGroceryStores(stores);
+      o.loaded = true;
+      o.fromCache = !!fromCache;
+      let preferred = o.selected;
+      if (preferred === null) { try { preferred = localStorage.getItem(GROCERY_STORE_PREF_KEY); } catch (e) { preferred = null; } }
+      o.selected = chooseGroceryStore(o.stores, preferred);
+      if (!fromCache) saveGroceryOrderCache(o.stores);
+      renderGroceryStores();
+      renderShoppingList("grocery");
+    }
+    // Fills the store picker and sets what the store tools say and can do.
+    function renderGroceryStores() {
+      const o = groceryOrderState;
+      const select = document.getElementById("groceryStore");
+      select.innerHTML = o.stores.length ? o.stores.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("") : '<option value="">No stores yet</option>';
+      select.value = o.selected || "";
+      select.disabled = o.stores.length === 0;
+      const store = groceryCurrentStore();
+      document.getElementById("grocerySeedLabel").textContent = store ? `Order for ${store.name}` : "Order for the chosen store";
+      for (const id of ["grocerySeedExtendBtn", "grocerySeedReplaceBtn", "groceryRemoveStoreBtn"]) document.getElementById(id).disabled = !store;
+    }
+    function chooseGroceryStoreFromPicker(id) {
+      groceryOrderState.selected = chooseGroceryStore(groceryOrderState.stores, id);
+      rememberGroceryStore();
+      renderGroceryStores();
+      renderShoppingList("grocery");
+    }
+    // Reads the stores. A lost connection shows the saved copy (and keeps what is already on screen); another failure shows its error.
+    async function loadGroceryOrder() {
+      const o = groceryOrderState;
+      try {
+        const res = await apiFetch(GROCERY_ORDER_URL);
+        setGroceryStores((await res.json()).stores || [], false);
+      } catch (err) {
+        if (o.loaded || !isNetworkError(err, navigator.onLine)) { if (!o.loaded) groceryStatus("Could not load the stores: " + err.message); if (o.loaded) o.fromCache = true; return; }
+        const saved = readGroceryOrderCache();
+        if (saved) setGroceryStores(saved.stores, true);
+      }
+    }
+    // Sends one change to the stores after the ones before it. `undo` takes the page's own view of it back if the save fails. Resolves with
+    // the server's answer, or null when it failed (the reason is under the list).
+    function sendGroceryOrder(body, undo) {
+      const o = groceryOrderState;
+      o.pending++;
+      groceryStatus("");
+      o.chain = o.chain.then(async () => {
+        try {
+          const res = await apiFetch(UPDATE_GROCERY_ORDER_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          const data = await res.json();
+          o.pending--;
+          if (o.pending === 0 && Array.isArray(data.stores)) setGroceryStores(data.stores, false);
+          return data;
+        } catch (err) {
+          o.pending--;
+          if (undo) undo();
+          groceryStatus("Not saved: " + (isNetworkError(err, navigator.onLine) ? "changing the order needs a connection." : err.message));
+          renderGroceryStores();
+          renderShoppingList("grocery");
+          return null;
+        }
+      });
+      return o.chain;
+    }
+    async function addGroceryStore() {
+      const input = document.getElementById("groceryStoreName");
+      const name = input.value.trim();
+      if (!name) return;
+      const data = await sendGroceryOrder({ action: "ADD_STORE", name });
+      if (!data || !data.store) return;
+      input.value = "";
+      groceryOrderState.selected = chooseGroceryStore(groceryOrderState.stores, data.store.id);
+      rememberGroceryStore();
+      renderGroceryStores();
+      renderShoppingList("grocery");
+    }
+    async function removeGroceryStore() {
+      const store = groceryCurrentStore();
+      if (!store) return;
+      if (!await askConfirm(`Remove ${store.name} and its order?`, { tone: "danger", confirmLabel: "Remove" })) return;
+      const data = await sendGroceryOrder({ action: "REMOVE_STORE", storeId: store.id });
+      if (!data) return;
+      groceryOrderState.selected = chooseGroceryStore(groceryOrderState.stores, null);
+      rememberGroceryStore();
+      renderGroceryStores();
+      renderShoppingList("grocery");
+    }
+    // Sets (mode "replace") or extends ("extend") the chosen store's order from the lines in the paste box.
+    async function seedGroceryOrder(mode) {
+      const store = groceryCurrentStore();
+      const box = document.getElementById("grocerySeedText");
+      if (!store) return;
+      if (!box.value.trim()) return groceryStatus("Type or paste at least one item, one per line, in the order you walk the store.");
+      if (mode === "replace" && store.order.length && !await askConfirm(`Replace the order for ${store.name} with these lines?`, { tone: "danger", confirmLabel: "Replace" })) return;
+      const data = await sendGroceryOrder({ action: "SEED", storeId: store.id, text: box.value, mode });
+      if (!data) return;
+      box.value = "";
+      groceryStatus(`${store.name} now has ${data.count} item${data.count === 1 ? "" : "s"} in its order${data.skipped ? ` (${data.skipped} too long to use, skipped)` : ""}.`);
+    }
+
+    // Dragging a grocery row by its handle to a new place in the chosen store's order. The row follows the pointer, the rows it passes
+    // slide aside, the page scrolls itself near its top or bottom edge, and releasing saves the move (moveGroceryItem); Escape or a
+    // cancelled touch drops the row where it was. `groceryOrderState.drag` is {pointerId, handle, row, rows, ids, from, to, clientY, mids, height,
+    // startDocY, raf} and exists only while a row is lifted.
+    function startGroceryDrag(e) {
+      const handle = e.target.closest("[data-drag-handle]");
+      if (!handle || (e.pointerType === "mouse" && e.button !== 0)) return;
+      const o = groceryOrderState;
+      if (o.drag) endGroceryDrag(false);
+      const rows = [...document.querySelectorAll("#groceryList .material-row[data-shopping-id]")];
+      const row = handle.closest(".material-row");
+      const from = rows.indexOf(row);
+      if (from < 0 || rows.length < 2 || !groceryCurrentStore()) return;
+      e.preventDefault();
+      const d = {
+        pointerId: e.pointerId, handle, row, rows, ids: rows.map(r => r.dataset.shoppingId), from, to: from, clientY: e.clientY, raf: null,
+        mids: rows.map(r => { const b = r.getBoundingClientRect(); return b.top + window.scrollY + b.height / 2; }),
+        height: row.getBoundingClientRect().height, startDocY: e.clientY + window.scrollY
+      };
+      o.drag = d;
+      try { handle.setPointerCapture(e.pointerId); } catch (err) { /* the drag still works without it */ }
+      for (const r of rows) r.classList.add(r === row ? "grocery-lifted" : "grocery-shifting");
+      if (navigator.vibrate) navigator.vibrate(20);
+      paintGroceryDrag(d);
+      d.raf = requestAnimationFrame(() => groceryScrollStep(d));
+    }
+    function paintGroceryDrag(d) {
+      const dy = d.clientY + window.scrollY - d.startDocY;
+      d.row.style.transform = `translateY(${dy}px) scale(1.02)`;
+      d.to = dragTargetIndex(d.mids, d.from, d.mids[d.from] + dy);
+      d.rows.forEach((r, i) => {
+        if (i === d.from) return;
+        const up = d.from < d.to && i > d.from && i <= d.to;
+        const down = d.from > d.to && i >= d.to && i < d.from;
+        r.style.transform = up ? `translateY(${-d.height}px)` : down ? `translateY(${d.height}px)` : "";
+      });
+    }
+    // While a row is lifted, scrolls the page when the pointer is near the bottom edge or just under the pinned header.
+    function groceryScrollStep(d) {
+      if (groceryOrderState.drag !== d) return;
+      const EDGE = 64, MAX = 16;
+      const top = document.querySelector(".app-header").getBoundingClientRect().bottom;
+      const bottom = window.innerHeight - EDGE;
+      const speed = d.clientY < top + EDGE ? -Math.min(MAX, (top + EDGE - d.clientY) / 4) : d.clientY > bottom ? Math.min(MAX, (d.clientY - bottom) / 4) : 0;
+      if (speed !== 0) { window.scrollBy(0, speed); paintGroceryDrag(d); }
+      d.raf = requestAnimationFrame(() => groceryScrollStep(d));
+    }
+    function onGroceryDragMove(e) {
+      const d = groceryOrderState.drag;
+      if (!d || e.pointerId !== d.pointerId) return;
+      d.clientY = e.clientY;
+      if (!d.row.isConnected) return endGroceryDrag(false); // the list was redrawn under the drag
+      paintGroceryDrag(d);
+    }
+    function onGroceryDragUp(e) {
+      const d = groceryOrderState.drag;
+      if (!d || e.pointerId !== d.pointerId) return;
+      endGroceryDrag(e.type === "pointerup");
+    }
+    // Ends a drag: puts every row back and, when `drop` is true and the row moved, saves the move.
+    function endGroceryDrag(drop) {
+      const o = groceryOrderState;
+      const d = o.drag;
+      o.drag = null;
+      if (!d) return;
+      if (d.raf !== null) cancelAnimationFrame(d.raf);
+      for (const r of d.rows) { r.classList.remove("grocery-lifted", "grocery-shifting"); r.style.transform = ""; }
+      if (!drop || !d.row.isConnected || d.to === d.from) return;
+      const shown = sortGroceryItems(shoppingState.grocery.items, groceryCurrentOrder());
+      if (shown.length !== d.ids.length || shown.some((item, i) => item.id !== d.ids[i])) return; // the list changed during the drag
+      moveGroceryItem(shown, d.from, d.to);
+    }
+    // Moves the item at index `from` of the shown list to index `to` in the chosen store's order: the page shows it at once and the
+    // save follows; a failed save puts the old order back.
+    function moveGroceryItem(shown, from, to) {
+      const store = groceryCurrentStore();
+      if (!store) return;
+      const item = shown[from];
+      const afterText = groceryDropAfter(shown, from, to);
+      const before = store.order;
+      store.order = groceryOrderWithMove(before, item.text, afterText);
+      renderShoppingList("grocery");
+      sendGroceryOrder({ action: "MOVE", storeId: store.id, text: item.text, afterText }, () => {
+        const still = groceryOrderState.stores.find(s => s.id === store.id);
+        if (still) still.order = before;
       });
     }
 
