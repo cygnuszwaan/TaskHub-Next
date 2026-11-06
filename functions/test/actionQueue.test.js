@@ -30,7 +30,7 @@ const block = html.slice(start, end);
 
 function load() {
   return new Function(`${block}
-    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, ENTRY_EDIT_FIELDS, normalizeSnooze, normalizeTravelKm, normalizePhone, normalizeEmail, normalizeUrl, normalizeLocation, normalizeRecurrence, checkEditFields, taskEditChanges, serverOnlyEditChanges, taskEditBody, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, addCommentToList, removeCommentFromList, commentBody, commentDeleteBody, waitingCommentIds, MAX_COMMENTS, normalizeCommentText, commentsOf, cleanEntryTags, MAX_TRACKED_SECONDS, MAX_ENTRY_TAGS, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt, deletionRecord, deleteBody, removalBody, normalizeMaterials, normalizeMaterialCost, heldMaterials, withMaterialIds, coalesceMaterialsEdit, openMaterialGroups, openMaterialCount, withMaterialChecked, MAX_MATERIALS, BATCH_ACTIONS, MAX_BATCH, batchInList, batchActionBody, unheldBatchId, isShoppingKind, shoppingTempId, withPendingShopping, waitingShoppingIds, hasPendingShopping, shoppingBody, shoppingRemovalId, shoppingWithAdded, shoppingWithout, MAX_SHOPPING_ITEMS, MAX_SHOPPING_TEXT};
+    return {setClockOffset, serverNow, parseClockOffset, waitingTaskIds, hasPendingActions, actionQueueRefusal, elapsedSecondsOf, runningSeconds, ACTION_QUEUE_KEY, ACTION_QUEUE_MAX, ACTION_KINDS, EDIT_FIELDS, ENTRY_EDIT_FIELDS, normalizeSnooze, normalizeTravelKm, normalizePhone, normalizeEmail, normalizeUrl, normalizeLocation, normalizeRecurrence, checkEditFields, taskEditChanges, serverOnlyEditChanges, taskEditBody, UNDO_TASK_MAX_CHARS, completionRecord, undoInList, blockedBy, actionDependsOn, undoPlan, completeBody, undoBody, reopenBody, entryEditBody, splitHeldFields, fieldNamesText, takeBackCompletion, newArchiveId, usableArchiveId, clockOffsetFrom, normalizeSamples, normalizeCount, recordCompletion, setTimerInList, settleTimer, completedRowOf, reopenTask, normalizeDescription, applyEditFields, addCommentToList, removeCommentFromList, commentBody, commentDeleteBody, waitingCommentIds, MAX_COMMENTS, normalizeCommentText, commentsOf, cleanEntryTags, MAX_TRACKED_SECONDS, MAX_ENTRY_TAGS, normalizeQueuedAction, makeQueuedAction, cleanActionQueue, parseActionQueue, serializeActionQueue, withPendingActions, cancelActions, actionLabel, actionCardView, actionQueueSummary, actionDiscardPrompt, deletionRecord, deleteBody, removalBody, normalizeMaterials, normalizeMaterialCost, heldMaterials, withMaterialIds, coalesceMaterialsEdit, openMaterialGroups, openMaterialCount, withMaterialChecked, MAX_MATERIALS, BATCH_ACTIONS, MAX_BATCH, batchInList, batchActionBody, unheldBatchId, isShoppingKind, shoppingListOf, shoppingListName, shoppingTempId, withPendingShopping, waitingShoppingIds, hasPendingShopping, shoppingBody, shoppingRemovalId, shoppingWithAdded, shoppingWithout, MAX_SHOPPING_ITEMS, MAX_SHOPPING_TEXT};
   `)();
 }
 
@@ -1464,6 +1464,68 @@ describe("action queue (public/index.html)", () => {
       const complete = completedFixture();
       assert.equal(page.actionLabel(undoAction(page, complete.record)), "Undo completing “Task a”");
     });
+  });
+});
+
+describe("Groceries list actions", () => {
+  const page = load();
+  const add = (text, fields = {}, over = {}) => page.makeQueuedAction({kind: "SHOPPING_ADD", title: text, fields: {text, list: "grocery", ...fields}, now: T0, offset: 0, ...over});
+  const remove = (id, text, over = {}) => page.makeQueuedAction({kind: "SHOPPING_REMOVE", title: text, fields: {id, text, list: "grocery"}, now: T0, offset: 0, ...over});
+  const miscAdd = (text) => page.makeQueuedAction({kind: "SHOPPING_ADD", title: text, fields: {text}, now: T0, offset: 0});
+  const miscRemove = (id, text) => page.makeQueuedAction({kind: "SHOPPING_REMOVE", title: text, fields: {id, text}, now: T0, offset: 0});
+  const list = (...pairs) => pairs.map(([id, text]) => ({id, text}));
+
+  it("a stored action says which list it is on, and one without a list is on Miscellaneous", () => {
+    assert.deepEqual(add("Milk").fields, {text: "Milk", list: "grocery"});
+    assert.deepEqual(remove("g1", "Milk").fields, {id: "g1", text: "Milk", list: "grocery"});
+    assert.deepEqual(miscAdd("Nails").fields, {text: "Nails"});
+    assert.equal(page.shoppingListOf(add("Milk")), "grocery");
+    assert.equal(page.shoppingListOf(miscAdd("Nails")), "shopping");
+    assert.equal(page.shoppingListOf(undefined), "shopping");
+    assert.equal(page.shoppingListName("grocery"), "Groceries");
+    assert.equal(page.shoppingListName("shopping"), "Miscellaneous");
+  });
+  it("refuses a list it does not know, and survives the stored text", () => {
+    assert.equal(add("Milk", {list: "hardware"}), null);
+    assert.equal(add("Milk", {list: null}), null);
+    const a = add("Milk");
+    const b = {...remove("g1", "Eggs"), status: "FAILED", error: "Nope"};
+    const c = miscAdd("Nails");
+    assert.deepEqual(page.parseActionQueue(page.serializeActionQueue([a, b, c])), [a, b, c]);
+  });
+  it("words the card with the list's name", () => {
+    assert.equal(page.actionLabel(add("Milk")), "Add “Milk” to Groceries");
+    assert.equal(page.actionLabel(remove("g1", "Milk")), "Take “Milk” off Groceries");
+    assert.equal(page.actionLabel(miscAdd("Nails")), "Add “Nails” to Miscellaneous");
+    assert.equal(page.actionLabel(miscRemove("i1", "Nails")), "Take “Nails” off Miscellaneous");
+  });
+  it("shows only its own list's pending actions on each list", () => {
+    const queue = [add("Milk"), miscAdd("Nails"), remove("g1", "Eggs"), miscRemove("i1", "Glue")];
+    const groceries = page.withPendingShopping(list(["g1", "Eggs"], ["g2", "Bread"]), queue, "grocery");
+    assert.deepEqual(groceries, list(["g2", "Bread"], [page.shoppingTempId(queue[0].requestId), "Milk"]));
+    const misc = page.withPendingShopping(list(["i1", "Glue"], ["i2", "Tape"]), queue);
+    assert.deepEqual(misc, list(["i2", "Tape"], [page.shoppingTempId(queue[1].requestId), "Nails"]));
+    assert.deepEqual(page.withPendingShopping(list(["i2", "Tape"]), queue, "shopping"), page.withPendingShopping(list(["i2", "Tape"]), queue));
+  });
+  it("marks only that list's held adds as waiting, and holds only that list's order", () => {
+    const g = add("Milk");
+    const m = miscAdd("Nails");
+    assert.deepEqual([...page.waitingShoppingIds([g, m], "grocery")], [page.shoppingTempId(g.requestId)]);
+    assert.deepEqual([...page.waitingShoppingIds([g, m])], [page.shoppingTempId(m.requestId)]);
+    assert.equal(page.hasPendingShopping([g], "grocery"), true);
+    assert.equal(page.hasPendingShopping([g]), false);
+    assert.equal(page.hasPendingShopping([m], "grocery"), false);
+    assert.equal(page.hasPendingShopping([m]), true);
+    assert.equal(page.hasPendingShopping([{...g, status: "FAILED", error: "x"}], "grocery"), false);
+  });
+  it("a removal depends on its own add, and a failed Miscellaneous action does not block a grocery one", () => {
+    const a = add("Milk");
+    const r = remove(page.shoppingTempId(a.requestId), "Milk");
+    assert.equal(page.actionDependsOn(r, a), true);
+    const failedMisc = {...miscAdd("Nails"), status: "FAILED", error: "x"};
+    const eggs = add("Eggs");
+    assert.equal(page.blockedBy([failedMisc, eggs], eggs), null);
+    assert.equal(page.blockedBy([{...a, status: "FAILED", error: "x"}, r], r).requestId, a.requestId);
   });
 });
 
