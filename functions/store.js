@@ -238,6 +238,9 @@ function makeClientStore(db) {
 //   getItems()               -> the items in the order added
 //   addItem(text, makeId)    -> {items, item, added} or {error}: the read and the write share one transaction, and an item already there (ignoring case) is not added twice
 //   removeItem(id)           -> {items, removed}: an id that is not there changes nothing
+//   addItems(texts, makeId, requestId) -> {items, added, skipped, duplicate?}: every usable text not already there is appended in one transaction that also records
+//                                   `requestId` in `settings/addRequests` (so a repeat of the request adds nothing: {duplicate: true, added: 0}); `skipped` counts the
+//                                   unusable or already-listed texts and any that did not fit a full list. Nothing is written for a request that adds nothing and has no id.
 function makeShoppingStore(db, docPath = SHOPPING_DOC) {
   const ref = db.doc(docPath);
   const itemsFrom = (snap) => normalizeShoppingItems(snap.exists ? snap.data().items : []);
@@ -262,7 +265,32 @@ function makeShoppingStore(db, docPath = SHOPPING_DOC) {
     });
   }
 
-  return {getItems, addItem, removeItem};
+  async function addItems(texts, makeId, requestId) {
+    const requestsRef = db.doc(ADD_REQUESTS_DOC);
+    return db.runTransaction(async (tx) => {
+      let items = itemsFrom(await tx.get(ref));
+      const requestsSnap = await tx.get(requestsRef);
+      const requestsData = requestsSnap.exists ? requestsSnap.data() : undefined;
+      const id = normalizeRequestId(requestId);
+      if (id && requestIdsOf(requestsData).includes(id)) return {items, added: 0, skipped: 0, duplicate: true};
+      let added = 0;
+      let skipped = 0;
+      for (const text of Array.isArray(texts) ? texts : []) {
+        const result = addShoppingItem(items, text, makeId);
+        if (result.added) {
+          items = result.items;
+          added++;
+        } else {
+          skipped++;
+        }
+      }
+      if (added) tx.set(ref, {items});
+      if (id) tx.set(requestsRef, recordRequest(requestsData, id));
+      return {items, added, skipped};
+    });
+  }
+
+  return {getItems, addItem, removeItem, addItems};
 }
 
 // The Groceries stores and their walking orders in one document, `settings/groceryOrder` ({stores: [{id, name, order: [itemKey]}]}; absent until

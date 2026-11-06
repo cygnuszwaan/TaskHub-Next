@@ -929,3 +929,43 @@ describe("makeTaskStore: withAddRequests", () => {
     assert.equal(ids[199], rid(9999));
   });
 });
+
+describe("store.js makeShoppingStore addItems", () => {
+  let n = 0;
+  const makeId = () => `n${++n}`;
+  it("adds the usable new texts in one write with the request id recorded, and counts the rest as skipped", async () => {
+    const db = fakeDb();
+    db.data.settings.set("groceryList", {items: [{id: "g1", text: "Milk"}]});
+    const store = makeShoppingStore(db, GROCERY_DOC);
+    const r = await store.addItems(["milk", "Bread", " ", "x".repeat(101), "bread", "Eggs"], makeId, "gt-abcdefgh");
+    assert.deepEqual(r.items.map((i) => i.text), ["Milk", "Bread", "Eggs"]);
+    assert.equal(r.added, 2);
+    assert.equal(r.skipped, 4);
+    assert.deepEqual(db.data.settings.get("addRequests"), {ids: ["gt-abcdefgh"]});
+    assert.deepEqual(db.log, ["set settings/groceryList", "set settings/addRequests"]);
+  });
+  it("adds nothing for a request id it has seen", async () => {
+    const db = fakeDb();
+    db.data.settings.set("addRequests", {ids: ["gt-abcdefgh"]});
+    const store = makeShoppingStore(db, GROCERY_DOC);
+    const r = await store.addItems(["Milk"], makeId, "gt-abcdefgh");
+    assert.deepEqual({added: r.added, duplicate: r.duplicate}, {added: 0, duplicate: true});
+    assert.deepEqual(db.log, []);
+    assert.deepEqual(await store.getItems(), []);
+  });
+  it("records the id even when nothing was added, and writes nothing without an id when nothing is added", async () => {
+    const db = fakeDb();
+    const store = makeShoppingStore(db, GROCERY_DOC);
+    await store.addItems([], makeId, "gt-abcdefgh");
+    assert.deepEqual(db.log, ["set settings/addRequests"]);
+    db.log.length = 0;
+    await store.addItems([], makeId);
+    assert.deepEqual(db.log, []);
+  });
+  it("leaves the Miscellaneous list alone", async () => {
+    const db = fakeDb();
+    db.data.settings.set("shoppingList", {items: [{id: "m", text: "Duct tape"}]});
+    await makeShoppingStore(db, GROCERY_DOC).addItems(["Milk"], makeId, "gt-abcdefgh");
+    assert.deepEqual(db.data.settings.get("shoppingList"), {items: [{id: "m", text: "Duct tape"}]});
+  });
+});

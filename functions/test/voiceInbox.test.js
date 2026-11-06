@@ -2,7 +2,7 @@
 /* eslint-disable require-jsdoc */
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {INBOX_SCOPE, DEFAULT_LIST, MAX_ENTRIES, MAX_INPUT_LENGTH, isDefaultList, findList, requestIdFor, inboxEntries} = require("../voiceInbox");
+const {INBOX_SCOPE, DEFAULT_LIST, MAX_ENTRIES, MAX_INPUT_LENGTH, isDefaultList, findList, requestIdFor, groceryItemsOf, inboxEntries, GROCERY_TRIGGER} = require("../voiceInbox");
 const {normalizeRequestId} = require("../addRequests");
 const {oauthSecret, parseOAuthSecret, makeOAuthClient, makeTasksApi} = require("../googleTasks");
 
@@ -162,6 +162,42 @@ describe("googleTasks.js", () => {
         throw new Error("invalid_grant");
       }};
       await assert.rejects(() => makeTasksApi(client).lists(), /invalid_grant/);
+    });
+  });
+  describe("groceryItemsOf", () => {
+    it("is null unless the title starts with the word groceries", () => {
+      assert.equal(GROCERY_TRIGGER, "groceries");
+      for (const title of ["buy groceries", "Grocery milk", "groceriesmilk", "Fix the fence, groceries", "", undefined, 5]) assert.equal(groceryItemsOf(title, ""), null, String(title));
+    });
+    it("splits the rest of the title at commas and semicolons, ignoring case and a separator after the word", () => {
+      assert.deepEqual(groceryItemsOf("Groceries milk, bread; eggs", ""), ["milk", "bread", "eggs"]);
+      assert.deepEqual(groceryItemsOf("GROCERIES: milk,bread", ""), ["milk", "bread"]);
+      assert.deepEqual(groceryItemsOf("groceries - milk", ""), ["milk"]);
+      assert.deepEqual(groceryItemsOf("groceries, milk", ""), ["milk"]);
+    });
+    it("drops a leading and and a trailing full stop, but never splits inside a segment", () => {
+      assert.deepEqual(groceryItemsOf("groceries milk, bread, and eggs.", ""), ["milk", "bread", "eggs"]);
+      assert.deepEqual(groceryItemsOf("groceries salt and vinegar chips", ""), ["salt and vinegar chips"]);
+      assert.deepEqual(groceryItemsOf("groceries and milk", ""), ["milk"]);
+    });
+    it("adds the notes' lines and collapses spacing", () => {
+      assert.deepEqual(groceryItemsOf("groceries  milk", "bread\n\n  cat   food, eggs"), ["milk", "bread", "cat food", "eggs"]);
+      assert.deepEqual(groceryItemsOf("groceries", "bread"), ["bread"]);
+    });
+    it("is an empty list for the word alone", () => {
+      for (const title of ["groceries", "Groceries:", "groceries, ,"]) assert.deepEqual(groceryItemsOf(title, ""), [], title);
+    });
+  });
+
+  describe("inboxEntries with groceries", () => {
+    it("marks a groceries item with its items and leaves the others without the field", () => {
+      const entries = inboxEntries([
+        {id: "g1xxxxxx", title: "Groceries milk, eggs", notes: "bread", due: "2026-11-07T00:00:00.000Z", status: "needsAction"},
+        {id: "t1xxxxxx", title: "buy fence palings", status: "needsAction"},
+      ]);
+      assert.deepEqual(entries[0].groceries, ["milk", "eggs", "bread"]);
+      assert.equal(entries[0].requestId, "gt-g1xxxxxx");
+      assert.equal("groceries" in entries[1], false);
     });
   });
 });

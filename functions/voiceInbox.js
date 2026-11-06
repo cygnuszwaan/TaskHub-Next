@@ -12,6 +12,10 @@ const MAX_INPUT_LENGTH = 4000;
 // The Google Tasks id of the owner's default list ("My Tasks"), which is where Gemini puts every task it adds: it cannot add to a named list.
 const DEFAULT_LIST = "@default";
 
+// An item whose title starts with this word goes to the Groceries list, not the task queue.
+const GROCERY_TRIGGER = "groceries";
+const GROCERY_TRIGGER_PATTERN = /^groceries(?![\p{L}\p{N}])[\s:,;.\-\u2013\u2014]*/iu;
+
 const squash = (text) => String(text).replace(/\s+/g, " ").trim().toLowerCase();
 
 // Whether the setting names the default list (`@default`, which Google Tasks accepts as a list id, so a renamed or translated "My Tasks" does not matter).
@@ -37,9 +41,24 @@ function requestIdFor(taskId) {
   return id.length >= 8 ? id : `${id}${"_".repeat(8 - id.length)}`;
 }
 
+// The grocery items an inbox item holds, or null when its title does not start with the word "groceries" (it stays a task). The items are
+// the rest of the title and the notes' lines, split at commas, semicolons and line breaks (never at "and" inside a segment, so "salt and
+// vinegar chips" stays one item); a segment's leading "and" and trailing full stop are dropped ("milk, bread, and eggs"), blanks too.
+// An empty array for the word alone.
+function groceryItemsOf(title, notes) {
+  const squashed = typeof title === "string" ? title.replace(/\s+/g, " ").trim() : "";
+  const match = GROCERY_TRIGGER_PATTERN.exec(squashed);
+  if (!match) return null;
+  const text = [squashed.slice(match[0].length), typeof notes === "string" ? notes : ""].join("\n");
+  return text.split(/[,;\n]+/)
+      .map((part) => part.replace(/\s+/g, " ").trim().replace(/^and\s+/i, "").replace(/\.$/, "").trim())
+      .filter(Boolean);
+}
+
 // The items to add, from a task list's items: those not completed, deleted or hidden that have a title, in the order given, at most
 // MAX_ENTRIES. `input` is the title, then the notes on lines of their own and a line "Due: YYYY-MM-DD" when the item has a due date
-// (the date part of Google's `due`), cut to MAX_INPUT_LENGTH; `taskId` is the item's id.
+// (the date part of Google's `due`), cut to MAX_INPUT_LENGTH; `taskId` is the item's id. An item whose title starts with "groceries" also
+// has `groceries`, its items (see groceryItemsOf); the others have none.
 //   opts.since: ISO text; an item last changed before it is left alone (the owner's own older items on the default list)
 function inboxEntries(items, {since} = {}) {
   const sinceMs = typeof since === "string" ? Date.parse(since) : NaN;
@@ -53,10 +72,11 @@ function inboxEntries(items, {since} = {}) {
     const notes = typeof item.notes === "string" ? item.notes.trim() : "";
     const due = typeof item.due === "string" && /^\d{4}-\d{2}-\d{2}/.test(item.due) ? item.due.slice(0, 10) : "";
     const text = [title, notes, due ? `Due: ${due}` : ""].filter(Boolean).join("\n");
-    entries.push({taskId: item.id, requestId: requestIdFor(item.id), input: text.slice(0, MAX_INPUT_LENGTH)});
+    const groceries = groceryItemsOf(title, notes);
+    entries.push({taskId: item.id, requestId: requestIdFor(item.id), input: text.slice(0, MAX_INPUT_LENGTH), ...(groceries ? {groceries} : {})});
     if (entries.length >= MAX_ENTRIES) break;
   }
   return entries;
 }
 
-module.exports = {INBOX_SCOPE, DEFAULT_LIST, MAX_ENTRIES, MAX_INPUT_LENGTH, isDefaultList, findList, requestIdFor, inboxEntries};
+module.exports = {INBOX_SCOPE, DEFAULT_LIST, GROCERY_TRIGGER, MAX_ENTRIES, MAX_INPUT_LENGTH, isDefaultList, findList, requestIdFor, groceryItemsOf, inboxEntries};

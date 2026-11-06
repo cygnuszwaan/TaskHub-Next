@@ -59,9 +59,7 @@ A change usually touches several rows: a new endpoint touches an `endpoints-*.md
 
 ## Roadmap
 
-Groceries: the Groceries card, between Task materials and Miscellaneous, is built (add, tick off with Undo, offline); it is ordered by store (picker, drag by handle, paste-in order, Stores and order section) and what remains is filling it by voice. Each step fits one turn and adds tests for any new pure logic.
-
-1. Voice: `voiceInboxPoll` routes a Google Tasks item that starts with the trigger word "groceries" to the Groceries list, split into items and added without the model, deduplicated by the `gt-<item id>` request id; anything without the word stays a task. Nothing goes to Miscellaneous by voice. Update `infrastructure.md`.
+The Groceries card (between Task materials and Miscellaneous) is built: add, tick off with Undo, offline, ordered by store, and filled by voice. No step is planned; each new step fits one turn and adds tests for any new pure logic.
 
 Unplanned ideas are in `stretch-goals.md`.
 
@@ -76,4 +74,4 @@ Unplanned ideas are in `stretch-goals.md`.
 - Should a voice inbox failure notify the owner? A revoked or expired token (`invalid_grant`) or a missing list only logs, so voice tasks silently stop arriving until someone reads `npm run logs`. A push alert, throttled like the run-failed one, would need its own switch in Settings.
 - Does Google sign-in work in the installed Android window? The popup is tried first and the redirect fallback is in place, both untested there. If redirect sign-in fails on `taskhub-next.web.app`, set `authDomain` to the page's own host (that host's `/__/auth/handler` must then be an authorized redirect URI of the OAuth client).
 - Public multi-user version: lock detection (an event moved to the personal calendar pins its task) lists events on the personal calendar, which a busy-time-only scope cannot do. Drop pinning in the public build, or request a broader read scope and accept a heavier review?
-- Does the phone's "add to my tasks: groceries, ..." phrasing reach the default Google Tasks list as one item? The last roadmap step assumes it does; if the assistant sends it elsewhere (Google Keep, say) or splits it, find a phrasing that works before building the routing.
+- Does the phone's "add to my tasks: groceries, ..." phrasing reach the default Google Tasks list as one item? The groceries routing assumes it does; if the assistant sends it elsewhere (Google Keep, say) or splits it, find a phrasing that works. Remove this question once a spoken groceries list has arrived on the Groceries card.

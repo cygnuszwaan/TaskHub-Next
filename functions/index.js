@@ -67,7 +67,7 @@ const {getClients: readClients, createClient, updateClient, deleteClient} = make
 // The Miscellaneous shopping list on the Materials tab, one document `settings/shoppingList`; see shopping.js and store.js.
 const {getItems: readShoppingItems, addItem: addShoppingItem, removeItem: removeShoppingItem} = makeShoppingStore(db);
 // The Groceries list on the Materials tab: the same kind of list in its own document, `settings/groceryList`.
-const {getItems: readGroceryItems, addItem: addGroceryItem, removeItem: removeGroceryItem} = makeShoppingStore(db, GROCERY_DOC);
+const {getItems: readGroceryItems, addItem: addGroceryItem, removeItem: removeGroceryItem, addItems: addGroceryItems} = makeShoppingStore(db, GROCERY_DOC);
 // The order the Groceries list is walked in at each store, one document `settings/groceryOrder`; see groceryOrder.js and store.js.
 const {getStores: readGroceryStores, update: updateGroceryStores} = makeGroceryOrderStore(db);
 const groceryOrder = require("./groceryOrder");
@@ -653,8 +653,17 @@ async function pullVoiceInbox() {
     const since = onDefault ? await readVoiceInboxSince() : undefined;
     const entries = inboxEntries(await api.items(listId, since), {since});
     let added = 0;
+    let groceriesAdded = 0;
     for (const entry of entries) {
       try {
+        if (entry.groceries) {
+          // "groceries ..." goes to the Groceries list without the model, under the item's request id
+          const done = await addGroceryItems(entry.groceries, randomUUID, entry.requestId);
+          if (done.added === 0 && !done.duplicate) console.warn(`Voice inbox: no grocery added from "${entry.input.slice(0, 80)}" (${done.skipped} skipped)`);
+          groceriesAdded += done.added;
+          await api.complete(listId, entry.taskId);
+          continue;
+        }
         const done = await addFreeText(entry.input, entry.requestId);
         if (done.added + done.updated === 0 && !done.duplicate) console.warn(`Voice inbox: the model made no change of "${entry.input.slice(0, 80)}"`);
         added += done.added;
@@ -663,7 +672,7 @@ async function pullVoiceInbox() {
         console.error(`Voice inbox: could not add item ${entry.taskId}; it stays on the list:`, err.message);
       }
     }
-    if (entries.length) console.log(`Voice inbox: ${entries.length} item(s) read, ${added} task(s) added`);
+    if (entries.length) console.log(`Voice inbox: ${entries.length} item(s) read, ${added} task(s) and ${groceriesAdded} grocery item(s) added`);
     return {found: entries.length, added};
   } catch (err) {
     console.error("Voice inbox failed:", err.message);
