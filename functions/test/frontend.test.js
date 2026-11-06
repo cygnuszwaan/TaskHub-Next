@@ -188,31 +188,31 @@ describe("public/index.html helpers", () => {
     it("is written only with the server's list, cleared on sign-out and shown only for a connection failure", () => {
       const keyLine = html.match(/const SHOPPING_CACHE_KEY = "([^"]+)"/);
       assert.ok(keyLine && keyLine[1] === "taskhub-shopping-cache");
-      assert.match(html, /clearShoppingCache\(\); \/\/ nor of the Miscellaneous list/);
-      const setFrom = html.slice(html.indexOf("function setShoppingFromServer(items)"), html.indexOf("// Reads the list from the server."));
-      assert.match(setFrom, /saveShoppingCache\(items\)/);
-      assert.match(setFrom, /showSavedShoppingNote\(null\)/);
+      assert.match(html, /clearShoppingCache\(\); \/\/ nor of the Miscellaneous or Groceries list/);
+      const setFrom = html.slice(html.indexOf("function setShoppingFromServer(items, list"), html.indexOf("// Reads a list from the server."));
+      assert.match(setFrom, /saveShoppingCache\(items, list\)/);
+      assert.match(setFrom, /showSavedShoppingNote\(null, list\)/);
       assert.equal((html.match(/saveShoppingCache\(/g) || []).length, 2, "one definition and one call: the server's list is the only thing saved");
-      assert.doesNotMatch(html, /saveShoppingCache\(shoppingItems\)/, "the saved copy never holds the page's list with changes not yet saved");
+      assert.doesNotMatch(html, /saveShoppingCache\(s\.items/, "the saved copy never holds the page's list with changes not yet saved");
       const queueBody = html.slice(html.indexOf("function queueShopping("), html.indexOf("function addShoppingText("));
-      assert.match(queueBody, /shoppingPending === 0 && Array\.isArray\(data\.items\)\) setShoppingFromServer\(data\.items\)/);
-      const loadBody = html.slice(html.indexOf("async function loadShoppingList()"), html.indexOf("// Sends one change to the Miscellaneous list"));
+      assert.match(queueBody, /s\.pending === 0 && Array\.isArray\(data\.items\)\) setShoppingFromServer\(data\.items, list\)/);
+      const loadBody = html.slice(html.indexOf("async function loadShoppingList("), html.indexOf("// Sends one change to a list"));
       assert.match(loadBody, /isNetworkError\(err, navigator\.onLine\)/);
-      assert.match(loadBody, /readShoppingCache\(\)/);
+      assert.match(loadBody, /readShoppingCache\(list\)/);
       assert.match(loadBody, /Could not load the list: /);
-      assert.match(html, /savedShoppingAt !== null\) loadShoppingList\(\)/);
+      assert.match(html, /shoppingState\[list\]\.savedAt !== null\) loadShoppingList\(list\)/);
     });
   });
   describe("held Miscellaneous changes (page)", () => {
     const fnBody = (name, next) => html.slice(html.indexOf(name), html.indexOf(next, html.indexOf(name) + 1));
     it("holds a change behind a waiting shopping action, and after a connection failure, and keeps it shown", () => {
-      const fn = fnBody("function queueShopping(", "// Keeps a change to the Miscellaneous list in the action queue");
-      assert.match(fn, /if \(hasPendingShopping\(actionQueue\)\) \{[^}]*holdShoppingChange\(change, true\)/);
-      assert.ok(fn.indexOf("hasPendingShopping(actionQueue)") < fn.indexOf("apiFetch(UPDATE_SHOPPING_URL"), "the order check comes before any send");
+      const fn = fnBody("function queueShopping(", "// Keeps a change to a list in the action queue");
+      assert.match(fn, /if \(hasPendingShopping\(actionQueue, list\)\) \{[^}]*holdShoppingChange\(change, true\)/);
+      assert.ok(fn.indexOf("hasPendingShopping(actionQueue, list)") < fn.indexOf("apiFetch(shoppingUpdateUrl(list)"), "the order check comes before any send");
       assert.match(fn, /isNetworkError\(err, navigator\.onLine\) \? holdShoppingChange\(change, false\) : null/);
     });
     it("keeps a held change with the clock's correction, refuses when the queue cannot take it and sends the queue when it was only behind", () => {
-      const fn = fnBody("function holdShoppingChange(", "// A held change to the Miscellaneous list posted");
+      const fn = fnBody("function holdShoppingChange(", "// A held change to a list posted");
       assert.match(fn, /actionQueueRefusal\(actionQueue\.length, actionQueueUsable\)/);
       assert.match(fn, /makeQueuedAction\(\{ kind: change\.kind, title: change\.fields\.text, fields: change\.fields, now: Date\.now\(\), offset: clockOffsetMs, requestId: change\.requestId \}\)/);
       assert.match(fn, /if \(behind && navigator\.onLine\) setTimeout\(drainAllQueues, 0\)/);
@@ -223,30 +223,30 @@ describe("public/index.html helpers", () => {
     });
     it("takes a tick on a held add out of the queue instead of queueing a removal, unless the add is on its way", () => {
       const fn = fnBody("function checkShoppingItem(", "// Ticking one offers Undo");
-      assert.match(fn, /a\.kind === "SHOPPING_ADD" && a\.status === "PENDING" && shoppingTempId\(a\.requestId\) === itemId && a\.requestId !== sendingActionId/);
+      assert.match(fn, /a\.kind === "SHOPPING_ADD" && a\.status === "PENDING" && shoppingListOf\(a\) === list && shoppingTempId\(a\.requestId\) === itemId && a\.requestId !== sendingActionId/);
       assert.match(fn, /saveActionQueue\(cancelActions\(actionQueue, waitingAdd\.requestId\)\.actions\)/);
       assert.ok(fn.indexOf("cancelActions(") < fn.indexOf("queueShopping("));
     });
     it("sends held changes through sendQueuedAction, after the blockedBy check, and takes the action out of the queue before the list is shown", () => {
       const send = fnBody("async function sendQueuedAction(", "// One action settled by drainQueue");
       assert.ok(send.indexOf("blockedBy(actionQueue, item)") < send.indexOf("sendShoppingAction(item)"));
-      const fn = fnBody("async function sendShoppingAction(", "// Adds an item to the Miscellaneous list at once");
-      assert.match(fn, /apiFetch\(UPDATE_SHOPPING_URL/);
-      assert.match(fn, /shoppingRemovalId\(item, shoppingRealIds, null\)/);
-      assert.match(fn, /apiFetch\(SHOPPING_URL\)/);
-      assert.ok(fn.lastIndexOf("saveActionQueue(queueWithout(actionQueue, item.requestId))") < fn.lastIndexOf("setShoppingFromServer(data.items)"));
-      assert.match(fn, /shoppingRealIds\.set\(tempId, data\.item\.id\)/);
+      const fn = fnBody("async function sendShoppingAction(", "// Adds an item to a list at once");
+      assert.match(fn, /apiFetch\(shoppingUpdateUrl\(list\)/);
+      assert.match(fn, /shoppingRemovalId\(item, s\.realIds, null\)/);
+      assert.match(fn, /apiFetch\(shoppingReadUrl\(list\)\)/);
+      assert.ok(fn.lastIndexOf("saveActionQueue(queueWithout(actionQueue, item.requestId))") < fn.lastIndexOf("setShoppingFromServer(data.items, list)"));
+      assert.match(fn, /s\.realIds\.set\(tempId, data\.item\.id\)/);
     });
     it("shows the list again when a held change is refused, discarded or retried, and marks held adds as waiting", () => {
       for (const name of ["function settleQueuedAction(", "async function discardQueuedAction(", "function retryQueuedAction("]) {
         assert.match(fnBody(name, "\n    }\n"), /refreshShownShopping\(\)/, name);
       }
-      assert.match(fnBody("function renderShoppingList(", "// The saved copy of the Miscellaneous list (SHOPPING_CACHE_KEY)"), /waitingShoppingIds\(actionQueue\)[\s\S]*Waiting to send/);
+      assert.match(fnBody("function renderShoppingList(", "// The address a list is read from"), /waitingShoppingIds\(actionQueue, list\)[\s\S]*Waiting to send/);
     });
     it("puts what is waiting on top of every list the server or the saved copy gives", () => {
-      assert.match(fnBody("function shownShopping(", "// Draws the list again"), /withPendingShopping\(items, actionQueue\)/);
-      assert.match(fnBody("function setShoppingFromServer(", "// Reads the list from the server"), /shoppingItems = shownShopping\(items\)/);
-      assert.match(fnBody("async function loadShoppingList(", "// The saved copy of the Miscellaneous list (SHOPPING_CACHE_KEY)"), /shoppingItems = shownShopping\(saved\.items\)/);
+      assert.match(fnBody("function shownShopping(", "// Draws the lists again"), /withPendingShopping\(items, actionQueue, list\)/);
+      assert.match(fnBody("function setShoppingFromServer(", "// Reads a list from the server"), /s\.items = shownShopping\(items, list\)/);
+      assert.match(fnBody("async function loadShoppingList(", "// Sends one change to a list"), /s\.items = shownShopping\(saved\.items, list\)/);
     });
   });
   describe("saved completed list", () => {
@@ -4636,12 +4636,19 @@ describe("public/index.html helpers", () => {
       for (const v of ["", "  \n ", null, undefined]) assert.equal(shoppingItemText(v), "");
       assert.equal(shoppingItemText(42), "42");
     });
-    it("is its own card on the Materials page, below the Task materials card", () => {
+    it("is its own card on the Materials page, after the Task materials and Groceries cards", () => {
       const page = html.slice(html.indexOf("<main id=\"pageMaterials\""), html.indexOf("</main>", html.indexOf("<main id=\"pageMaterials\"")));
-      assert.equal((page.match(/<div class="card"/g) || []).length, 2, "Task materials and Miscellaneous");
+      assert.equal((page.match(/<div class="card"/g) || []).length, 3, "Task materials, Groceries and Miscellaneous");
       assert.match(page, /<h3[^>]*>Task materials<\/h3>\s*<div id="materialsList">/);
       assert.match(page, /<div class="card" id="shoppingSection">\s*<h3[^>]*>Miscellaneous<\/h3>/);
-      assert.ok(page.indexOf("id=\"materialsList\"") < page.indexOf("id=\"shoppingSection\""), "below the task materials");
+      assert.match(page, /<div class="card" id="grocerySection">\s*<h3[^>]*>Groceries<\/h3>/);
+      assert.ok(page.indexOf("id=\"materialsList\"") < page.indexOf("id=\"grocerySection\""), "Groceries is below the task materials");
+      assert.ok(page.indexOf("id=\"grocerySection\"") < page.indexOf("id=\"shoppingSection\""), "and above Miscellaneous");
+      assert.ok(page.indexOf("id=\"materialsStatus\"") < page.indexOf("id=\"grocerySection\""), "the task card's status line stays in its own card");
+      for (const id of ["groceryInput", "groceryAddBtn", "groceryList", "groceryStatus", "groceryOfflineNote", "groceryOfflineNoteText", "groceryRetryBtn"]) {
+        const at = page.indexOf(`id="${id}"`);
+        assert.ok(at > page.indexOf("id=\"grocerySection\"") && at < page.indexOf("id=\"shoppingSection\""), `${id} is in the Groceries card`);
+      }
       assert.ok(page.indexOf("id=\"materialsStatus\"") < page.indexOf("id=\"shoppingSection\""), "the task card's status line stays in its own card");
       assert.match(page, /<input type="text" id="shoppingInput" maxlength="100"/);
       assert.match(page, /id="shoppingAddBtn"/);
@@ -4696,31 +4703,35 @@ describe("public/index.html helpers", () => {
     it("loads after sign-in through getShoppingList and changes only through updateShoppingList", () => {
       assert.match(html, /const SHOPPING_URL = endpoint\("getShoppingList"\);/);
       assert.match(html, /const UPDATE_SHOPPING_URL = endpoint\("updateShoppingList"\);/);
+      assert.match(html, /const GROCERY_URL = endpoint\("getGroceryList"\);/);
+      assert.match(html, /const UPDATE_GROCERY_URL = endpoint\("updateGroceryList"\);/);
       const from = html.indexOf("lib.onAuthStateChanged");
-      assert.match(html.slice(from, html.indexOf("showGate(", from)), /loadShoppingList\(\);/);
-      assert.match(html, /apiFetch\(SHOPPING_URL\)/);
-      assert.match(html, /apiFetch\(UPDATE_SHOPPING_URL/);
+      assert.match(html.slice(from, html.indexOf("showGate(", from)), /loadShoppingList\("shopping"\);\s*loadShoppingList\("grocery"\);/);
+      assert.match(html, /return list === "grocery" \? GROCERY_URL : SHOPPING_URL;/);
+      assert.match(html, /return list === "grocery" \? UPDATE_GROCERY_URL : UPDATE_SHOPPING_URL;/);
+      assert.match(html, /apiFetch\(shoppingReadUrl\(list\)\)/);
+      assert.match(html, /apiFetch\(shoppingUpdateUrl\(list\)/);
     });
     it("adds on the button or Enter and a tick removes the item, each shown at once before the save", () => {
       const add = html.slice(html.indexOf("function addShoppingText"), html.indexOf("function checkShoppingItem"));
       assert.match(add, /shoppingItemText\(input\.value\)/);
-      assert.match(add, /shoppingWithAdded\(shoppingItems, text, tempId\)/);
-      assert.match(add, /shoppingItems = result\.items;\s*renderShoppingList\(\);\s*queueShopping\(\{ kind: "SHOPPING_ADD", requestId, fields: \{ text: result\.item\.text \} \}/);
-      assert.match(add, /if \(!addShoppingText\(text, true\)\) return;\s*input\.value = "";/);
-      assert.match(html, /getElementById\("shoppingInput"\)\.addEventListener\("keydown", e => \{\s*if \(e\.key === "Enter" && !e\.isComposing\)/);
-      assert.match(html, /getElementById\("shoppingAddBtn"\)\.addEventListener\("click", addShoppingItemFromInput\)/);
+      assert.match(add, /shoppingWithAdded\(s\.items, text, tempId\)/);
+      assert.match(add, /s\.items = result\.items;\s*renderShoppingList\(list\);\s*queueShopping\(\{ kind: "SHOPPING_ADD", requestId, fields: shoppingFields\(list, \{ text: result\.item\.text \}\) \}/);
+      assert.match(add, /if \(!addShoppingText\(text, true, list\)\) return;\s*input\.value = "";/);
+      assert.match(html, /document\.getElementById\(ui\.input\)\.addEventListener\("keydown", e => \{\s*if \(e\.key === "Enter" && !e\.isComposing\) \{ e\.preventDefault\(\); addShoppingItemFromInput\(list\); \}/);
+      assert.match(html, /document\.getElementById\(ui\.add\)\.addEventListener\("click", \(\) => addShoppingItemFromInput\(list\)\)/);
       const check = html.slice(html.indexOf("function checkShoppingItem"), html.indexOf("// Ticking one offers Undo"));
-      assert.match(check, /shoppingItems = removed\.items;\s*renderShoppingList\(\);[\s\S]*queueShopping\(\{ kind: "SHOPPING_REMOVE", requestId: newRequestId\(\), fields: \{ id: itemId, text: removed\.item\.text \} \}/);
-      assert.match(html, /getElementById\("shoppingList"\)\.addEventListener\("change"/);
+      assert.match(check, /s\.items = removed\.items;\s*renderShoppingList\(list\);[\s\S]*queueShopping\(\{ kind: "SHOPPING_REMOVE", requestId: newRequestId\(\), fields: shoppingFields\(list, \{ id: itemId, text: removed\.item\.text \}\) \}/);
+      assert.match(html, /document\.getElementById\(ui\.box\)\.addEventListener\("change", e => \{[\s\S]*checkShoppingItem\(row\.dataset\.shoppingId, list\)/);
     });
     it("saves in order in the background, takes a failed change back and shows the server's list once nothing is waiting", () => {
       const fn = html.slice(html.indexOf("function queueShopping"), html.indexOf("function addShoppingText"));
-      assert.match(fn, /shoppingChain = shoppingChain\.then\(/);
-      assert.match(fn, /apiFetch\(UPDATE_SHOPPING_URL/);
-      assert.match(fn, /if \(shoppingPending === 0 && Array\.isArray\(data\.items\)\) setShoppingFromServer\(data\.items\);/);
-      assert.match(fn, /catch \(err\) \{\s*shoppingPending--;\s*const refusal = isNetworkError\(err, navigator\.onLine\) \? holdShoppingChange\(change, false\) : null;\s*if \(refusal === ""\) return;[^\n]*\s*undo\(\);/, "a connection failure keeps the change for later and shown; any other failure takes it back");
+      assert.match(fn, /s\.chain = s\.chain\.then\(/);
+      assert.match(fn, /apiFetch\(shoppingUpdateUrl\(list\)/);
+      assert.match(fn, /if \(s\.pending === 0 && Array\.isArray\(data\.items\)\) setShoppingFromServer\(data\.items, list\);/);
+      assert.match(fn, /catch \(err\) \{\s*s\.pending--;\s*const refusal = isNetworkError\(err, navigator\.onLine\) \? holdShoppingChange\(change, false\) : null;\s*if \(refusal === ""\) return;[^\n]*\s*undo\(\);/, "a connection failure keeps the change for later and shown; any other failure takes it back");
       assert.match(fn, /"Not saved: " \+ \(refusal \|\| err\.message\)/);
-      assert.match(fn, /finally \{\s*renderShoppingList\(\);/);
+      assert.match(fn, /finally \{\s*renderShoppingList\(list\);/);
       assert.match(fn, /known \|\| change\.fields\.id/, "an item ticked before its add came back is removed under the id the server gave it");
       assert.doesNotMatch(html, /shoppingBusy/);
     });
@@ -4741,8 +4752,24 @@ describe("public/index.html helpers", () => {
       const fn = html.slice(html.indexOf("function renderShoppingList"), html.indexOf("async function loadShoppingList"));
       assert.match(fn, /\$\{esc\(i\.text\)\}/);
       assert.match(fn, /\$\{esc\(i\.id\)\}/);
-      assert.match(fn, /!shoppingLoaded \? ""/);
+      assert.match(fn, /!s\.loaded \? ""/);
       assert.match(fn, /Nothing on the list\./);
+    });
+    it("runs the Miscellaneous and Groceries cards on one implementation, each with its own state, elements and saved copy", () => {
+      assert.match(html, /const shoppingState = \{ shopping: newShoppingState\(\), grocery: newShoppingState\(\) \};/);
+      assert.match(html, /grocery: \{ box: "groceryList", status: "groceryStatus", input: "groceryInput", add: "groceryAddBtn", note: "groceryOfflineNote", noteText: "groceryOfflineNoteText", retry: "groceryRetryBtn" \}/);
+      assert.match(html, /for \(const list of SHOPPING_LISTS\) \{\s*const ui = SHOPPING_ELEMENTS\[list\];/);
+      assert.match(html, /document\.getElementById\(ui\.retry\)\.addEventListener\("click", \(\) => loadShoppingList\(list\)\)/);
+      assert.match(html, /localStorage\.setItem\(shoppingCacheKey\(list\), serializeShoppingCache\(user\.uid, items, shoppingState\[list\]\.syncAt\)\)/);
+      assert.match(html, /for \(const name of list \? \[list\] : SHOPPING_LISTS\) \{\s*try \{ localStorage\.removeItem\(shoppingCacheKey\(name\)\)/, "signing out clears both copies");
+      assert.doesNotMatch(html, /\b(shoppingItems|shoppingLoaded|serverShopping|shoppingPending|shoppingChain|shoppingRealIds)\b/, "no state left outside shoppingState");
+    });
+    it("sends a grocery change to the grocery endpoints and names the Groceries list on it", () => {
+      const fn = html.slice(html.indexOf("function queueShopping"), html.indexOf("function addShoppingText"));
+      assert.match(fn, /const list = shoppingListOf\(change\);/);
+      const send = html.slice(html.indexOf("async function sendShoppingAction"), html.indexOf("function addShoppingText"));
+      assert.match(send, /const list = shoppingListOf\(item\);/);
+      assert.match(html, /const key = `\$\{list\}:\$\{itemId\}`;/, "a tick's footnote is told apart per list");
     });
     it("checkOffMessage: the footnote text for a ticked item, cut like a removed task's title", () => {
       const {checkOffMessage} = load();
@@ -4753,7 +4780,7 @@ describe("public/index.html helpers", () => {
     });
     it("ticking a Miscellaneous item offers Undo, which adds it again, and a failed save takes the footnote away", () => {
       const fn = html.slice(html.indexOf("function checkShoppingItem"), html.indexOf("// Ticking one offers Undo"));
-      assert.match(fn, /openUndoNote\(checkOffMessage\(removed\.item\.text\), \(\) => \{\s*hideUndoNote\(\);\s*addShoppingText\(removed\.item\.text, false\);/);
+      assert.match(fn, /openUndoNote\(checkOffMessage\(removed\.item\.text\), \(\) => \{\s*hideUndoNote\(\);\s*addShoppingText\(removed\.item\.text, false, list\);/);
       assert.match(fn, /if \(undoNoteKey === key\) hideUndoNote\(\);/);
     });
     it("ticking a task's material offers Undo, which unticks it, and a failed save takes the footnote away", () => {
@@ -4779,7 +4806,7 @@ describe("public/index.html helpers", () => {
       const fn = html.slice(html.indexOf("function holdTaskEdit"), html.indexOf("// Saves the edits first, then opens the snooze dialog"));
       assert.match(fn, /materials: withMaterialIds\(form\.materials, \(\) => newRequestId\(\)\)/);
       assert.doesNotMatch(fn, /materials \(/, "materials no longer need a connection");
-      const card = html.slice(html.indexOf("function renderMaterialsCard"), html.indexOf("function renderShoppingList"));
+      const card = html.slice(html.indexOf("function renderMaterialsCard"), html.indexOf("// The Miscellaneous card and the Groceries card"));
       assert.match(card, /waitingIds\.has\(g\.taskId\)/);
       assert.match(card, /Waiting to send/);
     });
@@ -4790,7 +4817,7 @@ describe("public/index.html helpers", () => {
       assert.match(fn, /function hideUndoNote\(\) \{[^}]*undoNoteKey = null;[^}]*undoHandler = null;/);
     });
     it("leaves the Materials tab's count to the tasks' materials", () => {
-      const fn = html.slice(html.indexOf("function renderMaterialsCard"), html.indexOf("function renderShoppingList"));
+      const fn = html.slice(html.indexOf("function renderMaterialsCard"), html.indexOf("// The Miscellaneous card and the Groceries card"));
       assert.doesNotMatch(fn, /shopping/i);
     });
   });
