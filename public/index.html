@@ -582,6 +582,7 @@
       <button type="button" id="groceryAddBtn">Add</button>
     </div>
     <div id="groceryList"></div>
+    <div class="material-row"><button type="button" class="btn-secondary" id="groceryCopyBtn" disabled>Copy list</button></div>
     <div id="groceryStatus" class="settings-status"></div>
     <details class="filter-section" id="groceryStoreTools">
       <summary>Stores and order</summary>
@@ -611,6 +612,7 @@
       <button type="button" id="shoppingAddBtn">Add</button>
     </div>
     <div id="shoppingList"></div>
+    <div class="material-row"><button type="button" class="btn-secondary" id="shoppingCopyBtn" disabled>Copy list</button></div>
     <div id="shoppingStatus" class="settings-status"></div>
   </details>
   </main>
@@ -1633,8 +1635,8 @@
     const groceryOrderState = { stores: [], selected: null, loaded: false, fromCache: false, pending: 0, chain: Promise.resolve(), drag: null };
     // The page elements of each list's card.
     const SHOPPING_ELEMENTS = {
-      shopping: { box: "shoppingList", status: "shoppingStatus", input: "shoppingInput", add: "shoppingAddBtn", note: "shoppingOfflineNote", noteText: "shoppingOfflineNoteText", retry: "shoppingRetryBtn" },
-      grocery: { box: "groceryList", status: "groceryStatus", input: "groceryInput", add: "groceryAddBtn", note: "groceryOfflineNote", noteText: "groceryOfflineNoteText", retry: "groceryRetryBtn" }
+      shopping: { box: "shoppingList", status: "shoppingStatus", input: "shoppingInput", add: "shoppingAddBtn", note: "shoppingOfflineNote", noteText: "shoppingOfflineNoteText", retry: "shoppingRetryBtn", copy: "shoppingCopyBtn" },
+      grocery: { box: "groceryList", status: "groceryStatus", input: "groceryInput", add: "groceryAddBtn", note: "groceryOfflineNote", noteText: "groceryOfflineNoteText", retry: "groceryRetryBtn", copy: "groceryCopyBtn" }
     };
     let allProjects = [];
     let projectsLoaded = false; // set once getProjects has answered; until then the edit form leaves project fields alone
@@ -3295,6 +3297,11 @@
     // The text of a Miscellaneous item as typed: inner whitespace collapsed and trimmed, "" when blank. The server checks the rest.
     function shoppingItemText(value) {
       return String(value === undefined || value === null ? "" : value).replace(/\s+/g, " ").trim();
+    }
+
+    // A list as plain text to paste into a message: the items' texts, one to a line, in the order given. "" for none.
+    function shoppingListText(items) {
+      return (Array.isArray(items) ? items : []).map(i => shoppingItemText(i && i.text)).filter(Boolean).join("\n");
     }
 
     // The Miscellaneous list after adding an item, worked out on the page so the item shows before the server answers (the
@@ -5878,6 +5885,7 @@
           if (row && e.target.matches('input[type="checkbox"]')) checkShoppingItem(row.dataset.shoppingId, list);
         });
         document.getElementById(ui.retry).addEventListener("click", () => loadShoppingList(list));
+        document.getElementById(ui.copy).addEventListener("click", () => copyShoppingList(list));
         window.addEventListener("online", () => { if (shoppingState[list].savedAt !== null) loadShoppingList(list); }); // the lists' saved copies are replaced too
       }
       window.addEventListener("online", () => { if (groceryOrderState.fromCache) loadGroceryOrder(); }); // so are the stores'
@@ -6633,10 +6641,44 @@
     // The Miscellaneous card and the Groceries card: loose items to get, simple lists kept on the server, one implementation for both
     // (`list` is "shopping" for Miscellaneous, the default, or "grocery"; shoppingState and SHOPPING_ELEMENTS hold each one's own state and
     // elements). Checking an item takes it off its list.
+    // The items of a list as the card shows them: Groceries in the chosen store's order, Miscellaneous as added.
+    function shownShoppingItems(list) {
+      return list === "grocery" ? sortGroceryItems(shoppingState.grocery.items, groceryCurrentOrder()) : shoppingState[list].items;
+    }
+    // Puts text on the clipboard: the Clipboard API where the page may use it, else a hidden text box and the copy command. Throws if neither works.
+    async function copyTextToClipboard(text) {
+      if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+      const box = document.createElement("textarea");
+      box.value = text;
+      box.setAttribute("readonly", "");
+      box.style.cssText = "position:fixed; top:0; left:0; opacity:0;";
+      document.body.appendChild(box);
+      box.select();
+      try {
+        if (!document.execCommand("copy")) throw new Error("copying is not allowed here");
+      } finally {
+        box.remove();
+      }
+    }
+    // The Copy list button: the list as shown, one item to a line, onto the clipboard, with the result under the card.
+    async function copyShoppingList(list = "shopping") {
+      const status = document.getElementById(SHOPPING_ELEMENTS[list].status);
+      const shown = shownShoppingItems(list);
+      const text = shoppingListText(shown);
+      if (!text) { status.textContent = "Nothing to copy."; return; }
+      try {
+        await copyTextToClipboard(text);
+        status.textContent = `Copied ${shown.length} item${shown.length === 1 ? "" : "s"} to the clipboard.`;
+      } catch (err) {
+        status.textContent = "Could not copy the list: " + err.message;
+      }
+    }
+
     function renderShoppingList(list = "shopping") {
       const s = shoppingState[list];
       const waitingShopping = waitingShoppingIds(actionQueue, list);
-      const shown = list === "grocery" ? sortGroceryItems(s.items, groceryCurrentOrder()) : s.items; // Groceries in the chosen store's order
+      const shown = shownShoppingItems(list);
+      document.getElementById(SHOPPING_ELEMENTS[list].copy).disabled = !s.loaded || s.items.length === 0;
       document.getElementById(SHOPPING_ELEMENTS[list].box).innerHTML = !s.loaded ? "" : s.items.length === 0 ?
         "<p style='color:var(--text-faint); margin:0;'>Nothing on the list.</p>" :
         shown.map(i => `
